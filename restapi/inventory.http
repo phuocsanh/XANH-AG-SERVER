@@ -1,0 +1,209 @@
+# Tạo lô hàng mới
+POST http://localhost:3000/inventory/batches
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "productId": 1,
+  "batchNumber": "BATCH001",
+  "quantity": 100,
+  "unitCost": 50000,
+  "totalCost": 5000000,
+  "remainingQuantity": 100,
+  "averageCost": "50000.00",
+  "expiryDate": "2025-12-31",
+  "supplier": "Nhà cung cấp A",
+  "notes": "Ghi chú lô hàng"
+}
+
+###
+
+# Lấy danh sách tất cả lô hàng
+GET http://localhost:3000/inventory/batches
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Lấy lô hàng theo sản phẩm
+GET http://localhost:3000/inventory/batches/product/1
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Lấy chi tiết một lô hàng
+GET http://localhost:3000/inventory/batches/1
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Cập nhật lô hàng
+PATCH http://localhost:3000/inventory/batches/1
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "notes": "Cập nhật ghi chú"
+}
+
+###
+
+# Xóa lô hàng
+DELETE http://localhost:3000/inventory/batches/1
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Tạo giao dịch kho
+POST http://localhost:3000/inventory/transactions
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "productId": 1,
+  "transactionType": "IN",
+  "quantity": 50,
+  "unitCostPrice": "50000.00",
+  "totalCostValue": "2500000.00",
+  "remainingQuantity": 50,
+  "newAverageCost": "50000.00",
+  "referenceType": "batch",
+  "referenceId": 1,
+  "notes": "Nhập kho"
+}
+
+###
+
+# Lấy danh sách tất cả giao dịch
+GET http://localhost:3000/inventory/transactions
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Lấy giao dịch theo sản phẩm
+GET http://localhost:3000/inventory/transactions/product/1
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Lấy tóm tắt tồn kho
+GET http://localhost:3000/inventory/summary/product/1
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Lấy giá trị FIFO
+GET http://localhost:3000/inventory/fifo/product/1
+Authorization: Bearer {{auth_token}}
+
+###
+
+# ===== QUẢN LÝ PHIẾU NHẬP KHO (INVENTORY RECEIPTS) =====
+
+# Tạo phiếu nhập kho mới
+POST http://localhost:3000/inventory/receipt
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "receiptCode": "RCPT-001",
+  "supplierName": "Nhà cung cấp A",
+  "supplierContact": "0123456789",
+  "totalAmount": 5000000,
+  "notes": "Ghi chú phiếu nhập",
+  "status": "draft",
+  "items": [
+    {
+      "productId": 1,
+      "quantity": 100,
+      "unitCost": 50000,
+      "totalPrice": 5000000,
+      "notes": "Sản phẩm A"
+    }
+  ]
+}
+
+###
+
+# Lấy danh sách tất cả phiếu nhập kho
+GET http://localhost:3000/inventory/receipts
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Lấy chi tiết phiếu nhập theo ID
+GET http://localhost:3000/inventory/receipt/1
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Tìm phiếu nhập theo mã phiếu
+GET http://localhost:3000/inventory/receipt/code/RCPT-001
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Cập nhật thông tin phiếu nhập
+PATCH http://localhost:3000/inventory/receipt/1
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "notes": "Cập nhật ghi chú"
+}
+
+###
+
+# Xóa phiếu nhập kho
+DELETE http://localhost:3000/inventory/receipt/1
+Authorization: Bearer {{auth_token}}
+
+###
+
+# ===== CÁC HÀNH ĐỘNG VỚI PHIẾU NHẬP (RECEIPT ACTIONS) =====
+
+# Phê duyệt phiếu nhập kho
+POST http://localhost:3000/inventory/receipt/1/approve
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Hoàn thành phiếu nhập kho
+POST http://localhost:3000/inventory/receipt/1/complete
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Hủy phiếu nhập kho
+POST http://localhost:3000/inventory/receipt/1/cancel
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "reason": "Lý do hủy"
+}
+
+###
+
+# ===== QUẢN LÝ CHI TIẾT PHIẾU NHẬP (RECEIPT ITEMS) =====
+
+# Lấy danh sách sản phẩm trong phiếu nhập
+GET http://localhost:3000/inventory/receipt/1/items
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Cập nhật thông tin một sản phẩm trong phiếu
+PATCH http://localhost:3000/inventory/receipt/item/1
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "quantity": 150,
+  "notes": "Cập nhật số lượng"
+}
+
+###
+
+# Xóa một sản phẩm khỏi phiếu nhập
+DELETE http://localhost:3000/inventory/receipt/item/1
+Authorization: Bearer {{auth_token}}

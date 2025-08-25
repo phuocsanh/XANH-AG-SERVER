@@ -1,0 +1,108 @@
+# Tạo phiếu bán hàng mới
+POST http://localhost:3000/sales/invoice
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "invoiceCode": "INV-001",
+  "customerName": "Nguyễn Văn A",
+  "customerPhone": "0123456789",
+  "customerEmail": "nguyenvana@example.com",
+  "customerAddress": "123 Đường ABC, Quận XYZ, TP HCM",
+  "totalAmount": 1000000,
+  "discountAmount": 100000,
+  "finalAmount": 900000,
+  "notes": "Ghi chú đơn hàng",
+  "items": [
+    {
+      "productId": 1,
+      "quantity": 2,
+      "unitPrice": 500000,
+      "discountAmount": 50000,
+      "notes": "Sản phẩm A"
+    }
+  ]
+}
+
+###
+
+# Lấy danh sách tất cả phiếu bán hàng
+GET http://localhost:3000/sales/invoices
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Lấy chi tiết một phiếu bán hàng
+GET http://localhost:3000/sales/invoice/1
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Lấy phiếu bán hàng theo mã
+GET http://localhost:3000/sales/invoice/code/INV-001
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Cập nhật thông tin phiếu bán hàng
+PATCH http://localhost:3000/sales/invoice/1
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "customerPhone": "0987654321",
+  "notes": "Cập nhật thông tin khách hàng"
+}
+
+###
+
+# Xác nhận phiếu bán hàng
+POST http://localhost:3000/sales/invoice/1/confirm
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Đánh dấu đã giao hàng
+POST http://localhost:3000/sales/invoice/1/deliver
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Hoàn thành phiếu bán hàng
+POST http://localhost:3000/sales/invoice/1/complete
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Hủy phiếu bán hàng
+POST http://localhost:3000/sales/invoice/1/cancel
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "reason": "Khách hàng hủy đơn"
+}
+
+###
+
+# Lấy danh sách sản phẩm trong phiếu bán hàng
+GET http://localhost:3000/sales/invoice/1/items
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Cập nhật thông tin một sản phẩm trong phiếu
+PATCH http://localhost:3000/sales/invoice/item/1
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "quantity": 3,
+  "notes": "Cập nhật số lượng"
+}
+
+###
+
+# Xóa một sản phẩm khỏi phiếu bán hàng
+DELETE http://localhost:3000/sales/invoice/item/1
+Authorization: Bearer {{auth_token}}

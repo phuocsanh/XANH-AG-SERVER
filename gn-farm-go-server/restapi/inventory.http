@@ -1,0 +1,138 @@
+### ===== INVENTORY MANAGEMENT APIs =====
+
+### Thiết lập biến mặc định
+@access_token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJhY2Nlc3MiLCJleHAiOjE3NDYxMTYyOTQsImp0aSI6IjNhNDY5YWM5LTgzZWYtNGRkNC1iYjcwLTJlNThiMDY1ODE1ZCIsImlhdCI6MTc0NjExMjY5NCwiaXNzIjoic2hvcGRldmdvIiwic3ViIjoiM2NsaXRva2VuYzlhNzdmZTEtMDk0Zi00MjY1LWI2MWQtODE4NThjYzQyOGY4In0.RSAE9aNxmVYo8_BK4k_NHSr2Ub_U2UYZgT0S7co2w2U
+
+### 1. Tạo phiếu nhập kho mới
+POST http://localhost:8002/v1/manage/inventory/receipts
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "supplierId": 1,
+  "receiptDate": "2024-06-19T10:00:00Z",
+  "totalAmount": "1500000",
+  "notes": "Nhập hàng đầu tháng 6",
+  "items": [
+    {
+      "productId": 1,
+      "quantity": 100,
+      "unitPrice": "10000",
+      "totalPrice": "1000000",
+      "expiryDate": "2024-12-31T00:00:00Z"
+    },
+    {
+      "productId": 2,
+      "quantity": 50,
+      "unitPrice": "10000",
+      "totalPrice": "500000",
+      "expiryDate": "2024-11-30T00:00:00Z"
+    }
+  ]
+}
+
+### 2. Lấy danh sách phiếu nhập kho
+GET http://localhost:8002/v1/manage/inventory/receipts?limit=10&offset=0&status=pending
+Authorization: Bearer {{access_token}}
+
+### 3. Lấy chi tiết phiếu nhập kho
+GET http://localhost:8002/v1/manage/inventory/receipts/1
+Authorization: Bearer {{access_token}}
+
+### 4. Cập nhật phiếu nhập kho
+PUT http://localhost:8002/v1/manage/inventory/receipts/1
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "supplierId": 1,
+  "receiptDate": "2024-06-19T10:30:00Z",
+  "totalAmount": "1600000",
+  "notes": "Nhập hàng đầu tháng 6 - Cập nhật",
+  "items": [
+    {
+      "productId": 1,
+      "quantity": 120,
+      "unitPrice": "10000",
+      "totalPrice": "1200000",
+      "expiryDate": "2024-12-31T00:00:00Z"
+    },
+    {
+      "productId": 2,
+      "quantity": 40,
+      "unitPrice": "10000",
+      "totalPrice": "400000",
+      "expiryDate": "2024-11-30T00:00:00Z"
+    }
+  ]
+}
+
+### 5. Duyệt phiếu nhập kho
+POST http://localhost:8002/v1/manage/inventory/receipts/1/approve
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "approved": true,
+  "approvalNotes": "Phiếu nhập kho đã được kiểm tra và duyệt"
+}
+
+### 6. Từ chối phiếu nhập kho
+POST http://localhost:8002/v1/manage/inventory/receipts/2/approve
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "approved": false,
+  "approvalNotes": "Phiếu nhập kho không đúng quy cách, cần chỉnh sửa"
+}
+
+### 7. Xóa phiếu nhập kho
+DELETE http://localhost:8002/v1/manage/inventory/receipts/1
+Authorization: Bearer {{access_token}}
+
+### 8. Lấy lịch sử tồn kho của sản phẩm
+GET http://localhost:8002/v1/manage/inventory/history?product_id=1&limit=20&offset=0
+Authorization: Bearer {{access_token}}
+
+### 9. Lấy lịch sử tồn kho theo khoảng thời gian
+GET http://localhost:8002/v1/manage/inventory/history?product_id=1&start_date=2024-06-01T00:00:00Z&end_date=2024-06-30T23:59:59Z&limit=50&offset=0
+Authorization: Bearer {{access_token}}
+
+### 10. Lấy báo cáo tồn kho hiện tại
+GET http://localhost:8002/v1/manage/inventory/current-stock?product_id=1
+Authorization: Bearer {{access_token}}
+
+### 11. Lấy báo cáo tồn kho tất cả sản phẩm
+GET http://localhost:8002/v1/manage/inventory/current-stock
+Authorization: Bearer {{access_token}}
+
+### 12. Tìm kiếm phiếu nhập kho theo supplier
+GET http://localhost:8002/v1/manage/inventory/receipts?supplier_id=1&limit=10&offset=0
+Authorization: Bearer {{access_token}}
+
+### 13. Tìm kiếm phiếu nhập kho theo khoảng thời gian
+GET http://localhost:8002/v1/manage/inventory/receipts?start_date=2024-06-01T00:00:00Z&end_date=2024-06-30T23:59:59Z&limit=20&offset=0
+Authorization: Bearer {{access_token}}
+
+### 14. Lấy thống kê tồn kho theo trạng thái
+GET http://localhost:8002/v1/manage/inventory/receipts?status=approved&limit=10&offset=0
+Authorization: Bearer {{access_token}}
+
+### 15. Test với dữ liệu không hợp lệ - Tạo phiếu nhập thiếu thông tin
+POST http://localhost:8002/v1/manage/inventory/receipts
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "supplierId": 1,
+  "totalAmount": "1500000"
+}
+
+### 16. Test với ID không tồn tại
+GET http://localhost:8002/v1/manage/inventory/receipts/999999
+Authorization: Bearer {{access_token}}
+
+### 17. Test với token không hợp lệ
+GET http://localhost:8002/v1/manage/inventory/receipts
+Authorization: Bearer invalid_token

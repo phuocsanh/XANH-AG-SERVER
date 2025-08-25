@@ -1,0 +1,20 @@
+{
+  "_comment_header": [
+    "#####################################################################",
+    "PACKAGE.JSON CHO GN FARM GO SERVER",
+    "File này chỉ chứa các dependencies không phải Go cho Go server",
+    "Chủ yếu dùng cho các tool hỗ trợ hoặc scripts Node.js",
+    "",
+    "Go server sử dụng go.mod để quản lý Go dependencies",
+    "Package.json chỉ dùng cho các tool bổ sung không phải Go",
+    "",
+    "Tác giả: GN Farm Development Team",
+    "Phiên bản: 1.0",
+    "#####################################################################"
+  ],
+  "_comment_dependencies": "===== NON-GO DEPENDENCIES - THƯ VIỆN KHÔNG PHẢI GO =====,",
+  "dependencies": {
+    "_axios_comment": "Axios cho các Node.js scripts hoặc tools cần HTTP client",
+    "axios": "^1.10.0"
+  }
+}

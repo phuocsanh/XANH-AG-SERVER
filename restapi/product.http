@@ -1,0 +1,181 @@
+# Tạo sản phẩm mới
+POST http://localhost:3000/products
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "productName": "Sản phẩm A",
+  "productSKU": "SP001",
+  "productDescription": "Mô tả sản phẩm A",
+  "productType": 1,
+  "productPrice": 100000,
+  "productCost": 80000,
+  "productUnit": "cái",
+  "productImageURL": "http://example.com/image.jpg",
+  "productStatus": 1
+}
+
+###
+
+# Lấy danh sách tất cả sản phẩm
+GET http://localhost:3000/products
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Tìm kiếm sản phẩm
+GET http://localhost:3000/products/search?q=sản phẩm
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Lọc sản phẩm theo loại
+GET http://localhost:3000/products/type/1
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Lấy chi tiết một sản phẩm
+GET http://localhost:3000/products/1
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Cập nhật thông tin sản phẩm
+PATCH http://localhost:3000/products/1
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "productPrice": 120000,
+  "productDescription": "Mô tả cập nhật"
+}
+
+###
+
+# Xóa sản phẩm
+DELETE http://localhost:3000/products/1
+Authorization: Bearer {{auth_token}}
+
+###
+
+# ===== QUẢN LÝ LOẠI SẢN PHẨM (PRODUCT TYPE) =====
+
+# Lấy danh sách tất cả loại sản phẩm
+GET http://localhost:3000/products/type
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Lấy chi tiết một loại sản phẩm
+GET http://localhost:3000/products/type/1
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Tạo loại sản phẩm mới
+POST http://localhost:3000/products/type
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "typeName": "Loại sản phẩm A",
+  "typeCode": "LSP001",
+  "description": "Mô tả loại sản phẩm A"
+}
+
+###
+
+# Cập nhật loại sản phẩm
+PATCH http://localhost:3000/products/type/1
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "typeName": "Loại sản phẩm A - Đã cập nhật",
+  "description": "Mô tả cập nhật"
+}
+
+###
+
+# Xóa loại sản phẩm
+DELETE http://localhost:3000/products/type/1
+Authorization: Bearer {{auth_token}}
+
+###
+
+# ===== QUẢN LÝ PHÂN LOẠI PHỤ (PRODUCT SUBTYPE) =====
+
+# Lấy danh sách tất cả phân loại phụ
+GET http://localhost:3000/products/subtype
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Lấy chi tiết một phân loại phụ
+GET http://localhost:3000/products/subtype/1
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Lấy tất cả phân loại phụ của loại sản phẩm
+GET http://localhost:3000/products/type/1/subtypes
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Tạo phân loại phụ mới
+POST http://localhost:3000/products/subtype
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "subtypeName": "Phân loại phụ A",
+  "subtypeCode": "PLP001",
+  "productTypeId": 1,
+  "description": "Mô tả phân loại phụ A"
+}
+
+###
+
+# Cập nhật phân loại phụ
+PATCH http://localhost:3000/products/subtype/1
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "subtypeName": "Phân loại phụ A - Đã cập nhật",
+  "description": "Mô tả cập nhật"
+}
+
+###
+
+# Xóa phân loại phụ
+DELETE http://localhost:3000/products/subtype/1
+Authorization: Bearer {{auth_token}}
+
+###
+
+# ===== QUẢN LÝ MỐI QUAN HỆ SẢN PHẨM - PHÂN LOẠI PHỤ =====
+
+# Lấy tất cả phân loại phụ của một sản phẩm
+GET http://localhost:3000/products/1/subtypes
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Thêm phân loại phụ cho sản phẩm
+POST http://localhost:3000/products/1/subtype/1
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Xóa một phân loại phụ khỏi sản phẩm
+DELETE http://localhost:3000/products/1/subtype/1
+Authorization: Bearer {{auth_token}}
+
+###
+
+# Xóa tất cả phân loại phụ khỏi sản phẩm
+DELETE http://localhost:3000/products/1/subtypes
+Authorization: Bearer {{auth_token}}

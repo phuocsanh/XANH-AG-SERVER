@@ -1,0 +1,55 @@
+#####################################################################
+# CẤU HÌNH AIR HOT RELOADING - GN FARM GO SERVER
+# Air là tool tự động reload Go application khi có thay đổi code
+# Giúp tăng tốc quá trình development bằng cách không cần restart thủ công
+#
+# Chức năng:
+# - Tự động detect thay đổi file .go
+# - Rebuild và restart application tự động
+# - Generate Swagger docs trước khi build
+# - Hỗ trợ exclude/include directories
+#
+# Sử dụng: air hoặc make dev
+# Tác giả: GN Farm Development Team
+# Phiên bản: 1.0
+#####################################################################
+
+# ===== THIẾT LậP CƠ BẢN =====
+# Thư mục gốc của project
+root = "."
+
+# Thư mục tạm thời lưu binary đã build
+tmp_dir = "tmp"
+
+# ===== CẤU HÌNH BUILD PROCESS =====
+[build]
+  # Lệnh build: download dependencies -> generate swagger -> build binary
+  cmd = "go mod download && swag init -g ./cmd/server/main.go -o ./cmd/swag/docs && go build -o tmp/main ./cmd/server"
+  
+  # Đường dẫn tới binary đã build
+  bin = "tmp/main"
+  full_bin = "tmp/main"
+  
+  # Thời gian chờ trước khi restart (milliseconds)
+  delay = 1000
+  
+  # Các thư mục bỏ qua không watch
+  exclude_dir = ["tmp", "vendor", "cmd/swag/docs"]
+  
+  # Các thư mục được watch
+  include_dir = ["."]
+  
+  # Chỉ watch các file có extension .go
+  include_ext = ["go"]
+  
+  # Không loại trừ extension nào (mặc định)
+  exclude_ext = []
+
+# ===== CẤU HÌNH POLLING =====
+# Sử dụng polling thay vì file system events (tương thích hơn)
+[poll]
+  # Kích hoạt polling mode
+  enabled = true
+  
+  # Tần suất kiểm tra thay đổi (mỗi giây)
+  interval = "1s"

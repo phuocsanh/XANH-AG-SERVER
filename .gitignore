@@ -1,0 +1,70 @@
+# Dependencies
+node_modules
+
+# Production builds
+dist
+build
+
+# Logs
+logs
+*.log
+
+# Environment files
+#.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Docker
+docker-compose.override.yml
+.dockerignore
+
+# Database
+*.sqlite
+*.sqlite3
+
+# Testing
+coverage
+.nyc_output
+
+# TypeORM
+ormconfig.js
+typeorm-cli.config.js
+
+# NestJS specific
+.nest-cli.json
+nest-cli.json
+
+# ESLint
+.eslintcache
+
+# Prettier
+.prettierignore
+
+# OS generated files
+Thumbs.db
+
+# Docker data
+data/
+
+# Temporary files
+tmp/
+temp/
+
+# NPM
+npm-debug.log*
+.npm/
+
+# Yarn
+yarn-debug.log*
+yarn-error.log*
+.yarn-integrity

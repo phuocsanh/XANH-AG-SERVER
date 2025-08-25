@@ -1,0 +1,52 @@
+### ===== AUTHENTICATION APIs =====
+
+### User registration (using auth module)
+POST http://localhost:8080/auth/register
+Content-Type: application/json
+
+{
+  "userAccount": "newuser@gmail.com",
+  "userPassword": "12345678",
+  "userSalt": "salt123",
+  "userEmail": "newuser@gmail.com",
+  "userState": 1
+}
+
+### @name login
+# Save token from login response
+@access_token = {{login.response.body.access_token}}
+
+### User login
+POST http://localhost:8080/auth/login
+Content-Type: application/json
+
+{
+  "userAccount": "newuser@gmail.com",
+  "userPassword": "12345678"
+}
+
+### Get user profile (requires authentication)
+GET http://localhost:8080/users/profile
+Authorization: Bearer {{access_token}}
+
+### ===== USER MANAGEMENT APIs =====
+
+### Get all users
+GET http://localhost:8080/users
+
+### Get user by ID
+GET http://localhost:8080/users/1
+
+### Update a user
+PATCH http://localhost:8080/users/1
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "userAccount": "updated_newuser@gmail.com",
+  "userEmail": "updated_newuser@gmail.com"
+}
+
+### Delete a user
+DELETE http://localhost:8080/users/1
+Authorization: Bearer {{access_token}}

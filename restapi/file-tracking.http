@@ -1,0 +1,53 @@
+### ===== FILE TRACKING APIs =====
+
+### Create a new file upload record
+POST http://localhost:8080/file-tracking
+Content-Type: application/json
+
+{
+  "publicId": "public123",
+  "fileUrl": "https://example.com/uploads/file123.jpg",
+  "fileName": "file123.jpg",
+  "fileType": "image/jpeg",
+  "fileSize": 1024000,
+  "folder": "uploads",
+  "mimeType": "image/jpeg",
+  "referenceCount": 1,
+  "isTemporary": false,
+  "isOrphaned": false,
+  "uploadedByUserId": 1,
+  "tags": ["product", "image"],
+  "metadata": {
+    "width": 1920,
+    "height": 1080
+  }
+}
+
+### Get all file upload records
+GET http://localhost:8080/file-tracking
+
+### Get file upload record by ID
+GET http://localhost:8080/file-tracking/1
+
+### Get file upload record by Public ID
+GET http://localhost:8080/file-tracking/public/public123
+
+### Update a file upload record
+PATCH http://localhost:8080/file-tracking/1
+Content-Type: application/json
+
+{
+  "referenceCount": 2
+}
+
+### Delete a file upload record
+DELETE http://localhost:8080/file-tracking/1
+
+### Get orphaned files
+GET http://localhost:8080/file-tracking/orphaned
+
+### Mark file for deletion
+PATCH http://localhost:8080/file-tracking/1/mark-for-deletion
+
+### Get files marked for deletion
+GET http://localhost:8080/file-tracking/marked-for-deletion

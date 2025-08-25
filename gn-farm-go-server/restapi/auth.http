@@ -1,0 +1,94 @@
+### Register a new user
+POST http://localhost:8002/v1/user/register
+Content-Type: application/json
+
+{
+  "verifyKey": "phuocsanhtps1@gmail.com",
+  "verifyType": 1,
+  "verifyPurpose": "TEST_USER"
+}
+
+### Thiết lập biến mặc định
+
+
+###
+
+# Verify OTP and get token
+# @name verifyOtp
+POST http://localhost:8002/v1/user/verify-otp
+Content-Type: application/json
+
+{
+  "verifyKey": "phuocsanhtps1@gmail.com",
+  "verifyCode": "123456"
+}
+
+> {%
+    client.global.set("verify_token", response.body.data.verifyToken);
+%}
+
+### Update password after registration
+# This request uses the verify_token from the previous verify OTP response
+# @name updatePassword
+POST http://localhost:8002/v1/user/update-pass-register
+Content-Type: application/json
+
+{
+  "userToken": "ccaa0e21e42e1d46690c02f4cef5ba26b69a1d9eec4596676717579615ee5cf4",
+  "userPassword": "12345678"
+}
+
+### Login with the new account
+# @name login
+POST http://localhost:8002/v1/user/login
+Content-Type: application/json
+
+{
+  "userAccount": "phuocsanhtps@gmail.com",
+  "userPassword": "12345678"
+}
+
+> {%
+    client.global.set("access_token", response.body.data.tokens.accessToken);
+    client.global.set("refresh_token", response.body.data.tokens.refreshToken);
+%}
+
+### Refresh token to get new access token
+POST http://localhost:8002/v1/user/refresh-token
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refresh_token}}"
+}
+
+> {%
+    client.global.set("access_token", response.body.data.tokens.accessToken);
+    client.global.set("refresh_token", response.body.data.tokens.refreshToken);
+%}
+
+### Logout
+# Sử dụng token từ đăng nhập
+POST http://localhost:8002/v1/user/logout
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+### Setup two-factor authentication
+POST http://localhost:8002/v1/user/two-factor/setup
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "userId": 1,
+  "twoFactorAuthType": "EMAIL",
+  "twoFactorEmail": "test@example.com"
+}
+
+### Verify two-factor authentication
+POST http://localhost:8002/v1/user/two-factor/verify
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "userId": 1,
+  "twoFactorCode": "123456"
+}

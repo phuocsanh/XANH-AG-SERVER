@@ -1,0 +1,51 @@
+#####################################################################
+# CẤU HÌNH TEST ENVIRONMENT - GN FARM GO SERVER
+# File này chứa cấu hình cho môi trường test/unittest
+# Các settings được tối ưu cho chạy test nhanh và ổn định
+# Tác giả: GN Farm Development Team
+# Phiên bản: 1.0
+#####################################################################
+
+# ===== CẤU HÌNH HTTP SERVER CHO TEST =====
+# Server chạy trên cổng khác để tránh conflict với dev server
+server:
+  port: 8083 # Cổng chạy test server (8083 để tránh conflict)
+  mode: test # Chế độ Gin test (tắt debug output)
+
+# ===== CẤU HÌNH POSTGRESQL TEST DATABASE =====
+# Database riêng cho test để không ảnh hưởng dữ liệu thật
+postgres:
+  host: localhost # Host database test (localhost)
+  port: 5432 # Cổng PostgreSQL standard
+  username: postgres # Username kết nối database test
+  password: 123456 # Password database test
+  dbname: GO_GN_FARM_TEST # Tên database test (khác với production)
+  maxIdleConns: 5 # Số connection idle (giảm cho test)
+  maxOpenConns: 10 # Số connection mở tối đa (giảm cho test)
+  connMaxLifetime: 3600 # Thời gian sống connection (giây)
+
+# ===== CẤU HÌNH REDIS CHO TEST =====
+# Redis test sử dụng DB khác để tránh conflict với data thật
+redis:
+  host: localhost # Host Redis test server
+  port: 6379 # Cổng Redis standard
+  password: # Mật khẩu Redis (không có trong test)
+  db: 1 # Database index 1 (khác với dev/prod)
+  pool_size: 5 # Connection pool nhỏ hơn cho test
+
+# ===== CẤU HÌNH LOGGING CHO TEST =====
+# Log ít chi tiết hơn, tập trung vào kết quả test
+logger:
+  log_level: info # Mức độ log info (không cần debug trong test)
+  file_log_name: "./storages/logs/test.log" # File log riêng cho test
+  max_size: 100 # Kích thước file log nhỏ hơn (MB)
+  max_backups: 1 # Chỉ giữ 1 backup log
+  max_age: 7 # Giữ log 7 ngày
+  compress: true # Nén file log cũ
+
+# ===== CẤU HÌNH JWT CHO TEST =====
+# JWT test với secret key riêng, thời gian hết hạn ngắn
+jwt:
+  TOKEN_HOUR_LIFESPAN: 1 # Thời gian sống token test (giờ)
+  JWT_EXPIRATION: 1h # Thời gian hết hạn JWT
+  API_SECRET_KEY: "test.secret.key" # Secret key test (khác với production)

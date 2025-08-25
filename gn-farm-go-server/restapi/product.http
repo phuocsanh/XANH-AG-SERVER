@@ -1,0 +1,265 @@
+### ===== PRODUCT MANAGEMENT APIs =====
+
+### Đăng nhập để lấy token
+# @name login
+POST http://localhost:8002/v1/user/login
+Content-Type: application/json
+
+{
+  "userAccount": "phuocsanhtps@gmail.com",
+  "userPassword": "12345678"
+}
+
+### Lưu token từ phản hồi đăng nhập
+@access_token = {{login.response.body.data.tokens.accessToken}}
+@refresh_token = {{login.response.body.data.tokens.refreshToken}}
+
+### Refresh token to get new access token
+# @name refreshToken
+POST http://localhost:8002/v1/user/refresh-token
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refresh_token}}"
+}
+
+### Update tokens after refresh
+# @access_token = {{refreshToken.response.body.data.tokens.accessToken}}
+# @refresh_token = {{refreshToken.response.body.data.tokens.refreshToken}}
+
+### Create a general product
+POST http://localhost:8002/v1/product
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "productName": "Organic Vegetable Mix",
+  "productPrice": "150000",
+  "productStatus": 1,
+  "productThumb": "https://example.com/images/organic-mix.jpg",
+  "productPictures": [
+    "https://example.com/images/organic-mix-1.jpg",
+    "https://example.com/images/organic-mix-2.jpg"
+  ],
+  "productVideos": [
+    "https://example.com/videos/organic-mix-promo.mp4"
+  ],
+  "productDescription": "Fresh organic vegetable mix from our farm. Contains a variety of seasonal vegetables.",
+  "productQuantity": 50,
+  "productType": 1,
+  "subProductType": [1, 2],
+  "discount": "10",
+  "productDiscountedPrice": "135000",
+  "productAttributes": {
+    "origin": "Vietnam",
+    "organic": true,
+    "certification": "VietGAP"
+  },
+  "isDraft": false,
+  "isPublished": true
+}
+
+### Create a mushroom product
+POST http://localhost:8002/v1/product/mushroom
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  " brand": "GN Farm",
+  "size": "Medium",
+  "material": "Organic"
+}
+
+### Create a vegetable product
+POST http://localhost:8002/v1/product/vegetable
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "manufacturer": "GN Farm",
+  "model": "Premium",
+  "color": "Green"
+}
+
+### Create a bonsai product
+POST http://localhost:8002/v1/product/bonsai
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "brand": "GN Farm",
+  "size": "Medium",
+  "material": "Ceramic Pot"
+}
+
+### Get product by ID
+GET http://localhost:8002/v1/product/1
+Authorization: Bearer {{access_token}}
+
+### List products with pagination
+GET http://localhost:8002/v1/product?limit=10&offset=0
+
+### Get products by type (1: Nấm, 2: Rau củ, 3: Bonsai)
+GET http://localhost:8002/v1/product?type=1&limit=5
+
+### Get products by type and subtype
+GET http://localhost:8002/v1/product?type=3&subType=1&limit=5
+
+### Get all published products (no auth required)
+GET http://localhost:8002/v1/product?limit=5
+
+### Search products
+GET http://localhost:8002/v1/product/search?query=organic&limit=10&offset=0
+Authorization: Bearer {{access_token}}
+
+### Filter products
+GET http://localhost:8002/v1/product/filter?minPrice=50000&maxPrice=200000&inStock=true&limit=10&offset=0
+Authorization: Bearer {{access_token}}
+
+### Update a product
+PUT http://localhost:8002/v1/product/1
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "productName": "Updated Organic Vegetable Mix",
+  "productPrice": "160000",
+  "productStatus": 1,
+  "productThumb": "https://example.com/images/updated-organic-mix.jpg",
+  "productPictures": [
+    "https://example.com/images/updated-organic-mix-1.jpg",
+    "https://example.com/images/updated-organic-mix-2.jpg"
+  ],
+  "productDescription": "Updated description for our fresh organic vegetable mix.",
+  "productQuantity": 45,
+  "productType": 1,
+  "subProductType": [1, 2],
+  "discount": "15",
+  "productDiscountedPrice": "136000",
+  "productAttributes": {
+    "origin": "Vietnam",
+    "organic": true,
+    "certification": "VietGAP",
+    "freshness": "Extra Fresh"
+  },
+  "isDraft": false,
+  "isPublished": true
+}
+
+### Delete a product
+DELETE http://localhost:8002/v1/product/1
+Authorization: Bearer {{access_token}}
+
+### Get product statistics
+GET http://localhost:8002/v1/product/stats
+Authorization: Bearer {{access_token}}
+
+### Bulk update products
+POST http://localhost:8002/v1/product/bulk-update
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+[
+  {
+    "id": 1,
+    "productName": "Bulk Updated Product 1",
+    "productPrice": "120000",
+    "productDiscountedPrice": "108000"
+  },
+  {
+    "id": 2,
+    "productName": "Bulk Updated Product 2",
+    "productPrice": "90000",
+    "productDiscountedPrice": "81000"
+  }
+]
+
+### ===== PRODUCT TYPE MANAGEMENT =====
+
+### Create Product Type
+POST http://localhost:8002/v1/manage/product/type
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "name": "Nấm",
+  "description": "Các loại nấm"
+}
+
+### Update Product Type
+PUT http://localhost:8002/v1/manage/product/type/1
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "name": "Rau củ quả hữu cơ",
+  "description": "Các loại rau củ quả hữu cơ sạch 100%"
+}
+
+### Delete Product Type
+DELETE http://localhost:8002/v1/manage/product/type/1
+Authorization: Bearer {{access_token}}
+
+### ===== PRODUCT SUBTYPE MANAGEMENT =====
+
+### Create Product Subtype
+POST http://localhost:8002/v1/manage/product/subtype
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "name": "Phân bón lá",
+  "description": "Phân bón hữu cơ",
+  "productType": 3
+}
+
+### Update Product Subtype
+PUT http://localhost:8002/v1/manage/product/subtype/1
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "name": "Rau xanh hữu cơ",
+  "description": "Các loại rau xanh hữu cơ",
+  "productType": 1
+}
+
+### Delete Product Subtype
+DELETE http://localhost:8002/v1/admin/product/subtype/1
+Authorization: Bearer {{access_token}}
+
+### ===== PRODUCT SUBTYPE MAPPING =====
+
+### Add Product Subtype Mapping
+POST http://localhost:8002/v1/admin/product/subtype/mapping
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "productId": 1,
+  "subtypeIds": [1, 2, 3]
+}
+
+### Remove Product Subtype Mapping
+DELETE http://localhost:8002/v1/admin/product/subtype/mapping
+Content-Type: application/json
+Authorization: Bearer {{access_token}}
+
+{
+  "productId": 1,
+  "subtypeIds": [1, 2]
+}
+
+### ===== PRODUCT SUBTYPE RELATIONS =====
+
+### Add Product Subtype Relation
+POST http://localhost:8002/v1/admin/product/1/subtype/1
+Authorization: Bearer {{access_token}}
+
+### Remove Product Subtype Relation
+DELETE http://localhost:8002/v1/admin/product/1/subtype/1
+Authorization: Bearer {{access_token}}
+
+### Remove All Product Subtype Relations
+DELETE http://localhost:8002/v1/admin/product/1/subtypes
+Authorization: Bearer {{access_token}}

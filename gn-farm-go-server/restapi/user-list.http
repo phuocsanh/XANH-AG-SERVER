@@ -1,0 +1,44 @@
+### Test API lấy danh sách user có phân trang và tìm kiếm
+
+### 1. Lấy danh sách user - trang đầu tiên (mặc định)
+GET http://localhost:8080/api/v1/user/list
+Authorization: Bearer YOUR_ACCESS_TOKEN_HERE
+
+### 2. Lấy danh sách user với phân trang
+GET http://localhost:8080/api/v1/user/list?page=1&pageSize=5
+Authorization: Bearer YOUR_ACCESS_TOKEN_HERE
+
+### 3. Tìm kiếm user theo tên
+GET http://localhost:8080/api/v1/user/list?search=john
+Authorization: Bearer YOUR_ACCESS_TOKEN_HERE
+
+### 4. Tìm kiếm user với phân trang
+GET http://localhost:8080/api/v1/user/list?page=1&pageSize=10&search=test
+Authorization: Bearer YOUR_ACCESS_TOKEN_HERE
+
+### 5. Test với page size lớn (sẽ bị giới hạn về 100)
+GET http://localhost:8080/api/v1/user/list?page=1&pageSize=200
+Authorization: Bearer YOUR_ACCESS_TOKEN_HERE
+
+### 6. Test với tham số không hợp lệ (page = 0, sẽ được set về 1)
+GET http://localhost:8080/api/v1/user/list?page=0&pageSize=10
+Authorization: Bearer YOUR_ACCESS_TOKEN_HERE
+
+### Lưu ý:
+# - Thay YOUR_ACCESS_TOKEN_HERE bằng access token thực tế từ API login
+# - API này yêu cầu authentication, cần đăng nhập trước
+# - Kết quả trả về sẽ bao gồm:
+#   + users: danh sách user với camelCase fields (userId, userAccount, userNickname, etc.)
+#   + total: tổng số user
+#   + page: trang hiện tại
+#   + pageSize: số lượng user trên mỗi trang
+#   + totalPages: tổng số trang
+#   + hasNext: có trang tiếp theo không
+#   + hasPrev: có trang trước không
+#
+# - JSON response fields sẽ có dạng camelCase:
+#   + userId (thay vì user_id)
+#   + userAccount (thay vì user_account)
+#   + userNickname (thay vì user_nickname)
+#   + createdAt (thay vì created_at)
+#   + updatedAt (thay vì updated_at)
