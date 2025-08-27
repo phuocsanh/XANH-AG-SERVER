@@ -12,6 +12,7 @@ import { SalesService } from './sales.service';
 import { CreateSalesInvoiceDto } from './dto/create-sales-invoice.dto';
 import { UpdateSalesInvoiceDto } from './dto/update-sales-invoice.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { SalesInvoiceItem } from '../../entities/sales-invoice-item.entity';
 
 @Controller('sales')
 @UseGuards(JwtAuthGuard)
@@ -51,24 +52,9 @@ export class SalesController {
     return this.salesService.remove(+id);
   }
 
-  @Post('invoice/:id/confirm')
-  confirmInvoice(@Param('id') id: string) {
-    return this.salesService.confirmInvoice(+id);
-  }
-
-  @Post('invoice/:id/deliver')
-  deliverInvoice(@Param('id') id: string) {
-    return this.salesService.deliverInvoice(+id);
-  }
-
-  @Post('invoice/:id/complete')
-  completeInvoice(@Param('id') id: string) {
-    return this.salesService.completeInvoice(+id);
-  }
-
-  @Post('invoice/:id/cancel')
-  cancelInvoice(@Param('id') id: string, @Body('reason') reason: string) {
-    return this.salesService.cancelInvoice(+id, reason);
+  @Patch('invoice/:id/payment-status')
+  updatePaymentStatus(@Param('id') id: string, @Body('paymentStatus') paymentStatus: string) {
+    return this.salesService.updatePaymentStatus(+id, paymentStatus);
   }
 
   @Get('invoice/:id/items')

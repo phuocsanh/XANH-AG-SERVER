@@ -5,14 +5,14 @@ Content-Type: application/json
 
 {
   "productName": "Sản phẩm A",
-  "productSKU": "SP001",
   "productDescription": "Mô tả sản phẩm A",
   "productType": 1,
-  "productPrice": 100000,
-  "productCost": 80000,
-  "productUnit": "cái",
-  "productImageURL": "http://example.com/image.jpg",
-  "productStatus": 1
+  "productPrice": "100000",
+  "productThumb": "http://example.com/image.jpg",
+  "productStatus": 1,
+  "productDiscountedPrice": "90000",
+  "averageCostPrice": "80000",
+  "profitMarginPercent": "10"
 }
 
 ###

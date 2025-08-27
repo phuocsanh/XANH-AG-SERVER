@@ -18,10 +18,13 @@ export class UserService {
   ) {}
 
   async create(createUserDto: CreateUserDto): Promise<User> {
+    // Password is already hashed by AuthService, no need to hash again
+    // const hashedPassword = await bcrypt.hash(createUserDto.userPassword, 10);
+
     // Tạo user
     const user = this.userRepository.create({
       userAccount: createUserDto.userAccount,
-      userPassword: createUserDto.userPassword,
+      userPassword: createUserDto.userPassword, // Already hashed
       userSalt: createUserDto.userSalt,
     });
     const savedUser = await this.userRepository.save(user);

@@ -33,6 +33,8 @@ export class AuthController {
     return this.authService.register(createUserDto);
   }
 
+  // Debug endpoints removed - authentication is working properly
+
   // Thêm endpoint đổi mật khẩu
   @UseGuards(JwtAuthGuard)
   @Put('change-password')

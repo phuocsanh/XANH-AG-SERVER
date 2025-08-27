@@ -7,12 +7,12 @@ import { AuthModule } from './modules/auth/auth.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { FileTrackingModule } from './modules/file-tracking/file-tracking.module';
 import { SalesModule } from './modules/sales/sales.module';
-import ormconfig from '../ormconfig';
+import typeOrmConfig from './config/typeorm.config';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    TypeOrmModule.forRoot(ormconfig),
+    TypeOrmModule.forRoot(typeOrmConfig),
     ProductModule,
     UserModule,
     AuthModule,

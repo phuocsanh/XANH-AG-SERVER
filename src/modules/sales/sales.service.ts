@@ -69,32 +69,9 @@ export class SalesService {
     await this.salesInvoiceRepository.delete(id);
   }
 
-  async confirmInvoice(id: number): Promise<SalesInvoice> {
+  async updatePaymentStatus(id: number, paymentStatus: string): Promise<SalesInvoice> {
     const invoice = await this.findOne(id);
-    invoice.status = 'confirmed';
-    invoice.confirmedAt = new Date();
-    return this.salesInvoiceRepository.save(invoice);
-  }
-
-  async deliverInvoice(id: number): Promise<SalesInvoice> {
-    const invoice = await this.findOne(id);
-    invoice.status = 'delivered';
-    invoice.deliveredAt = new Date();
-    return this.salesInvoiceRepository.save(invoice);
-  }
-
-  async completeInvoice(id: number): Promise<SalesInvoice> {
-    const invoice = await this.findOne(id);
-    invoice.status = 'completed';
-    invoice.completedAt = new Date();
-    return this.salesInvoiceRepository.save(invoice);
-  }
-
-  async cancelInvoice(id: number, reason: string): Promise<SalesInvoice> {
-    const invoice = await this.findOne(id);
-    invoice.status = 'cancelled';
-    invoice.cancelledAt = new Date();
-    invoice.cancelledReason = reason;
+    invoice.paymentStatus = paymentStatus;
     return this.salesInvoiceRepository.save(invoice);
   }
 

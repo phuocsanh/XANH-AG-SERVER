@@ -23,7 +23,12 @@
     "docker:down-dev": "docker-compose -f docker-compose.dev.yml down",
     "docker:logs": "docker-compose logs",
     "docker:logs-app": "docker-compose logs app",
-    "docker:logs-db": "docker-compose logs db"
+    "docker:logs-db": "docker-compose logs db",
+    "typeorm": "typeorm-ts-node-commonjs",
+    "migration:run": "npm run typeorm migration:run -- -d ormconfig.ts",
+    "migration:generate": "npm run typeorm migration:generate -- -d ormconfig.ts",
+    "migration:create": "npm run typeorm migration:create -- -d ormconfig.ts",
+    "migration:revert": "npm run typeorm migration:revert -- -d ormconfig.ts"
   },
   "keywords": [],
   "author": "",

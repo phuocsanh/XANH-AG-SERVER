@@ -14,6 +14,7 @@ import { CreateInventoryBatchDto } from './dto/create-inventory-batch.dto';
 import { CreateInventoryTransactionDto } from './dto/create-inventory-transaction.dto';
 import { CreateInventoryReceiptDto } from './dto/create-inventory-receipt.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { InventoryReceiptItem } from '../../entities/inventory-receipt-item.entity';
 
 @Controller('inventory')
 @UseGuards(JwtAuthGuard)

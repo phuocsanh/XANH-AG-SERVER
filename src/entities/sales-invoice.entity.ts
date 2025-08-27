@@ -6,7 +6,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-@Entity('sales_invoices')
+@Entity('sales_invoice')
 export class SalesInvoice {
   @PrimaryGeneratedColumn()
   id: number;
@@ -20,8 +20,7 @@ export class SalesInvoice {
   @Column({ name: 'customer_phone', nullable: true })
   customerPhone: string;
 
-  @Column({ name: 'customer_email', nullable: true })
-  customerEmail: string;
+
 
   @Column({ name: 'customer_address', nullable: true })
   customerAddress: string;
@@ -35,8 +34,11 @@ export class SalesInvoice {
   @Column({ name: 'final_amount' })
   finalAmount: number;
 
-  @Column({ name: 'status', default: 'draft' })
-  status: string; // draft, confirmed, delivered, completed, cancelled
+  @Column({ name: 'payment_method' })
+  paymentMethod: string;
+
+  @Column({ name: 'payment_status', default: 'pending' })
+  paymentStatus: string;
 
   @Column({ name: 'notes', nullable: true })
   notes: string;
@@ -49,19 +51,4 @@ export class SalesInvoice {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
-
-  @Column({ name: 'confirmed_at', nullable: true })
-  confirmedAt: Date;
-
-  @Column({ name: 'delivered_at', nullable: true })
-  deliveredAt: Date;
-
-  @Column({ name: 'completed_at', nullable: true })
-  completedAt: Date;
-
-  @Column({ name: 'cancelled_at', nullable: true })
-  cancelledAt: Date;
-
-  @Column({ name: 'cancelled_reason', nullable: true })
-  cancelledReason: string;
 }

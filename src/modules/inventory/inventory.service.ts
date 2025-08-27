@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { InventoryBatch } from '../../entities/inventory-batch.entity';
+import { InventoryBatch } from '../../entities/inventory.entity';
 import { InventoryTransaction } from '../../entities/inventory-transaction.entity';
 import { InventoryReceipt } from '../../entities/inventory-receipt.entity';
 import { InventoryReceiptItem } from '../../entities/inventory-receipt-item.entity';
@@ -91,7 +91,7 @@ export class InventoryService {
     let totalQuantity = 0;
 
     for (const batch of batches) {
-      totalValue += batch.remainingQuantity * parseFloat(batch.averageCost);
+      totalValue += batch.remainingQuantity * parseFloat(batch.unitCostPrice);
       totalQuantity += batch.remainingQuantity;
     }
 

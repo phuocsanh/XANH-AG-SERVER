@@ -7,6 +7,7 @@ import { ProductSubtype } from '../../entities/product-subtype.entity';
 import { ProductSubtypeRelation } from '../../entities/product-subtype-relation.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { ProductFactoryRegistry } from './factories/product-factory.registry';
 
 @Injectable()
 export class ProductService {
@@ -19,11 +20,24 @@ export class ProductService {
     private productSubtypeRepository: Repository<ProductSubtype>,
     @InjectRepository(ProductSubtypeRelation)
     private productSubtypeRelationRepository: Repository<ProductSubtypeRelation>,
+    private productFactoryRegistry: ProductFactoryRegistry,
   ) {}
 
   async create(createProductDto: CreateProductDto): Promise<Product> {
-    const product = this.productRepository.create(createProductDto);
-    return this.productRepository.save(product);
+    // Kiểm tra xem có factory nào phù hợp với productType không
+    const factory = this.productFactoryRegistry.getFactory(
+      createProductDto.productType,
+    );
+
+    if (factory) {
+      // Sử dụng factory để tạo product
+      return factory.createProduct(createProductDto);
+    } else {
+      // Nếu không có factory phù hợp, tạo product theo cách thông thường
+      const product = new Product();
+      Object.assign(product, createProductDto);
+      return this.productRepository.save(product);
+    }
   }
 
   async findAll(): Promise<Product[]> {
@@ -63,8 +77,10 @@ export class ProductService {
 
   // Product Type methods
   async createProductType(createProductTypeDto: any): Promise<ProductType> {
-    const productType = this.productTypeRepository.create(createProductTypeDto);
-    return this.productTypeRepository.save(productType);
+    const productType = new ProductType();
+    Object.assign(productType, createProductTypeDto);
+    const savedProductType = await this.productTypeRepository.save(productType);
+    return savedProductType;
   }
 
   async findAllProductTypes(): Promise<ProductType[]> {
@@ -91,10 +107,11 @@ export class ProductService {
   async createProductSubtype(
     createProductSubtypeDto: any,
   ): Promise<ProductSubtype> {
-    const productSubtype = this.productSubtypeRepository.create(
-      createProductSubtypeDto,
-    );
-    return this.productSubtypeRepository.save(productSubtype);
+    const productSubtype = new ProductSubtype();
+    Object.assign(productSubtype, createProductSubtypeDto);
+    const savedProductSubtype =
+      await this.productSubtypeRepository.save(productSubtype);
+    return savedProductSubtype;
   }
 
   async findAllProductSubtypes(): Promise<ProductSubtype[]> {

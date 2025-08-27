@@ -6,6 +6,9 @@ import { ProductSubtype } from '../../entities/product-subtype.entity';
 import { ProductSubtypeRelation } from '../../entities/product-subtype-relation.entity';
 import { ProductService } from './product.service';
 import { ProductController } from './product.controller';
+import { ProductFactoryRegistry } from './factories/product-factory.registry';
+import { FertilizerProductFactory } from './factories/fertilizer-product.factory';
+import { PesticideProductFactory } from './factories/pesticide-product.factory';
 
 @Module({
   imports: [
@@ -17,7 +20,12 @@ import { ProductController } from './product.controller';
     ]),
   ],
   controllers: [ProductController],
-  providers: [ProductService],
+  providers: [
+    ProductService,
+    ProductFactoryRegistry,
+    FertilizerProductFactory,
+    PesticideProductFactory,
+  ],
   exports: [ProductService],
 })
 export class ProductModule {}

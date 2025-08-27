@@ -10,7 +10,7 @@ import {
 import { SalesInvoice } from './sales-invoice.entity';
 import { Product } from './product.entity';
 
-@Entity('sales_invoice_items')
+@Entity('sales_invoice_item')
 export class SalesInvoiceItem {
   @PrimaryGeneratedColumn()
   id: number;
