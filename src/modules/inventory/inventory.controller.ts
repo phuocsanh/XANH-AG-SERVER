@@ -16,31 +16,64 @@ import { CreateInventoryReceiptDto } from './dto/create-inventory-receipt.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { InventoryReceiptItem } from '../../entities/inventory-receipt-item.entity';
 
+/**
+ * Controller xử lý các request liên quan đến quản lý kho hàng
+ * Bao gồm quản lý lô hàng, giao dịch kho, phiếu nhập kho và các chức năng liên quan
+ */
 @Controller('inventory')
 @UseGuards(JwtAuthGuard)
 export class InventoryController {
+  /**
+   * Constructor injection InventoryService
+   * @param inventoryService - Service xử lý logic nghiệp vụ kho hàng
+   */
   constructor(private readonly inventoryService: InventoryService) {}
 
+  /**
+   * Tạo lô hàng tồn kho mới
+   * @param createInventoryBatchDto - Dữ liệu tạo lô hàng tồn kho mới
+   * @returns Thông tin lô hàng tồn kho đã tạo
+   */
   @Post('batches')
   createBatch(@Body() createInventoryBatchDto: CreateInventoryBatchDto) {
     return this.inventoryService.createBatch(createInventoryBatchDto);
   }
 
+  /**
+   * Lấy danh sách tất cả lô hàng tồn kho
+   * @returns Danh sách lô hàng tồn kho
+   */
   @Get('batches')
   findAllBatches() {
     return this.inventoryService.findAllBatches();
   }
 
+  /**
+   * Tìm lô hàng tồn kho theo ID sản phẩm
+   * @param productId - ID của sản phẩm
+   * @returns Danh sách lô hàng tồn kho của sản phẩm đó
+   */
   @Get('batches/product/:productId')
   findBatchesByProduct(@Param('productId') productId: string) {
     return this.inventoryService.findBatchesByProduct(+productId);
   }
 
+  /**
+   * Tìm lô hàng tồn kho theo ID
+   * @param id - ID của lô hàng tồn kho cần tìm
+   * @returns Thông tin lô hàng tồn kho
+   */
   @Get('batches/:id')
   findBatchById(@Param('id') id: string) {
     return this.inventoryService.findBatchById(+id);
   }
 
+  /**
+   * Cập nhật thông tin lô hàng tồn kho
+   * @param id - ID của lô hàng tồn kho cần cập nhật
+   * @param updateData - Dữ liệu cập nhật lô hàng tồn kho
+   * @returns Thông tin lô hàng tồn kho đã cập nhật
+   */
   @Patch('batches/:id')
   updateBatch(
     @Param('id') id: string,
@@ -49,11 +82,21 @@ export class InventoryController {
     return this.inventoryService.updateBatch(+id, updateData);
   }
 
+  /**
+   * Xóa lô hàng tồn kho theo ID
+   * @param id - ID của lô hàng tồn kho cần xóa
+   * @returns Kết quả xóa lô hàng tồn kho
+   */
   @Delete('batches/:id')
   removeBatch(@Param('id') id: string) {
     return this.inventoryService.removeBatch(+id);
   }
 
+  /**
+   * Tạo giao dịch kho mới
+   * @param createInventoryTransactionDto - Dữ liệu tạo giao dịch kho mới
+   * @returns Thông tin giao dịch kho đã tạo
+   */
   @Post('transactions')
   createTransaction(
     @Body() createInventoryTransactionDto: CreateInventoryTransactionDto,
@@ -63,47 +106,91 @@ export class InventoryController {
     );
   }
 
+  /**
+   * Lấy danh sách tất cả giao dịch kho
+   * @returns Danh sách giao dịch kho
+   */
   @Get('transactions')
   findAllTransactions() {
     return this.inventoryService.findAllTransactions();
   }
 
+  /**
+   * Tìm giao dịch kho theo ID sản phẩm
+   * @param productId - ID của sản phẩm
+   * @returns Danh sách giao dịch kho của sản phẩm đó
+   */
   @Get('transactions/product/:productId')
   findTransactionsByProduct(@Param('productId') productId: string) {
     return this.inventoryService.findTransactionsByProduct(+productId);
   }
 
+  /**
+   * Lấy tổng hợp tồn kho theo ID sản phẩm
+   * @param productId - ID của sản phẩm
+   * @returns Tổng hợp tồn kho của sản phẩm
+   */
   @Get('summary/product/:productId')
   getInventorySummary(@Param('productId') productId: string) {
     return this.inventoryService.getInventorySummary(+productId);
   }
 
+  /**
+   * Lấy giá trị FIFO của sản phẩm theo ID
+   * @param productId - ID của sản phẩm
+   * @returns Giá trị FIFO của sản phẩm
+   */
   @Get('fifo/product/:productId')
   getFifoValue(@Param('productId') productId: string) {
     return this.inventoryService.getFifoValue(+productId);
   }
 
   // Inventory Receipt endpoints
+  /**
+   * Tạo phiếu nhập kho mới
+   * @param createInventoryReceiptDto - Dữ liệu tạo phiếu nhập kho mới
+   * @returns Thông tin phiếu nhập kho đã tạo
+   */
   @Post('receipt')
   createReceipt(@Body() createInventoryReceiptDto: CreateInventoryReceiptDto) {
     return this.inventoryService.createReceipt(createInventoryReceiptDto);
   }
 
+  /**
+   * Lấy danh sách tất cả phiếu nhập kho
+   * @returns Danh sách phiếu nhập kho
+   */
   @Get('receipts')
   findAllReceipts() {
     return this.inventoryService.findAllReceipts();
   }
 
+  /**
+   * Tìm phiếu nhập kho theo ID
+   * @param id - ID của phiếu nhập kho cần tìm
+   * @returns Thông tin phiếu nhập kho
+   */
   @Get('receipt/:id')
   findReceiptById(@Param('id') id: string) {
     return this.inventoryService.findReceiptById(+id);
   }
 
+  /**
+   * Tìm phiếu nhập kho theo mã
+   * @param code - Mã của phiếu nhập kho cần tìm
+   * @returns Thông tin phiếu nhập kho
+   */
   @Get('receipt/code/:code')
   findReceiptByCode(@Param('code') code: string) {
     return this.inventoryService.findReceiptByCode(code);
   }
 
+  /**
+   * Cập nhật thông tin phiếu nhập kho
+   * @param id - ID của phiếu nhập kho cần cập nhật
+   * @param updateData - Dữ liệu cập nhật phiếu nhập kho
+   * @returns Thông tin phiếu nhập kho đã cập nhật
+   */
   @Patch('receipt/:id')
   updateReceipt(
     @Param('id') id: string,
@@ -112,31 +199,63 @@ export class InventoryController {
     return this.inventoryService.updateReceipt(+id, updateData);
   }
 
+  /**
+   * Xóa phiếu nhập kho theo ID
+   * @param id - ID của phiếu nhập kho cần xóa
+   * @returns Kết quả xóa phiếu nhập kho
+   */
   @Delete('receipt/:id')
   removeReceipt(@Param('id') id: string) {
     return this.inventoryService.removeReceipt(+id);
   }
 
+  /**
+   * Duyệt phiếu nhập kho
+   * @param id - ID của phiếu nhập kho cần duyệt
+   * @returns Kết quả duyệt phiếu nhập kho
+   */
   @Post('receipt/:id/approve')
   approveReceipt(@Param('id') id: string) {
     return this.inventoryService.approveReceipt(+id);
   }
 
+  /**
+   * Hoàn thành phiếu nhập kho
+   * @param id - ID của phiếu nhập kho cần hoàn thành
+   * @returns Kết quả hoàn thành phiếu nhập kho
+   */
   @Post('receipt/:id/complete')
   completeReceipt(@Param('id') id: string) {
     return this.inventoryService.completeReceipt(+id);
   }
 
+  /**
+   * Hủy phiếu nhập kho
+   * @param id - ID của phiếu nhập kho cần hủy
+   * @param reason - Lý do hủy phiếu nhập kho
+   * @returns Kết quả hủy phiếu nhập kho
+   */
   @Post('receipt/:id/cancel')
   cancelReceipt(@Param('id') id: string, @Body('reason') reason: string) {
     return this.inventoryService.cancelReceipt(+id, reason);
   }
 
+  /**
+   * Lấy danh sách chi tiết phiếu nhập kho
+   * @param id - ID của phiếu nhập kho
+   * @returns Danh sách chi tiết phiếu nhập kho
+   */
   @Get('receipt/:id/items')
   getReceiptItems(@Param('id') id: string) {
     return this.inventoryService.getReceiptItems(+id);
   }
 
+  /**
+   * Cập nhật thông tin chi tiết phiếu nhập kho
+   * @param id - ID của chi tiết phiếu nhập kho cần cập nhật
+   * @param updateData - Dữ liệu cập nhật chi tiết phiếu nhập kho
+   * @returns Thông tin chi tiết phiếu nhập kho đã cập nhật
+   */
   @Patch('receipt/item/:id')
   updateReceiptItem(
     @Param('id') id: string,
@@ -145,6 +264,11 @@ export class InventoryController {
     return this.inventoryService.updateReceiptItem(+id, updateData);
   }
 
+  /**
+   * Xóa chi tiết phiếu nhập kho theo ID
+   * @param id - ID của chi tiết phiếu nhập kho cần xóa
+   * @returns Kết quả xóa chi tiết phiếu nhập kho
+   */
   @Delete('receipt/item/:id')
   removeReceiptItem(@Param('id') id: string) {
     return this.inventoryService.removeReceiptItem(+id);

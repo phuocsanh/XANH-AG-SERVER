@@ -9,10 +9,19 @@ import { FileTrackingModule } from './modules/file-tracking/file-tracking.module
 import { SalesModule } from './modules/sales/sales.module';
 import typeOrmConfig from './config/typeorm.config';
 
+/**
+ * Module chính của ứng dụng NestJS
+ * Import tất cả các module con và cấu hình các thành phần global
+ */
 @Module({
   imports: [
+    // Cấu hình module environment variables với scope global
     ConfigModule.forRoot({ isGlobal: true }),
+
+    // Cấu hình kết nối database với TypeORM
     TypeOrmModule.forRoot(typeOrmConfig),
+
+    // Import các module chức năng
     ProductModule,
     UserModule,
     AuthModule,
@@ -20,7 +29,7 @@ import typeOrmConfig from './config/typeorm.config';
     FileTrackingModule,
     SalesModule,
   ],
-  controllers: [],
-  providers: [],
+  controllers: [], // Các controller global (nếu có)
+  providers: [], // Các service global (nếu có)
 })
 export class AppModule {}
