@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { FileUpload } from '../../entities/file-upload.entity';
+import { FileReference } from '../../entities/file-reference.entity';
 import { FileTrackingService } from './file-tracking.service';
 import { FileTrackingController } from './file-tracking.controller';
 
@@ -10,8 +11,8 @@ import { FileTrackingController } from './file-tracking.controller';
  */
 @Module({
   imports: [
-    // Import TypeORM feature module với entity FileUpload
-    TypeOrmModule.forFeature([FileUpload]),
+    // Import TypeORM feature module với entity FileUpload và FileReference
+    TypeOrmModule.forFeature([FileUpload, FileReference]),
   ],
   controllers: [FileTrackingController], // Controller xử lý các request liên quan đến file tracking
   providers: [FileTrackingService], // Service xử lý logic nghiệp vụ file tracking

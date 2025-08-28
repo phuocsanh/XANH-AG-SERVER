@@ -1,19 +1,22 @@
 import { Request, Response, NextFunction } from 'express';
 
 /**
- * Middleware ghi log các request đến server
- * @param req - Request object
- * @param res - Response object
- * @param next - Hàm tiếp tục xử lý request
+ * Middleware ghi log các request HTTP
+ * Ghi lại thông tin về method, URL và thời gian xử lý
  */
-export function loggingMiddleware(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) {
-  // Ghi log thông tin request bao gồm method và URL
-  console.log(`Request... ${req.method} ${req.url}`);
+export function loggingMiddleware(req: Request, res: Response, next: NextFunction) {
+  const { method, originalUrl } = req;
+  const startTime = Date.now();
 
-  // Gọi next() để tiếp tục xử lý request
+  // Ghi log khi request bắt đầu
+  console.log(`[${new Date().toISOString()}] ${method} ${originalUrl} - START`);
+
+  // Lắng nghe sự kiện finish để ghi log khi response hoàn tất
+  res.on('finish', () => {
+    const duration = Date.now() - startTime;
+    const { statusCode } = res;
+    console.log(`[${new Date().toISOString()}] ${method} ${originalUrl} - ${statusCode} - ${duration}ms`);
+  });
+
   next();
 }

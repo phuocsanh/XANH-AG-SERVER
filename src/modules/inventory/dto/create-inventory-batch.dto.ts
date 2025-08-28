@@ -31,6 +31,21 @@ export class CreateInventoryBatchDto {
   @IsDate()
   expiryDate?: Date;
 
+  /** Ngày sản xuất của lô hàng (tùy chọn) */
+  @IsOptional()
+  @IsDate()
+  manufacturingDate?: Date;
+
+  /** ID nhà cung cấp (tùy chọn) */
+  @IsOptional()
+  @IsNumber()
+  supplierId?: number;
+
+  /** Ghi chú về lô hàng (tùy chọn) */
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
   /** ID của item phiếu nhập kho tương ứng (tùy chọn) */
   @IsOptional()
   @IsNumber()

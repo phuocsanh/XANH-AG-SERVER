@@ -9,6 +9,7 @@ import { ProductController } from './product.controller';
 import { ProductFactoryRegistry } from './factories/product-factory.registry';
 import { FertilizerProductFactory } from './factories/fertilizer-product.factory';
 import { PesticideProductFactory } from './factories/pesticide-product.factory';
+import { FileTrackingModule } from '../file-tracking/file-tracking.module';
 
 /**
  * Module quản lý sản phẩm
@@ -23,6 +24,8 @@ import { PesticideProductFactory } from './factories/pesticide-product.factory';
       ProductSubtype,
       ProductSubtypeRelation,
     ]),
+    // Import FileTrackingModule để sử dụng FileTrackingService
+    FileTrackingModule,
   ],
   controllers: [ProductController], // Controller xử lý các request liên quan đến sản phẩm
   providers: [

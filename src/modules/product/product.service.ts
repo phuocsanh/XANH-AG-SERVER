@@ -8,6 +8,7 @@ import { ProductSubtypeRelation } from '../../entities/product-subtype-relation.
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductFactoryRegistry } from './factories/product-factory.registry';
+import { FileTrackingService } from '../file-tracking/file-tracking.service';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến sản phẩm
@@ -22,6 +23,7 @@ export class ProductService {
    * @param productSubtypeRepository - Repository để thao tác với entity ProductSubtype
    * @param productSubtypeRelationRepository - Repository để thao tác với entity ProductSubtypeRelation
    * @param productFactoryRegistry - Registry quản lý các factory tạo sản phẩm
+   * @param fileTrackingService - Service quản lý theo dõi file
    */
   constructor(
     @InjectRepository(Product)
@@ -33,6 +35,7 @@ export class ProductService {
     @InjectRepository(ProductSubtypeRelation)
     private productSubtypeRelationRepository: Repository<ProductSubtypeRelation>,
     private productFactoryRegistry: ProductFactoryRegistry,
+    private fileTrackingService: FileTrackingService,
   ) {}
 
   /**
@@ -93,6 +96,10 @@ export class ProductService {
    * @param id - ID của sản phẩm cần xóa
    */
   async remove(id: number): Promise<void> {
+    // Xóa tất cả file references liên quan đến sản phẩm trước khi xóa sản phẩm
+    await this.fileTrackingService.batchRemoveEntityFileReferences('Product', id);
+    
+    // Xóa sản phẩm
     await this.productRepository.delete(id);
   }
 
@@ -170,6 +177,10 @@ export class ProductService {
    * @param id - ID của loại sản phẩm cần xóa
    */
   async removeProductType(id: number): Promise<void> {
+    // Xóa tất cả file references liên quan đến loại sản phẩm trước khi xóa
+    await this.fileTrackingService.batchRemoveEntityFileReferences('ProductType', id);
+    
+    // Xóa loại sản phẩm
     await this.productTypeRepository.delete(id);
   }
 
@@ -236,6 +247,10 @@ export class ProductService {
    * @param id - ID của loại phụ sản phẩm cần xóa
    */
   async removeProductSubtype(id: number): Promise<void> {
+    // Xóa tất cả file references liên quan đến loại phụ sản phẩm trước khi xóa
+    await this.fileTrackingService.batchRemoveEntityFileReferences('ProductSubtype', id);
+    
+    // Xóa loại phụ sản phẩm
     await this.productSubtypeRepository.delete(id);
   }
 
@@ -289,5 +304,47 @@ export class ProductService {
    */
   async removeAllProductSubtypeRelations(productId: number): Promise<void> {
     await this.productSubtypeRelationRepository.delete({ productId });
+  }
+
+  /**
+   * Cập nhật giá vốn trung bình và giá bán sản phẩm dựa trên phần trăm lợi nhuận
+   * Tương tự như phương thức UpdateProductAverageCostAndPrice trong Go server
+   * @param productId - ID của sản phẩm cần cập nhật
+   * @param averageCostPrice - Giá vốn trung bình mới
+   * @returns Thông tin sản phẩm đã cập nhật
+   */
+  async updateProductAverageCostAndPrice(
+    productId: number,
+    averageCostPrice: number,
+  ): Promise<Product> {
+    // Lấy thông tin sản phẩm hiện tại để có phần trăm lợi nhuận và discount
+    const product = await this.findOne(productId);
+    if (!product) {
+      throw new Error(`Không tìm thấy sản phẩm với ID: ${productId}`);
+    }
+
+    // Lấy phần trăm lợi nhuận (mặc định 15% nếu không có)
+    const profitMarginPercent = parseFloat(product.profitMarginPercent?.toString() || '15');
+    
+    // Lấy phần trăm giảm giá (mặc định 0% nếu không có)
+    const discount = parseFloat(product.discount?.toString() || '0');
+
+    // Tính giá bán dựa trên giá vốn và phần trăm lợi nhuận
+    // product_price = average_cost_price * (1 + profit_margin_percent / 100)
+    const productPrice = averageCostPrice * (1 + profitMarginPercent / 100);
+
+    // Tính giá bán sau giảm giá
+    // product_discounted_price = product_price * (1 - discount / 100)
+    const productDiscountedPrice = productPrice * (1 - discount / 100);
+
+    // Cập nhật sản phẩm với giá vốn trung bình và giá bán mới
+    await this.productRepository.update(productId, {
+      averageCostPrice: averageCostPrice.toFixed(2),
+      productPrice: productPrice.toFixed(2),
+      productDiscountedPrice: productDiscountedPrice.toFixed(2),
+    });
+
+    // Trả về thông tin sản phẩm đã cập nhật
+    return this.findOne(productId);
   }
 }

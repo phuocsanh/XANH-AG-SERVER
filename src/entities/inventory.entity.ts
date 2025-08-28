@@ -34,6 +34,18 @@ export class InventoryBatch {
   @Column({ name: 'expiry_date', nullable: true })
   expiryDate: Date;
 
+  /** Ngày sản xuất của lô hàng (có thể null) */
+  @Column({ name: 'manufacturing_date', nullable: true })
+  manufacturingDate: Date;
+
+  /** ID nhà cung cấp (có thể null) */
+  @Column({ name: 'supplier_id', nullable: true })
+  supplierId: number;
+
+  /** Ghi chú về lô hàng (có thể null) */
+  @Column({ name: 'notes', nullable: true, type: 'text' })
+  notes: string;
+
   /** ID của item phiếu nhập kho tương ứng (có thể null) */
   @Column({ name: 'receipt_item_id', nullable: true })
   receiptItemId: number;

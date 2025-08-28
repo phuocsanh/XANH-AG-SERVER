@@ -7,6 +7,7 @@ import { UserProfile } from '../../entities/user-profile.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { FileTrackingService } from '../file-tracking/file-tracking.service';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến người dùng
@@ -15,15 +16,17 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 @Injectable()
 export class UserService {
   /**
-   * Constructor injection các repository cần thiết
+   * Constructor injection các repository và service cần thiết
    * @param userRepository - Repository để thao tác với entity User
    * @param userProfileRepository - Repository để thao tác với entity UserProfile
+   * @param fileTrackingService - Service quản lý theo dõi file
    */
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
     @InjectRepository(UserProfile)
     private userProfileRepository: Repository<UserProfile>,
+    private fileTrackingService: FileTrackingService,
   ) {}
 
   /**
@@ -98,6 +101,13 @@ export class UserService {
    * @param userId - ID của người dùng cần xóa
    */
   async remove(userId: number): Promise<void> {
+    // Xóa tất cả file references liên quan đến người dùng trước khi xóa
+    await this.fileTrackingService.batchRemoveEntityFileReferences('User', userId);
+    
+    // Xóa user profile trước
+    await this.userProfileRepository.delete({ userId });
+    
+    // Xóa người dùng
     await this.userRepository.delete(userId);
   }
 

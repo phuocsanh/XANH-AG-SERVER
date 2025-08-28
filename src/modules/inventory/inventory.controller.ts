@@ -145,6 +145,140 @@ export class InventoryController {
     return this.inventoryService.getFifoValue(+productId);
   }
 
+  /**
+   * Lấy giá vốn trung bình gia quyền của sản phẩm
+   * @param productId - ID của sản phẩm
+   * @returns Giá vốn trung bình gia quyền hiện tại
+   */
+  @Get('weighted-average-cost/product/:productId')
+  getWeightedAverageCost(@Param('productId') productId: string) {
+    return this.inventoryService.getWeightedAverageCost(+productId);
+  }
+
+  /**
+   * Xử lý nhập kho với tính toán giá vốn trung bình gia quyền
+   * @param stockInData - Dữ liệu nhập kho
+   * @returns Kết quả xử lý nhập kho
+   */
+  @Post('stock-in')
+  processStockIn(@Body() stockInData: {
+    productId: number;
+    quantity: number;
+    unitCost: number;
+    receiptItemId?: number;
+    batchCode?: string;
+    expiryDate?: Date;
+  }) {
+    return this.inventoryService.processStockIn(
+      stockInData.productId,
+      stockInData.quantity,
+      stockInData.unitCost,
+      stockInData.receiptItemId,
+      stockInData.batchCode,
+      stockInData.expiryDate
+    );
+  }
+
+  /**
+   * Xử lý xuất kho theo phương pháp FIFO
+   * @param stockOutData - Dữ liệu xuất kho
+   * @returns Kết quả xử lý xuất kho
+   */
+  @Post('stock-out')
+  processStockOut(@Body() stockOutData: {
+    productId: number;
+    quantity: number;
+    referenceType: string;
+    referenceId?: number;
+    notes?: string;
+  }) {
+    return this.inventoryService.processStockOut(
+      stockOutData.productId,
+      stockOutData.quantity,
+      stockOutData.referenceType,
+      stockOutData.referenceId,
+      stockOutData.notes
+    );
+  }
+
+  /**
+   * Tính lại giá vốn trung bình gia quyền cho sản phẩm
+   * @param productId - ID của sản phẩm
+   * @returns Giá vốn trung bình gia quyền mới
+   */
+  @Post('recalculate-weighted-average/:productId')
+  recalculateWeightedAverageCost(@Param('productId') productId: string) {
+    return this.inventoryService.recalculateWeightedAverageCost(+productId);
+  }
+
+  /**
+   * Lấy báo cáo giá trị tồn kho theo phương pháp WAC
+   * @param productIds - Danh sách ID sản phẩm (tùy chọn)
+   * @returns Báo cáo giá trị tồn kho
+   */
+  @Get('value-report')
+  getInventoryValueReport(@Query('productIds') productIds?: string) {
+    const ids = productIds ? productIds.split(',').map(id => +id) : undefined;
+    return this.inventoryService.getInventoryValueReport(ids);
+  }
+
+  /**
+   * Lấy cảnh báo tồn kho thấp
+   * @param threshold - Ngưỡng cảnh báo (mặc định: 10)
+   * @returns Danh sách sản phẩm có tồn kho thấp
+   */
+  @Get('low-stock-alert')
+  getLowStockAlert(@Query('threshold') threshold?: string) {
+    const thresholdValue = threshold ? +threshold : 10;
+    return this.inventoryService.getLowStockAlert(thresholdValue);
+  }
+
+  /**
+   * Lấy cảnh báo lô hàng sắp hết hạn
+   * @param days - Số ngày trước khi hết hạn (mặc định: 30)
+   * @returns Danh sách lô hàng sắp hết hạn
+   */
+  @Get('expiring-batches-alert')
+  getExpiringBatchesAlert(@Query('days') days?: string) {
+    const daysValue = days ? +days : 30;
+    return this.inventoryService.getExpiringBatchesAlert(daysValue);
+  }
+
+  /**
+   * Tính giá vốn FIFO cho một số lượng cụ thể
+   * @param productId - ID của sản phẩm
+   * @param quantity - Số lượng cần tính giá vốn FIFO
+   * @returns Thông tin giá vốn FIFO
+   */
+  @Get('fifo-cost/product/:productId')
+  calculateFifoCost(
+    @Param('productId') productId: string,
+    @Query('quantity') quantity: string
+  ) {
+    return this.inventoryService.calculateFifoCost(+productId, +quantity);
+  }
+
+  /**
+   * Lấy thông tin chi tiết về batch tracking
+   * @param productId - ID của sản phẩm (tùy chọn)
+   * @returns Thông tin chi tiết về các lô hàng
+   */
+  @Get('batch-tracking')
+  getBatchTrackingInfo(@Query('productId') productId?: string) {
+    const id = productId ? +productId : undefined;
+    return this.inventoryService.getBatchTrackingInfo(id);
+  }
+
+  /**
+   * Lấy thông tin chi tiết batch tracking cho một sản phẩm cụ thể
+   * @param productId - ID của sản phẩm
+   * @returns Thông tin chi tiết về các lô hàng của sản phẩm
+   */
+  @Get('batch-tracking/product/:productId')
+  getBatchTrackingByProduct(@Param('productId') productId: string) {
+    return this.inventoryService.getBatchTrackingInfo(+productId);
+  }
+
   // Inventory Receipt endpoints
   /**
    * Tạo phiếu nhập kho mới

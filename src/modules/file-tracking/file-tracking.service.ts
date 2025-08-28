@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { FileUpload } from '../../entities/file-upload.entity';
+import { FileReference } from '../../entities/file-reference.entity';
 import { CreateFileUploadDto } from './dto/create-file-upload.dto';
 
 /**
@@ -13,10 +14,13 @@ export class FileTrackingService {
   /**
    * Constructor injection repository cần thiết
    * @param fileUploadRepository - Repository để thao tác với entity FileUpload
+   * @param fileReferenceRepository - Repository để thao tác với entity FileReference
    */
   constructor(
     @InjectRepository(FileUpload)
     private fileUploadRepository: Repository<FileUpload>,
+    @InjectRepository(FileReference)
+    private fileReferenceRepository: Repository<FileReference>,
   ) {}
 
   /**
@@ -159,5 +163,182 @@ export class FileTrackingService {
     await this.fileUploadRepository.update(id, {
       deletedAt: new Date(), // Ghi nhận thời gian xóa
     });
+  }
+
+  /**
+   * Tạo tham chiếu file mới
+   * @param fileId - ID của file
+   * @param entityType - Loại thực thể (ví dụ: 'product', 'user')
+   * @param entityId - ID của thực thể
+   * @param fieldName - Tên trường chứa file
+   * @param arrayIndex - Vị trí trong mảng (nếu có)
+   * @param createdByUserId - ID người tạo
+   * @returns Tham chiếu file đã tạo
+   */
+  async createFileReference(
+    fileId: number,
+    entityType: string,
+    entityId: number,
+    fieldName?: string,
+    arrayIndex?: number,
+    createdByUserId?: number,
+  ): Promise<FileReference> {
+    const fileReference = this.fileReferenceRepository.create({
+      fileId,
+      entityType,
+      entityId,
+      fieldName,
+      arrayIndex,
+      createdByUserId,
+    });
+    return this.fileReferenceRepository.save(fileReference);
+  }
+
+  /**
+   * Tìm tất cả tham chiếu file theo entity
+   * @param entityType - Loại thực thể
+   * @param entityId - ID của thực thể
+   * @returns Danh sách tham chiếu file
+   */
+  async findFileReferencesByEntity(
+    entityType: string,
+    entityId: number,
+  ): Promise<FileReference[]> {
+    return this.fileReferenceRepository.find({
+      where: {
+        entityType,
+        entityId,
+        deletedAt: null, // Chỉ lấy các tham chiếu chưa bị xóa
+      },
+      relations: ['fileUpload'], // Bao gồm thông tin file
+    });
+  }
+
+  /**
+   * Xóa mềm tham chiếu file
+   * @param fileId - ID của file
+   * @param entityType - Loại thực thể
+   * @param entityId - ID của thực thể
+   * @param deletedByUserId - ID người xóa
+   */
+  async removeFileReference(
+    fileId: number,
+    entityType: string,
+    entityId: number,
+    deletedByUserId?: number,
+  ): Promise<void> {
+    await this.fileReferenceRepository.update(
+      {
+        fileId,
+        entityType,
+        entityId,
+        deletedAt: null, // Chỉ cập nhật các tham chiếu chưa bị xóa
+      },
+      {
+        deletedAt: new Date(),
+        deletedByUserId,
+      },
+    );
+  }
+
+  /**
+   * Xóa hàng loạt tất cả tham chiếu file của một thực thể
+   * @param entityType - Loại thực thể
+   * @param entityId - ID của thực thể
+   * @param deletedByUserId - ID người xóa
+   */
+  async batchRemoveEntityFileReferences(
+    entityType: string,
+    entityId: number,
+    deletedByUserId?: number,
+  ): Promise<void> {
+    // Lấy tất cả tham chiếu file của thực thể
+    const fileReferences = await this.findFileReferencesByEntity(
+      entityType,
+      entityId,
+    );
+
+    if (fileReferences.length === 0) {
+      return; // Không có tham chiếu nào để xóa
+    }
+
+    // Xóa mềm tất cả tham chiếu
+    await this.fileReferenceRepository.update(
+      {
+        entityType,
+        entityId,
+        deletedAt: null, // Chỉ cập nhật các tham chiếu chưa bị xóa
+      },
+      {
+        deletedAt: new Date(),
+        deletedByUserId,
+      },
+    );
+
+    // Giảm reference count cho từng file
+    for (const reference of fileReferences) {
+      await this.decrementReferenceCount(reference.fileId);
+      
+      // Kiểm tra và đánh dấu file là orphaned nếu không còn tham chiếu
+      const file = await this.findOne(reference.fileId);
+      if (file && file.referenceCount <= 0) {
+        await this.markAsOrphaned(reference.fileId);
+      }
+    }
+  }
+
+  /**
+   * Tìm file theo URL
+   * @param fileUrl - URL của file
+   * @returns Thông tin file upload
+   */
+  async findByFileUrl(fileUrl: string): Promise<FileUpload> {
+    return this.fileUploadRepository.findOne({ where: { fileUrl } });
+  }
+
+  /**
+   * Xóa tham chiếu file theo URL và thực thể
+   * @param fileUrl - URL của file
+   * @param entityType - Loại thực thể
+   * @param entityId - ID của thực thể
+   * @param deletedByUserId - ID người xóa
+   */
+  async removeFileReferenceByUrl(
+    fileUrl: string,
+    entityType: string,
+    entityId: number,
+    deletedByUserId?: number,
+  ): Promise<void> {
+    // Tìm file theo URL
+    const file = await this.findByFileUrl(fileUrl);
+    if (!file) {
+      return; // File không tồn tại
+    }
+
+    // Xóa tham chiếu
+    await this.removeFileReference(file.id, entityType, entityId, deletedByUserId);
+  }
+
+  /**
+   * Xóa hàng loạt tham chiếu file theo danh sách URL
+   * @param fileUrls - Danh sách URL file
+   * @param entityType - Loại thực thể
+   * @param entityId - ID của thực thể
+   * @param deletedByUserId - ID người xóa
+   */
+  async batchRemoveFileReferencesByUrls(
+    fileUrls: string[],
+    entityType: string,
+    entityId: number,
+    deletedByUserId?: number,
+  ): Promise<void> {
+    for (const fileUrl of fileUrls) {
+      await this.removeFileReferenceByUrl(
+        fileUrl,
+        entityType,
+        entityId,
+        deletedByUserId,
+      );
+    }
   }
 }

@@ -4,6 +4,7 @@ import { User } from '../../entities/user.entity';
 import { UserProfile } from '../../entities/user-profile.entity';
 import { UserService } from './user.service';
 import { UserController } from './user.controller';
+import { FileTrackingModule } from '../file-tracking/file-tracking.module';
 
 /**
  * Module quản lý người dùng
@@ -13,6 +14,8 @@ import { UserController } from './user.controller';
   imports: [
     // Import TypeORM feature module với các entity User và UserProfile
     TypeOrmModule.forFeature([User, UserProfile]),
+    // Import FileTrackingModule để sử dụng FileTrackingService
+    FileTrackingModule,
   ],
   controllers: [UserController], // Controller xử lý các request liên quan đến người dùng
   providers: [UserService], // Service xử lý logic nghiệp vụ người dùng
