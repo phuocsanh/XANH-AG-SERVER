@@ -4,52 +4,61 @@ export class CreateUserTable1719500000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.createTable(
       new Table({
-        name: 'user',
+        name: 'users',
         columns: [
           {
-            name: 'id',
+            name: 'user_id',
             type: 'int',
             isPrimary: true,
             isGenerated: true,
             generationStrategy: 'increment',
           },
           {
-            name: 'username',
+            name: 'user_account',
             type: 'varchar',
             length: '50',
             isUnique: true,
           },
           {
-            name: 'email',
-            type: 'varchar',
-            length: '100',
-            isUnique: true,
-          },
-          {
-            name: 'password',
+            name: 'user_password',
             type: 'varchar',
             length: '255',
           },
           {
-            name: 'role',
+            name: 'user_salt',
             type: 'varchar',
-            length: '20',
-            default: "'user'",
+            length: '255',
           },
           {
-            name: 'status',
-            type: 'int',
-            default: 1,
+            name: 'user_login_time',
+            type: 'timestamp',
+            isNullable: true,
           },
           {
-            name: 'created_at',
+            name: 'user_logout_time',
+            type: 'timestamp',
+            isNullable: true,
+          },
+          {
+            name: 'user_login_ip',
+            type: 'varchar',
+            length: '45',
+            isNullable: true,
+          },
+          {
+            name: 'user_created_at',
             type: 'timestamp',
             default: 'now()',
           },
           {
-            name: 'updated_at',
+            name: 'user_updated_at',
             type: 'timestamp',
             default: 'now()',
+          },
+          {
+            name: 'is_two_factor_enabled',
+            type: 'boolean',
+            default: false,
           },
         ],
       }),
@@ -58,6 +67,6 @@ export class CreateUserTable1719500000000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.dropTable('user');
+    await queryRunner.dropTable('users');
   }
 }

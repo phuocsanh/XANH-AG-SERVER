@@ -13,9 +13,10 @@ export class CreateUserDto {
   @IsString()
   userPassword: string;
 
-  /** Salt dùng để hash mật khẩu (bắt buộc) */
+  /** Salt dùng để hash mật khẩu (tùy chọn - sẽ được tạo tự động) */
+  @IsOptional()
   @IsString()
-  userSalt: string;
+  userSalt?: string;
 
   /** Email người dùng (tùy chọn) */
   @IsOptional()

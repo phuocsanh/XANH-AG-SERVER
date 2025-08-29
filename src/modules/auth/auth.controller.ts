@@ -7,6 +7,8 @@ import {
   Put,
   UseInterceptors,
   ClassSerializerInterceptor,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './local-auth.guard';
@@ -35,12 +37,34 @@ export class AuthController {
    * Endpoint đăng nhập người dùng
    * Sử dụng LocalAuthGuard để xác thực thông tin đăng nhập
    * @param req - Request object chứa thông tin người dùng đã xác thực
-   * @returns Thông tin xác thực bao gồm access token
+   * @returns Thông tin xác thực bao gồm access token và refresh token
    */
   @UseGuards(LocalAuthGuard)
   @Post('login')
   async login(@Request() req) {
     return this.authService.login(req.user);
+  }
+
+  /**
+   * Endpoint refresh token để tạo access token mới
+   * @param body - Body chứa refresh token
+   * @returns Access token mới và refresh token mới
+   */
+  @Post('refresh')
+  async refresh(@Body('refresh_token') refreshToken: string) {
+    if (!refreshToken) {
+      throw new HttpException(
+        'Refresh token is required',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const tokens = await this.authService.refreshToken(refreshToken);
+    if (!tokens) {
+      throw new HttpException('Invalid refresh token', HttpStatus.UNAUTHORIZED);
+    }
+
+    return tokens;
   }
 
   /**
@@ -52,8 +76,6 @@ export class AuthController {
   async register(@Body() createUserDto: CreateUserDto) {
     return this.authService.register(createUserDto);
   }
-
-  // Debug endpoints removed - authentication is working properly
 
   /**
    * Endpoint thay đổi mật khẩu người dùng

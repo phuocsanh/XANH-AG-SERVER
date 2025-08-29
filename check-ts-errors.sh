@@ -10,7 +10,11 @@ MODULES=("auth" "user" "product" "inventory" "file-tracking")
 
 for module in "${MODULES[@]}"; do
   echo "Checking $module module..."
-  npx tsc --noEmit --project tsconfig.json --rootDir src/modules/$module
+  if [ -f "src/modules/$module/tsconfig.json" ]; then
+    npx tsc --noEmit --project src/modules/$module/tsconfig.json
+  else
+    npx tsc --noEmit --project tsconfig.json --rootDir src/modules/$module
+  fi
   if [ $? -ne 0 ]; then
     echo "❌ Errors found in $module module"
   else
@@ -21,7 +25,11 @@ done
 
 # Check entities
 echo "Checking entities..."
-npx tsc --noEmit --project tsconfig.json --rootDir src/entities
+if [ -f "src/entities/tsconfig.json" ]; then
+  npx tsc --noEmit --project src/entities/tsconfig.json
+else
+  npx tsc --noEmit --project tsconfig.json --rootDir src/entities
+fi
 if [ $? -ne 0 ]; then
   echo "❌ Errors found in entities"
 else
@@ -31,7 +39,11 @@ echo ""
 
 # Check common directory
 echo "Checking common directory..."
-npx tsc --noEmit --project tsconfig.json --rootDir src/common
+if [ -f "src/common/tsconfig.json" ]; then
+  npx tsc --noEmit --project src/common/tsconfig.json
+else
+  npx tsc --noEmit --project tsconfig.json --rootDir src/common
+fi
 if [ $? -ne 0 ]; then
   echo "❌ Errors found in common directory"
 else

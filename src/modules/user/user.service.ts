@@ -42,7 +42,7 @@ export class UserService {
     const user = this.userRepository.create({
       userAccount: createUserDto.userAccount,
       userPassword: createUserDto.userPassword, // Already hashed
-      userSalt: createUserDto.userSalt,
+      userSalt: createUserDto.userSalt || '', // Use empty string if salt is not provided
     });
     const savedUser = await this.userRepository.save(user);
 
@@ -102,11 +102,14 @@ export class UserService {
    */
   async remove(userId: number): Promise<void> {
     // Xóa tất cả file references liên quan đến người dùng trước khi xóa
-    await this.fileTrackingService.batchRemoveEntityFileReferences('User', userId);
-    
+    await this.fileTrackingService.batchRemoveEntityFileReferences(
+      'User',
+      userId,
+    );
+
     // Xóa user profile trước
     await this.userProfileRepository.delete({ userId });
-    
+
     // Xóa người dùng
     await this.userRepository.delete(userId);
   }

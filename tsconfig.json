@@ -19,7 +19,8 @@
     "noFallthroughCasesInSwitch": false,
     "esModuleInterop": true,
     "allowJs": true,
-    "types": ["node"],
-    "moduleResolution": "node"
+    "types": ["node", "jest"],
+    "moduleResolution": "node",
+    "ignoreDeprecations": "5.0"
   }
 }

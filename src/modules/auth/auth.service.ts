@@ -57,10 +57,66 @@ export class AuthService {
 
     return {
       access_token: this.jwtService.sign(payload), // Token JWT để xác thực các request sau này
+      refresh_token: this.jwtService.sign(payload, {
+        secret: process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key',
+        expiresIn: '7d', // Refresh token có thời gian dài hơn (7 ngày)
+      }),
       user: {
         userId: user.userId,
         userAccount: user.userAccount,
       },
+    };
+  }
+
+  /**
+   * Tạo refresh token mới từ payload
+   * @param payload - Dữ liệu payload để tạo token
+   * @returns Refresh token mới
+   */
+  async createRefreshToken(payload: any) {
+    return this.jwtService.sign(payload, {
+      secret: process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key',
+      expiresIn: '7d',
+    });
+  }
+
+  /**
+   * Xác thực refresh token
+   * @param refreshToken - Refresh token cần xác thực
+   * @returns Payload nếu token hợp lệ, null nếu không hợp lệ
+   */
+  async validateRefreshToken(refreshToken: string) {
+    try {
+      const payload = this.jwtService.verify(refreshToken, {
+        secret: process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key',
+      });
+      return payload;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * Làm mới access token từ refresh token
+   * @param refreshToken - Refresh token để tạo access token mới
+   * @returns Access token mới và refresh token mới
+   */
+  async refreshToken(refreshToken: string) {
+    const payload = await this.validateRefreshToken(refreshToken);
+    if (!payload) {
+      return null;
+    }
+
+    // Tạo payload mới cho token
+    const newPayload = {
+      userAccount: payload.userAccount,
+      sub: payload.sub,
+      userId: payload.userId,
+    };
+
+    return {
+      access_token: this.jwtService.sign(newPayload),
+      refresh_token: await this.createRefreshToken(newPayload),
     };
   }
 
@@ -70,18 +126,35 @@ export class AuthService {
    * @returns Thông tin người dùng đã tạo (không bao gồm mật khẩu)
    */
   async register(createUserDto: CreateUserDto) {
-    // Hash mật khẩu trước khi lưu vào database
-    const hashedPassword = await this.hashPassword(createUserDto.userPassword);
+    // Hash mật khẩu và tạo salt tự động
+    const { hashedPassword, salt } = await this.hashPasswordWithSalt(
+      createUserDto.userPassword,
+    );
 
-    // Tạo người dùng với mật khẩu đã hash
+    // Tạo người dùng với mật khẩu đã hash và salt
     const user = await this.userService.create({
       ...createUserDto,
       userPassword: hashedPassword,
+      userSalt: salt,
     });
 
     // Trả về thông tin người dùng không bao gồm mật khẩu
     const { userPassword, ...result } = user;
     return result;
+  }
+
+  /**
+   * Hash mật khẩu sử dụng bcrypt và trả về cả mật khẩu đã hash và salt
+   * @param password - Mật khẩu cần hash
+   * @returns Mật khẩu đã hash và salt
+   */
+  async hashPasswordWithSalt(
+    password: string,
+  ): Promise<{ hashedPassword: string; salt: string }> {
+    const saltRounds = 10;
+    const salt = await bcrypt.genSalt(saltRounds);
+    const hashedPassword = await bcrypt.hash(password, salt);
+    return { hashedPassword, salt };
   }
 
   /**

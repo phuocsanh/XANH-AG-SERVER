@@ -16,6 +16,9 @@ COPY . .
 # Build the application
 RUN npm run build
 
+# Run database migrations
+RUN npm run migration:run
+
 # Expose port
 EXPOSE 8080
 

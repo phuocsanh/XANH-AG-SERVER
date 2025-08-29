@@ -1,241 +1,168 @@
-# GN - NestJS Server
+# GN Farm - Agriculture Management System
 
-This is a NestJS implementation of the GN application, originally built with Go.
+## Description
+
+GN Farm is a comprehensive agriculture management system designed to help farmers and agricultural businesses manage their operations efficiently. The system provides features for inventory management, product tracking, sales management, and user authentication.
 
 ## Features
 
-- Product Management (Mushrooms, Vegetables, Bonsai)
-- User Management and Authentication
-- Inventory Management with FIFO tracking
-- File Upload and Tracking System
-- RESTful API with Swagger Documentation
-- PostgreSQL Database Integration
+- User authentication with JWT (including refresh token functionality)
+- Product management (fertilizers, pesticides, seeds, etc.)
+- Inventory tracking with batch management
+- Sales invoice management
+- File upload and tracking
+- Role-based access control
+
+## Technology Stack
+
+- Backend: NestJS (TypeScript)
+- Database: PostgreSQL with TypeORM
+- Authentication: JWT with refresh tokens
+- File Storage: Cloudinary
+- Containerization: Docker
 
 ## Prerequisites
 
 - Node.js (v14 or higher)
-- PostgreSQL database
 - npm or yarn
-- Docker and Docker Compose (recommended)
+- Docker (optional, for containerized deployment)
+- PostgreSQL (if not using Docker)
 
-## Installation
+## Environment Variables
 
-```bash
-# Install dependencies
-npm install
+Create a `.env` file in the root directory with the following variables:
 
-# Set up environment variables
-# Copy .env.example to .env and update the values
-cp .env.example .env
-```
-
-## Docker Setup (Recommended)
-
-The easiest way to run the application is with Docker. See [README.DOCKER.md](README.DOCKER.md) for detailed instructions.
-
-### Quick Start with Docker
-
-1. Make the start script executable:
-
-   ```bash
-   chmod +x start.sh
-   ```
-
-2. Run the application:
-   ```bash
-   ./start.sh
-   ```
-
-### Using npm scripts for Docker
-
-```bash
-# Build Docker images
-npm run docker:build
-
-# Start services in production mode
-npm run docker:up
-
-# Stop services
-npm run docker:down
-
-# Start services in development mode
-npm run docker:up-dev
-
-# Stop development services
-npm run docker:down-dev
-
-# View logs
-npm run docker:logs
-npm run docker:logs-app
-npm run docker:logs-db
-```
-
-Or manually start the services:
-
-```bash
-# For production
-docker-compose up --build
-
-# For development
-docker-compose -f docker-compose.dev.yml up --build
-```
-
-## Manual Setup (Without Docker)
-
-### Configuration
-
-Update the `.env` file with your database credentials:
-
-```
+```env
 DB_HOST=localhost
 DB_PORT=5432
 DB_USERNAME=your_username
 DB_PASSWORD=your_password
 DB_NAME=your_database
 JWT_SECRET=your_secret_key
+JWT_REFRESH_SECRET=your_refresh_secret_key
 PORT=8080
 ```
 
-### Running the Application
+## Installation
+
+1. Clone the repository:
+
+   ```bash
+   git clone <repository-url>
+   cd GN-ARGI
+   ```
+
+2. Install dependencies:
+
+   ```bash
+   npm install
+   ```
+
+3. Set up the database:
+   - Create a PostgreSQL database
+   - Update the `.env` file with your database credentials
+
+4. Run database migrations:
+   ```bash
+   npm run migration:run
+   ```
+
+## Running the Application
+
+### Development Mode
 
 ```bash
-# Development mode
 npm run start:dev
+```
 
-# Production mode
+### Production Mode
+
+```bash
 npm run build
-npm run start:prod
+npm run start
 ```
 
-## API Documentation
+### Using Docker
 
-Once the application is running, you can access the Swagger API documentation at:
-
-- http://localhost:8080/api
-
-## Project Structure
-
-```
-src/
-├── common/          # Shared utilities, guards, interceptors, pipes
-├── config/          # Configuration files
-├── database/        # Database migrations
-├── dto/             # Data Transfer Objects
-├── entities/        # TypeORM entities
-├── interfaces/      # TypeScript interfaces
-├── modules/         # Feature modules
-│   ├── file-tracking/
-│   ├── inventory/
-│   ├── product/
-│   └── user/
-└── utils/           # Utility functions
-```
-
-## Modules
-
-### Product Module
-
-- Manage different types of products (Mushrooms, Vegetables, Bonsai)
-- CRUD operations for products
-- Product search and filtering
-
-### User Module
-
-- User registration and authentication
-- User profile management
-- Two-factor authentication support
-
-### Inventory Module
-
-- Track inventory batches with FIFO method
-- Manage inventory transactions
-- Calculate average cost pricing
-
-### File Tracking Module
-
-- Upload file management
-- Reference counting for files
-- Orphaned file detection and cleanup
-
-### Authentication Module
-
-- JWT-based authentication
-- Password hashing with bcrypt
-- Login and registration endpoints
-
-## Testing the Application
-
-You can test the application using the provided test script:
-
-```bash
-chmod +x test-app.sh
-./test-app.sh
-```
-
-Or manually using curl:
-
-```bash
-# User registration
-curl -X POST http://localhost:8080/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "userAccount": "testuser@example.com",
-    "userPassword": "password123",
-    "userSalt": "salt123",
-    "userEmail": "testuser@example.com",
-    "userState": 1
-  }'
-
-# User login
-curl -X POST http://localhost:8080/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "userAccount": "testuser@example.com",
-    "userPassword": "password123"
-  }'
-```
-
-## Development
-
-### Adding a New Module
-
-1. Create a new module directory in `src/modules/`
-2. Create the entity in `src/entities/`
-3. Create service, controller, and DTOs
-4. Register the module in `src/app.module.ts`
-
-### Database Migrations
-
-```bash
-# Generate a new migration
-npm run typeorm migration:generate -- -n MigrationName
-
-# Run migrations
-npm run typeorm migration:run
-```
-
-## Testing
-
-```bash
-# Run unit tests
-npm run test
-
-# Run end-to-end tests
-npm run test:e2e
-
-# Run tests with coverage
-npm run test:cov
-```
-
-## Production Deployment
-
-For production deployment, make sure to:
-
-1. Update the `.env` file with production database credentials
-2. Set a strong JWT secret
-3. Use the production Docker setup:
+1. Build and run with Docker Compose:
    ```bash
    docker-compose up --build
    ```
-4. Access the application at http://localhost:8080
-5. Access the API documentation at http://localhost:8080/api
+
+## API Endpoints
+
+### Authentication
+
+- `POST /auth/login` - User login (returns access and refresh tokens)
+- `POST /auth/refresh` - Refresh access token using refresh token
+- `POST /auth/register` - User registration
+- `PUT /auth/change-password` - Change user password (requires authentication)
+
+### Product Management
+
+- `GET /products` - Get all products
+- `GET /products/:id` - Get a specific product
+- `POST /products` - Create a new product
+- `PUT /products/:id` - Update a product
+- `DELETE /products/:id` - Delete a product
+
+### Inventory Management
+
+- `GET /inventory` - Get all inventory items
+- `GET /inventory/:id` - Get a specific inventory item
+- `POST /inventory/receipts` - Create a new inventory receipt
+- `POST /inventory/transactions` - Create a new inventory transaction
+
+### Sales Management
+
+- `GET /sales/invoices` - Get all sales invoices
+- `GET /sales/invoices/:id` - Get a specific sales invoice
+- `POST /sales/invoices` - Create a new sales invoice
+- `PUT /sales/invoices/:id` - Update a sales invoice
+
+### File Tracking
+
+- `POST /upload` - Upload a file
+- `GET /files` - Get all uploaded files
+- `GET /files/:id` - Get a specific file
+
+## Authentication with Refresh Tokens
+
+The application implements JWT-based authentication with refresh token functionality:
+
+1. Login with valid credentials to receive an access token (1 hour expiry) and a refresh token (7 days expiry)
+2. Use the access token in the Authorization header for authenticated requests
+3. When the access token expires, use the refresh token to obtain new tokens via the `/auth/refresh` endpoint
+4. Store refresh tokens securely on the client side
+
+## Development
+
+### Code Structure
+
+- `src/common` - Common utilities, filters, interceptors, and middleware
+- `src/config` - Configuration files
+- `src/database` - Database migrations
+- `src/entities` - TypeORM entities
+- `src/modules` - Feature modules (auth, product, inventory, sales, user, upload, file-tracking)
+
+### Code Quality
+
+- ESLint for code linting
+- Prettier for code formatting
+- TypeScript for type safety
+
+## Testing
+
+Run tests with:
+
+```bash
+npm run test
+```
+
+## Deployment
+
+The application can be deployed using Docker. Refer to the `docker-compose.yml` file for configuration details.
+
+## License
+
+This project is licensed under the MIT License.

@@ -1,101 +1,76 @@
-# Docker Setup for GN
+# Docker Deployment Guide
 
-This guide explains how to run the GN application using Docker.
+## Description
+
+This guide provides instructions for deploying the GN Farm application using Docker and Docker Compose.
 
 ## Prerequisites
 
-- Docker installed on your machine
-- Docker Compose installed on your machine
-
-## Quick Start
-
-1. Make the start script executable:
-
-   ```bash
-   chmod +x start.sh
-   ```
-
-2. Run the application:
-   ```bash
-   ./start.sh
-   ```
-
-Or manually start the services:
-
-```bash
-docker-compose up --build
-```
-
-## Using npm scripts
-
-You can also use npm scripts to manage Docker containers:
-
-```bash
-# Build Docker images
-npm run docker:build
-
-# Start services in production mode
-npm run docker:up
-
-# Stop services
-npm run docker:down
-
-# Start services in development mode (with hot-reloading)
-npm run docker:up-dev
-
-# Stop development services
-npm run docker:down-dev
-
-# View logs
-npm run docker:logs
-npm run docker:logs-app
-npm run docker:logs-db
-```
-
-## Services
-
-The docker-compose.yml file defines two services:
-
-1. **db**: PostgreSQL database
-   - Image: postgres:15
-   - Port: 5432
-   - Database name: GO_GN_FARM
-   - Username: postgres
-   - Password: postgres
-
-2. **app**: NestJS application
-   - Builds from the Dockerfile in the current directory
-   - Port: 8080 (mapped from container port 3000)
-   - Connects to the database service
+- Docker Engine v20.10 or higher
+- Docker Compose v1.29 or higher
 
 ## Environment Variables
 
-The application uses the following environment variables defined in the docker-compose.yml:
+The application requires the following environment variables to be set:
 
-- `DB_HOST`: db (the name of the database service)
-- `DB_PORT`: 5432
-- `DB_USERNAME`: postgres
-- `DB_PASSWORD`: postgres
-- `DB_NAME`: GO_GN_FARM
-- `JWT_SECRET`: your-secret-key
-- `PORT`: 8080
+- `DB_HOST`: Database host (default: localhost)
+- `DB_PORT`: Database port (default: 5432)
+- `DB_USERNAME`: Database username
+- `DB_PASSWORD`: Database password
+- `DB_NAME`: Database name
+- `JWT_SECRET`: Secret key for JWT token signing
+- `JWT_REFRESH_SECRET`: Secret key for JWT refresh token signing
+- `PORT`: Application port (default: 3000)
+
+These variables can be set in the `.env` file in the project root directory.
+
+## Docker Compose Configuration
+
+The project includes two Docker Compose files:
+
+1. `docker-compose.yml` - For production deployment
+2. `docker-compose.dev.yml` - For development with hot-reloading
+
+### Services
+
+- `app`: The NestJS application
+- `db`: PostgreSQL database
+
+## Building and Running
+
+### Production Deployment
+
+1. Ensure the `.env` file is properly configured
+2. Build and start the services:
+   ```bash
+   docker-compose up --build
+   ```
+
+### Development Deployment
+
+1. Ensure the `.env` file is properly configured
+2. Build and start the services with hot-reloading:
+   ```bash
+   docker-compose -f docker-compose.dev.yml up --build
+   ```
 
 ## Accessing the Application
 
-Once the services are running:
+Once the containers are running, the application will be available at `http://localhost:${PORT}` where `${PORT}` is the port specified in your environment variables.
 
-- Application: http://localhost:8080
-- API Documentation (Swagger): http://localhost:8080/api
+## Database Migrations
 
-## Stopping the Services
+Database migrations are automatically run when the application starts.
 
-To stop the services:
+## Stopping the Application
+
+To stop the application and remove the containers:
 
 ```bash
 docker-compose down
 ```
 
-To stop the services and remove the volumes:
+To stop the application and remove both containers and volumes (data will be lost):
 
 ```bash
 docker-compose down -v
@@ -103,16 +78,33 @@ docker-compose down -v
 
 ## Troubleshooting
 
-1. **Port already in use**: Make sure no other services are running on ports 8080 and 5432.
+### Common Issues
 
-2. **Database connection issues**:
-   - Check that the database service is running: `docker-compose ps`
-   - Verify the environment variables in docker-compose.yml
+1. **Port conflicts**: Ensure the ports specified in your `.env` file are not being used by other applications.
 
-3. **Build issues**:
-   - Clean the build: `docker-compose down -v` then `docker-compose up --build`
-   - Check the Dockerfile for any issues
+2. **Database connection errors**: Verify that the database credentials in your `.env` file are correct.
 
-4. **View logs**:
-   - View all logs: `docker-compose logs`
-   - View specific service logs: `docker-compose logs app` or `docker-compose logs db`
+3. **Permission denied errors**: Ensure Docker has the necessary permissions to access the project directory.
+
+### Logs
+
+To view the application logs:
+
+```bash
+docker-compose logs app
+```
+
+To view the database logs:
+
+```bash
+docker-compose logs db
+```
+
+## Authentication with Refresh Tokens
+
+The application implements JWT-based authentication with refresh token functionality:
+
+1. Login with valid credentials to receive an access token (1 hour expiry) and a refresh token (7 days expiry)
+2. Use the access token in the Authorization header for authenticated requests
+3. When the access token expires, use the refresh token to obtain new tokens via the `/auth/refresh` endpoint
+4. Store refresh tokens securely on the client side

@@ -9,47 +9,59 @@ export class CreateUserProfileTable1719500000001 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.createTable(
       new Table({
-        name: 'user_profile',
+        name: 'user_profiles',
         columns: [
-          {
-            name: 'id',
-            type: 'int',
-            isPrimary: true,
-            isGenerated: true,
-            generationStrategy: 'increment',
-          },
           {
             name: 'user_id',
             type: 'int',
+            isPrimary: true,
           },
           {
-            name: 'first_name',
+            name: 'user_account',
+            type: 'varchar',
+            length: '50',
+          },
+          {
+            name: 'user_nickname',
             type: 'varchar',
             length: '50',
             isNullable: true,
           },
           {
-            name: 'last_name',
+            name: 'user_avatar',
             type: 'varchar',
-            length: '50',
+            length: '255',
             isNullable: true,
           },
           {
-            name: 'phone',
+            name: 'user_state',
+            type: 'int',
+          },
+          {
+            name: 'user_mobile',
             type: 'varchar',
             length: '20',
             isNullable: true,
           },
           {
-            name: 'address',
-            type: 'text',
+            name: 'user_gender',
+            type: 'int',
             isNullable: true,
           },
           {
-            name: 'avatar',
-            type: 'varchar',
-            length: '255',
+            name: 'user_birthday',
+            type: 'date',
             isNullable: true,
+          },
+          {
+            name: 'user_email',
+            type: 'varchar',
+            length: '100',
+            isNullable: true,
+          },
+          {
+            name: 'user_is_authentication',
+            type: 'int',
           },
           {
             name: 'created_at',
@@ -68,11 +80,11 @@ export class CreateUserProfileTable1719500000001 implements MigrationInterface {
 
     // Tạo foreign key constraint
     await queryRunner.createForeignKey(
-      'user_profile',
+      'user_profiles',
       new TableForeignKey({
         columnNames: ['user_id'],
-        referencedColumnNames: ['id'],
-        referencedTableName: 'user',
+        referencedColumnNames: ['user_id'],
+        referencedTableName: 'users',
         onDelete: 'CASCADE',
       }),
     );
@@ -80,13 +92,13 @@ export class CreateUserProfileTable1719500000001 implements MigrationInterface {
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     // Xóa foreign key constraint trước
-    const table = await queryRunner.getTable('user_profile');
+    const table = await queryRunner.getTable('user_profiles');
     const foreignKey = table.foreignKeys.find(
       (fk) => fk.columnNames.indexOf('user_id') !== -1,
     );
-    await queryRunner.dropForeignKey('user_profile', foreignKey);
+    await queryRunner.dropForeignKey('user_profiles', foreignKey);
 
     // Xóa bảng
-    await queryRunner.dropTable('user_profile');
+    await queryRunner.dropTable('user_profiles');
   }
 }

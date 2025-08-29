@@ -6,6 +6,7 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { LocalStrategy } from './local.strategy';
+import { RefreshJwtStrategy } from './refresh-jwt.strategy';
 
 /**
  * Module xử lý xác thực và ủy quyền người dùng
@@ -26,7 +27,12 @@ import { LocalStrategy } from './local.strategy';
     }),
   ],
   controllers: [AuthController], // Controller xử lý các request liên quan đến xác thực
-  providers: [AuthService, JwtStrategy, LocalStrategy], // Các service và strategy cho xác thực
+  providers: [
+    AuthService,
+    JwtStrategy,
+    LocalStrategy,
+    RefreshJwtStrategy, // Thêm RefreshJwtStrategy để xử lý refresh token
+  ], // Các service và strategy cho xác thực
   exports: [AuthService], // Xuất AuthService để các module khác có thể sử dụng
 })
 export class AuthModule {}
