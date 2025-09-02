@@ -14,7 +14,7 @@ import { CreateInventoryBatchDto } from './dto/create-inventory-batch.dto';
 import { CreateInventoryTransactionDto } from './dto/create-inventory-transaction.dto';
 import { CreateInventoryReceiptDto } from './dto/create-inventory-receipt.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { InventoryReceiptItem } from '../../entities/inventory-receipt-item.entity';
+import { InventoryReceiptItem } from '../../entities/inventory-receipt-items.entity';
 
 /**
  * Controller xử lý các request liên quan đến quản lý kho hàng

@@ -7,6 +7,7 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { LocalStrategy } from './local.strategy';
 import { RefreshJwtStrategy } from './refresh-jwt.strategy';
+import { User } from '../../entities/users.entity';
 
 /**
  * Module xử lý xác thực và ủy quyền người dùng

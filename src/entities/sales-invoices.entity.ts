@@ -10,7 +10,7 @@ import {
  * Entity biểu diễn thông tin hóa đơn bán hàng
  * Ánh xạ với bảng 'sales_invoice' trong cơ sở dữ liệu
  */
-@Entity('sales_invoice')
+@Entity('sales_invoices')
 export class SalesInvoice {
   /** ID duy nhất của hóa đơn bán hàng (khóa chính, tự động tăng) */
   @PrimaryGeneratedColumn()

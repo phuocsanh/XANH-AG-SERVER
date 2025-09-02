@@ -1,10 +1,10 @@
 import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan, In } from 'typeorm';
-import { InventoryBatch } from '../../entities/inventory.entity';
-import { InventoryTransaction } from '../../entities/inventory-transaction.entity';
-import { InventoryReceipt } from '../../entities/inventory-receipt.entity';
-import { InventoryReceiptItem } from '../../entities/inventory-receipt-item.entity';
+import { InventoryBatch } from '../../entities/inventories.entity';
+import { InventoryTransaction } from '../../entities/inventory-transactions.entity';
+import { InventoryReceipt } from '../../entities/inventory-receipts.entity';
+import { InventoryReceiptItem } from '../../entities/inventory-receipt-items.entity';
 import { CreateInventoryBatchDto } from './dto/create-inventory-batch.dto';
 import { CreateInventoryTransactionDto } from './dto/create-inventory-transaction.dto';
 import { CreateInventoryReceiptDto } from './dto/create-inventory-receipt.dto';

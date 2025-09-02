@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { FileUpload } from '../../entities/file-upload.entity';
-import { FileReference } from '../../entities/file-reference.entity';
+import { FileUpload } from '../../entities/file-uploads.entity';
+import { FileReference } from '../../entities/file-references.entity';
 import { FileTrackingService } from './file-tracking.service';
 import { FileTrackingController } from './file-tracking.controller';
 

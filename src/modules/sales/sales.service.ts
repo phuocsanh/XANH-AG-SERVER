@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { SalesInvoice } from '../../entities/sales-invoice.entity';
-import { SalesInvoiceItem } from '../../entities/sales-invoice-item.entity';
+import { SalesInvoice } from '../../entities/sales-invoices.entity';
+import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
 import { CreateSalesInvoiceDto } from './dto/create-sales-invoice.dto';
 import { UpdateSalesInvoiceDto } from './dto/update-sales-invoice.dto';
 

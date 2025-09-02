@@ -1,7 +1,7 @@
 ### ===== FILE TRACKING APIs =====
 
 ### Create a new file upload record
-POST http://localhost:8080/file-tracking
+POST http://localhost:3000/file-tracking
 Content-Type: application/json
 
 {
@@ -24,16 +24,16 @@ Content-Type: application/json
 }
 
 ### Get all file upload records
-GET http://localhost:8080/file-tracking
+GET http://localhost:3000/file-tracking
 
 ### Get file upload record by ID
-GET http://localhost:8080/file-tracking/1
+GET http://localhost:3000/file-tracking/1
 
 ### Get file upload record by Public ID
-GET http://localhost:8080/file-tracking/public/public123
+GET http://localhost:3000/file-tracking/public/public123
 
 ### Update a file upload record
-PATCH http://localhost:8080/file-tracking/1
+PATCH http://localhost:3000/file-tracking/1
 Content-Type: application/json
 
 {
@@ -41,13 +41,13 @@ Content-Type: application/json
 }
 
 ### Delete a file upload record
-DELETE http://localhost:8080/file-tracking/1
+DELETE http://localhost:3000/file-tracking/1
 
 ### Get orphaned files
-GET http://localhost:8080/file-tracking/orphaned
+GET http://localhost:3000/file-tracking/orphaned
 
 ### Mark file for deletion
-PATCH http://localhost:8080/file-tracking/1/mark-for-deletion
+PATCH http://localhost:3000/file-tracking/1/mark-for-deletion
 
 ### Get files marked for deletion
-GET http://localhost:8080/file-tracking/marked-for-deletion
+GET http://localhost:3000/file-tracking/marked-for-deletion

@@ -1,6 +1,6 @@
 # Tạo sản phẩm mới
 POST http://localhost:3000/products
-Authorization: Bearer {{auth_token}}
+Authorization: Bearer {{access_token}}
 Content-Type: application/json
 
 {
@@ -19,31 +19,31 @@ Content-Type: application/json
 
 # Lấy danh sách tất cả sản phẩm
 GET http://localhost:3000/products
-Authorization: Bearer {{auth_token}}
+Authorization: Bearer {{access_token}}
 
 ###
 
 # Tìm kiếm sản phẩm
 GET http://localhost:3000/products/search?q=sản phẩm
-Authorization: Bearer {{auth_token}}
+Authorization: Bearer {{access_token}}
 
 ###
 
 # Lọc sản phẩm theo loại
 GET http://localhost:3000/products/type/1
-Authorization: Bearer {{auth_token}}
+Authorization: Bearer {{access_token}}
 
 ###
 
 # Lấy chi tiết một sản phẩm
 GET http://localhost:3000/products/1
-Authorization: Bearer {{auth_token}}
+Authorization: Bearer {{access_token}}
 
 ###
 
 # Cập nhật thông tin sản phẩm
 PATCH http://localhost:3000/products/1
-Authorization: Bearer {{auth_token}}
+Authorization: Bearer {{access_token}}
 Content-Type: application/json
 
 {
@@ -55,7 +55,7 @@ Content-Type: application/json
 
 # Xóa sản phẩm
 DELETE http://localhost:3000/products/1
-Authorization: Bearer {{auth_token}}
+Authorization: Bearer {{access_token}}
 
 ###
 
@@ -63,19 +63,19 @@ Authorization: Bearer {{auth_token}}
 
 # Lấy danh sách tất cả loại sản phẩm
 GET http://localhost:3000/products/type
-Authorization: Bearer {{auth_token}}
+Authorization: Bearer {{access_token}}
 
 ###
 
 # Lấy chi tiết một loại sản phẩm
 GET http://localhost:3000/products/type/1
-Authorization: Bearer {{auth_token}}
+Authorization: Bearer {{access_token}}
 
 ###
 
 # Tạo loại sản phẩm mới
 POST http://localhost:3000/products/type
-Authorization: Bearer {{auth_token}}
+Authorization: Bearer {{access_token}}
 Content-Type: application/json
 
 {
@@ -88,7 +88,7 @@ Content-Type: application/json
 
 # Cập nhật loại sản phẩm
 PATCH http://localhost:3000/products/type/1
-Authorization: Bearer {{auth_token}}
+Authorization: Bearer {{access_token}}
 Content-Type: application/json
 
 {
@@ -100,7 +100,7 @@ Content-Type: application/json
 
 # Xóa loại sản phẩm
 DELETE http://localhost:3000/products/type/1
-Authorization: Bearer {{auth_token}}
+Authorization: Bearer {{access_token}}
 
 ###
 
@@ -108,25 +108,25 @@ Authorization: Bearer {{auth_token}}
 
 # Lấy danh sách tất cả phân loại phụ
 GET http://localhost:3000/products/subtype
-Authorization: Bearer {{auth_token}}
+Authorization: Bearer {{access_token}}
 
 ###
 
 # Lấy chi tiết một phân loại phụ
 GET http://localhost:3000/products/subtype/1
-Authorization: Bearer {{auth_token}}
+Authorization: Bearer {{access_token}}
 
 ###
 
 # Lấy tất cả phân loại phụ của loại sản phẩm
 GET http://localhost:3000/products/type/1/subtypes
-Authorization: Bearer {{auth_token}}
+Authorization: Bearer {{access_token}}
 
 ###
 
 # Tạo phân loại phụ mới
 POST http://localhost:3000/products/subtype
-Authorization: Bearer {{auth_token}}
+Authorization: Bearer {{access_token}}
 Content-Type: application/json
 
 {
@@ -140,7 +140,7 @@ Content-Type: application/json
 
 # Cập nhật phân loại phụ
 PATCH http://localhost:3000/products/subtype/1
-Authorization: Bearer {{auth_token}}
+Authorization: Bearer {{access_token}}
 Content-Type: application/json
 
 {
@@ -152,7 +152,7 @@ Content-Type: application/json
 
 # Xóa phân loại phụ
 DELETE http://localhost:3000/products/subtype/1
-Authorization: Bearer {{auth_token}}
+Authorization: Bearer {{access_token}}
 
 ###
 
@@ -160,22 +160,22 @@ Authorization: Bearer {{auth_token}}
 
 # Lấy tất cả phân loại phụ của một sản phẩm
 GET http://localhost:3000/products/1/subtypes
-Authorization: Bearer {{auth_token}}
+Authorization: Bearer {{access_token}}
 
 ###
 
 # Thêm phân loại phụ cho sản phẩm
 POST http://localhost:3000/products/1/subtype/1
-Authorization: Bearer {{auth_token}}
+Authorization: Bearer {{access_token}}
 
 ###
 
 # Xóa một phân loại phụ khỏi sản phẩm
 DELETE http://localhost:3000/products/1/subtype/1
-Authorization: Bearer {{auth_token}}
+Authorization: Bearer {{access_token}}
 
 ###
 
 # Xóa tất cả phân loại phụ khỏi sản phẩm
 DELETE http://localhost:3000/products/1/subtypes
-Authorization: Bearer {{auth_token}}
+Authorization: Bearer {{access_token}}

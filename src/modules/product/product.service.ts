@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Product } from '../../entities/product.entity';
-import { ProductType } from '../../entities/product-type.entity';
-import { ProductSubtype } from '../../entities/product-subtype.entity';
-import { ProductSubtypeRelation } from '../../entities/product-subtype-relation.entity';
+import { Product } from '../../entities/products.entity';
+import { ProductType } from '../../entities/product-types.entity';
+import { ProductSubtype } from '../../entities/product-subtypes.entity';
+import { ProductSubtypeRelation } from '../../entities/product-subtype-relations.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductFactoryRegistry } from './factories/product-factory.registry';
@@ -115,7 +115,6 @@ export class ProductService {
       .orWhere('product.productDescription ILIKE :query', {
         query: `%${query}%`,
       })
-      .orWhere('product.productSKU ILIKE :query', { query: `%${query}%` })
       .getMany();
   }
 

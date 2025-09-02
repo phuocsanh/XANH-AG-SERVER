@@ -1,9 +1,9 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { InventoryBatch } from '../../entities/inventory.entity';
-import { InventoryTransaction } from '../../entities/inventory-transaction.entity';
-import { InventoryReceipt } from '../../entities/inventory-receipt.entity';
-import { InventoryReceiptItem } from '../../entities/inventory-receipt-item.entity';
+import { InventoryBatch } from '../../entities/inventories.entity';
+import { InventoryTransaction } from '../../entities/inventory-transactions.entity';
+import { InventoryReceipt } from '../../entities/inventory-receipts.entity';
+import { InventoryReceiptItem } from '../../entities/inventory-receipt-items.entity';
 import { InventoryService } from './inventory.service';
 import { InventoryController } from './inventory.controller';
 import { ProductModule } from '../product/product.module';

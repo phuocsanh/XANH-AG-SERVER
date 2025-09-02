@@ -1,4 +1,4 @@
-import { Product } from '../../../entities/product.entity';
+import { Product } from '../../../entities/products.entity';
 import { CreateProductDto } from '../dto/create-product.dto';
 
 export interface ProductFactory {

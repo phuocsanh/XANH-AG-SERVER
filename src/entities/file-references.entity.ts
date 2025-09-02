@@ -7,7 +7,7 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { FileUpload } from './file-upload.entity';
+import { FileUpload } from './file-uploads.entity';
 
 /**
  * Entity biểu diễn mối quan hệ tham chiếu giữa file và các thực thể khác

@@ -7,8 +7,8 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { InventoryReceipt } from './inventory-receipt.entity';
-import { Product } from './product.entity';
+import { InventoryReceipt } from './inventory-receipts.entity';
+import { Product } from './products.entity';
 
 /**
  * Entity biểu diễn thông tin chi tiết phiếu nhập kho

@@ -14,7 +14,7 @@ import { Product } from './product.entity';
  * Entity biểu diễn thông tin chi tiết hóa đơn bán hàng
  * Ánh xạ với bảng 'sales_invoice_item' trong cơ sở dữ liệu
  */
-@Entity('sales_invoice_item')
+@Entity('sales_invoice_items')
 export class SalesInvoiceItem {
   /** ID duy nhất của chi tiết hóa đơn bán hàng (khóa chính, tự động tăng) */
   @PrimaryGeneratedColumn()

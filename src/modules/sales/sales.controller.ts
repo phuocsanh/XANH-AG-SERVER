@@ -12,7 +12,7 @@ import { SalesService } from './sales.service';
 import { CreateSalesInvoiceDto } from './dto/create-sales-invoice.dto';
 import { UpdateSalesInvoiceDto } from './dto/update-sales-invoice.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { SalesInvoiceItem } from '../../entities/sales-invoice-item.entity';
+import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
 
 /**
  * Controller xử lý các request liên quan đến quản lý bán hàng

@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { FileUpload } from '../../entities/file-upload.entity';
-import { FileReference } from '../../entities/file-reference.entity';
+import { FileUpload } from '../../entities/file-uploads.entity';
+import { FileReference } from '../../entities/file-references.entity';
 import { CreateFileUploadDto } from './dto/create-file-upload.dto';
 
 /**

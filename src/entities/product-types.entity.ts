@@ -8,7 +8,7 @@ import {
 
 /**
  * Entity biểu diễn thông tin loại sản phẩm
- * Ánh xạ với bảng 'product_types' trong cơ sở dữ liệu
+ * Ánh xạ với bảng 'product_type' trong cơ sở dữ liệu
  */
 @Entity('product_types')
 export class ProductType {

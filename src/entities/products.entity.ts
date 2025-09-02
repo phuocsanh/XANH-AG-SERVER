@@ -1,4 +1,10 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 
 /**
  * Entity biểu diễn thông tin sản phẩm trong hệ thống
@@ -55,7 +61,12 @@ export class Product {
   productType: number;
 
   /** Mảng loại phụ sản phẩm (tham chiếu đến product_subtypes) */
-  @Column({ name: 'sub_product_type', type: 'integer', array: true, default: [] })
+  @Column({
+    name: 'sub_product_type',
+    type: 'integer',
+    array: true,
+    default: [],
+  })
   subProductType: number[];
 
   /** Phần trăm giảm giá */
