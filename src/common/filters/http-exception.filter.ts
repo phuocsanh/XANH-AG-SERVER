@@ -8,8 +8,8 @@ import {
 import { Request, Response } from 'express';
 
 /**
- * Global exception filter để xử lý tất cả các HTTP exceptions
- * Trả về response có cấu trúc thống nhất cho client
+ * Filter xử lý các exception HTTP trong ứng dụng
+ * Bắt tất cả HttpException và trả về response có format nhất quán
  */
 @Catch(HttpException)
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -21,20 +21,18 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     // Lấy thông tin lỗi từ exception
     const exceptionResponse = exception.getResponse();
-    const message = typeof exceptionResponse === 'string' 
-      ? exceptionResponse 
-      : (exceptionResponse as any).message || 'Internal server error';
+    const error =
+      typeof exceptionResponse === 'string'
+        ? { message: exceptionResponse }
+        : (exceptionResponse as object);
 
-    // Ghi log lỗi
-    console.error(`[${new Date().toISOString()}] ${request.method} ${request.url} - ${status} - ${message}`);
-
-    // Trả về response có cấu trúc thống nhất
+    // Trả về response với format chuẩn
     response.status(status).json({
       statusCode: status,
       timestamp: new Date().toISOString(),
       path: request.url,
       method: request.method,
-      message: message,
+      ...error,
     });
   }
 }

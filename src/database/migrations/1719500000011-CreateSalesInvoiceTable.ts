@@ -101,8 +101,8 @@ export class CreateSalesInvoiceTable1719500000011
       'sales_invoice',
       new TableForeignKey({
         columnNames: ['created_by_user_id'],
-        referencedColumnNames: ['id'],
-        referencedTableName: 'user',
+        referencedColumnNames: ['user_id'],
+        referencedTableName: 'users',
         onDelete: 'CASCADE',
       }),
     );

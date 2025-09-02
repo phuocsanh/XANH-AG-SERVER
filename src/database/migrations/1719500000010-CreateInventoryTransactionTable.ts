@@ -115,8 +115,8 @@ export class CreateInventoryTransactionTable1719500000010
       'inventory_transaction',
       new TableForeignKey({
         columnNames: ['created_by_user_id'],
-        referencedColumnNames: ['id'],
-        referencedTableName: 'user',
+        referencedColumnNames: ['user_id'],
+        referencedTableName: 'users',
         onDelete: 'CASCADE',
       }),
     );

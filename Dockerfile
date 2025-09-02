@@ -16,11 +16,8 @@ COPY . .
 # Build the application
 RUN npm run build
 
-# Run database migrations
-RUN npm run migration:run
-
 # Expose port
 EXPOSE 8080
 
-# Start the application in production mode
-CMD ["node", "dist/src/main.js"]
+# Start the application with migrations in production mode
+CMD ["sh", "-c", "npm run migration:run && node dist/src/main.js"]

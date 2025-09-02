@@ -3,27 +3,38 @@ import {
   NestInterceptor,
   ExecutionContext,
   CallHandler,
+  Logger,
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
+import { Request } from 'express';
 
 /**
- * Interceptor để ghi log thời gian xử lý của các request
- * Ghi lại thời gian bắt đầu và kết thúc xử lý
+ * Interceptor để log các request và response
+ * Ghi lại thời gian xử lý và thông tin cơ bản của request
  */
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    const request = context.switchToHttp().getRequest();
-    const { method, url } = request;
-    const startTime = Date.now();
+  private readonly logger = new Logger(LoggingInterceptor.name);
 
-    console.log(`[INTERCEPTOR] ${method} ${url} - Processing started`);
+  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+    const request = context.switchToHttp().getRequest<Request>();
+    const { method, url, ip } = request;
+    const userAgent = request.get('User-Agent') || '';
+    const now = Date.now();
+
+    // Log thông tin request
+    this.logger.log(
+      `${method} ${url} - ${ip} - ${userAgent} - Request started`,
+    );
 
     return next.handle().pipe(
       tap(() => {
-        const duration = Date.now() - startTime;
-        console.log(`[INTERCEPTOR] ${method} ${url} - Processing completed in ${duration}ms`);
+        // Log thời gian xử lý khi request hoàn thành
+        const responseTime = Date.now() - now;
+        this.logger.log(
+          `${method} ${url} - ${ip} - ${userAgent} - Completed in ${responseTime}ms`,
+        );
       }),
     );
   }

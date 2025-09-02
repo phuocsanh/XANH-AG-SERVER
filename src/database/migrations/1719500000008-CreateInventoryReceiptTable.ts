@@ -70,8 +70,8 @@ export class CreateInventoryReceiptTable1719500000008
       'inventory_receipt',
       new TableForeignKey({
         columnNames: ['created_by_user_id'],
-        referencedColumnNames: ['id'],
-        referencedTableName: 'user',
+        referencedColumnNames: ['user_id'],
+        referencedTableName: 'users',
         onDelete: 'CASCADE',
       }),
     );
