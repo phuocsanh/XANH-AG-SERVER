@@ -7,8 +7,8 @@ import {
 } from 'typeorm';
 
 /**
- * Entity biểu diễn mối quan hệ giữa sản phẩm và loại phụ sản phẩm
- * Ánh xạ với bảng 'product_subtype_relation' trong cơ sở dữ liệu
+ * Entity biểu diễn mối quan hệ giữa sản phẩm và loại phụ
+ * Ánh xạ với bảng 'product_subtype_relations' trong cơ sở dữ liệu
  */
 @Entity('product_subtype_relations')
 export class ProductSubtypeRelation {

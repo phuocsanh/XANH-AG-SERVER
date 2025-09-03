@@ -8,6 +8,7 @@ import {
   Delete,
   Query,
   UseGuards,
+  ValidationPipe,
 } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
 import { CreateInventoryBatchDto } from './dto/create-inventory-batch.dto';

@@ -10,6 +10,7 @@ import { SalesModule } from './modules/sales/sales.module';
 import { UploadModule } from './modules/upload/upload.module';
 import typeOrmConfig from './config/typeorm.config';
 
+
 /**
  * Module chính của ứng dụng NestJS
  * Import tất cả các module con và cấu hình các thành phần global

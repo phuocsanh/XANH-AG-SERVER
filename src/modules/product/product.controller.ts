@@ -19,7 +19,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
  * Bao gồm quản lý sản phẩm, loại sản phẩm, loại phụ sản phẩm và mối quan hệ giữa chúng
  */
 @Controller('products')
-@UseGuards(JwtAuthGuard)
+// @UseGuards(JwtAuthGuard) // Tạm thời comment để test
 export class ProductController {
   /**
    * Constructor injection ProductService
@@ -35,6 +35,19 @@ export class ProductController {
   @Post()
   create(@Body() createProductDto: CreateProductDto) {
     return this.productService.create(createProductDto);
+  }
+
+  /**
+   * Endpoint test để kiểm tra chuyển đổi ngày tháng
+   * @param testData - Dữ liệu test chứa ngày tháng
+   * @returns Thông tin về việc chuyển đổi ngày tháng
+   */
+  @Post('test-date')
+  testDate(@Body() testData: any) {
+    console.log('Test Date DTO:', testData);
+    console.log('myDate type:', typeof testData.myDate);
+    console.log('myDate instanceof Date:', testData.myDate instanceof Date);
+    return { success: true, data: testData };
   }
 
   /**
@@ -56,12 +69,32 @@ export class ProductController {
     return this.productService.searchProducts(query);
   }
 
+  // Product Type endpoints
+  /**
+   * Lấy danh sách tất cả loại sản phẩm
+   * @returns Danh sách loại sản phẩm
+   */
+  @Get('type')
+  findAllProductTypes() {
+    return this.productService.findAllProductTypes();
+  }
+
+  /**
+   * Lấy thông tin chi tiết một loại sản phẩm theo ID
+   * @param id - ID của loại sản phẩm cần tìm
+   * @returns Thông tin loại sản phẩm
+   */
+  @Get('type/:id')
+  findOneProductType(@Param('id') id: string) {
+    return this.productService.findOneProductType(+id);
+  }
+
   /**
    * Tìm sản phẩm theo loại sản phẩm
    * @param productType - ID loại sản phẩm
    * @returns Danh sách sản phẩm thuộc loại đó
    */
-  @Get('type/:productType')
+  @Get('type/:productType/products')
   findByType(@Param('productType') productType: number) {
     return this.productService.findByType(productType);
   }
@@ -95,26 +128,6 @@ export class ProductController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.productService.remove(+id);
-  }
-
-  // Product Type endpoints
-  /**
-   * Lấy danh sách tất cả loại sản phẩm
-   * @returns Danh sách loại sản phẩm
-   */
-  @Get('type')
-  findAllProductTypes() {
-    return this.productService.findAllProductTypes();
-  }
-
-  /**
-   * Lấy thông tin chi tiết một loại sản phẩm theo ID
-   * @param id - ID của loại sản phẩm cần tìm
-   * @returns Thông tin loại sản phẩm
-   */
-  @Get('type/:id')
-  findOneProductType(@Param('id') id: string) {
-    return this.productService.findOneProductType(+id);
   }
 
   /**

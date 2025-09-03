@@ -18,7 +18,11 @@ async function bootstrap() {
   app.enableCors();
 
   // Đăng ký global validation pipe để tự động xác thực dữ liệu đầu vào
-  app.useGlobalPipes(new ValidationPipe());
+  app.useGlobalPipes(new ValidationPipe({
+    transform: true, // Tự động chuyển đổi dữ liệu theo DTO
+    whitelist: true, // Loại bỏ các thuộc tính không có trong DTO
+    forbidNonWhitelisted: true, // Báo lỗi nếu có thuộc tính không được định nghĩa trong DTO
+  }));
 
   // Sử dụng middleware để ghi log các request
   app.use(loggingMiddleware);

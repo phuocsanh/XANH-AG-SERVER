@@ -1,4 +1,5 @@
 import { IsNumber, IsString, IsOptional, IsDate } from 'class-validator';
+import { Type } from 'class-transformer';
 
 /**
  * DTO (Data Transfer Object) dùng để tạo lô hàng tồn kho mới
@@ -28,11 +29,13 @@ export class CreateInventoryBatchDto {
 
   /** Ngày hết hạn của lô hàng (tùy chọn) */
   @IsOptional()
+  @Type(() => Date)
   @IsDate()
   expiryDate?: Date;
 
   /** Ngày sản xuất của lô hàng (tùy chọn) */
   @IsOptional()
+  @Type(() => Date)
   @IsDate()
   manufacturingDate?: Date;
 

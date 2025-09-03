@@ -1,0 +1,11 @@
+{
+  "productId": 1,
+  "batchCode": "BATCH001",
+  "unitCostPrice": "50000",
+  "originalQuantity": 100,
+  "remainingQuantity": 100,
+  "expiryDate": "2025-12-31T00:00:00.000Z",
+  "manufacturingDate": "2025-01-01T00:00:00.000Z",
+  "supplierId": 1,
+  "notes": "Ghi chú lô hàng test"
+}

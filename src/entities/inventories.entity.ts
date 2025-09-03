@@ -2,9 +2,9 @@ import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateCol
 
 /**
  * Entity biểu diễn thông tin lô hàng tồn kho
- * Ánh xạ với bảng 'inventory_batches' trong cơ sở dữ liệu
+ * Ánh xạ với bảng 'inventories' trong cơ sở dữ liệu
  */
-@Entity('inventory_batches')
+@Entity('inventories')
 export class InventoryBatch {
   /** ID duy nhất của lô hàng tồn kho (khóa chính, tự động tăng) */
   @PrimaryGeneratedColumn()

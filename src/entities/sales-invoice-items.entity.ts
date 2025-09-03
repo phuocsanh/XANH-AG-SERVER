@@ -7,8 +7,8 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { SalesInvoice } from './sales-invoice.entity';
-import { Product } from './product.entity';
+import { SalesInvoice } from './sales-invoices.entity';
+import { Product } from './products.entity';
 
 /**
  * Entity biểu diễn thông tin chi tiết hóa đơn bán hàng
