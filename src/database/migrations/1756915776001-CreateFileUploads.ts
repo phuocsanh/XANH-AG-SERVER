@@ -2,7 +2,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 
 /**
  * Tạo bảng file_uploads - thông tin file upload
- * Migration được tạo tự động từ InitialSchema.ts
+ * Migration được tạo tự động bởi script create-individual-migrations.js
  */
 export class CreateFileUploads1756915776001 implements MigrationInterface {
   name = 'CreateFileUploads1756915776001';

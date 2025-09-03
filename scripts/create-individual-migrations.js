@@ -111,7 +111,7 @@ export class ${className} implements MigrationInterface {
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // TODO: Thêm SQL CREATE TABLE cho bảng ${tableName}
-    // Bạn cần copy SQL từ file InitialSchema.ts tương ứng với bảng này
+    // Bạn cần thêm câu lệnh SQL CREATE TABLE tương ứng với entity
     console.log('Creating table ${tableName}...');
     
     // Ví dụ:
@@ -158,9 +158,8 @@ function createIndividualMigrations() {
   
   console.log('\n🎉 Hoàn thành tạo tất cả migration!');
   console.log('\n📝 Lưu ý:');
-  console.log('1. Bạn cần copy SQL CREATE TABLE từ file InitialSchema.ts vào từng migration tương ứng');
-  console.log('2. Xóa file InitialSchema.ts sau khi copy xong');
-  console.log('3. Chạy migration: npm run migration:run');
+  console.log('1. Bạn cần thêm SQL CREATE TABLE vào từng migration tương ứng với entity');
+  console.log('2. Chạy migration: npm run migration:run');
 }
 
 // Chạy script

@@ -2,7 +2,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 
 /**
  * Tạo bảng user_profiles - thông tin chi tiết người dùng
- * Migration được tạo tự động từ InitialSchema.ts
+ * Migration được tạo tự động bởi script create-individual-migrations.js
  */
 export class CreateUserProfiles1756915765001 implements MigrationInterface {
   name = 'CreateUserProfiles1756915765001';

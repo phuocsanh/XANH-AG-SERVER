@@ -2,7 +2,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 
 /**
  * Tạo bảng inventories - lô hàng tồn kho
- * Migration được tạo tự động từ InitialSchema.ts
+ * Migration được tạo tự động bởi script create-individual-migrations.js
  */
 export class CreateInventories1756915770001 implements MigrationInterface {
   name = 'CreateInventories1756915770001';

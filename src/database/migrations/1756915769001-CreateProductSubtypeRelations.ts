@@ -2,7 +2,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 
 /**
  * Tạo bảng product_subtype_relations - quan hệ sản phẩm và loại phụ
- * Migration được tạo tự động từ InitialSchema.ts
+ * Migration được tạo tự động bởi script create-individual-migrations.js
  */
 export class CreateProductSubtypeRelations1756915769001 implements MigrationInterface {
   name = 'CreateProductSubtypeRelations1756915769001';

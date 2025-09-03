@@ -2,7 +2,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 
 /**
  * Tạo bảng file_references - tham chiếu file
- * Migration được tạo tự động từ InitialSchema.ts
+ * Migration được tạo tự động bởi script create-individual-migrations.js
  */
 export class CreateFileReferences1756915777001 implements MigrationInterface {
   name = 'CreateFileReferences1756915777001';

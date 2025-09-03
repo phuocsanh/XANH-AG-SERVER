@@ -2,7 +2,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 
 /**
  * Tạo bảng sales_invoices - hóa đơn bán hàng
- * Migration được tạo tự động từ InitialSchema.ts
+ * Migration được tạo tự động bởi script create-individual-migrations.js
  */
 export class CreateSalesInvoices1756915774001 implements MigrationInterface {
   name = 'CreateSalesInvoices1756915774001';

@@ -2,7 +2,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 
 /**
  * Tạo bảng product_types - loại sản phẩm
- * Migration được tạo tự động từ InitialSchema.ts
+ * Migration được tạo tự động bởi script create-individual-migrations.js
  */
 export class CreateProductTypes1756915766001 implements MigrationInterface {
   name = 'CreateProductTypes1756915766001';
