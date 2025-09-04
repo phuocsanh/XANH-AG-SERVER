@@ -35,13 +35,13 @@ export class UserService {
    * @returns Thông tin người dùng đã tạo
    */
   async create(createUserDto: CreateUserDto): Promise<User> {
-    // Password is already hashed by AuthService, no need to hash again
-    // const hashedPassword = await bcrypt.hash(createUserDto.userPassword, 10);
+    // Hash password trước khi lưu vào database
+    const hashedPassword = await bcrypt.hash(createUserDto.userPassword, 10);
 
     // Tạo user
     const user = this.userRepository.create({
       userAccount: createUserDto.userAccount,
-      userPassword: createUserDto.userPassword, // Already hashed
+      userPassword: hashedPassword, // Password đã được hash
       userSalt: createUserDto.userSalt || '', // Use empty string if salt is not provided
     });
     const savedUser = await this.userRepository.save(user);
@@ -61,19 +61,30 @@ export class UserService {
 
   /**
    * Lấy danh sách tất cả người dùng
-   * @returns Danh sách người dùng
+   * @returns Danh sách người dùng (không bao gồm password)
    */
   async findAll(): Promise<User[]> {
-    return this.userRepository.find();
+    const users = await this.userRepository.find();
+    // Loại bỏ password khỏi response để bảo mật
+    return users.map(user => {
+      const { userPassword, ...userWithoutPassword } = user;
+      return userWithoutPassword as User;
+    });
   }
 
   /**
    * Tìm người dùng theo ID
    * @param userId - ID của người dùng cần tìm
-   * @returns Thông tin người dùng
+   * @returns Thông tin người dùng (không bao gồm password)
    */
   async findOne(userId: number): Promise<User> {
-    return this.userRepository.findOne({ where: { userId } });
+    const user = await this.userRepository.findOne({ where: { userId } });
+    if (user) {
+      // Loại bỏ password khỏi response để bảo mật
+      const { userPassword, ...userWithoutPassword } = user;
+      return userWithoutPassword as User;
+    }
+    return user;
   }
 
   /**

@@ -76,6 +76,10 @@ export class CreateSalesInvoiceDto {
   @IsNumber()
   finalAmount: number;
 
+  /** Phương thức thanh toán (bắt buộc) */
+  @IsString()
+  paymentMethod: string;
+
   /** Ghi chú về hóa đơn (tùy chọn) */
   @IsString()
   @IsOptional()

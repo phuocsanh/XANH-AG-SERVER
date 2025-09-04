@@ -39,13 +39,17 @@ export class SalesService {
     });
     const savedInvoice = await this.salesInvoiceRepository.save(invoice);
 
-    // Tạo các item trong phiếu
-    const items = createSalesInvoiceDto.items.map((item) =>
-      this.salesInvoiceItemRepository.create({
+    // Tạo các item trong phiếu với tính toán totalPrice
+    const items = createSalesInvoiceDto.items.map((item) => {
+      // Tính tổng giá tiền = (giá đơn vị * số lượng) - số tiền giảm giá
+      const totalPrice = (item.unitPrice * item.quantity) - (item.discountAmount || 0);
+      
+      return this.salesInvoiceItemRepository.create({
         ...item,
         invoiceId: savedInvoice.id,
-      }),
-    );
+        totalPrice: totalPrice,
+      });
+    });
     await this.salesInvoiceItemRepository.save(items);
 
     return savedInvoice;
