@@ -20,7 +20,7 @@ The application requires the following environment variables to be set:
 - `DB_NAME`: Database name
 - `JWT_SECRET`: Secret key for JWT token signing
 - `JWT_REFRESH_SECRET`: Secret key for JWT refresh token signing
-- `PORT`: Application port (default: 3000)
+- `PORT`: Application port (default: 3003)
 
 These variables can be set in the `.env` file in the project root directory.
 

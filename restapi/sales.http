@@ -1,5 +1,5 @@
 # Tạo phiếu bán hàng mới
-POST http://localhost:3000/sales/invoice
+POST http://localhost:3003/sales/invoice
 Authorization: Bearer {{access_token}}
 Content-Type: application/json
 
@@ -27,25 +27,25 @@ Content-Type: application/json
 ###
 
 # Lấy danh sách tất cả phiếu bán hàng
-GET http://localhost:3000/sales/invoices
+GET http://localhost:3003/sales/invoices
 Authorization: Bearer {{access_token}}
 
 ###
 
 # Lấy chi tiết một phiếu bán hàng
-GET http://localhost:3000/sales/invoice/1
+GET http://localhost:3003/sales/invoice/1
 Authorization: Bearer {{access_token}}
 
 ###
 
 # Lấy phiếu bán hàng theo mã
-GET http://localhost:3000/sales/invoice/code/INV-001
+GET http://localhost:3003/sales/invoice/code/INV-001
 Authorization: Bearer {{access_token}}
 
 ###
 
 # Cập nhật thông tin phiếu bán hàng
-PATCH http://localhost:3000/sales/invoice/1
+PATCH http://localhost:3003/sales/invoice/1
 Authorization: Bearer {{access_token}}
 Content-Type: application/json
 
@@ -57,25 +57,25 @@ Content-Type: application/json
 ###
 
 # Xác nhận phiếu bán hàng
-POST http://localhost:3000/sales/invoice/1/confirm
+POST http://localhost:3003/sales/invoice/1/confirm
 Authorization: Bearer {{access_token}}
 
 ###
 
 # Đánh dấu đã giao hàng
-POST http://localhost:3000/sales/invoice/1/deliver
+POST http://localhost:3003/sales/invoice/1/deliver
 Authorization: Bearer {{access_token}}
 
 ###
 
 # Hoàn thành phiếu bán hàng
-POST http://localhost:3000/sales/invoice/1/complete
+POST http://localhost:3003/sales/invoice/1/complete
 Authorization: Bearer {{access_token}}
 
 ###
 
 # Hủy phiếu bán hàng
-POST http://localhost:3000/sales/invoice/1/cancel
+POST http://localhost:3003/sales/invoice/1/cancel
 Authorization: Bearer {{access_token}}
 Content-Type: application/json
 
@@ -86,13 +86,13 @@ Content-Type: application/json
 ###
 
 # Lấy danh sách sản phẩm trong phiếu bán hàng
-GET http://localhost:3000/sales/invoice/1/items
+GET http://localhost:3003/sales/invoice/1/items
 Authorization: Bearer {{access_token}}
 
 ###
 
 # Cập nhật thông tin một sản phẩm trong phiếu
-PATCH http://localhost:3000/sales/invoice/item/1
+PATCH http://localhost:3003/sales/invoice/item/1
 Authorization: Bearer {{access_token}}
 Content-Type: application/json
 
@@ -104,5 +104,5 @@ Content-Type: application/json
 ###
 
 # Xóa một sản phẩm khỏi phiếu bán hàng
-DELETE http://localhost:3000/sales/invoice/item/1
+DELETE http://localhost:3003/sales/invoice/item/1
 Authorization: Bearer {{access_token}}

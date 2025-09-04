@@ -75,6 +75,6 @@ This directory contains HTTP test files for testing the GN NestJS API endpoints.
 
 ## Notes
 
-- Make sure the application is running on `http://localhost:3000` before testing
+- Make sure the application is running on `http://localhost:3003` before testing
 - Some endpoints may require authentication (Bearer token)
 - Update the request data as needed for your testing

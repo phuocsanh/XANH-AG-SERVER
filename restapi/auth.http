@@ -1,7 +1,7 @@
 ### ===== AUTHENTICATION APIs =====
 
 ### User registration (using user module)
-POST http://localhost:3000/users
+POST http://localhost:3003/users
 Content-Type: application/json
 
 {
@@ -18,13 +18,13 @@ Content-Type: application/json
 @refresh_token = {{login.response.body.data.refreshToken}}
 
 ### Get all users
-GET http://localhost:3000/users
+GET http://localhost:3003/users
 
 ### Get user by ID
-GET http://localhost:3000/users/1
+GET http://localhost:3003/users/1
 
 ### Update a user
-PATCH http://localhost:3000/users/1
+PATCH http://localhost:3003/users/1
 Content-Type: application/json
 
 {
@@ -33,10 +33,10 @@ Content-Type: application/json
 }
 
 ### Delete a user
-DELETE http://localhost:3000/users/1
+DELETE http://localhost:3003/users/1
 
 ### User login
-POST http://localhost:3000/auth/login
+POST http://localhost:3003/auth/login
 Content-Type: application/json
 
 {
@@ -45,7 +45,7 @@ Content-Type: application/json
 }
 
 ### Refresh token
-POST http://localhost:3000/auth/refresh
+POST http://localhost:3003/auth/refresh
 Content-Type: application/json
 
 {
@@ -57,12 +57,12 @@ Content-Type: application/json
 # @refresh_token = {{refresh.response.body.data.refreshToken}}
 
 ### User logout
-POST http://localhost:3000/auth/logout
+POST http://localhost:3003/auth/logout
 Content-Type: application/json
 Authorization: Bearer {{access_token}}
 
 ### Setup two-factor authentication
-POST http://localhost:3000/auth/two-factor/setup
+POST http://localhost:3003/auth/two-factor/setup
 Content-Type: application/json
 Authorization: Bearer {{access_token}}
 
@@ -73,7 +73,7 @@ Authorization: Bearer {{access_token}}
 }
 
 ### Verify two-factor authentication
-POST http://localhost:3000/auth/two-factor/verify
+POST http://localhost:3003/auth/two-factor/verify
 Content-Type: application/json
 Authorization: Bearer {{access_token}}
 
@@ -83,7 +83,7 @@ Authorization: Bearer {{access_token}}
 }
 
 # Đăng ký người dùng mới
-POST http://localhost:3000/auth/register
+POST http://localhost:3003/auth/register
 Content-Type: application/json
 
 {
@@ -96,7 +96,7 @@ Content-Type: application/json
 ###
 
 # Đăng nhập để lấy token
-POST http://localhost:3000/auth/login
+POST http://localhost:3003/auth/login
 Content-Type: application/json
 
 {
@@ -107,7 +107,7 @@ Content-Type: application/json
 ###
 
 # Đổi mật khẩu (cần token từ đăng nhập)
-PUT http://localhost:3000/auth/change-password
+PUT http://localhost:3003/auth/change-password
 Authorization: Bearer {{access_token}}
 Content-Type: application/json
 

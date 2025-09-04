@@ -43,8 +43,8 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
 
-  // Lấy port từ biến môi trường hoặc mặc định là 3000
-  const port = process.env.PORT || 3000;
+  // Lấy port từ biến môi trường hoặc mặc định là 3003
+  const port = process.env.PORT || 3003;
 
   // Khởi động server và lắng nghe trên port đã cấu hình
   await app.listen(port, '0.0.0.0');
