@@ -35,25 +35,28 @@ export class UserService {
    * @returns Thông tin người dùng đã tạo
    */
   async create(createUserDto: CreateUserDto): Promise<User> {
-    // Hash password trước khi lưu vào database
-    const hashedPassword = await bcrypt.hash(createUserDto.userPassword, 10);
-
-    // Tạo user
+    // Tạo user (password đã được hash từ AuthService)
     const user = this.userRepository.create({
       userAccount: createUserDto.userAccount,
-      userPassword: hashedPassword, // Password đã được hash
+      userPassword: createUserDto.userPassword, // Password đã được hash từ AuthService
       userSalt: createUserDto.userSalt || '', // Use empty string if salt is not provided
     });
     const savedUser = await this.userRepository.save(user);
 
     // Tạo user profile
-    const userProfile = this.userProfileRepository.create({
+    const userProfileData: Partial<UserProfile> = {
       userId: savedUser.userId,
       userAccount: createUserDto.userAccount,
       userState: createUserDto.userState || 1,
-      userEmail: createUserDto.userEmail,
       userIsAuthentication: 0,
-    });
+    };
+    
+    // Chỉ thêm userEmail nếu có giá trị
+    if (createUserDto.userEmail) {
+      userProfileData.userEmail = createUserDto.userEmail;
+    }
+    
+    const userProfile = this.userProfileRepository.create(userProfileData);
     await this.userProfileRepository.save(userProfile);
 
     return savedUser;
@@ -75,24 +78,24 @@ export class UserService {
   /**
    * Tìm người dùng theo ID
    * @param userId - ID của người dùng cần tìm
-   * @returns Thông tin người dùng (không bao gồm password)
+   * @returns Thông tin người dùng (không bao gồm password) hoặc null nếu không tìm thấy
    */
-  async findOne(userId: number): Promise<User> {
+  async findOne(userId: number): Promise<User | null> {
     const user = await this.userRepository.findOne({ where: { userId } });
     if (user) {
       // Loại bỏ password khỏi response để bảo mật
       const { userPassword, ...userWithoutPassword } = user;
       return userWithoutPassword as User;
     }
-    return user;
+    return null;
   }
 
   /**
    * Tìm người dùng theo tên tài khoản
    * @param userAccount - Tên tài khoản của người dùng cần tìm
-   * @returns Thông tin người dùng
+   * @returns Thông tin người dùng hoặc null nếu không tìm thấy
    */
-  async findByAccount(userAccount: string): Promise<User> {
+  async findByAccount(userAccount: string): Promise<User | null> {
     return this.userRepository.findOne({ where: { userAccount } });
   }
 
@@ -102,7 +105,7 @@ export class UserService {
    * @param updateUserDto - Dữ liệu cập nhật người dùng
    * @returns Thông tin người dùng đã cập nhật
    */
-  async update(userId: number, updateUserDto: UpdateUserDto): Promise<User> {
+  async update(userId: number, updateUserDto: UpdateUserDto): Promise<User | null> {
     await this.userRepository.update(userId, updateUserDto);
     return this.findOne(userId);
   }
@@ -174,7 +177,7 @@ export class UserService {
   async updateUserProfile(
     userId: number,
     profileData: Partial<UserProfile>,
-  ): Promise<UserProfile> {
+  ): Promise<UserProfile | null> {
     await this.userProfileRepository.update({ userId }, profileData);
     return this.userProfileRepository.findOne({ where: { userId } });
   }

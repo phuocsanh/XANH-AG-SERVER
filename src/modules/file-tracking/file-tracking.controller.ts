@@ -6,7 +6,6 @@ import {
   Patch,
   Param,
   Delete,
-  Query,
 } from '@nestjs/common';
 import { FileTrackingService } from './file-tracking.service';
 import { CreateFileUploadDto } from './dto/create-file-upload.dto';

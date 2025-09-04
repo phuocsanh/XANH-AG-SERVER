@@ -14,19 +14,19 @@ import { Type } from 'class-transformer';
 class CreateInventoryReceiptItemDto {
   /** ID của sản phẩm (bắt buộc) */
   @IsNumber()
-  productId: number;
+  productId!: number;
 
   /** Số lượng sản phẩm trong phiếu (bắt buộc) */
   @IsNumber()
-  quantity: number;
+  quantity!: number;
 
   /** Giá vốn đơn vị của sản phẩm (bắt buộc) */
   @IsNumber()
-  unitCost: number;
+  unitCost!: number;
 
   /** Tổng giá tiền của sản phẩm (bắt buộc) */
   @IsNumber()
-  totalPrice: number;
+  totalPrice!: number;
 
   /** Ghi chú về chi tiết phiếu nhập kho (tùy chọn) */
   @IsString()
@@ -41,7 +41,7 @@ class CreateInventoryReceiptItemDto {
 export class CreateInventoryReceiptDto {
   /** Mã phiếu nhập kho (bắt buộc) */
   @IsString()
-  receiptCode: string;
+  receiptCode!: string;
 
   /** Tên nhà cung cấp (tùy chọn) */
   @IsString()
@@ -55,7 +55,7 @@ export class CreateInventoryReceiptDto {
 
   /** Tổng số tiền của phiếu nhập kho (bắt buộc) */
   @IsNumber()
-  totalAmount: number;
+  totalAmount!: number;
 
   /** Ghi chú về phiếu nhập kho (tùy chọn) */
   @IsString()
@@ -64,11 +64,11 @@ export class CreateInventoryReceiptDto {
 
   /** Trạng thái phiếu nhập kho (draft, approved, completed, cancelled) (bắt buộc) */
   @IsString()
-  status: string;
+  status!: string;
 
   /** Mảng chi tiết phiếu nhập kho (bắt buộc) */
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateInventoryReceiptItemDto)
-  items: CreateInventoryReceiptItemDto[];
+  items!: CreateInventoryReceiptItemDto[];
 }

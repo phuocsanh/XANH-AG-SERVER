@@ -14,57 +14,57 @@ import {
 export class SalesInvoice {
   /** ID duy nhất của hóa đơn bán hàng (khóa chính, tự động tăng) */
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   /** Mã hóa đơn bán hàng (duy nhất) */
   @Column({ name: 'invoice_code', unique: true })
-  invoiceCode: string;
+  invoiceCode!: string;
 
   /** Tên khách hàng */
   @Column({ name: 'customer_name' })
-  customerName: string;
+  customerName!: string;
 
   /** Số điện thoại khách hàng */
   @Column({ name: 'customer_phone', nullable: true })
-  customerPhone: string;
+  customerPhone?: string;
 
   /** Địa chỉ khách hàng */
   @Column({ name: 'customer_address', nullable: true })
-  customerAddress: string;
+  customerAddress?: string;
 
   /** Tổng số tiền của hóa đơn */
   @Column({ name: 'total_amount' })
-  totalAmount: number;
+  totalAmount!: number;
 
   /** Số tiền giảm giá */
   @Column({ name: 'discount_amount', default: 0 })
-  discountAmount: number;
+  discountAmount!: number;
 
   /** Số tiền cuối cùng sau khi giảm giá */
   @Column({ name: 'final_amount' })
-  finalAmount: number;
+  finalAmount!: number;
 
   /** Phương thức thanh toán */
   @Column({ name: 'payment_method' })
-  paymentMethod: string;
+  paymentMethod!: string;
 
   /** Trạng thái thanh toán (pending, paid, cancelled) */
   @Column({ name: 'payment_status', default: 'pending' })
-  paymentStatus: string;
+  paymentStatus!: string;
 
   /** Ghi chú về hóa đơn */
   @Column({ name: 'notes', nullable: true })
-  notes: string;
+  notes?: string;
 
   /** ID của người dùng tạo hóa đơn */
   @Column({ name: 'created_by_user_id' })
-  createdByUserId: number;
+  createdByUserId!: number;
 
   /** Thời gian tạo hóa đơn */
   @CreateDateColumn({ name: 'created_at' })
-  createdAt: Date;
+  createdAt!: Date;
 
   /** Thời gian cập nhật gần nhất hóa đơn */
   @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt: Date;
+  updatedAt!: Date;
 }

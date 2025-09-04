@@ -8,10 +8,10 @@ export class ChangePasswordDto {
   /** Mật khẩu cũ của người dùng (bắt buộc) */
   @IsString()
   @IsNotEmpty()
-  oldPassword: string;
+  oldPassword!: string;
 
   /** Mật khẩu mới của người dùng (bắt buộc) */
   @IsString()
   @IsNotEmpty()
-  newPassword: string;
+  newPassword!: string;
 }

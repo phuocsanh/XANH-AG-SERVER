@@ -8,7 +8,7 @@ import { Type } from 'class-transformer';
 export class CreateInventoryBatchDto {
   /** ID của sản phẩm trong lô hàng (bắt buộc) */
   @IsNumber()
-  productId: number;
+  productId!: number;
 
   /** Mã lô hàng (tùy chọn) */
   @IsOptional()
@@ -17,15 +17,15 @@ export class CreateInventoryBatchDto {
 
   /** Giá vốn đơn vị của sản phẩm trong lô hàng (bắt buộc) */
   @IsString()
-  unitCostPrice: string;
+  unitCostPrice!: string;
 
   /** Số lượng ban đầu của lô hàng (bắt buộc) */
   @IsNumber()
-  originalQuantity: number;
+  originalQuantity!: number;
 
   /** Số lượng còn lại của lô hàng (bắt buộc) */
   @IsNumber()
-  remainingQuantity: number;
+  remainingQuantity!: number;
 
   /** Ngày hết hạn của lô hàng (tùy chọn) */
   @IsOptional()

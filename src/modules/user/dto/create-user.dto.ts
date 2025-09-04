@@ -7,11 +7,11 @@ import { IsString, IsNumber, IsOptional, IsEmail } from 'class-validator';
 export class CreateUserDto {
   /** Tên tài khoản người dùng (bắt buộc) */
   @IsString()
-  userAccount: string;
+  userAccount!: string;
 
   /** Mật khẩu người dùng (bắt buộc) */
   @IsString()
-  userPassword: string;
+  userPassword!: string;
 
   /** Salt dùng để hash mật khẩu (tùy chọn - sẽ được tạo tự động) */
   @IsOptional()

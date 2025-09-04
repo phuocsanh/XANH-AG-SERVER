@@ -31,7 +31,7 @@ export class RefreshJwtStrategy extends PassportStrategy(
    * @param payload - Dữ liệu từ refresh token JWT
    * @returns Thông tin người dùng nếu hợp lệ
    */
-  async validate(req: Request, payload: any) {
+  async validate(_req: Request, payload: any) {
     // Lấy thông tin người dùng từ database để đảm bảo người dùng vẫn tồn tại
     const user = await this.userService.findOne(payload.userId || payload.sub);
     if (!user) {

@@ -14,15 +14,15 @@ import { Type } from 'class-transformer';
 class CreateSalesInvoiceItemDto {
   /** ID của sản phẩm (bắt buộc) */
   @IsNumber()
-  productId: number;
+  productId!: number;
 
   /** Số lượng sản phẩm trong hóa đơn (bắt buộc) */
   @IsNumber()
-  quantity: number;
+  quantity!: number;
 
   /** Giá đơn vị của sản phẩm (bắt buộc) */
   @IsNumber()
-  unitPrice: number;
+  unitPrice!: number;
 
   /** Số tiền giảm giá cho sản phẩm (tùy chọn) */
   @IsNumber()
@@ -42,11 +42,11 @@ class CreateSalesInvoiceItemDto {
 export class CreateSalesInvoiceDto {
   /** Mã hóa đơn bán hàng (bắt buộc) */
   @IsString()
-  invoiceCode: string;
+  invoiceCode!: string;
 
   /** Tên khách hàng (bắt buộc) */
   @IsString()
-  customerName: string;
+  customerName!: string;
 
   /** Số điện thoại khách hàng (tùy chọn) */
   @IsString()
@@ -65,7 +65,7 @@ export class CreateSalesInvoiceDto {
 
   /** Tổng số tiền của hóa đơn (bắt buộc) */
   @IsNumber()
-  totalAmount: number;
+  totalAmount!: number;
 
   /** Số tiền giảm giá (tùy chọn) */
   @IsNumber()
@@ -74,11 +74,11 @@ export class CreateSalesInvoiceDto {
 
   /** Số tiền cuối cùng sau khi giảm giá (bắt buộc) */
   @IsNumber()
-  finalAmount: number;
+  finalAmount!: number;
 
   /** Phương thức thanh toán (bắt buộc) */
   @IsString()
-  paymentMethod: string;
+  paymentMethod!: string;
 
   /** Ghi chú về hóa đơn (tùy chọn) */
   @IsString()
@@ -89,5 +89,5 @@ export class CreateSalesInvoiceDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateSalesInvoiceItemDto)
-  items: CreateSalesInvoiceItemDto[];
+  items!: CreateSalesInvoiceItemDto[];
 }

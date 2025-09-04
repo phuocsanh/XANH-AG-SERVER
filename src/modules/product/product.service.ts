@@ -71,9 +71,9 @@ export class ProductService {
   /**
    * Tìm sản phẩm theo ID
    * @param id - ID của sản phẩm cần tìm
-   * @returns Thông tin sản phẩm
+   * @returns Thông tin sản phẩm hoặc null nếu không tìm thấy
    */
-  async findOne(id: number): Promise<Product> {
+  async findOne(id: number): Promise<Product | null> {
     return this.productRepository.findOne({ where: { id } });
   }
 
@@ -86,7 +86,7 @@ export class ProductService {
   async update(
     id: number,
     updateProductDto: UpdateProductDto,
-  ): Promise<Product> {
+  ): Promise<Product | null> {
     await this.productRepository.update(id, updateProductDto);
     return this.findOne(id);
   }
@@ -151,9 +151,9 @@ export class ProductService {
   /**
    * Tìm loại sản phẩm theo ID
    * @param id - ID của loại sản phẩm cần tìm
-   * @returns Thông tin loại sản phẩm
+   * @returns Thông tin loại sản phẩm hoặc null nếu không tìm thấy
    */
-  async findOneProductType(id: number): Promise<ProductType> {
+  async findOneProductType(id: number): Promise<ProductType | null> {
     return this.productTypeRepository.findOne({ where: { id } });
   }
 
@@ -166,7 +166,7 @@ export class ProductService {
   async updateProductType(
     id: number,
     updateProductTypeDto: any,
-  ): Promise<ProductType> {
+  ): Promise<ProductType | null> {
     await this.productTypeRepository.update(id, updateProductTypeDto);
     return this.findOneProductType(id);
   }
@@ -221,9 +221,9 @@ export class ProductService {
   /**
    * Tìm loại phụ sản phẩm theo ID
    * @param id - ID của loại phụ sản phẩm cần tìm
-   * @returns Thông tin loại phụ sản phẩm
+   * @returns Thông tin loại phụ sản phẩm hoặc null nếu không tìm thấy
    */
-  async findOneProductSubtype(id: number): Promise<ProductSubtype> {
+  async findOneProductSubtype(id: number): Promise<ProductSubtype | null> {
     return this.productSubtypeRepository.findOne({ where: { id } });
   }
 
@@ -236,7 +236,7 @@ export class ProductService {
   async updateProductSubtype(
     id: number,
     updateProductSubtypeDto: any,
-  ): Promise<ProductSubtype> {
+  ): Promise<ProductSubtype | null> {
     await this.productSubtypeRepository.update(id, updateProductSubtypeDto);
     return this.findOneProductSubtype(id);
   }
@@ -315,7 +315,7 @@ export class ProductService {
   async updateProductAverageCostAndPrice(
     productId: number,
     averageCostPrice: number,
-  ): Promise<Product> {
+  ): Promise<Product | null> {
     // Lấy thông tin sản phẩm hiện tại để có phần trăm lợi nhuận và discount
     const product = await this.findOne(productId);
     if (!product) {

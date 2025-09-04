@@ -18,52 +18,52 @@ import { Product } from './products.entity';
 export class SalesInvoiceItem {
   /** ID duy nhất của chi tiết hóa đơn bán hàng (khóa chính, tự động tăng) */
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   /** ID của hóa đơn bán hàng */
   @Column({ name: 'invoice_id' })
-  invoiceId: number;
+  invoiceId!: number;
 
   /** ID của sản phẩm */
   @Column({ name: 'product_id' })
-  productId: number;
+  productId!: number;
 
   /** Số lượng sản phẩm trong hóa đơn */
   @Column()
-  quantity: number;
+  quantity!: number;
 
   /** Giá đơn vị của sản phẩm */
   @Column({ name: 'unit_price' })
-  unitPrice: number;
+  unitPrice!: number;
 
   /** Số tiền giảm giá cho sản phẩm */
   @Column({ name: 'discount_amount', default: 0 })
-  discountAmount: number;
+  discountAmount!: number;
 
   /** Tổng giá tiền của sản phẩm */
   @Column({ name: 'total_price' })
-  totalPrice: number;
+  totalPrice!: number;
 
   /** Ghi chú về chi tiết hóa đơn */
   @Column({ name: 'notes', nullable: true })
-  notes: string;
+  notes?: string;
 
   /** Thời gian tạo chi tiết hóa đơn */
   @CreateDateColumn({ name: 'created_at' })
-  createdAt: Date;
+  createdAt!: Date;
 
   /** Thời gian cập nhật gần nhất chi tiết hóa đơn */
   @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt: Date;
+  updatedAt!: Date;
 
   // Relations
   /** Mối quan hệ nhiều-một với hóa đơn bán hàng */
   @ManyToOne(() => SalesInvoice, (invoice) => invoice.id)
   @JoinColumn({ name: 'invoice_id' })
-  invoice: SalesInvoice;
+  invoice!: SalesInvoice;
 
   /** Mối quan hệ nhiều-một với sản phẩm */
   @ManyToOne(() => Product, (product) => product.id)
   @JoinColumn({ name: 'product_id' })
-  product: Product;
+  product!: Product;
 }

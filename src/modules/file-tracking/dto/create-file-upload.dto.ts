@@ -14,23 +14,23 @@ import {
 export class CreateFileUploadDto {
   /** ID công khai của file (bắt buộc) */
   @IsString()
-  publicId: string;
+  publicId!: string;
 
   /** URL truy cập file (bắt buộc) */
   @IsString()
-  fileUrl: string;
+  fileUrl!: string;
 
   /** Tên file (bắt buộc) */
   @IsString()
-  fileName: string;
+  fileName!: string;
 
   /** Loại file (bắt buộc) */
   @IsString()
-  fileType: string;
+  fileType!: string;
 
   /** Kích thước file (bytes) (bắt buộc) */
   @IsNumber()
-  fileSize: number;
+  fileSize!: number;
 
   /** Thư mục chứa file (tùy chọn) */
   @IsOptional()

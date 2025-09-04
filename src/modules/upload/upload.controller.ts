@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadService } from './upload.service';
-import { UploadResponseDto, DeleteFileDto, MarkFileUsedDto } from './dto/upload-response.dto';
+import { UploadResponseDto, MarkFileUsedDto } from './dto/upload-response.dto';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 
@@ -24,7 +24,7 @@ export class UploadController {
     FileInterceptor('file', {
       storage: diskStorage({
         destination: './uploads',
-        filename: (req, file, cb) => {
+        filename: (_req, file, cb) => {
           const randomName = Array(32)
             .fill(null)
             .map(() => Math.round(Math.random() * 16).toString(16))
@@ -32,7 +32,7 @@ export class UploadController {
           cb(null, `${randomName}${extname(file.originalname)}`);
         },
       }),
-      fileFilter: (req, file, cb) => {
+      fileFilter: (_req, file, cb) => {
         if (!file.mimetype.match(/\/(jpg|jpeg|png|gif|webp)$/)) {
           return cb(new BadRequestException('Only image files are allowed!'), false);
         }
@@ -55,7 +55,7 @@ export class UploadController {
     FileInterceptor('file', {
       storage: diskStorage({
         destination: './uploads',
-        filename: (req, file, cb) => {
+        filename: (_req, file, cb) => {
           const randomName = Array(32)
             .fill(null)
             .map(() => Math.round(Math.random() * 16).toString(16))

@@ -14,25 +14,25 @@ import {
 export class ProductSubtypeRelation {
   /** ID duy nhất của mối quan hệ (khóa chính, tự động tăng) */
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   /** ID của sản phẩm */
   @Column({ name: 'product_id' })
-  productId: number;
+  productId!: number;
 
   /** ID của loại phụ sản phẩm */
   @Column({ name: 'subtype_id' })
-  subtypeId: number;
+  subtypeId!: number;
 
   /** Xác định đây có phải là loại phụ sản phẩm chính không (true: chính, false: phụ) */
   @Column({ name: 'is_primary', default: false })
-  isPrimary: boolean;
+  isPrimary!: boolean;
 
   /** Thời gian tạo mối quan hệ */
   @CreateDateColumn({ name: 'created_at' })
-  createdAt: Date;
+  createdAt!: Date;
 
   /** Thời gian cập nhật gần nhất mối quan hệ */
   @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt: Date;
+  updatedAt!: Date;
 }

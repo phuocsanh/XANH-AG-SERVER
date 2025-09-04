@@ -8,7 +8,6 @@ import {
   Delete,
   Query,
   UseGuards,
-  ValidationPipe,
 } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
 import { CreateInventoryBatchDto } from './dto/create-inventory-batch.dto';
@@ -16,6 +15,7 @@ import { CreateInventoryTransactionDto } from './dto/create-inventory-transactio
 import { CreateInventoryReceiptDto } from './dto/create-inventory-receipt.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { InventoryReceiptItem } from '../../entities/inventory-receipt-items.entity';
+import { ProductGroup, StockData } from './interfaces/inventory-report.interface';
 
 /**
  * Controller xử lý các request liên quan đến quản lý kho hàng
@@ -218,7 +218,16 @@ export class InventoryController {
    * @returns Báo cáo giá trị tồn kho
    */
   @Get('value-report')
-  getInventoryValueReport(@Query('productIds') productIds?: string) {
+  getInventoryValueReport(@Query('productIds') productIds?: string): Promise<{
+    summary: {
+      totalProducts: number;
+      totalQuantity: number;
+      totalValue: number;
+      overallAverageCost: number;
+    };
+    products: ProductGroup[];
+    generatedAt: Date;
+  }> {
     const ids = productIds ? productIds.split(',').map(id => +id) : undefined;
     return this.inventoryService.getInventoryValueReport(ids);
   }
@@ -229,7 +238,12 @@ export class InventoryController {
    * @returns Danh sách sản phẩm có tồn kho thấp
    */
   @Get('low-stock-alert')
-  getLowStockAlert(@Query('threshold') threshold?: string) {
+  getLowStockAlert(@Query('threshold') threshold?: string): Promise<{
+    alertCount: number;
+    minimumQuantity: number;
+    products: Array<StockData & { alertLevel: string; recommendedReorder: number }>;
+    generatedAt: Date;
+  }> {
     const thresholdValue = threshold ? +threshold : 10;
     return this.inventoryService.getLowStockAlert(thresholdValue);
   }

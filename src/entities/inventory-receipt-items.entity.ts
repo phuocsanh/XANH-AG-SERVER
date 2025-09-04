@@ -18,48 +18,48 @@ import { Product } from './products.entity';
 export class InventoryReceiptItem {
   /** ID duy nhất của chi tiết phiếu nhập kho (khóa chính, tự động tăng) */
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   /** ID của phiếu nhập kho */
   @Column({ name: 'receipt_id' })
-  receiptId: number;
+  receiptId!: number;
 
   /** ID của sản phẩm */
   @Column({ name: 'product_id' })
-  productId: number;
+  productId!: number;
 
   /** Số lượng sản phẩm trong phiếu */
   @Column()
-  quantity: number;
+  quantity!: number;
 
   /** Giá vốn đơn vị của sản phẩm */
   @Column({ name: 'unit_cost' })
-  unitCost: number;
+  unitCost!: number;
 
   /** Tổng giá tiền của sản phẩm */
   @Column({ name: 'total_price' })
-  totalPrice: number;
+  totalPrice!: number;
 
   /** Ghi chú về chi tiết phiếu nhập kho */
   @Column({ name: 'notes', nullable: true })
-  notes: string;
+  notes?: string;
 
   /** Thời gian tạo chi tiết phiếu nhập kho */
   @CreateDateColumn({ name: 'created_at' })
-  createdAt: Date;
+  createdAt!: Date;
 
   /** Thời gian cập nhật gần nhất chi tiết phiếu nhập kho */
   @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt: Date;
+  updatedAt!: Date;
 
   // Relations
   /** Mối quan hệ nhiều-một với phiếu nhập kho */
   @ManyToOne(() => InventoryReceipt, (receipt) => receipt.id)
   @JoinColumn({ name: 'receipt_id' })
-  receipt: InventoryReceipt;
+  receipt!: InventoryReceipt;
 
   /** Mối quan hệ nhiều-một với sản phẩm */
   @ManyToOne(() => Product, (product) => product.id)
   @JoinColumn({ name: 'product_id' })
-  product: Product;
+  product!: Product;
 }

@@ -7,11 +7,11 @@ import { IsString, IsNumber, IsOptional, IsBoolean, IsArray } from 'class-valida
 export class CreateProductDto {
   /** Tên sản phẩm (bắt buộc) */
   @IsString()
-  productName: string;
+  productName!: string;
 
   /** Giá sản phẩm (bắt buộc) */
   @IsString()
-  productPrice: string;
+  productPrice!: string;
 
   /** Trạng thái sản phẩm (tùy chọn) */
   @IsOptional()
@@ -20,7 +20,7 @@ export class CreateProductDto {
 
   /** Đường dẫn thumbnail của sản phẩm (bắt buộc) */
   @IsString()
-  productThumb: string;
+  productThumb!: string;
 
   /** Mảng đường dẫn hình ảnh của sản phẩm (tùy chọn) */
   @IsOptional()
@@ -44,7 +44,7 @@ export class CreateProductDto {
 
   /** Loại sản phẩm (bắt buộc) */
   @IsNumber()
-  productType: number;
+  productType!: number;
 
   /** Mảng loại phụ sản phẩm (tùy chọn) */
   @IsOptional()
@@ -58,7 +58,7 @@ export class CreateProductDto {
 
   /** Giá sau khi giảm giá (bắt buộc) */
   @IsString()
-  productDiscountedPrice: string;
+  productDiscountedPrice!: string;
 
   /** Số lượng đã bán (tùy chọn) */
   @IsOptional()
@@ -81,9 +81,9 @@ export class CreateProductDto {
 
   /** Giá vốn trung bình của sản phẩm (bắt buộc) */
   @IsString()
-  averageCostPrice: string;
+  averageCostPrice!: string;
 
   /** Phần trăm lợi nhuận (bắt buộc) */
   @IsString()
-  profitMarginPercent: string;
+  profitMarginPercent!: string;
 }

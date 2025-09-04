@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, IsNull } from 'typeorm';
 import { FileUpload } from '../../entities/file-uploads.entity';
 import { FileReference } from '../../entities/file-references.entity';
 import { CreateFileUploadDto } from './dto/create-file-upload.dto';
@@ -46,7 +46,7 @@ export class FileTrackingService {
    * @param id - ID của file upload cần tìm
    * @returns Thông tin file upload
    */
-  async findOne(id: number): Promise<FileUpload> {
+  async findOne(id: number): Promise<FileUpload | null> {
     return this.fileUploadRepository.findOne({ where: { id } });
   }
 
@@ -55,7 +55,7 @@ export class FileTrackingService {
    * @param publicId - Public ID của file upload cần tìm
    * @returns Thông tin file upload
    */
-  async findByPublicId(publicId: string): Promise<FileUpload> {
+  async findByPublicId(publicId: string): Promise<FileUpload | null> {
     return this.fileUploadRepository.findOne({ where: { publicId } });
   }
 
@@ -68,7 +68,7 @@ export class FileTrackingService {
   async update(
     id: number,
     updateData: Partial<FileUpload>,
-  ): Promise<FileUpload> {
+  ): Promise<FileUpload | null> {
     await this.fileUploadRepository.update(id, updateData);
     return this.findOne(id);
   }
@@ -86,7 +86,7 @@ export class FileTrackingService {
    * @param id - ID của file cần tăng tham chiếu
    * @returns Thông tin file đã cập nhật
    */
-  async incrementReferenceCount(id: number): Promise<FileUpload> {
+  async incrementReferenceCount(id: number): Promise<FileUpload | null> {
     const file = await this.findOne(id);
     if (file) {
       file.referenceCount = (file.referenceCount || 0) + 1;
@@ -100,9 +100,9 @@ export class FileTrackingService {
    * @param id - ID của file cần giảm tham chiếu
    * @returns Thông tin file đã cập nhật
    */
-  async decrementReferenceCount(id: number): Promise<FileUpload> {
+  async decrementReferenceCount(id: number): Promise<FileUpload | null> {
     const file = await this.findOne(id);
-    if (file && file.referenceCount > 0) {
+    if (file && (file.referenceCount || 0) > 0) {
       file.referenceCount = (file.referenceCount || 0) - 1;
       return this.fileUploadRepository.save(file);
     }
@@ -114,7 +114,7 @@ export class FileTrackingService {
    * @param id - ID của file cần đánh dấu
    * @returns Thông tin file đã đánh dấu
    */
-  async markAsOrphaned(id: number): Promise<FileUpload> {
+  async markAsOrphaned(id: number): Promise<FileUpload | null> {
     return this.update(id, { isOrphaned: true });
   }
 
@@ -126,7 +126,7 @@ export class FileTrackingService {
     return this.fileUploadRepository.find({
       where: {
         isOrphaned: true,
-        deletedAt: null,
+        deletedAt: IsNull(),
       },
     });
   }
@@ -136,7 +136,7 @@ export class FileTrackingService {
    * @param id - ID của file cần đánh dấu
    * @returns Thông tin file đã đánh dấu
    */
-  async markForDeletion(id: number): Promise<FileUpload> {
+  async markForDeletion(id: number): Promise<FileUpload | null> {
     return this.update(id, {
       markedForDeletionAt: new Date(), // Ghi nhận thời gian đánh dấu
       isOrphaned: true, // Đánh dấu là không được sử dụng
@@ -187,9 +187,9 @@ export class FileTrackingService {
       fileId,
       entityType,
       entityId,
-      fieldName,
-      arrayIndex,
-      createdByUserId,
+      ...(fieldName !== undefined && { fieldName }),
+      ...(arrayIndex !== undefined && { arrayIndex }),
+      ...(createdByUserId !== undefined && { createdByUserId }),
     });
     return this.fileReferenceRepository.save(fileReference);
   }
@@ -208,7 +208,7 @@ export class FileTrackingService {
       where: {
         entityType,
         entityId,
-        deletedAt: null, // Chỉ lấy các tham chiếu chưa bị xóa
+        deletedAt: IsNull(), // Chỉ lấy các tham chiếu chưa bị xóa
       },
       relations: ['fileUpload'], // Bao gồm thông tin file
     });
@@ -232,11 +232,11 @@ export class FileTrackingService {
         fileId,
         entityType,
         entityId,
-        deletedAt: null, // Chỉ cập nhật các tham chiếu chưa bị xóa
+        deletedAt: IsNull(), // Chỉ cập nhật các tham chiếu chưa bị xóa
       },
       {
         deletedAt: new Date(),
-        deletedByUserId,
+        ...(deletedByUserId !== undefined && { deletedByUserId }),
       },
     );
   }
@@ -267,11 +267,11 @@ export class FileTrackingService {
       {
         entityType,
         entityId,
-        deletedAt: null, // Chỉ cập nhật các tham chiếu chưa bị xóa
+        deletedAt: IsNull(), // Chỉ cập nhật các tham chiếu chưa bị xóa
       },
       {
         deletedAt: new Date(),
-        deletedByUserId,
+        ...(deletedByUserId !== undefined && { deletedByUserId }),
       },
     );
 
@@ -281,7 +281,7 @@ export class FileTrackingService {
       
       // Kiểm tra và đánh dấu file là orphaned nếu không còn tham chiếu
       const file = await this.findOne(reference.fileId);
-      if (file && file.referenceCount <= 0) {
+      if (file && (file.referenceCount || 0) <= 0) {
         await this.markAsOrphaned(reference.fileId);
       }
     }
@@ -292,7 +292,7 @@ export class FileTrackingService {
    * @param fileUrl - URL của file
    * @returns Thông tin file upload
    */
-  async findByFileUrl(fileUrl: string): Promise<FileUpload> {
+  async findByFileUrl(fileUrl: string): Promise<FileUpload | null> {
     return this.fileUploadRepository.findOne({ where: { fileUrl } });
   }
 

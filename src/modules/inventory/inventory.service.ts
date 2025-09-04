@@ -9,6 +9,7 @@ import { CreateInventoryBatchDto } from './dto/create-inventory-batch.dto';
 import { CreateInventoryTransactionDto } from './dto/create-inventory-transaction.dto';
 import { CreateInventoryReceiptDto } from './dto/create-inventory-receipt.dto';
 import { ProductService } from '../product/product.service';
+import { ProductGroup, StockData, LowStockProduct } from './interfaces/inventory-report.interface';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến quản lý kho hàng
@@ -69,7 +70,7 @@ export class InventoryService {
    * @param id - ID của lô hàng tồn kho cần tìm
    * @returns Thông tin lô hàng tồn kho
    */
-  async findBatchById(id: number) {
+  async findBatchById(id: number): Promise<InventoryBatch | null> {
     return this.inventoryBatchRepository.findOne({ where: { id } });
   }
 
@@ -79,7 +80,7 @@ export class InventoryService {
    * @param updateData - Dữ liệu cập nhật lô hàng tồn kho
    * @returns Thông tin lô hàng tồn kho đã cập nhật
    */
-  async updateBatch(id: number, updateData: Partial<CreateInventoryBatchDto>) {
+  async updateBatch(id: number, updateData: Partial<CreateInventoryBatchDto>): Promise<InventoryBatch | null> {
     await this.inventoryBatchRepository.update(id, updateData);
     return this.findBatchById(id);
   }
@@ -207,7 +208,7 @@ export class InventoryService {
 
     let remainingQuantity = quantity;
     let totalCost = 0;
-    const usedBatches = [];
+    const usedBatches: any[] = [];
 
     for (const batch of batches) {
       if (remainingQuantity <= 0) break;
@@ -360,38 +361,43 @@ export class InventoryService {
     const newAverageCost = newTotalQuantity > 0 ? newTotalValue / newTotalQuantity : unitCostPrice;
 
     // Tạo lô hàng mới
-    const newBatch = await this.createBatch({
+    const batchData: CreateInventoryBatchDto = {
       productId,
       batchCode: batchCode || `BATCH_${Date.now()}`,
       unitCostPrice: unitCostPrice.toString(),
       originalQuantity: quantity,
       remainingQuantity: quantity,
-      expiryDate,
-      receiptItemId,
-    });
+      ...(receiptItemId && { receiptItemId }),
+      ...(expiryDate && { expiryDate }),
+    };
+    
+    const newBatch = await this.createBatch(batchData);
 
     // Tạo giao dịch nhập kho
-     const transaction = await this.createTransaction({
-       productId,
-       transactionType: 'IN',
-       quantity,
-       unitCostPrice: unitCostPrice.toString(),
-       totalCostValue: (quantity * unitCostPrice).toString(),
-       remainingQuantity: newTotalQuantity,
-       newAverageCost: newAverageCost.toString(),
-       receiptItemId,
-       referenceType: 'STOCK_IN',
-       referenceId: newBatch.id,
-       notes: `Nhập kho ${quantity} sản phẩm với giá ${unitCostPrice}`,
-       createdByUserId: 1, // TODO: Lấy từ context
-     });
+    const transactionData: CreateInventoryTransactionDto = {
+      productId,
+      transactionType: 'IN',
+      quantity,
+      unitCostPrice: unitCostPrice.toString(),
+      totalCostValue: (quantity * unitCostPrice).toString(),
+      remainingQuantity: newTotalQuantity,
+      newAverageCost: newAverageCost.toString(),
+      referenceType: 'STOCK_IN',
+      referenceId: newBatch.id,
+      notes: `Nhập kho ${quantity} sản phẩm với giá ${unitCostPrice}`,
+      createdByUserId: 1, // TODO: Lấy từ context
+      ...(receiptItemId && { receiptItemId }),
+    };
+    
+    const transaction = await this.createTransaction(transactionData);
 
     // Cập nhật giá sản phẩm dựa trên giá vốn trung bình mới và phần trăm lợi nhuận
     // Tương tự như UpdateProductAverageCostAndPrice trong Go server
     try {
       await this.productService.updateProductAverageCostAndPrice(productId, newAverageCost);
     } catch (error) {
-      console.warn(`Không thể cập nhật giá sản phẩm ${productId}:`, error.message);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.warn(`Không thể cập nhật giá sản phẩm ${productId}:`, errorMessage);
       // Không throw error để không làm gián đoạn quá trình nhập kho
     }
 
@@ -440,7 +446,7 @@ export class InventoryService {
 
     let remainingToDeduct = quantity;
     let totalCostValue = 0;
-    const affectedBatches = [];
+    const affectedBatches: any[] = [];
 
     // Xuất kho theo FIFO
     for (const batch of batches) {
@@ -468,19 +474,21 @@ export class InventoryService {
     const newTotalQuantity = currentInventory.totalQuantity - quantity;
     
     // Tạo giao dịch xuất kho
-     const transaction = await this.createTransaction({
-       productId,
-       transactionType: 'OUT',
-       quantity: -quantity, // Số âm để thể hiện xuất kho
-       unitCostPrice: currentAverageCost.toString(), // Sử dụng giá vốn trung bình
-       totalCostValue: (-totalCostValue).toString(), // Giá trị âm
-       remainingQuantity: newTotalQuantity,
-       newAverageCost: currentAverageCost.toString(), // Giá vốn trung bình không thay đổi khi xuất kho
-       referenceType,
-       referenceId,
-       notes: notes || `Xuất kho ${quantity} sản phẩm theo FIFO`,
-       createdByUserId: 1, // TODO: Lấy từ context
-     });
+    const transactionData: CreateInventoryTransactionDto = {
+      productId,
+      transactionType: 'OUT',
+      quantity: -quantity, // Số âm để thể hiện xuất kho
+      unitCostPrice: currentAverageCost.toString(), // Sử dụng giá vốn trung bình
+      totalCostValue: (-totalCostValue).toString(), // Giá trị âm
+      remainingQuantity: newTotalQuantity,
+      newAverageCost: currentAverageCost.toString(), // Giá vốn trung bình không thay đổi khi xuất kho
+      referenceType,
+      notes: notes || `Xuất kho ${quantity} sản phẩm theo FIFO`,
+      createdByUserId: 1, // TODO: Lấy từ context
+      ...(referenceId && { referenceId }),
+    };
+    
+    const transaction = await this.createTransaction(transactionData);
 
     return {
        transaction,
@@ -555,7 +563,8 @@ export class InventoryService {
       });
 
      // Nhóm theo sản phẩm
-     const productGroups = batches.reduce((groups, batch) => {
+     
+     const productGroups: Record<number, ProductGroup> = batches.reduce((groups, batch) => {
        const productId = batch.productId;
        if (!groups[productId]) {
          groups[productId] = {
@@ -568,23 +577,26 @@ export class InventoryService {
        }
        
        const batchValue = batch.remainingQuantity * parseFloat(batch.unitCostPrice);
-       groups[productId].batches.push({
+       const batchData: any = {
          batchId: batch.id,
-         batchCode: batch.batchCode,
+         batchCode: batch.batchCode || '',
          quantity: batch.remainingQuantity,
          unitCost: parseFloat(batch.unitCostPrice),
          totalValue: batchValue,
-         expiryDate: batch.expiryDate,
-       });
+       };
+       if (batch.expiryDate) {
+         batchData.expiryDate = batch.expiryDate;
+       }
+       groups[productId].batches.push(batchData);
        
        groups[productId].totalQuantity += batch.remainingQuantity;
        groups[productId].totalValue += batchValue;
        
        return groups;
-     }, {});
+     }, {} as Record<number, ProductGroup>);
 
      // Tính weighted average cost cho từng sản phẩm
-     const report = Object.values(productGroups).map((group: any) => {
+     const report = Object.values(productGroups).map((group) => {
        group.weightedAverageCost = group.totalQuantity > 0 ? group.totalValue / group.totalQuantity : 0;
        return group;
      });
@@ -592,8 +604,8 @@ export class InventoryService {
      // Tính tổng cộng
      const totalSummary = {
        totalProducts: report.length,
-       totalQuantity: report.reduce((sum, item: any) => sum + item.totalQuantity, 0),
-       totalValue: report.reduce((sum, item: any) => sum + item.totalValue, 0),
+       totalQuantity: report.reduce((sum, item) => sum + item.totalQuantity, 0),
+       totalValue: report.reduce((sum, item) => sum + item.totalValue, 0),
        overallAverageCost: 0,
      };
      
@@ -622,35 +634,41 @@ export class InventoryService {
        relations: ['product'], // Giả sử có relation với Product
      });
 
-     // Nhóm theo sản phẩm và tính tổng tồn kho
-     const productStocks = batches.reduce((stocks, batch) => {
-       const productId = batch.productId;
-       if (!stocks[productId]) {
-         stocks[productId] = {
-           productId,
-           totalQuantity: 0,
-           weightedAverageCost: 0,
-           batches: [],
-         };
-       }
-       
-       stocks[productId].totalQuantity += batch.remainingQuantity;
-       stocks[productId].batches.push({
-         batchId: batch.id,
-         batchCode: batch.batchCode,
-         quantity: batch.remainingQuantity,
-         unitCost: parseFloat(batch.unitCostPrice),
-         expiryDate: batch.expiryDate,
-       });
-       
-       return stocks;
-     }, {});
+     // Định nghĩa interface cho stock data đã được import
+
+    // Nhóm theo sản phẩm và tính tổng tồn kho
+    const productStocks: Record<number, StockData> = batches.reduce((stocks, batch) => {
+      const productId = batch.productId;
+      if (!stocks[productId]) {
+        stocks[productId] = {
+          productId,
+          totalQuantity: 0,
+          weightedAverageCost: 0,
+          batches: [],
+        };
+      }
+      
+      stocks[productId].totalQuantity += batch.remainingQuantity;
+      const stockBatchData: any = {
+        batchId: batch.id,
+        batchCode: batch.batchCode || '',
+        quantity: batch.remainingQuantity,
+        unitCost: parseFloat(batch.unitCostPrice),
+      };
+      if (batch.expiryDate) {
+        stockBatchData.expiryDate = batch.expiryDate;
+      }
+      stocks[productId].batches.push(stockBatchData);
+      
+      return stocks;
+    }, {} as Record<number, StockData>);
 
      // Tính weighted average cost và lọc sản phẩm có tồn kho thấp
-     const lowStockProducts = [];
+     const lowStockProducts: LowStockProduct[] = [];
      
      for (const productId in productStocks) {
        const stock = productStocks[productId];
+       if (!stock) continue; // Kiểm tra null safety
        
        // Tính weighted average cost
        let totalValue = 0;
@@ -697,7 +715,7 @@ export class InventoryService {
 
      const processedBatches = expiringBatches.map(batch => {
        const daysUntilExpiry = Math.ceil(
-         (new Date(batch.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+         (new Date(batch.expiryDate!).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
        );
        
        let alertLevel = 'WARNING';
@@ -779,7 +797,7 @@ export class InventoryService {
    * @param id - ID của phiếu nhập kho cần tìm
    * @returns Thông tin phiếu nhập kho
    */
-  async findReceiptById(id: number) {
+  async findReceiptById(id: number): Promise<InventoryReceipt | null> {
     return this.inventoryReceiptRepository.findOne({
       where: { id },
       relations: ['items'], // Bao gồm cả các item trong phiếu
@@ -791,7 +809,7 @@ export class InventoryService {
    * @param receiptCode - Mã của phiếu nhập kho cần tìm
    * @returns Thông tin phiếu nhập kho
    */
-  async findReceiptByCode(receiptCode: string) {
+  async findReceiptByCode(receiptCode: string): Promise<InventoryReceipt | null> {
     return this.inventoryReceiptRepository.findOne({
       where: { receiptCode },
       relations: ['items'], // Bao gồm cả các item trong phiếu
@@ -807,7 +825,7 @@ export class InventoryService {
   async updateReceipt(
     id: number,
     updateData: Partial<CreateInventoryReceiptDto>,
-  ) {
+  ): Promise<InventoryReceipt | null> {
     await this.inventoryReceiptRepository.update(id, updateData);
     return this.findReceiptById(id);
   }
@@ -825,8 +843,11 @@ export class InventoryService {
    * @param id - ID của phiếu nhập kho cần duyệt
    * @returns Thông tin phiếu nhập kho đã duyệt
    */
-  async approveReceipt(id: number) {
+  async approveReceipt(id: number): Promise<InventoryReceipt | null> {
     const receipt = await this.findReceiptById(id);
+    if (!receipt) {
+      return null;
+    }
     receipt.status = 'approved'; // Cập nhật trạng thái thành đã duyệt
     receipt.approvedAt = new Date(); // Ghi nhận thời gian duyệt
     return this.inventoryReceiptRepository.save(receipt);
@@ -837,8 +858,11 @@ export class InventoryService {
    * @param id - ID của phiếu nhập kho cần hoàn thành
    * @returns Thông tin phiếu nhập kho đã hoàn thành
    */
-  async completeReceipt(id: number) {
+  async completeReceipt(id: number): Promise<InventoryReceipt | null> {
     const receipt = await this.findReceiptById(id);
+    if (!receipt) {
+      return null;
+    }
     receipt.status = 'completed'; // Cập nhật trạng thái thành đã hoàn thành
     receipt.completedAt = new Date(); // Ghi nhận thời gian hoàn thành
     return this.inventoryReceiptRepository.save(receipt);
@@ -850,8 +874,11 @@ export class InventoryService {
    * @param reason - Lý do hủy phiếu nhập kho
    * @returns Thông tin phiếu nhập kho đã hủy
    */
-  async cancelReceipt(id: number, reason: string) {
+  async cancelReceipt(id: number, reason: string): Promise<InventoryReceipt | null> {
     const receipt = await this.findReceiptById(id);
+    if (!receipt) {
+      return null;
+    }
     receipt.status = 'cancelled'; // Cập nhật trạng thái thành đã hủy
     receipt.cancelledAt = new Date(); // Ghi nhận thời gian hủy
     receipt.cancelledReason = reason; // Ghi nhận lý do hủy
@@ -879,7 +906,7 @@ export class InventoryService {
   async updateReceiptItem(
     id: number,
     updateData: Partial<InventoryReceiptItem>,
-  ) {
+  ): Promise<InventoryReceiptItem | null> {
     await this.inventoryReceiptItemRepository.update(id, updateData);
     return this.inventoryReceiptItemRepository.findOne({ where: { id } });
   }

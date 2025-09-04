@@ -7,31 +7,31 @@ import { IsNumber, IsString, IsOptional } from 'class-validator';
 export class CreateInventoryTransactionDto {
   /** ID của sản phẩm trong giao dịch (bắt buộc) */
   @IsNumber()
-  productId: number;
+  productId!: number;
 
   /** Loại giao dịch (ví dụ: 'IN' cho nhập kho, 'OUT' cho xuất kho) (bắt buộc) */
   @IsString()
-  transactionType: string;
+  transactionType!: string;
 
   /** Số lượng trong giao dịch (bắt buộc) */
   @IsNumber()
-  quantity: number;
+  quantity!: number;
 
   /** Giá vốn đơn vị của sản phẩm trong giao dịch (bắt buộc) */
   @IsString()
-  unitCostPrice: string;
+  unitCostPrice!: string;
 
   /** Tổng giá trị chi phí của giao dịch (bắt buộc) */
   @IsString()
-  totalCostValue: string;
+  totalCostValue!: string;
 
   /** Số lượng còn lại sau giao dịch (bắt buộc) */
   @IsNumber()
-  remainingQuantity: number;
+  remainingQuantity!: number;
 
   /** Giá vốn trung bình mới sau giao dịch (bắt buộc) */
   @IsString()
-  newAverageCost: string;
+  newAverageCost!: string;
 
   /** ID của item phiếu nhập kho tương ứng (tùy chọn) */
   @IsOptional()
@@ -55,5 +55,5 @@ export class CreateInventoryTransactionDto {
 
   /** ID của người dùng tạo giao dịch (bắt buộc) */
   @IsNumber()
-  createdByUserId: number;
+  createdByUserId!: number;
 }

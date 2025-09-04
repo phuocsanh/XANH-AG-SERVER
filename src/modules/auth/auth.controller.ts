@@ -10,6 +10,7 @@ import {
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
+import { Request as ExpressRequest } from 'express';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './local-auth.guard';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -41,7 +42,7 @@ export class AuthController {
    */
   @UseGuards(LocalAuthGuard)
   @Post('login')
-  async login(@Request() req) {
+  async login(@Request() req: ExpressRequest & { user: any }) {
     return this.authService.login(req.user);
   }
 
@@ -88,7 +89,7 @@ export class AuthController {
   @Put('change-password')
   @UseInterceptors(ClassSerializerInterceptor)
   async changePassword(
-    @Request() req,
+    @Request() req: ExpressRequest & { user: { userId: number } },
     @Body() changePasswordDto: ChangePasswordDto,
   ) {
     // Lấy ID người dùng từ token

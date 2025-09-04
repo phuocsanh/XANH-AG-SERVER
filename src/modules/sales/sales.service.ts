@@ -70,7 +70,7 @@ export class SalesService {
    * @param id - ID của hóa đơn bán hàng cần tìm
    * @returns Thông tin hóa đơn bán hàng
    */
-  async findOne(id: number): Promise<SalesInvoice> {
+  async findOne(id: number): Promise<SalesInvoice | null> {
     return this.salesInvoiceRepository.findOne({
       where: { id },
       relations: ['items'], // Bao gồm cả các item trong hóa đơn
@@ -82,7 +82,7 @@ export class SalesService {
    * @param invoiceCode - Mã của hóa đơn bán hàng cần tìm
    * @returns Thông tin hóa đơn bán hàng
    */
-  async findByCode(invoiceCode: string): Promise<SalesInvoice> {
+  async findByCode(invoiceCode: string): Promise<SalesInvoice | null> {
     return this.salesInvoiceRepository.findOne({
       where: { invoiceCode },
       relations: ['items'], // Bao gồm cả các item trong hóa đơn
@@ -98,7 +98,7 @@ export class SalesService {
   async update(
     id: number,
     updateSalesInvoiceDto: UpdateSalesInvoiceDto,
-  ): Promise<SalesInvoice> {
+  ): Promise<SalesInvoice | null> {
     await this.salesInvoiceRepository.update(id, updateSalesInvoiceDto);
     return this.findOne(id);
   }
@@ -120,8 +120,11 @@ export class SalesService {
   async updatePaymentStatus(
     id: number,
     paymentStatus: string,
-  ): Promise<SalesInvoice> {
+  ): Promise<SalesInvoice | null> {
     const invoice = await this.findOne(id);
+    if (!invoice) {
+      return null;
+    }
     invoice.paymentStatus = paymentStatus; // Cập nhật trạng thái thanh toán
     return this.salesInvoiceRepository.save(invoice);
   }
@@ -147,7 +150,7 @@ export class SalesService {
   async updateInvoiceItem(
     id: number,
     updateData: Partial<SalesInvoiceItem>,
-  ): Promise<SalesInvoiceItem> {
+  ): Promise<SalesInvoiceItem | null> {
     await this.salesInvoiceItemRepository.update(id, updateData);
     return this.salesInvoiceItemRepository.findOne({ where: { id } });
   }

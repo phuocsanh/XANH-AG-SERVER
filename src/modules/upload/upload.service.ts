@@ -1,16 +1,16 @@
-import { Injectable, Inject, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { v2 as cloudinary } from 'cloudinary';
 import { FileTrackingService } from '../file-tracking/file-tracking.service';
 import { UploadResponseDto } from './dto/upload-response.dto';
 import * as fs from 'fs';
-import * as path from 'path';
 
 @Injectable()
 export class UploadService {
   constructor(
-    @Inject('CLOUDINARY') private cloudinaryConfig: any,
     private readonly fileTrackingService: FileTrackingService,
-  ) {}
+  ) {
+    // Service khởi tạo với FileTrackingService
+  }
 
   async uploadImage(file: any): Promise<UploadResponseDto> {
     try {
@@ -64,7 +64,8 @@ export class UploadService {
         throw error;
       }
       
-      throw new InternalServerErrorException(`Upload failed: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new InternalServerErrorException(`Upload failed: ${errorMessage}`);
     }
   }
 
@@ -114,7 +115,8 @@ export class UploadService {
         throw error;
       }
       
-      throw new InternalServerErrorException(`Upload failed: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new InternalServerErrorException(`Upload failed: ${errorMessage}`);
     }
   }
 
@@ -158,7 +160,8 @@ export class UploadService {
         throw error;
       }
       
-      throw new InternalServerErrorException(`Delete failed: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new InternalServerErrorException(`Delete failed: ${errorMessage}`);
     }
   }
 
@@ -174,7 +177,8 @@ export class UploadService {
         message: 'File marked as used successfully',
       };
     } catch (error) {
-      throw new InternalServerErrorException(`Mark as used failed: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new InternalServerErrorException(`Mark as used failed: ${errorMessage}`);
     }
   }
 
@@ -204,15 +208,10 @@ export class UploadService {
         deletedCount,
       };
     } catch (error) {
-      throw new InternalServerErrorException(`Cleanup failed: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new InternalServerErrorException(`Cleanup failed: ${errorMessage}`);
     }
   }
 
-  private extractPublicIdFromUrl(url: string): string {
-    // Extract public_id from Cloudinary URL
-    // Example: https://res.cloudinary.com/demo/image/upload/v1234567890/sample.jpg
-    // Public ID: sample
-    const matches = url.match(/\/v\d+\/(.+)\.[^.]+$/);
-    return matches ? matches[1] : '';
-  }
+
 }

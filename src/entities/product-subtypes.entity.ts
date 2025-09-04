@@ -14,33 +14,33 @@ import {
 export class ProductSubtype {
   /** ID duy nhất của loại phụ sản phẩm (khóa chính, tự động tăng) */
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   /** Tên loại phụ sản phẩm */
   @Column({ name: 'subtype_name' })
-  subtypeName: string;
+  subtypeName!: string;
 
   /** Mã loại phụ sản phẩm (duy nhất) */
   @Column({ name: 'subtype_code', unique: true })
-  subtypeCode: string;
+  subtypeCode!: string;
 
   /** ID loại sản phẩm mà loại phụ sản phẩm này thuộc về */
   @Column({ name: 'product_type_id' })
-  productTypeId: number;
+  productTypeId!: number;
 
   /** Mô tả loại phụ sản phẩm */
   @Column({ name: 'description', nullable: true })
-  description: string;
+  description?: string;
 
   /** Trạng thái hoạt động (true: hoạt động, false: không hoạt động) */
   @Column({ name: 'is_active', default: true })
-  isActive: boolean;
+  isActive!: boolean;
 
   /** Thời gian tạo loại phụ sản phẩm */
   @CreateDateColumn({ name: 'created_at' })
-  createdAt: Date;
+  createdAt!: Date;
 
   /** Thời gian cập nhật gần nhất loại phụ sản phẩm */
   @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt: Date;
+  updatedAt!: Date;
 }

@@ -12,7 +12,7 @@ config();
 const typeOrmConfig: TypeOrmModuleOptions = {
   type: 'postgres', // Loại cơ sở dữ liệu
   host: process.env.DB_HOST || 'localhost', // Địa chỉ host của database
-  port: parseInt(process.env.DB_PORT, 10) || 5432, // Port của database
+  port: parseInt(process.env.DB_PORT || '5432', 10), // Port của database
   username: process.env.DB_USERNAME || 'postgres', // Tên người dùng để kết nối database
   password: process.env.DB_PASSWORD || 'postgres', // Mật khẩu để kết nối database
   database: process.env.DB_NAME || 'GO_GN_FARM', // Tên database
