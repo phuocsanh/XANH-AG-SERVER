@@ -10,6 +10,7 @@ import { InventoryModule } from './modules/inventory/inventory.module';
 import { FileTrackingModule } from './modules/file-tracking/file-tracking.module';
 import { SalesModule } from './modules/sales/sales.module';
 import { UploadModule } from './modules/upload/upload.module';
+import { AiAnalysisModule } from './modules/ai-analysis/ai-analysis.module';
 import typeOrmConfig from './config/typeorm.config';
 
 
@@ -52,6 +53,7 @@ import typeOrmConfig from './config/typeorm.config';
     FileTrackingModule,
     SalesModule,
     UploadModule,
+    AiAnalysisModule, // Module phân tích AI thị trường lúa gạo
   ],
   controllers: [], // Các controller global (nếu có)
   providers: [
