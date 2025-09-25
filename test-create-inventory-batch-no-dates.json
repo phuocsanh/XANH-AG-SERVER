@@ -1,9 +1,0 @@
-{
-  "productId": 1,
-  "batchCode": "BATCH001",
-  "unitCostPrice": "50000",
-  "originalQuantity": 100,
-  "remainingQuantity": 100,
-  "supplierId": 1,
-  "notes": "Ghi chú lô hàng test"
-}

@@ -1,4 +1,0 @@
-This is a test file for upload functionality.
-Created for testing upload endpoints.
-File size: small
-Content: text data for testing

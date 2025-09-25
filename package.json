@@ -35,7 +35,8 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
+    "@google/genai": "^1.20.0",
+    "@modelcontextprotocol/sdk": "^1.18.1",
     "@nestjs/common": "^11.1.6",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.1.6",
@@ -47,6 +48,7 @@
     "@nestjs/typeorm": "^11.0.0",
     "@types/cheerio": "^0.22.35",
     "@types/multer": "^2.0.0",
+    "@types/node-fetch": "^2.6.11",
     "@types/passport-local": "^1.0.38",
     "axios": "^1.12.2",
     "bcrypt": "^6.0.0",
@@ -56,6 +58,7 @@
     "cloudinary": "^2.7.0",
     "dotenv": "^16.4.7",
     "helmet": "^8.1.0",
+    "node-fetch": "^2.7.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
@@ -63,7 +66,8 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "swagger-ui-express": "^5.0.1",
-    "typeorm": "^0.3.26"
+    "typeorm": "^0.3.26",
+    "youtube-search-api": "^2.0.1"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.1",

@@ -5,3 +5,4 @@
 - Luôn comment code bằng tiếng việt chức năng của file, hàm, code hay biến.
 - Hàm, code, hay file nào sau khi thêm chức năng mới hoặc chỉnh sửa xong mà không dùng nữa xóa đi.
 - Chạy dự án bằng npm run docker:up-dev
+- Không tạo dữ liệu giả , mock data trả về cho font-end

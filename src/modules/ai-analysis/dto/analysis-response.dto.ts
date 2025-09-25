@@ -42,8 +42,8 @@ export class AnalysisResponseDto {
   @ApiProperty({ description: 'Tóm tắt tình hình thị trường' })
   summary!: string;
 
-  @ApiProperty({ description: 'Dữ liệu giá cả', type: PriceDataDto })
-  priceData!: PriceDataDto;
+  @ApiProperty({ description: 'Dữ liệu giá cả (tùy chọn)', type: PriceDataDto, required: false })
+  priceData?: PriceDataDto;
 
   @ApiProperty({ 
     description: 'Danh sách các giống lúa và giá', 
