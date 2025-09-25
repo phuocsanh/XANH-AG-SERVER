@@ -1,5 +1,5 @@
-import { Controller, Get, Logger, HttpException, HttpStatus, Query } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import { Controller, Get, Logger, HttpException, HttpStatus, Query, Post, Body } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBody } from '@nestjs/swagger';
 import { AiAnalysisService } from './ai-analysis.service';
 import { AnalysisResponseDto } from './dto/analysis-response.dto';
 import { RiceAnalysisResult, YouTubeSearchResult } from './interfaces/rice-analysis.interface';
@@ -147,47 +147,7 @@ export class AiAnalysisController {
   })
   @ApiResponse({ 
     status: 200, 
-    description: 'Lấy danh sách video thành công',
-    schema: {
-      type: 'object',
-      properties: {
-        videos: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              id: { type: 'string', description: 'ID video YouTube' },
-              title: { type: 'string', description: 'Tiêu đề video' },
-              url: { type: 'string', description: 'URL video YouTube' },
-              thumbnail: { type: 'string', description: 'URL ảnh thumbnail' },
-              channel: {
-                type: 'object',
-                properties: {
-                  name: { type: 'string', description: 'Tên kênh' },
-                  url: { type: 'string', description: 'URL kênh' }
-                }
-              },
-              duration: { type: 'string', description: 'Thời lượng video' },
-              views: { type: 'string', description: 'Số lượt xem' },
-              uploadTime: { type: 'string', description: 'Thời gian upload' },
-              description: { type: 'string', description: 'Mô tả video' },
-              isLive: { type: 'boolean', description: 'Video live hay không' }
-            }
-          }
-        },
-        query: { type: 'string', description: 'Từ khóa tìm kiếm' },
-        searchTime: { type: 'string', description: 'Thời gian tìm kiếm' },
-        totalResults: { type: 'number', description: 'Tổng số video tìm được' },
-        searchQuality: {
-          type: 'object',
-          properties: {
-            hasRecentVideos: { type: 'boolean', description: 'Có video gần đây không' },
-            todayVideosCount: { type: 'number', description: 'Số video có từ "hôm nay"' },
-            score: { type: 'number', description: 'Điểm chất lượng (0-100)' }
-          }
-        }
-      }
-    }
+    description: 'Lấy danh sách video thành công'
   })
   @ApiResponse({ 
     status: 500, 
@@ -220,6 +180,151 @@ export class AiAnalysisController {
           statusCode: HttpStatus.SERVICE_UNAVAILABLE,
           timestamp: new Date().toISOString(),
           path: '/ai-analysis/youtube-videos'
+        },
+        HttpStatus.SERVICE_UNAVAILABLE
+      );
+    }
+  }
+
+  /**
+   * Endpoint mới: Trả lời câu hỏi với trích dẫn nguồn giống Gemini
+   * @param question - Câu hỏi của người dùng
+   * @returns Promise<any> - Câu trả lời với trích dẫn nguồn
+   */
+  @Post('ask-with-sources')
+  @ApiOperation({ 
+    summary: 'Trả lời câu hỏi với trích dẫn nguồn (giống Gemini)',
+    description: 'Tìm kiếm thông tin từ web và trả lời câu hỏi với trích dẫn nguồn đáng tin cậy'
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        question: {
+          type: 'string',
+          description: 'Câu hỏi cần trả lời',
+          example: 'Giá lúa gạo hôm nay như thế nào?'
+        }
+      },
+      required: ['question']
+    }
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Trả lời thành công với trích dẫn nguồn'
+  })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Câu hỏi không hợp lệ' 
+  })
+  @ApiResponse({ 
+    status: 500, 
+    description: 'Lỗi server khi tìm kiếm thông tin' 
+  })
+  async askWithSources(@Body('question') question: string): Promise<any> {
+    try {
+      this.logger.log(`Nhận câu hỏi từ người dùng: ${question}`);
+      
+      // Kiểm tra đầu vào
+      if (!question || question.trim().length === 0) {
+        throw new HttpException(
+          {
+            message: 'Câu hỏi không được để trống',
+            statusCode: HttpStatus.BAD_REQUEST,
+            timestamp: new Date().toISOString(),
+            path: '/ai-analysis/ask-with-sources'
+          },
+          HttpStatus.BAD_REQUEST
+        );
+      }
+
+      // Gọi service để trả lời câu hỏi với nguồn
+      const result = await this.aiAnalysisService.answerQuestionWithSources(question.trim());
+      
+      this.logger.log(`Đã trả lời câu hỏi với ${result.sources?.length || 0} nguồn tham khảo`);
+      
+      return result;
+      
+    } catch (error: any) {
+      this.logger.error('Lỗi khi trả lời câu hỏi với nguồn:', error);
+      
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      
+      throw new HttpException(
+        {
+          message: 'Không thể trả lời câu hỏi',
+          error: error.message || 'Lỗi không xác định',
+          statusCode: HttpStatus.SERVICE_UNAVAILABLE,
+          timestamp: new Date().toISOString(),
+          path: '/ai-analysis/ask-with-sources'
+        },
+        HttpStatus.SERVICE_UNAVAILABLE
+      );
+    }
+  }
+
+  /**
+   * Endpoint GET để trả lời câu hỏi nhanh qua query parameter
+   * @param q - Câu hỏi ngắn gọn
+   * @returns Promise<any> - Câu trả lời với trích dẫn nguồn
+   */
+  @Get('quick-ask')
+  @ApiOperation({ 
+    summary: 'Trả lời câu hỏi nhanh (GET method)',
+    description: 'Trả lời câu hỏi ngắn gọn qua query parameter với trích dẫn nguồn'
+  })
+  @ApiQuery({ 
+    name: 'q', 
+    required: true, 
+    description: 'Câu hỏi cần trả lời',
+    example: 'giá lúa hôm nay'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Trả lời thành công' 
+  })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Thiếu câu hỏi' 
+  })
+  async quickAsk(@Query('q') question: string): Promise<any> {
+    try {
+      this.logger.log(`Nhận câu hỏi nhanh: ${question}`);
+      
+      if (!question || question.trim().length === 0) {
+        throw new HttpException(
+          {
+            message: 'Tham số "q" (câu hỏi) là bắt buộc',
+            statusCode: HttpStatus.BAD_REQUEST,
+            timestamp: new Date().toISOString(),
+            path: '/ai-analysis/quick-ask'
+          },
+          HttpStatus.BAD_REQUEST
+        );
+      }
+
+      const result = await this.aiAnalysisService.answerQuestionWithSources(question.trim());
+      
+      this.logger.log(`Đã trả lời câu hỏi nhanh với ${result.sources?.length || 0} nguồn`);
+      
+      return result;
+      
+    } catch (error: any) {
+      this.logger.error('Lỗi khi trả lời câu hỏi nhanh:', error);
+      
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      
+      throw new HttpException(
+        {
+          message: 'Không thể trả lời câu hỏi',
+          error: error.message || 'Lỗi không xác định',
+          statusCode: HttpStatus.SERVICE_UNAVAILABLE,
+          timestamp: new Date().toISOString(),
+          path: '/ai-analysis/quick-ask'
         },
         HttpStatus.SERVICE_UNAVAILABLE
       );

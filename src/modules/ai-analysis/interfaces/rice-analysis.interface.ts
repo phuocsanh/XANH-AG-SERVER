@@ -54,6 +54,9 @@ export interface RiceAnalysisResult {
   
   /** URL nguồn dữ liệu (tùy chọn) */
   sourceUrl?: string;
+  
+  /** Danh sách các nguồn bổ sung từ web search (tùy chọn) */
+  additionalSources?: string[];
 }
 
 /**
@@ -126,13 +129,16 @@ export interface YouTubeSearchResult {
   /** Tổng số video tìm được */
   totalResults: number;
   
-  /** Thông tin chất lượng kết quả tìm kiếm */
+  /** Thông tin chất lượng tìm kiếm (tùy chọn) */
   searchQuality?: {
-    /** Có video mới nhất không (trong 24h) */
+    /** Có video gần đây không */
     hasRecentVideos: boolean;
-    /** Số video có từ khóa "hôm nay" */
+    /** Số video có từ "hôm nay" */
     todayVideosCount: number;
     /** Điểm chất lượng (0-100) */
     score: number;
   };
+  
+  /** Thông báo lỗi nếu có (tùy chọn) */
+  error?: string;
 }

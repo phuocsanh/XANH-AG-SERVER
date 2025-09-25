@@ -50,8 +50,9 @@ export class AiAnalysisService {
 
   /**
    * Phân tích thị trường lúa từ dữ liệu congthuong.vn (chỉ lúa, không phải gạo)
+   * Tích hợp tìm kiếm web thời gian thực để có thông tin cập nhật nhất
    * @param data - Dữ liệu thị trường lúa gạo từ MCP Server
-   * @returns Promise<RiceAnalysisResult> - Kết quả phân tích có cấu trúc
+   * @returns Promise<RiceAnalysisResult> - Kết quả phân tích có cấu trúc với trích dẫn nguồn
    */
   async analyzeRiceMarket(data: any): Promise<RiceAnalysisResult> {
     // Kiểm tra dữ liệu đầu vào - không có dữ liệu thì báo lỗi ngay
@@ -64,6 +65,23 @@ export class AiAnalysisService {
     }
 
     try {
+      // Lấy thông tin bổ sung từ tìm kiếm web thời gian thực
+      let additionalWebData = '';
+      let webSources: string[] = [];
+      
+      try {
+        this.logger.log('Đang tìm kiếm thông tin bổ sung từ web...');
+        const webSearchResult = await this.mcpServerService.searchRiceNewsMultiSource();
+        
+        if (webSearchResult && webSearchResult.aggregatedContent) {
+          additionalWebData = webSearchResult.aggregatedContent;
+          webSources = webSearchResult.sources || [];
+          this.logger.log(`Đã lấy thêm ${webSources.length} nguồn từ web search`);
+        }
+      } catch (webError: any) {
+        this.logger.warn('Không thể lấy dữ liệu từ web search, sử dụng dữ liệu cục bộ:', webError.message);
+      }
+
       // Danh sách các model có sẵn
       const models = [
         'gemini-2.0-flash-001',
@@ -73,46 +91,65 @@ export class AiAnalysisService {
 
       const selectedModel = models[0] || 'gemini-1.5-flash';
 
-      // Tạo prompt chi tiết cho phân tích thị trường lúa với toàn bộ nội dung trang web
+      // Tạo prompt chi tiết với yêu cầu trích dẫn nguồn và tránh hallucination
       const prompt = `
-        Bạn là chuyên gia phân tích thị trường nông sản. Hãy phân tích nội dung trang web sau về giá lúa:
+        Bạn là chuyên gia phân tích thị trường nông sản. Hãy phân tích nội dung sau về giá lúa:
         
+        NGUỒN CHÍNH (congthuong.vn):
         ${data.fullContent}
+        
+        ${additionalWebData ? `NGUỒN BỔ SUNG TỪ WEB:
+        ${additionalWebData}
+        
+        DANH SÁCH NGUỒN THAM KHẢO:
+        ${webSources.map((source, index) => `${index + 1}. ${source}`).join('\n')}
+        ` : ''}
+        
+        QUAN TRỌNG - QUY TẮC PHÂN TÍCH:
+        1. CHỈ sử dụng dữ liệu có trong nội dung được cung cấp ở trên
+        2. KHÔNG tự tạo ra thông tin, số liệu, hoặc giá cả không có trong nguồn
+        3. Nếu không có thông tin cụ thể nào đó, hãy nói "Không có dữ liệu" thay vì đoán
+        4. LUÔN trích dẫn nguồn gốc cho mỗi thông tin quan trọng
+        5. Phân biệt rõ ràng giữa dữ liệu thực tế và dự đoán/phân tích
         
         Vui lòng phân tích dựa trên dữ liệu thực này và trích xuất thông tin cụ thể:
         1. Danh sách các loại lúa và giá cụ thể (IR 50404, OM 18, Đài Thơm 8, OM 5451, Nàng Hoa 9, OM 308, v.v.)
-        2. Xu hướng giá cả các loại lúa
-        3. So sánh giá giữa các tỉnh thành
-        4. Yếu tố ảnh hưởng đến thị trường hiện tại
-        5. Dự báo ngắn hạn và dài hạn
-        6. Khuyến nghị cho nông dân và nhà đầu tư
-        7. Rủi ro và cơ hội từ dữ liệu thực tế
+        2. Xu hướng giá cả các loại lúa (chỉ dựa trên dữ liệu có sẵn)
+        3. So sánh giá giữa các tỉnh thành (nếu có trong dữ liệu)
+        4. Yếu tố ảnh hưởng đến thị trường hiện tại (chỉ những gì được đề cập trong nguồn)
+        5. Dự báo ngắn hạn (chỉ nếu có trong nguồn, không tự đoán)
+        6. Khuyến nghị dựa trên dữ liệu thực tế
+        7. Rủi ro và cơ hội từ dữ liệu có sẵn
         
         Lưu ý: 
         - Chỉ phân tích thông tin về LÚA, bỏ qua thông tin về gạo
         - Tập trung vào dữ liệu giá cả thực tế từ nội dung
         - Trích xuất chính xác tên và giá các loại lúa từ nội dung
         - Đưa ra phân tích dựa trên dữ liệu có trong nội dung
+        - LUÔN liệt kê nguồn gốc thông tin ở cuối mỗi phần phân tích
         - Trả về kết quả bằng tiếng Việt
         
         Trả lời bằng tiếng Việt với định dạng JSON có cấu trúc như sau:
         {
-          "marketOverview": "Tổng quan thị trường lúa hiện tại",
-          "priceAnalysis": "Phân tích chi tiết về giá lúa các loại",
+          "marketOverview": "Tổng quan thị trường lúa hiện tại (kèm nguồn)",
+          "priceAnalysis": "Phân tích chi tiết về giá lúa các loại (kèm nguồn)",
           "riceVarieties": [
             {
               "name": "Tên loại lúa",
               "price": "Giá hiện tại (đồng/kg)",
               "priceRange": "Khoảng giá (nếu có)",
-              "trend": "Xu hướng (tăng/giảm/ổn định)"
+              "trend": "Xu hướng (tăng/giảm/ổn định)",
+              "source": "Nguồn thông tin cụ thể"
             }
           ],
-          "trends": "Xu hướng giá và thị trường",
-          "forecast": "Dự báo thị trường trong thời gian tới",
-          "recommendations": "Khuyến nghị cho nông dân và thương lái",
-          "keyInsights": ["Insight 1", "Insight 2", "Insight 3"],
-          "riskFactors": ["Risk 1", "Risk 2"],
-          "opportunities": ["Opportunity 1", "Opportunity 2"]
+          "trends": "Xu hướng giá và thị trường (kèm nguồn)",
+          "forecast": "Dự báo thị trường trong thời gian tới (chỉ nếu có trong nguồn)",
+          "recommendations": "Khuyến nghị cho nông dân và thương lái (dựa trên dữ liệu thực)",
+          "keyInsights": ["Insight 1 (nguồn)", "Insight 2 (nguồn)", "Insight 3 (nguồn)"],
+          "riskFactors": ["Risk 1 (nguồn)", "Risk 2 (nguồn)"],
+          "opportunities": ["Opportunity 1 (nguồn)", "Opportunity 2 (nguồn)"],
+          "dataSources": ["Danh sách tất cả nguồn được sử dụng"],
+          "dataLimitations": "Những hạn chế của dữ liệu hiện có"
         }
       `;
 
@@ -163,9 +200,19 @@ export class AiAnalysisService {
         3. Ảnh hưởng của biến đổi khí hậu
         4. Cơ hội xuất khẩu
         
+        QUY TẮC QUAN TRỌNG:
+        - CHỈ sử dụng dữ liệu từ nguồn đã cung cấp
+        - KHÔNG tự tạo thông tin hoặc đoán mò
+        - Nếu không có dữ liệu về một khía cạnh nào đó, hãy nói "Không có thông tin trong nguồn dữ liệu hiện tại"
+        - LUÔN liệt kê nguồn gốc cho mỗi thông tin
+        
         Phân tích ban đầu: ${analysisResult}
         
-        Lưu ý: Sử dụng MCP Server để lấy thông tin cập nhật về thị trường.
+        Nguồn dữ liệu có sẵn:
+        - congthuong.vn: ${data.sourceUrl || 'https://congthuong.vn'}
+        ${webSources.length > 0 ? `- Các nguồn web bổ sung: ${webSources.join(', ')}` : ''}
+        
+        Trả về phân tích bổ sung với format: "Nội dung phân tích (Nguồn: tên nguồn)"
       `;
 
       const followUpResult = await this.genAI.models.generateContent({
@@ -179,7 +226,7 @@ export class AiAnalysisService {
 
       const followUpAnalysis: string = followUpResult.text || '';
 
-      // Trả về theo interface RiceAnalysisResult với dữ liệu từ AI
+      // Trả về theo interface RiceAnalysisResult với dữ liệu từ AI và thông tin nguồn
       return {
         summary: parsedResult.marketOverview || 'Phân tích thị trường lúa từ AI',
         riceVarieties: parsedResult.riceVarieties || [], // Lấy danh sách loại lúa từ AI
@@ -188,21 +235,110 @@ export class AiAnalysisService {
           parsedResult.trends || '',
           parsedResult.forecast || '',
           parsedResult.recommendations || '',
-          followUpAnalysis
+          followUpAnalysis,
+          // Thêm thông tin về nguồn dữ liệu
+          `Nguồn dữ liệu: ${[data.sourceUrl || 'congthuong.vn', ...webSources].join(', ')}`,
+          parsedResult.dataLimitations ? `Hạn chế dữ liệu: ${parsedResult.dataLimitations}` : ''
         ].filter(insight => insight && insight.trim() !== ''),
         lastUpdated: new Date().toISOString(),
         dataQuality: {
           tablesFound: 1,
           pricesExtracted: parsedResult.riceVarieties?.length || 0, // Số loại lúa được trích xuất
           hasDate: true,
-          score: 0.9,
-          completeness: 'high' as const
+          score: webSources.length > 0 ? 0.95 : 0.9, // Điểm cao hơn nếu có nhiều nguồn
+          completeness: webSources.length > 2 ? 'high' : 'medium' as const
         },
-        sourceUrl: 'https://congthuong.vn'
+        sourceUrl: data.sourceUrl || 'https://congthuong.vn',
+        // Thêm thông tin về các nguồn bổ sung
+        additionalSources: webSources
       };
     } catch (error: any) {
       this.logger.error('Lỗi khi phân tích thị trường lúa gạo:', error);
       throw new Error(`Không thể phân tích dữ liệu thị trường: ${error.message}`);
+    }
+  }
+
+  /**
+   * Trả lời câu hỏi với trích dẫn nguồn (giống Gemini)
+   * @param question - Câu hỏi của người dùng
+   * @returns Promise<any> - Câu trả lời với trích dẫn nguồn
+   */
+  async answerQuestionWithSources(question: string): Promise<any> {
+    try {
+      this.logger.log(`Bắt đầu trả lời câu hỏi: ${question}`);
+      
+      // Bước 1: Tìm kiếm thông tin từ web
+      this.logger.log('Tìm kiếm thông tin từ web...');
+      const webSearchResult = await this.mcpServerService.searchRiceNewsMultiSource(question);
+      const webSources = webSearchResult.sources || [];
+      
+      // Bước 2: Tạo prompt cho AI với thông tin từ web
+      const prompt = `
+Bạn là một chuyên gia phân tích thị trường nông nghiệp. Hãy trả lời câu hỏi sau dựa trên thông tin được cung cấp:
+
+Câu hỏi: ${question}
+
+Thông tin từ các nguồn web:
+${webSources.map((source, index) => `
+Nguồn ${index + 1}: ${source.title}
+URL: ${source.url}
+Nội dung: ${source.snippet}
+---
+`).join('\n')}
+
+YÊU CẦU QUAN TRỌNG:
+1. CHỈ sử dụng thông tin từ các nguồn được cung cấp ở trên
+2. KHÔNG tự tạo ra thông tin không có trong nguồn
+3. Nếu không có thông tin đủ để trả lời, hãy nói "Không có đủ thông tin từ các nguồn hiện tại"
+4. LUÔN trích dẫn nguồn cụ thể khi đưa ra thông tin
+5. Trả lời bằng tiếng Việt
+6. Cấu trúc câu trả lời rõ ràng, dễ hiểu
+
+Hãy trả lời câu hỏi một cách chính xác và có trích dẫn nguồn.
+`;
+
+      // Bước 3: Gọi AI để tạo câu trả lời
+      this.logger.log('Gọi AI để tạo câu trả lời...');
+      const result = await this.genAI.models.generateContent({
+        model: 'gemini-2.0-flash-001',
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        config: {
+          maxOutputTokens: 1024,
+          temperature: 0.7,
+        },
+      });
+      const answer = result.text || 'Không thể tạo câu trả lời';
+
+      // Bước 4: Tạo kết quả với trích dẫn nguồn
+      const finalResult = {
+        answer: answer,
+        sources: webSources.map(source => ({
+          title: source.title,
+          url: source.url,
+          snippet: source.snippet ? source.snippet.substring(0, 200) + '...' : 'Không có mô tả'
+        })),
+        confidence: webSources.length > 0 ? 0.8 : 0.3, // Độ tin cậy dựa trên số nguồn
+        timestamp: new Date().toISOString(),
+        searchQuery: question,
+        totalSources: webSources.length
+      };
+
+      this.logger.log(`Đã trả lời câu hỏi với ${webSources.length} nguồn tham khảo`);
+      return finalResult;
+
+    } catch (error: any) {
+      this.logger.error('Lỗi khi trả lời câu hỏi với nguồn:', error);
+      
+      // Trả về câu trả lời lỗi với thông tin chi tiết
+      return {
+        answer: 'Xin lỗi, tôi không thể trả lời câu hỏi này do gặp lỗi kỹ thuật. Vui lòng thử lại sau.',
+        sources: [],
+        confidence: 0,
+        timestamp: new Date().toISOString(),
+        searchQuery: question,
+        error: error.message,
+        totalSources: 0
+      };
     }
   }
 
