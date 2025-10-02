@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
-// import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-// import { APP_GUARD } from '@nestjs/core';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { ProductModule } from './modules/product/product.module';
+import { ProductTypeModule } from './modules/product-type/product-type.module';
+import { ProductSubtypeModule } from './modules/product-subtype/product-subtype.module';
 import { UserModule } from './modules/user/user.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
@@ -47,6 +47,8 @@ import typeOrmConfig from './config/typeorm.config';
 
     // Import các module chức năng
     ProductModule,
+    ProductTypeModule,
+    ProductSubtypeModule,
     UserModule,
     AuthModule,
     InventoryModule,

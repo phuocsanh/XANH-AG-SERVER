@@ -16,7 +16,7 @@ GN Farm is a comprehensive agriculture management system designed to help farmer
 ## Technology Stack
 
 - Backend: NestJS (TypeScript)
-- Database: PostgreSQL with TypeORM
+- Database: Supabase (PostgreSQL) with TypeORM
 - Authentication: JWT with refresh tokens
 - File Storage: Cloudinary
 - Containerization: Docker
@@ -25,23 +25,30 @@ GN Farm is a comprehensive agriculture management system designed to help farmer
 
 - Node.js (v14 or higher)
 - npm or yarn
-- Docker (optional, for containerized deployment)
-- PostgreSQL (if not using Docker)
+- Docker (for containerized deployment)
+- Supabase account and project
 
 ## Environment Variables
 
 Create a `.env` file in the root directory with the following variables:
 
 ```env
-DB_HOST=localhost
-DB_PORT=5432
-DB_USERNAME=your_username
-DB_PASSWORD=your_password
-DB_NAME=your_database
+# Supabase Database Configuration
+DB_HOST=aws-1-ap-southeast-1.pooler.supabase.com
+DB_PORT=6543
+DB_USERNAME=postgres.your_project_id
+DB_PASSWORD=your_supabase_password
+DB_NAME=postgres
+
+# JWT Configuration
 JWT_SECRET=your_secret_key
 JWT_REFRESH_SECRET=your_refresh_secret_key
+
+# Application Configuration
 PORT=8080
 ```
+
+**Note:** Replace `your_project_id` and `your_supabase_password` with your actual Supabase project credentials.
 
 ## Installation
 
@@ -59,8 +66,9 @@ PORT=8080
    ```
 
 3. Set up the database:
-   - Create a PostgreSQL database
-   - Update the `.env` file with your database credentials
+   - Create a Supabase project at https://supabase.com
+   - Get your database connection details from the Supabase dashboard
+   - Update the `.env` file with your Supabase credentials
 
 4. Run database migrations:
    ```bash
@@ -86,8 +94,14 @@ npm run start
 
 1. Build and run with Docker Compose:
    ```bash
+   # For development
+   docker-compose -f docker-compose.dev.yml up --build
+   
+   # For production
    docker-compose up --build
    ```
+
+**Note:** The application now uses Supabase as the database, so Docker only runs the application container.
 
 ## API Endpoints
 

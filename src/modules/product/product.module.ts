@@ -1,9 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Product } from '../../entities/products.entity';
-import { ProductType } from '../../entities/product-types.entity';
-import { ProductSubtype } from '../../entities/product-subtypes.entity';
-import { ProductSubtypeRelation } from '../../entities/product-subtype-relations.entity';
 import { ProductService } from './product.service';
 import { ProductController } from './product.controller';
 import { ProductFactoryRegistry } from './factories/product-factory.registry';
@@ -20,9 +17,6 @@ import { FileTrackingModule } from '../file-tracking/file-tracking.module';
     // Import TypeORM feature module với các entity liên quan đến sản phẩm
     TypeOrmModule.forFeature([
       Product,
-      ProductType,
-      ProductSubtype,
-      ProductSubtypeRelation,
     ]),
     // Import FileTrackingModule để sử dụng FileTrackingService
     FileTrackingModule,
