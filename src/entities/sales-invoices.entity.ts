@@ -4,7 +4,21 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
+  OneToMany,
 } from 'typeorm';
+import { SalesInvoiceItem } from './sales-invoice-items.entity';
+
+/**
+ * Enum định nghĩa các trạng thái của hóa đơn bán hàng
+ */
+export enum SalesInvoiceStatus {
+  DRAFT = 'draft',           // Bản nháp
+  CONFIRMED = 'confirmed',   // Đã xác nhận
+  PAID = 'paid',            // Đã thanh toán
+  CANCELLED = 'cancelled',   // Đã hủy
+  REFUNDED = 'refunded',    // Đã hoàn tiền
+}
 
 /**
  * Entity biểu diễn thông tin hóa đơn bán hàng
@@ -28,6 +42,10 @@ export class SalesInvoice {
   @Column({ name: 'customer_phone', nullable: true })
   customerPhone?: string;
 
+  /** Email khách hàng */
+  @Column({ name: 'customer_email', nullable: true })
+  customerEmail?: string;
+
   /** Địa chỉ khách hàng */
   @Column({ name: 'customer_address', nullable: true })
   customerAddress?: string;
@@ -48,23 +66,39 @@ export class SalesInvoice {
   @Column({ name: 'payment_method' })
   paymentMethod!: string;
 
-  /** Trạng thái thanh toán (pending, paid, cancelled) */
+  /** Trạng thái thanh toán */
   @Column({ name: 'payment_status', default: 'pending' })
   paymentStatus!: string;
 
-  /** Ghi chú về hóa đơn */
+  /** Ghi chú */
   @Column({ name: 'notes', nullable: true })
   notes?: string;
 
-  /** ID của người dùng tạo hóa đơn */
+  /** ID người tạo hóa đơn */
   @Column({ name: 'created_by_user_id' })
   createdByUserId!: number;
 
-  /** Thời gian tạo hóa đơn */
+  /** Trạng thái hóa đơn */
+  @Column({
+    type: 'enum',
+    enum: SalesInvoiceStatus,
+    default: SalesInvoiceStatus.DRAFT,
+  })
+  status!: SalesInvoiceStatus;
+
+  /** Thời gian tạo */
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 
-  /** Thời gian cập nhật gần nhất hóa đơn */
+  /** Thời gian cập nhật */
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt!: Date;
+
+  /** Ngày xóa mềm (null nếu chưa bị xóa) */
+  @DeleteDateColumn({ name: 'deleted_at' })
+  deletedAt?: Date;
+
+  /** Danh sách các item trong hóa đơn */
+  @OneToMany(() => SalesInvoiceItem, (item) => item.invoice)
+  items?: SalesInvoiceItem[];
 }

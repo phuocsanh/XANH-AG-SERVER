@@ -4,7 +4,17 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
 } from 'typeorm';
+
+/**
+ * Enum định nghĩa các trạng thái của sản phẩm
+ */
+export enum ProductStatus {
+  ACTIVE = 'active',      // Sản phẩm đang hoạt động
+  INACTIVE = 'inactive',  // Sản phẩm tạm ngưng
+  ARCHIVED = 'archived',  // Sản phẩm đã lưu trữ
+}
 
 /**
  * Entity biểu diễn thông tin sản phẩm trong hệ thống
@@ -24,9 +34,17 @@ export class Product {
   @Column({ name: 'product_price' })
   productPrice!: string;
 
-  /** Trạng thái sản phẩm (1: hoạt động, 0: không hoạt động) */
+  /** Trạng thái sản phẩm (1: hoạt động, 0: không hoạt động) - Giữ lại để tương thích */
   @Column({ name: 'product_status', nullable: true })
   productStatus?: number;
+
+  /** Trạng thái sản phẩm mới sử dụng enum */
+  @Column({
+    type: 'enum',
+    enum: ProductStatus,
+    default: ProductStatus.ACTIVE,
+  })
+  status!: ProductStatus;
 
   /** Đường dẫn thumbnail của sản phẩm */
   @Column({ name: 'product_thumb' })
@@ -81,9 +99,9 @@ export class Product {
   @Column({ name: 'product_selled', nullable: true })
   productSelled?: number;
 
-  /** Thuộc tính sản phẩm (dưới dạng JSON) */
-  @Column({ name: 'product_attributes', type: 'jsonb' })
-  productAttributes!: any;
+  /** Thuộc tính bổ sung của sản phẩm (JSON) */
+  @Column({ name: 'product_attributes', type: 'jsonb', nullable: true, default: {} })
+  productAttributes?: any;
 
   /** Trạng thái nháp (true: nháp, false: không phải nháp) */
   @Column({ name: 'is_draft', nullable: true })
@@ -108,4 +126,8 @@ export class Product {
   /** Phần trăm lợi nhuận */
   @Column({ name: 'profit_margin_percent' })
   profitMarginPercent!: string;
+
+  /** Thời gian xóa mềm (null nếu chưa bị xóa) */
+  @DeleteDateColumn({ name: 'deleted_at' })
+  deletedAt?: Date;
 }

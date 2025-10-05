@@ -4,6 +4,7 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
 } from 'typeorm';
 
 /**
@@ -28,6 +29,15 @@ export class ProductSubtypeRelation {
   @Column({ name: 'is_primary', default: false })
   isPrimary!: boolean;
 
+  /** Trạng thái của mối quan hệ (active: hoạt động, inactive: tạm dừng, archived: lưu trữ) */
+  @Column({ 
+    name: 'status', 
+    type: 'enum', 
+    enum: ['active', 'inactive', 'archived'], 
+    default: 'active' 
+  })
+  status!: 'active' | 'inactive' | 'archived';
+
   /** Thời gian tạo mối quan hệ */
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
@@ -35,4 +45,8 @@ export class ProductSubtypeRelation {
   /** Thời gian cập nhật gần nhất mối quan hệ */
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt!: Date;
+
+  /** Thời gian xóa mềm (soft delete) - null nếu chưa bị xóa */
+  @DeleteDateColumn({ name: 'deleted_at' })
+  deletedAt?: Date;
 }

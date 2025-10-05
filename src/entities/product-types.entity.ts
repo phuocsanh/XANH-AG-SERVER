@@ -4,7 +4,17 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
 } from 'typeorm';
+
+/**
+ * Enum định nghĩa các trạng thái của loại sản phẩm
+ */
+export enum ProductTypeStatus {
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
+  ARCHIVED = 'archived',
+}
 
 /**
  * Entity biểu diễn thông tin loại sản phẩm
@@ -28,9 +38,14 @@ export class ProductType {
   @Column({ name: 'description', nullable: true })
   description?: string;
 
-  /** Trạng thái hoạt động (true: hoạt động, false: không hoạt động) */
-  @Column({ name: 'is_active', default: true })
-  isActive!: boolean;
+  /** Trạng thái của loại sản phẩm (active, inactive, archived) */
+  @Column({
+    name: 'status',
+    type: 'enum',
+    enum: ProductTypeStatus,
+    default: ProductTypeStatus.ACTIVE,
+  })
+  status!: ProductTypeStatus;
 
   /** Thời gian tạo loại sản phẩm */
   @CreateDateColumn({ name: 'created_at' })
@@ -39,4 +54,8 @@ export class ProductType {
   /** Thời gian cập nhật gần nhất loại sản phẩm */
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt!: Date;
+
+  /** Thời gian xóa mềm (soft delete) */
+  @DeleteDateColumn({ name: 'deleted_at' })
+  deletedAt?: Date;
 }

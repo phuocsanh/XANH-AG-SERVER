@@ -4,6 +4,7 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
 } from 'typeorm';
 
 /**
@@ -64,7 +65,11 @@ export class InventoryReceipt {
   @Column({ name: 'cancelled_at', nullable: true })
   cancelledAt?: Date;
 
-  /** Lý do hủy phiếu nhập kho */
+  /** Lý do hủy phiếu nhập kho (có thể null) */
   @Column({ name: 'cancelled_reason', nullable: true })
   cancelledReason?: string;
+
+  /** Thời gian xóa mềm (soft delete) */
+  @DeleteDateColumn({ name: 'deleted_at' })
+  deletedAt?: Date;
 }

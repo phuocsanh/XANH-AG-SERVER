@@ -1,0 +1,204 @@
+# ===== PRODUCT SUBTYPE API TESTS =====
+# Test các tính năng soft delete và quản lý trạng thái
+
+### Biến môi trường
+@baseUrl = http://localhost:3003
+@access_token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjEsInVzZXJuYW1lIjoiYWRtaW4iLCJpYXQiOjE3NTk0MTY4NzIsImV4cCI6MTc1OTQyMDQ3Mn0.Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8
+
+### 1. Tạo product subtype mới với status
+POST {{baseUrl}}/product-subtype
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "subtypeName": "Loại phụ test",
+  "subtypeCode": "TEST001",
+  "productTypeId": 1,
+  "description": "Mô tả loại phụ test",
+  "status": "active"
+}
+
+###
+
+### 2. Lấy danh sách tất cả product subtypes (chỉ những bản ghi chưa bị xóa)
+GET {{baseUrl}}/product-subtype
+Authorization: Bearer {{access_token}}
+
+###
+
+### 3. Lấy product subtypes theo trạng thái ACTIVE
+GET {{baseUrl}}/product-subtype/by-status/active
+Authorization: Bearer {{access_token}}
+
+###
+
+### 4. Lấy product subtypes theo trạng thái INACTIVE
+GET {{baseUrl}}/product-subtype/by-status/inactive
+Authorization: Bearer {{access_token}}
+
+###
+
+### 5. Lấy product subtypes theo trạng thái ARCHIVED
+GET {{baseUrl}}/product-subtype/by-status/archived
+Authorization: Bearer {{access_token}}
+
+###
+
+### 6. Lấy chi tiết một product subtype
+GET {{baseUrl}}/product-subtype/1
+Authorization: Bearer {{access_token}}
+
+###
+
+### 7. Cập nhật product subtype
+PATCH {{baseUrl}}/product-subtype/1
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "subtypeName": "Loại phụ đã cập nhật",
+  "status": "inactive"
+}
+
+###
+
+### 8. Kích hoạt product subtype (chuyển status thành 'active')
+PATCH {{baseUrl}}/product-subtype/1/activate
+Authorization: Bearer {{access_token}}
+
+###
+
+### 9. Vô hiệu hóa product subtype (chuyển status thành 'inactive')
+PATCH {{baseUrl}}/product-subtype/1/deactivate
+Authorization: Bearer {{access_token}}
+
+###
+
+### 10. Lưu trữ product subtype (chuyển status thành 'archived')
+PATCH {{baseUrl}}/product-subtype/1/archive
+Authorization: Bearer {{access_token}}
+
+###
+
+### 11. Xóa mềm product subtype (soft delete)
+DELETE {{baseUrl}}/product-subtype/1/soft
+Authorization: Bearer {{access_token}}
+
+###
+
+### 12. Lấy danh sách product subtypes đã bị xóa mềm
+GET {{baseUrl}}/product-subtype/deleted
+Authorization: Bearer {{access_token}}
+
+###
+
+### 13. Khôi phục product subtype đã bị xóa mềm
+PATCH {{baseUrl}}/product-subtype/1/restore
+Authorization: Bearer {{access_token}}
+
+###
+
+### 14. Xóa cứng product subtype (hard delete - xóa vĩnh viễn)
+DELETE {{baseUrl}}/product-subtype/1
+Authorization: Bearer {{access_token}}
+
+###
+
+### 15. Lấy product subtypes theo product type
+GET {{baseUrl}}/product-subtype/by-product-type/1
+Authorization: Bearer {{access_token}}
+
+###
+
+# ===== TEST SCENARIOS =====
+
+### Scenario 1: Tạo nhiều product subtypes với các status khác nhau
+POST {{baseUrl}}/product-subtype
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "subtypeName": "Loại phụ Active",
+  "subtypeCode": "ACTIVE001",
+  "productTypeId": 1,
+  "description": "Loại phụ đang hoạt động",
+  "status": "active"
+}
+
+###
+
+POST {{baseUrl}}/product-subtype
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "subtypeName": "Loại phụ Inactive",
+  "subtypeCode": "INACTIVE001",
+  "productTypeId": 1,
+  "description": "Loại phụ không hoạt động",
+  "status": "inactive"
+}
+
+###
+
+POST {{baseUrl}}/product-subtype
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "subtypeName": "Loại phụ Archived",
+  "subtypeCode": "ARCHIVED001",
+  "productTypeId": 1,
+  "description": "Loại phụ đã lưu trữ",
+  "status": "archived"
+}
+
+###
+
+### Scenario 2: Test workflow hoàn chỉnh
+# Tạo -> Kích hoạt -> Vô hiệu hóa -> Lưu trữ -> Xóa mềm -> Khôi phục
+
+POST {{baseUrl}}/product-subtype
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "subtypeName": "Workflow Test",
+  "subtypeCode": "WORKFLOW001",
+  "productTypeId": 1,
+  "description": "Test workflow hoàn chỉnh",
+  "status": "active"
+}
+
+###
+
+# Lưu ID từ response trên để sử dụng trong các bước tiếp theo
+# Giả sử ID = 5
+
+### Vô hiệu hóa
+PATCH {{baseUrl}}/product-subtype/5/deactivate
+Authorization: Bearer {{access_token}}
+
+###
+
+### Lưu trữ
+PATCH {{baseUrl}}/product-subtype/5/archive
+Authorization: Bearer {{access_token}}
+
+###
+
+### Xóa mềm
+DELETE {{baseUrl}}/product-subtype/5/soft
+Authorization: Bearer {{access_token}}
+
+###
+
+### Khôi phục
+PATCH {{baseUrl}}/product-subtype/5/restore
+Authorization: Bearer {{access_token}}
+
+###
+
+### Kích hoạt lại
+PATCH {{baseUrl}}/product-subtype/5/activate
+Authorization: Bearer {{access_token}}

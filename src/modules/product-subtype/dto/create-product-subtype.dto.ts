@@ -1,4 +1,5 @@
-import { IsString, IsNotEmpty, IsNumber, IsOptional, IsBoolean } from 'class-validator';
+import { IsString, IsNotEmpty, IsNumber, IsOptional, IsEnum } from 'class-validator';
+import { ProductSubtypeStatus } from '../../../entities/product-subtypes.entity';
 
 /**
  * DTO cho việc tạo loại phụ sản phẩm mới
@@ -25,8 +26,10 @@ export class CreateProductSubtypeDto {
   @IsString({ message: 'Mô tả phải là chuỗi ký tự' })
   description?: string;
 
-  /** Trạng thái hoạt động (tùy chọn, mặc định là true) */
+  /** Trạng thái của loại phụ sản phẩm (tùy chọn, mặc định là 'active') */
   @IsOptional()
-  @IsBoolean({ message: 'Trạng thái hoạt động phải là boolean' })
-  isActive?: boolean;
+  @IsEnum(ProductSubtypeStatus, { 
+    message: 'Trạng thái phải là một trong các giá trị: active, inactive, archived' 
+  })
+  status?: ProductSubtypeStatus;
 }

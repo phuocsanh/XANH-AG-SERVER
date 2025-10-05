@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { SalesInvoice } from '../../entities/sales-invoices.entity';
+import { Repository, IsNull, Not } from 'typeorm';
+import { SalesInvoice, SalesInvoiceStatus } from '../../entities/sales-invoices.entity';
 import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
 import { CreateSalesInvoiceDto } from './dto/create-sales-invoice.dto';
 import { UpdateSalesInvoiceDto } from './dto/update-sales-invoice.dto';
@@ -32,10 +32,11 @@ export class SalesService {
   async create(
     createSalesInvoiceDto: CreateSalesInvoiceDto,
   ): Promise<SalesInvoice> {
-    // Tạo phiếu bán hàng
+    // Tạo phiếu bán hàng với trạng thái mặc định là DRAFT
     const invoice = this.salesInvoiceRepository.create({
       ...createSalesInvoiceDto,
       createdByUserId: 1, // TODO: Lấy user ID từ context
+      status: SalesInvoiceStatus.DRAFT, // Trạng thái mặc định
     });
     const savedInvoice = await this.salesInvoiceRepository.save(invoice);
 
@@ -56,12 +57,41 @@ export class SalesService {
   }
 
   /**
-   * Lấy danh sách tất cả hóa đơn bán hàng
+   * Lấy danh sách tất cả hóa đơn bán hàng (không bao gồm đã xóa mềm)
    * @returns Danh sách hóa đơn bán hàng
    */
   async findAll(): Promise<SalesInvoice[]> {
     return this.salesInvoiceRepository.find({
+      where: { deletedAt: IsNull() },
       order: { createdAt: 'DESC' }, // Sắp xếp theo thời gian tạo giảm dần
+    });
+  }
+
+  /**
+   * Lấy danh sách hóa đơn bán hàng theo trạng thái
+   * @param status - Trạng thái cần lọc
+   * @returns Danh sách hóa đơn bán hàng theo trạng thái
+   */
+  async findByStatus(status: SalesInvoiceStatus): Promise<SalesInvoice[]> {
+    return this.salesInvoiceRepository.find({
+      where: { 
+        status,
+        deletedAt: IsNull() 
+      },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  /**
+   * Lấy danh sách hóa đơn bán hàng đã xóa mềm
+   * @returns Danh sách hóa đơn bán hàng đã xóa mềm
+   */
+  async findDeleted(): Promise<SalesInvoice[]> {
+    return this.salesInvoiceRepository.find({
+      where: { deletedAt: Not(IsNull()) },
+      order: { deletedAt: 'DESC' },
+      withDeleted: true,
+      relations: ['items'],
     });
   }
 
@@ -72,7 +102,7 @@ export class SalesService {
    */
   async findOne(id: number): Promise<SalesInvoice | null> {
     return this.salesInvoiceRepository.findOne({
-      where: { id },
+      where: { id, deletedAt: IsNull() },
       relations: ['items'], // Bao gồm cả các item trong hóa đơn
     });
   }
@@ -84,7 +114,7 @@ export class SalesService {
    */
   async findByCode(invoiceCode: string): Promise<SalesInvoice | null> {
     return this.salesInvoiceRepository.findOne({
-      where: { invoiceCode },
+      where: { invoiceCode, deletedAt: IsNull() },
       relations: ['items'], // Bao gồm cả các item trong hóa đơn
     });
   }
@@ -104,7 +134,106 @@ export class SalesService {
   }
 
   /**
-   * Xóa hóa đơn bán hàng theo ID
+   * Cập nhật trạng thái hóa đơn bán hàng
+   * @param id - ID của hóa đơn bán hàng cần cập nhật
+   * @param status - Trạng thái mới
+   * @returns Thông tin hóa đơn bán hàng đã cập nhật
+   */
+  async updateStatus(
+    id: number,
+    status: SalesInvoiceStatus,
+  ): Promise<SalesInvoice | null> {
+    const invoice = await this.findOne(id);
+    if (!invoice) {
+      return null;
+    }
+    
+    await this.salesInvoiceRepository.update(id, { 
+      status,
+      updatedAt: new Date()
+    });
+    
+    return this.findOne(id);
+  }
+
+  /**
+   * Xác nhận hóa đơn bán hàng (chuyển từ DRAFT sang CONFIRMED)
+   * @param id - ID của hóa đơn bán hàng cần xác nhận
+   * @returns Thông tin hóa đơn bán hàng đã xác nhận
+   */
+  async confirmInvoice(id: number): Promise<SalesInvoice | null> {
+    return this.updateStatus(id, SalesInvoiceStatus.CONFIRMED);
+  }
+
+  /**
+   * Đánh dấu hóa đơn bán hàng đã thanh toán
+   * @param id - ID của hóa đơn bán hàng cần đánh dấu đã thanh toán
+   * @returns Thông tin hóa đơn bán hàng đã thanh toán
+   */
+  async markAsPaid(id: number): Promise<SalesInvoice | null> {
+    return this.updateStatus(id, SalesInvoiceStatus.PAID);
+  }
+
+  /**
+   * Hủy hóa đơn bán hàng
+   * @param id - ID của hóa đơn bán hàng cần hủy
+   * @returns Thông tin hóa đơn bán hàng đã hủy
+   */
+  async cancelInvoice(id: number): Promise<SalesInvoice | null> {
+    return this.updateStatus(id, SalesInvoiceStatus.CANCELLED);
+  }
+
+  /**
+   * Hoàn tiền hóa đơn bán hàng
+   * @param id - ID của hóa đơn bán hàng cần hoàn tiền
+   * @returns Thông tin hóa đơn bán hàng đã hoàn tiền
+   */
+  async refundInvoice(id: number): Promise<SalesInvoice | null> {
+    return this.updateStatus(id, SalesInvoiceStatus.REFUNDED);
+  }
+
+  /**
+   * Xóa mềm hóa đơn bán hàng
+   * @param id - ID của hóa đơn bán hàng cần xóa mềm
+   * @returns Thông tin hóa đơn bán hàng đã xóa mềm
+   */
+  async softDelete(id: number): Promise<SalesInvoice | null> {
+    const invoice = await this.findOne(id);
+    if (!invoice) {
+      return null;
+    }
+    
+    await this.salesInvoiceRepository.softDelete(id);
+    
+    return this.salesInvoiceRepository.findOne({ 
+      where: { id },
+      withDeleted: true,
+      relations: ['items']
+    });
+  }
+
+  /**
+   * Khôi phục hóa đơn bán hàng đã xóa mềm
+   * @param id - ID của hóa đơn bán hàng cần khôi phục
+   * @returns Thông tin hóa đơn bán hàng đã khôi phục
+   */
+  async restore(id: number): Promise<SalesInvoice | null> {
+    const invoice = await this.salesInvoiceRepository.findOne({ 
+      where: { id, deletedAt: Not(IsNull()) },
+      withDeleted: true
+    });
+    
+    if (!invoice) {
+      return null;
+    }
+    
+    await this.salesInvoiceRepository.restore(id);
+    
+    return this.findOne(id);
+  }
+
+  /**
+   * Xóa hóa đơn bán hàng theo ID (xóa cứng)
    * @param id - ID của hóa đơn bán hàng cần xóa
    */
   async remove(id: number): Promise<void> {

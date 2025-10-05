@@ -1,4 +1,13 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
+
+/**
+ * Enum định nghĩa các trạng thái của người dùng
+ */
+export enum UserStatus {
+  ACTIVE = 'active',      // Người dùng đang hoạt động
+  INACTIVE = 'inactive',  // Người dùng tạm ngưng
+  ARCHIVED = 'archived',  // Người dùng đã lưu trữ
+}
 
 /**
  * Entity biểu diễn thông tin người dùng trong hệ thống
@@ -34,6 +43,14 @@ export class User {
   @Column({ name: 'user_login_ip', nullable: true })
   userLoginIp?: string;
 
+  /** Trạng thái người dùng sử dụng enum */
+  @Column({
+    type: 'enum',
+    enum: UserStatus,
+    default: UserStatus.ACTIVE,
+  })
+  status!: UserStatus;
+
   /** Thời gian tạo tài khoản người dùng */
   @CreateDateColumn({ name: 'user_created_at' })
   userCreatedAt!: Date;
@@ -45,4 +62,8 @@ export class User {
   /** Trạng thái bật/tắt xác thực hai yếu tố của người dùng */
   @Column({ name: 'is_two_factor_enabled', nullable: true })
   isTwoFactorEnabled?: boolean;
+
+  /** Thời gian xóa mềm (soft delete) */
+  @DeleteDateColumn({ name: 'deleted_at' })
+  deletedAt?: Date;
 }

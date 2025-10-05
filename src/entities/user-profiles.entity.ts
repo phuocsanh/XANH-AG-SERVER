@@ -1,4 +1,4 @@
-import { Entity, Column, PrimaryColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryColumn, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
 
 /**
  * Entity biểu diễn thông tin chi tiết profile của người dùng
@@ -53,4 +53,8 @@ export class UserProfile {
   /** Thời gian cập nhật gần nhất profile người dùng */
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt!: Date;
+
+  /** Thời gian xóa mềm (soft delete) */
+  @DeleteDateColumn({ name: 'deleted_at' })
+  deletedAt?: Date;
 }

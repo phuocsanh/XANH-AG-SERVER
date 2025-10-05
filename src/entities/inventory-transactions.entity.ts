@@ -1,4 +1,4 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
 
 /**
  * Entity biểu diễn thông tin giao dịch kho
@@ -62,7 +62,11 @@ export class InventoryTransaction {
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 
-  /** Thời gian cập nhật gần nhất giao dịch */
+  /** Thời gian cập nhật gần nhất giao dịch kho */
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt!: Date;
+
+  /** Thời gian xóa mềm (soft delete) */
+  @DeleteDateColumn({ name: 'deleted_at' })
+  deletedAt?: Date;
 }

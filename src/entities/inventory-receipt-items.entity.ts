@@ -4,6 +4,7 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
@@ -51,6 +52,10 @@ export class InventoryReceiptItem {
   /** Thời gian cập nhật gần nhất chi tiết phiếu nhập kho */
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt!: Date;
+
+  /** Thời gian xóa mềm (soft delete) */
+  @DeleteDateColumn({ name: 'deleted_at' })
+  deletedAt?: Date;
 
   // Relations
   /** Mối quan hệ nhiều-một với phiếu nhập kho */

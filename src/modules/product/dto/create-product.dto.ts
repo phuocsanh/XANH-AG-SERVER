@@ -1,4 +1,5 @@
-import { IsString, IsNumber, IsOptional, IsBoolean, IsArray } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsBoolean, IsArray, IsEnum } from 'class-validator';
+import { ProductStatus } from '../../../entities/products.entity';
 
 /**
  * DTO (Data Transfer Object) dùng để tạo sản phẩm mới
@@ -13,10 +14,17 @@ export class CreateProductDto {
   @IsString()
   productPrice!: string;
 
-  /** Trạng thái sản phẩm (tùy chọn) */
+  /** Trạng thái sản phẩm cũ (tùy chọn) - Giữ lại để tương thích */
   @IsOptional()
   @IsNumber()
   productStatus?: number;
+
+  /** Trạng thái sản phẩm mới sử dụng enum (tùy chọn) */
+  @IsOptional()
+  @IsEnum(ProductStatus, {
+    message: 'Trạng thái phải là một trong các giá trị: active, inactive, archived'
+  })
+  status?: ProductStatus;
 
   /** Đường dẫn thumbnail của sản phẩm (bắt buộc) */
   @IsString()

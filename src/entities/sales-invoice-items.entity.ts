@@ -4,6 +4,7 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
@@ -52,9 +53,13 @@ export class SalesInvoiceItem {
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
 
-  /** Thời gian cập nhật gần nhất chi tiết hóa đơn */
+  /** Thời gian cập nhật gần nhất chi tiết hóa đơn bán hàng */
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt!: Date;
+
+  /** Thời gian xóa mềm (soft delete) */
+  @DeleteDateColumn({ name: 'deleted_at' })
+  deletedAt?: Date;
 
   // Relations
   /** Mối quan hệ nhiều-một với hóa đơn bán hàng */

@@ -11,10 +11,11 @@ import {
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { ProductStatus } from '../../entities/products.entity';
 
 /**
  * Controller xử lý các request liên quan đến sản phẩm
- * Bao gồm quản lý sản phẩm, loại sản phẩm, loại phụ sản phẩm và mối quan hệ giữa chúng
+ * Bao gồm quản lý sản phẩm, Status Management và Soft Delete
  */
 @Controller('products')
 // @UseGuards(JwtAuthGuard) // Tạm thời comment để test
@@ -58,6 +59,16 @@ export class ProductController {
   }
 
   /**
+   * Lấy danh sách sản phẩm theo trạng thái
+   * @param status - Trạng thái cần lọc (active, inactive, archived)
+   * @returns Danh sách sản phẩm theo trạng thái
+   */
+  @Get('by-status/:status')
+  findByStatus(@Param('status') status: ProductStatus) {
+    return this.productService.findByStatus(status);
+  }
+
+  /**
    * Tìm kiếm sản phẩm theo từ khóa
    * @param query - Từ khóa tìm kiếm
    * @returns Danh sách sản phẩm phù hợp
@@ -89,7 +100,56 @@ export class ProductController {
   }
 
   /**
-   * Xóa sản phẩm theo ID
+   * Kích hoạt sản phẩm (chuyển trạng thái thành active)
+   * @param id - ID của sản phẩm cần kích hoạt
+   * @returns Thông tin sản phẩm đã kích hoạt
+   */
+  @Patch(':id/activate')
+  activate(@Param('id') id: string) {
+    return this.productService.activate(+id);
+  }
+
+  /**
+   * Vô hiệu hóa sản phẩm (chuyển trạng thái thành inactive)
+   * @param id - ID của sản phẩm cần vô hiệu hóa
+   * @returns Thông tin sản phẩm đã vô hiệu hóa
+   */
+  @Patch(':id/deactivate')
+  deactivate(@Param('id') id: string) {
+    return this.productService.deactivate(+id);
+  }
+
+  /**
+   * Lưu trữ sản phẩm (chuyển trạng thái thành archived)
+   * @param id - ID của sản phẩm cần lưu trữ
+   * @returns Thông tin sản phẩm đã lưu trữ
+   */
+  @Patch(':id/archive')
+  archive(@Param('id') id: string) {
+    return this.productService.archive(+id);
+  }
+
+  /**
+   * Soft delete sản phẩm
+   * @param id - ID của sản phẩm cần soft delete
+   */
+  @Delete(':id/soft')
+  softDelete(@Param('id') id: string) {
+    return this.productService.softDelete(+id);
+  }
+
+  /**
+   * Khôi phục sản phẩm đã bị soft delete
+   * @param id - ID của sản phẩm cần khôi phục
+   * @returns Thông tin sản phẩm đã khôi phục
+   */
+  @Patch(':id/restore')
+  restore(@Param('id') id: string) {
+    return this.productService.restore(+id);
+  }
+
+  /**
+   * Xóa cứng sản phẩm theo ID (hard delete)
    * @param id - ID của sản phẩm cần xóa
    * @returns Kết quả xóa sản phẩm
    */

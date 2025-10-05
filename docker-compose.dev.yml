@@ -1,22 +1,15 @@
-version: '3.8'
-
 services:
   app:
     build:
       context: .
       dockerfile: Dockerfile.dev
     ports:
-      - '${PORT}:${PORT}'
+      - '3003:3003'
       - '9229:9229' # Node.js inspector port for debugging
     environment:
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
-      - DB_USERNAME=${DB_USERNAME}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_NAME=${DB_NAME}
       - JWT_SECRET=${JWT_SECRET}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
-      - PORT=${PORT}
+      - PORT=3003
     env_file:
       - .env
     volumes:

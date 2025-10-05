@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Product } from '../../entities/products.entity';
+import { Product, ProductStatus } from '../../entities/products.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductFactoryRegistry } from './factories/product-factory.registry';
@@ -9,15 +9,13 @@ import { FileTrackingService } from '../file-tracking/file-tracking.service';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến sản phẩm
- * Bao gồm quản lý sản phẩm, loại sản phẩm, loại phụ sản phẩm và mối quan hệ giữa chúng
+ * Bao gồm quản lý sản phẩm, Status Management và Soft Delete
  */
 @Injectable()
 export class ProductService {
   /**
    * Constructor injection các repository và service cần thiết
    * @param productRepository - Repository để thao tác với entity Product
-   * @param productSubtypeRepository - Repository để thao tác với entity ProductSubtype
-   * @param productSubtypeRelationRepository - Repository để thao tác với entity ProductSubtypeRelation
    * @param productFactoryRegistry - Registry quản lý các factory tạo sản phẩm
    * @param fileTrackingService - Service quản lý theo dõi file
    */
@@ -51,20 +49,37 @@ export class ProductService {
   }
 
   /**
-   * Lấy danh sách tất cả sản phẩm
+   * Lấy danh sách tất cả sản phẩm (chỉ các bản ghi chưa bị soft delete)
    * @returns Danh sách sản phẩm
    */
   async findAll(): Promise<Product[]> {
-    return this.productRepository.find();
+    return this.productRepository.createQueryBuilder('product')
+      .where('product.deletedAt IS NULL')
+      .getMany();
   }
 
   /**
-   * Tìm sản phẩm theo ID
+   * Lấy danh sách sản phẩm theo trạng thái
+   * @param status - Trạng thái cần lọc (active, inactive, archived)
+   * @returns Danh sách sản phẩm theo trạng thái
+   */
+  async findByStatus(status: ProductStatus): Promise<Product[]> {
+    return this.productRepository.createQueryBuilder('product')
+      .where('product.status = :status', { status })
+      .andWhere('product.deletedAt IS NULL')
+      .getMany();
+  }
+
+  /**
+   * Tìm sản phẩm theo ID (chỉ các bản ghi chưa bị soft delete)
    * @param id - ID của sản phẩm cần tìm
    * @returns Thông tin sản phẩm hoặc null nếu không tìm thấy
    */
   async findOne(id: number): Promise<Product | null> {
-    return this.productRepository.findOne({ where: { id } });
+    return this.productRepository.createQueryBuilder('product')
+      .where('product.id = :id', { id })
+      .andWhere('product.deletedAt IS NULL')
+      .getOne();
   }
 
   /**
@@ -82,7 +97,55 @@ export class ProductService {
   }
 
   /**
-   * Xóa sản phẩm theo ID
+   * Kích hoạt sản phẩm (chuyển trạng thái thành active)
+   * @param id - ID của sản phẩm cần kích hoạt
+   * @returns Thông tin sản phẩm đã kích hoạt
+   */
+  async activate(id: number): Promise<Product | null> {
+    await this.productRepository.update(id, { status: ProductStatus.ACTIVE });
+    return this.findOne(id);
+  }
+
+  /**
+   * Vô hiệu hóa sản phẩm (chuyển trạng thái thành inactive)
+   * @param id - ID của sản phẩm cần vô hiệu hóa
+   * @returns Thông tin sản phẩm đã vô hiệu hóa
+   */
+  async deactivate(id: number): Promise<Product | null> {
+    await this.productRepository.update(id, { status: ProductStatus.INACTIVE });
+    return this.findOne(id);
+  }
+
+  /**
+   * Lưu trữ sản phẩm (chuyển trạng thái thành archived)
+   * @param id - ID của sản phẩm cần lưu trữ
+   * @returns Thông tin sản phẩm đã lưu trữ
+   */
+  async archive(id: number): Promise<Product | null> {
+    await this.productRepository.update(id, { status: ProductStatus.ARCHIVED });
+    return this.findOne(id);
+  }
+
+  /**
+   * Soft delete sản phẩm (đánh dấu deletedAt)
+   * @param id - ID của sản phẩm cần soft delete
+   */
+  async softDelete(id: number): Promise<void> {
+    await this.productRepository.softDelete(id);
+  }
+
+  /**
+   * Khôi phục sản phẩm đã bị soft delete
+   * @param id - ID của sản phẩm cần khôi phục
+   * @returns Thông tin sản phẩm đã khôi phục
+   */
+  async restore(id: number): Promise<Product | null> {
+    await this.productRepository.restore(id);
+    return this.productRepository.findOne({ where: { id } });
+  }
+
+  /**
+   * Xóa cứng sản phẩm theo ID (hard delete)
    * @param id - ID của sản phẩm cần xóa
    */
   async remove(id: number): Promise<void> {
@@ -94,7 +157,7 @@ export class ProductService {
   }
 
   /**
-   * Tìm kiếm sản phẩm theo từ khóa
+   * Tìm kiếm sản phẩm theo từ khóa (chỉ các bản ghi chưa bị soft delete)
    * @param query - Từ khóa tìm kiếm
    * @returns Danh sách sản phẩm phù hợp
    */
@@ -105,16 +168,20 @@ export class ProductService {
       .orWhere('product.productDescription ILIKE :query', {
         query: `%${query}%`,
       })
+      .andWhere('product.deletedAt IS NULL')
       .getMany();
   }
 
   /**
-   * Tìm sản phẩm theo loại sản phẩm
+   * Tìm sản phẩm theo loại sản phẩm (chỉ các bản ghi chưa bị soft delete)
    * @param productType - ID loại sản phẩm
    * @returns Danh sách sản phẩm thuộc loại đó
    */
   async findByType(productType: number): Promise<Product[]> {
-    return this.productRepository.find({ where: { productType } });
+    return this.productRepository.createQueryBuilder('product')
+      .where('product.productType = :productType', { productType })
+      .andWhere('product.deletedAt IS NULL')
+      .getMany();
   }
 
   /**

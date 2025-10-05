@@ -6,20 +6,21 @@ import {
   Patch,
   Param,
   Delete,
-  UseGuards,
+  // UseGuards,
 } from '@nestjs/common';
 import { SalesService } from './sales.service';
 import { CreateSalesInvoiceDto } from './dto/create-sales-invoice.dto';
 import { UpdateSalesInvoiceDto } from './dto/update-sales-invoice.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+// import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
+import { SalesInvoiceStatus } from '../../entities/sales-invoices.entity';
 
 /**
  * Controller xử lý các request liên quan đến quản lý bán hàng
  * Bao gồm quản lý hóa đơn bán hàng và chi tiết hóa đơn
  */
 @Controller('sales')
-@UseGuards(JwtAuthGuard)
+// @UseGuards(JwtAuthGuard) // Tạm thời bỏ guard để kiểm thử
 export class SalesController {
   /**
    * Constructor injection SalesService
@@ -38,12 +39,31 @@ export class SalesController {
   }
 
   /**
-   * Lấy danh sách tất cả hóa đơn bán hàng
+   * Lấy danh sách tất cả hóa đơn bán hàng (không bao gồm đã xóa mềm)
    * @returns Danh sách hóa đơn bán hàng
    */
   @Get('invoices')
   findAll() {
     return this.salesService.findAll();
+  }
+
+  /**
+   * Lấy danh sách hóa đơn bán hàng theo trạng thái
+   * @param status - Trạng thái cần lọc
+   * @returns Danh sách hóa đơn bán hàng theo trạng thái
+   */
+  @Get('invoices/status/:status')
+  findByStatus(@Param('status') status: SalesInvoiceStatus) {
+    return this.salesService.findByStatus(status);
+  }
+
+  /**
+   * Lấy danh sách hóa đơn bán hàng đã xóa mềm
+   * @returns Danh sách hóa đơn bán hàng đã xóa mềm
+   */
+  @Get('invoices/deleted')
+  findDeleted() {
+    return this.salesService.findDeleted();
   }
 
   /**
@@ -81,7 +101,67 @@ export class SalesController {
   }
 
   /**
-   * Xóa hóa đơn bán hàng theo ID
+   * Xác nhận hóa đơn bán hàng (chuyển từ DRAFT sang CONFIRMED)
+   * @param id - ID của hóa đơn bán hàng cần xác nhận
+   * @returns Thông tin hóa đơn bán hàng đã xác nhận
+   */
+  @Patch('invoice/:id/confirm')
+  confirmInvoice(@Param('id') id: string) {
+    return this.salesService.confirmInvoice(+id);
+  }
+
+  /**
+   * Đánh dấu hóa đơn bán hàng đã thanh toán
+   * @param id - ID của hóa đơn bán hàng cần đánh dấu đã thanh toán
+   * @returns Thông tin hóa đơn bán hàng đã thanh toán
+   */
+  @Patch('invoice/:id/paid')
+  markAsPaid(@Param('id') id: string) {
+    return this.salesService.markAsPaid(+id);
+  }
+
+  /**
+   * Hủy hóa đơn bán hàng
+   * @param id - ID của hóa đơn bán hàng cần hủy
+   * @returns Thông tin hóa đơn bán hàng đã hủy
+   */
+  @Patch('invoice/:id/cancel')
+  cancelInvoice(@Param('id') id: string) {
+    return this.salesService.cancelInvoice(+id);
+  }
+
+  /**
+   * Hoàn tiền hóa đơn bán hàng
+   * @param id - ID của hóa đơn bán hàng cần hoàn tiền
+   * @returns Thông tin hóa đơn bán hàng đã hoàn tiền
+   */
+  @Patch('invoice/:id/refund')
+  refundInvoice(@Param('id') id: string) {
+    return this.salesService.refundInvoice(+id);
+  }
+
+  /**
+   * Xóa mềm hóa đơn bán hàng
+   * @param id - ID của hóa đơn bán hàng cần xóa mềm
+   * @returns Thông tin hóa đơn bán hàng đã xóa mềm
+   */
+  @Delete('invoice/:id/soft')
+  softDelete(@Param('id') id: string) {
+    return this.salesService.softDelete(+id);
+  }
+
+  /**
+   * Khôi phục hóa đơn bán hàng đã xóa mềm
+   * @param id - ID của hóa đơn bán hàng cần khôi phục
+   * @returns Thông tin hóa đơn bán hàng đã khôi phục
+   */
+  @Patch('invoice/:id/restore')
+  restore(@Param('id') id: string) {
+    return this.salesService.restore(+id);
+  }
+
+  /**
+   * Xóa hóa đơn bán hàng theo ID (xóa cứng)
    * @param id - ID của hóa đơn bán hàng cần xóa
    * @returns Kết quả xóa hóa đơn bán hàng
    */
