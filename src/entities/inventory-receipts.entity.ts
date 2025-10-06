@@ -5,7 +5,9 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   DeleteDateColumn,
+  OneToMany,
 } from 'typeorm';
+import { InventoryReceiptItem } from './inventory-receipt-items.entity';
 
 /**
  * Entity biểu diễn thông tin phiếu nhập kho
@@ -69,7 +71,11 @@ export class InventoryReceipt {
   @Column({ name: 'cancelled_reason', nullable: true })
   cancelledReason?: string;
 
-  /** Thời gian xóa mềm (soft delete) */
+  /** Thời gian xóa phiếu nhập kho (soft delete) */
   @DeleteDateColumn({ name: 'deleted_at' })
   deletedAt?: Date;
+
+  /** Quan hệ với các item trong phiếu nhập kho */
+  @OneToMany(() => InventoryReceiptItem, (item) => item.receipt)
+  items!: InventoryReceiptItem[];
 }
