@@ -2,7 +2,7 @@
 trigger: always_on
 alwaysApply: true
 ---
-
+- Không tạo mock data trả về cho font-end
 - Luôn trả lời bằng tiếng việt
 - Luôn kiểm lỗi eslint và typescript sau khi code xong 1 file hoặc 1 chức năng.
 - Luôn tìm kiếm giải pháp tốt nhất trước khi thực hiện 1 chức năng theo yêu cầu.

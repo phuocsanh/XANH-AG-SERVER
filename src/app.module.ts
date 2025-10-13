@@ -11,6 +11,7 @@ import { FileTrackingModule } from './modules/file-tracking/file-tracking.module
 import { SalesModule } from './modules/sales/sales.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { AiAnalysisModule } from './modules/ai-analysis/ai-analysis.module';
+import { WeatherForecastModule } from './modules/weather-forecast/weather-forecast.module';
 import typeOrmConfig from './config/typeorm.config';
 
 
@@ -56,6 +57,7 @@ import typeOrmConfig from './config/typeorm.config';
     SalesModule,
     UploadModule,
     AiAnalysisModule, // Module phân tích AI thị trường lúa gạo
+    WeatherForecastModule, // Module dự báo thời tiết
   ],
   controllers: [], // Các controller global (nếu có)
   providers: [

@@ -82,14 +82,8 @@ export class AiAnalysisService {
         this.logger.warn('Không thể lấy dữ liệu từ web search, sử dụng dữ liệu cục bộ:', webError.message);
       }
 
-      // Danh sách các model có sẵn
-      const models = [
-        'gemini-2.0-flash-001',
-        'gemini-1.5-flash',
-        'gemini-1.5-pro',
-      ];
-
-      const selectedModel = models[0] || 'gemini-1.5-flash';
+      // Sử dụng model Gemini 2.0 flash - model ổn định nhất hiện tại
+      const selectedModel = 'gemini-2.0-flash-001';
 
       // Tạo prompt chi tiết với yêu cầu trích dẫn nguồn và tránh hallucination
       const prompt = `
