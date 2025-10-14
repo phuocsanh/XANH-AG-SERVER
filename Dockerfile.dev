@@ -1,5 +1,5 @@
-# Use Node.js 18 as base image
-FROM node:18
+# Use Node.js 20 as base image
+FROM node:20
 
 # Set working directory
 WORKDIR /app
@@ -9,6 +9,8 @@ COPY package*.json ./
 
 # Install all dependencies (including dev dependencies for development mode)
 RUN npm install
+# Install @nestjs/schedule package
+RUN npm install @nestjs/schedule
 
 # Copy source code
 COPY . .

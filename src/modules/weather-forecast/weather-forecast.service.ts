@@ -1,10 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Cron } from '@nestjs/schedule';
 import { GoogleGenAI } from '@google/genai';
 import {
   WeatherForecastResult,
   YouTubeVideoData,
 } from './interfaces/weather-forecast.interface';
+import { WeatherForecast } from '../../entities/weather-forecast.entity';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
@@ -19,7 +23,11 @@ export class WeatherForecastService {
   private readonly braveApiKey: string;
   private readonly braveApiUrl: string;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    @InjectRepository(WeatherForecast)
+    private readonly weatherForecastRepository: Repository<WeatherForecast>,
+  ) {
     // Khởi tạo Google Generative AI
     const apiKey = this.configService.get<string>('GOOGLE_AI_API_KEY');
     if (!apiKey) {
@@ -41,6 +49,102 @@ export class WeatherForecastService {
     }
 
     this.logger.log('WeatherForecastService đã được khởi tạo');
+  }
+
+  /**
+   * Cron job chạy tự động 2 lần mỗi ngày (7:00 sáng và 16:00 chiều)
+   * để thu thập và lưu trữ dữ liệu dự báo thời tiết
+   */
+  @Cron('0 0 7,16 * * *')
+  async handleCron() {
+    this.logger.log('Bắt đầu chạy cron job thu thập dữ liệu thời tiết...');
+    try {
+      await this.fetchAndSaveFullForecast();
+      this.logger.log('Cron job hoàn thành thành công');
+    } catch (error) {
+      this.logger.error('Lỗi khi chạy cron job:', error);
+    }
+  }
+
+  /**
+   * Thu thập dữ liệu thời tiết và lưu vào database (chỉ duy trì 1 bản ghi duy nhất)
+   */
+  async fetchAndSaveFullForecast(): Promise<WeatherForecast> {
+    try {
+      // Gọi phương thức phân tích thời tiết
+      const result = await this.analyzeWeatherForecast();
+
+      // Kiểm tra xem đã có bản ghi nào chưa
+      const existingForecast = await this.weatherForecastRepository
+        .createQueryBuilder('forecast')
+        .orderBy('forecast.createdAt', 'DESC')
+        .getOne();
+
+      let weatherForecast: WeatherForecast;
+
+      if (existingForecast) {
+        // Nếu đã có bản ghi, cập nhật nó
+        this.logger.log('Đã có bản ghi, cập nhật dữ liệu...');
+        weatherForecast = existingForecast;
+        weatherForecast.summary = result.summary;
+        weatherForecast.hydrologyInfo = result.hydrologyInfo;
+        weatherForecast.waterLevelInfo = result.waterLevelInfo;
+        weatherForecast.stormsAndTropicalDepressionsInfo =
+          result.stormsAndTropicalDepressionsInfo;
+        weatherForecast.lastUpdated = new Date(result.lastUpdated);
+        weatherForecast.dataSources = result.dataSources;
+        weatherForecast.dataQuality = {
+          reliability: 'high',
+          sourcesUsed: result.dataSources.length,
+          score: 90,
+        };
+      } else {
+        // Nếu chưa có bản ghi, tạo mới
+        this.logger.log('Chưa có bản ghi, tạo mới dữ liệu...');
+        weatherForecast = new WeatherForecast();
+        weatherForecast.summary = result.summary;
+        weatherForecast.hydrologyInfo = result.hydrologyInfo;
+        weatherForecast.waterLevelInfo = result.waterLevelInfo;
+        weatherForecast.stormsAndTropicalDepressionsInfo =
+          result.stormsAndTropicalDepressionsInfo;
+        weatherForecast.lastUpdated = new Date(result.lastUpdated);
+        weatherForecast.dataSources = result.dataSources;
+        weatherForecast.dataQuality = {
+          reliability: 'high',
+          sourcesUsed: result.dataSources.length,
+          score: 90,
+        };
+      }
+
+      // Lưu vào database
+      const savedForecast =
+        await this.weatherForecastRepository.save(weatherForecast);
+      this.logger.log(
+        `Đã lưu dữ liệu thời tiết vào database với ID: ${savedForecast.id}`,
+      );
+      return savedForecast;
+    } catch (error) {
+      this.logger.error('Lỗi khi thu thập và lưu dữ liệu thời tiết:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Lấy dữ liệu thời tiết mới nhất từ database
+   */
+  async getLatestForecast(): Promise<WeatherForecast | null> {
+    try {
+      const latestForecast = await this.weatherForecastRepository
+        .createQueryBuilder('forecast')
+        .orderBy('forecast.createdAt', 'DESC')
+        .limit(1)
+        .getOne();
+
+      return latestForecast;
+    } catch (error) {
+      this.logger.error('Lỗi khi lấy dữ liệu thời tiết mới nhất:', error);
+      throw error;
+    }
   }
 
   /**
@@ -119,7 +223,17 @@ export class WeatherForecastService {
   }
 
   /**
-   * Tìm kiếm video YouTube về dự báo thời tiết
+   * Tìm kiếm video YouTube về dự báo thời tiết (public method cho controller)
+   */
+  async getYouTubeVideos(
+    query: string,
+    maxResults: number = 5,
+  ): Promise<YouTubeVideoData[]> {
+    return this.searchYouTubeVideos(query, maxResults);
+  }
+
+  /**
+   * Tìm kiếm video YouTube về dự báo thời tiết (private method)
    */
   private async searchYouTubeVideos(
     query: string,
@@ -820,7 +934,7 @@ QUAN TRỌNG:
 BẮT BUỘC: Trả về JSON theo format chính xác sau (không thêm text ngoài JSON):
 {
   "summary": "Tóm tắt thông tin quan trọng từ stormsAndTropicalDepressionsInfo, hydrologyInfo, waterLevelInfo dùng từ ngữ đơn giản dễ hiểu cho nông dân dễ hiểu, chủ yếu những thông tin nào ảnh hưởng đế trồng lúa ",
-  "stormsAndTropicalDepressions": "Dự báo bão áp thấp nhiết đới"
+  "stormsAndTropicalDepressions": "Dự báo bão áp thấp Nhiệt đới"
   "hydrologyInfo": "Text tóm tắt thông tin khí hậu từ hydrologyData, không tóm tắt phần ENSO. (ATNĐ => Áp thấp nhiệt đới, TBNN => Trung bình năm ngoái),
   "waterLevelInfo": "Text tóm tắt thông tin thủy văn của Đông Bằng sông Cửu Long và Nam Bộ từ waterLevelInfo. (BĐ1 là Báo động 1, BĐ2 là Báo động 2, BĐ3 là Báo động 3..., ghi rõ ra đừng ghi viết tắt)",
 }

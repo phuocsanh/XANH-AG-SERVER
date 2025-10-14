@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ProductModule } from './modules/product/product.module';
 import { ProductTypeModule } from './modules/product-type/product-type.module';
 import { ProductSubtypeModule } from './modules/product-subtype/product-subtype.module';
@@ -12,8 +13,9 @@ import { SalesModule } from './modules/sales/sales.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { AiAnalysisModule } from './modules/ai-analysis/ai-analysis.module';
 import { WeatherForecastModule } from './modules/weather-forecast/weather-forecast.module';
+import { WeatherForecast } from './entities/weather-forecast.entity';
+import { RiceMarketData } from './entities/rice-market.entity';
 import typeOrmConfig from './config/typeorm.config';
-
 
 /**
  * Module chính của ứng dụng NestJS
@@ -25,7 +27,17 @@ import typeOrmConfig from './config/typeorm.config';
     ConfigModule.forRoot({ isGlobal: true }),
 
     // Cấu hình kết nối database với TypeORM
-    TypeOrmModule.forRoot(typeOrmConfig),
+    TypeOrmModule.forRoot({
+      ...typeOrmConfig,
+      entities: [
+        __dirname + '/entities/*.entity{.ts,.js}',
+        WeatherForecast,
+        RiceMarketData,
+      ],
+    }),
+
+    // Cấu hình ScheduleModule để chạy cron jobs
+    ScheduleModule.forRoot(),
 
     // Cấu hình rate limiting với nhiều mức độ khác nhau
     // ThrottlerModule.forRoot([
@@ -66,6 +78,6 @@ import typeOrmConfig from './config/typeorm.config';
     //   provide: APP_GUARD,
     //   useClass: ThrottlerGuard,
     // },
-  ]
+  ],
 })
 export class AppModule {}

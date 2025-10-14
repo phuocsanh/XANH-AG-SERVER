@@ -8,17 +8,6 @@ import {
  * DTO cho response dự báo thời tiết
  */
 export class WeatherResponseDto implements WeatherForecastResult {
-  constructor() {
-    // Khởi tạo giá trị mặc định để tránh lỗi TypeScript
-    this.summary = '';
-    this.hydrologyInfo = '';
-    this.waterLevelInfo = '';
-    this.stormsAndTropicalDepressionsInfo = '';
-    this.youtubeVideos = [];
-    this.lastUpdated = new Date().toISOString();
-    this.dataSources = [];
-    this.dataQuality = { reliability: 'low', sourcesUsed: 0, score: 0 };
-  }
   @ApiProperty({
     description: 'Tóm tắt tình hình thời tiết hiện tại',
     example:
@@ -34,12 +23,12 @@ export class WeatherResponseDto implements WeatherForecastResult {
   @ApiProperty({
     description: 'Thông tin mực nước Đồng bằng sông Cửu Long',
   })
-  waterLevelInfo: '';
+  waterLevelInfo: string;
 
   @ApiProperty({
     description: 'Dự báo bão, áp thấp nhiệt đới',
   })
-  stormsAndTropicalDepressionsInfo: '';
+  stormsAndTropicalDepressionsInfo: string;
 
   @ApiProperty({
     description: 'Danh sách video YouTube về dự báo thời tiết',
@@ -72,4 +61,16 @@ export class WeatherResponseDto implements WeatherForecastResult {
     sourcesUsed: number;
     score: number;
   };
+
+  constructor() {
+    // Khởi tạo giá trị mặc định để tránh lỗi TypeScript
+    this.summary = '';
+    this.hydrologyInfo = '';
+    this.waterLevelInfo = '';
+    this.stormsAndTropicalDepressionsInfo = '';
+    this.youtubeVideos = [];
+    this.lastUpdated = new Date().toISOString();
+    this.dataSources = [];
+    this.dataQuality = { reliability: 'low', sourcesUsed: 0, score: 0 };
+  }
 }

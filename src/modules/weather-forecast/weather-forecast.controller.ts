@@ -4,11 +4,17 @@ import {
   Logger,
   HttpException,
   HttpStatus,
+  Post,
+  Query,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { WeatherForecastService } from './weather-forecast.service';
 import { WeatherResponseDto } from './dto/weather-response.dto';
-import { WeatherForecastResult } from './interfaces/weather-forecast.interface';
+import {
+  WeatherForecastResult,
+  YouTubeVideoData,
+} from './interfaces/weather-forecast.interface';
+import { WeatherForecast } from '../../entities/weather-forecast.entity';
 
 /**
  * Controller xử lý các API endpoint liên quan đến dự báo thời tiết
@@ -68,6 +74,134 @@ export class WeatherForecastController {
   }
 
   /**
+   * Endpoint lấy dữ liệu thời tiết mới nhất từ database
+   */
+  @Get('climate-forecasting')
+  @ApiOperation({
+    summary: 'Lấy dữ liệu thời tiết mới nhất',
+    description:
+      'Trả về dữ liệu thời tiết mới nhất đã được lưu trữ trong database',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lấy dữ liệu thành công',
+    type: WeatherForecast,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Không tìm thấy dữ liệu',
+  })
+  async getLatestWeatherForecast(): Promise<WeatherForecast> {
+    try {
+      this.logger.log('Nhận yêu cầu lấy dữ liệu thời tiết mới nhất');
+
+      // Gọi service để lấy dữ liệu mới nhất từ database
+      const result = await this.weatherForecastService.getLatestForecast();
+
+      if (!result) {
+        throw new HttpException(
+          {
+            message: 'Không tìm thấy dữ liệu thời tiết',
+            statusCode: HttpStatus.NOT_FOUND,
+            timestamp: new Date().toISOString(),
+            path: '/weather-forecast/latest',
+          },
+          HttpStatus.NOT_FOUND,
+        );
+      }
+
+      this.logger.log('Trả về dữ liệu thời tiết mới nhất thành công');
+      return result;
+    } catch (error: any) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      this.logger.error(
+        'Lỗi trong controller khi lấy dữ liệu thời tiết:',
+        error,
+      );
+
+      throw new HttpException(
+        {
+          message: 'Không thể lấy dữ liệu thời tiết mới nhất',
+          error: error.message || 'Lỗi không xác định',
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          timestamp: new Date().toISOString(),
+          path: '/weather-forecast/latest',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * Endpoint lấy danh sách video YouTube về dự báo thời tiết
+   * @param query - Từ khóa tìm kiếm (mặc định: "dự báo thời tiết Việt Nam")
+   * @param limit - Số lượng video tối đa (mặc định: 5)
+   * @returns Promise<YouTubeVideoData[]> - Danh sách video YouTube
+   */
+  @Get('youtube-videos')
+  @ApiOperation({
+    summary: 'Lấy video YouTube về dự báo thời tiết',
+    description:
+      'Tìm kiếm và lấy danh sách video YouTube mới nhất về dự báo thời tiết',
+  })
+  @ApiQuery({
+    name: 'query',
+    required: false,
+    description: 'Từ khóa tìm kiếm (mặc định: "dự báo thời tiết Việt Nam")',
+    example: 'dự báo thời tiết Việt Nam',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Số lượng video tối đa (mặc định: 5)',
+    example: 5,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lấy danh sách video thành công',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Lỗi server khi tìm kiếm video',
+  })
+  async getYouTubeVideos(
+    @Query('query') query?: string,
+    @Query('limit') limit?: number,
+  ): Promise<YouTubeVideoData[]> {
+    try {
+      this.logger.log(
+        `Nhận yêu cầu lấy YouTube videos với query: "${query || 'dự báo thời tiết Việt Nam'}", limit: ${limit || 5}`,
+      );
+
+      // Gọi service để lấy video YouTube
+      const result = await this.weatherForecastService.getYouTubeVideos(
+        query || 'dự báo thời tiết Việt Nam',
+        limit || 5,
+      );
+
+      this.logger.log(`Tìm thấy ${result.length} video YouTube`);
+
+      return result;
+    } catch (error: any) {
+      this.logger.error('Lỗi trong controller khi lấy YouTube videos:', error);
+
+      throw new HttpException(
+        {
+          message: 'Không thể lấy danh sách video YouTube',
+          error: error.message || 'Lỗi không xác định',
+          statusCode: HttpStatus.SERVICE_UNAVAILABLE,
+          timestamp: new Date().toISOString(),
+          path: '/weather-forecast/youtube-videos',
+        },
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
+    }
+  }
+
+  /**
    * Endpoint kiểm tra trạng thái service
    */
   @Get('health')
@@ -89,5 +223,52 @@ export class WeatherForecastController {
       timestamp: new Date().toISOString(),
       message: 'Service đang hoạt động bình thường',
     };
+  }
+
+  /**
+   * Endpoint tạm thời để kích hoạt cron job thủ công
+   * Dùng để kiểm tra chức năng lưu dữ liệu vào database
+   */
+  @Post('trigger-cron')
+  @ApiOperation({
+    summary: 'Kích hoạt cron job thủ công',
+    description:
+      'Endpoint tạm thời để kích hoạt cron job thủ công nhằm kiểm tra chức năng lưu dữ liệu',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Cron job đã được thực thi thành công',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Lỗi khi thực thi cron job',
+  })
+  async triggerCronJob() {
+    try {
+      this.logger.log('Nhận yêu cầu kích hoạt cron job thủ công');
+
+      // Gọi service để thực thi cron job
+      const result =
+        await this.weatherForecastService.fetchAndSaveFullForecast();
+
+      this.logger.log('Cron job đã được thực thi thành công');
+      return {
+        message: 'Cron job đã được thực thi thành công',
+        data: result,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error: any) {
+      this.logger.error('Lỗi khi thực thi cron job:', error);
+
+      throw new HttpException(
+        {
+          message: 'Không thể thực thi cron job',
+          error: error.message || 'Lỗi không xác định',
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          timestamp: new Date().toISOString(),
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 }
