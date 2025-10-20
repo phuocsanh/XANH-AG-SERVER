@@ -5,19 +5,6 @@ services:
     build: .
     ports:
       - '${PORT}:${PORT}'
-    environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - JWT_SECRET=${JWT_SECRET}
-      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
-      - PORT=${PORT}
-      - CORS_ORIGIN=${CORS_ORIGIN}
-      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
-      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
-      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
-      - GOOGLE_GEMINI_API_KEY=${GOOGLE_GEMINI_API_KEY}
-      - GOOGLE_AI_API_KEY=${GOOGLE_AI_API_KEY}
-      - BRAVE_SEARCH_API_KEY=${BRAVE_SEARCH_API_KEY}
-      - BRAVE_SEARCH_API_URL=${BRAVE_SEARCH_API_URL}
     env_file:
       - .env
     # Thêm depends_on nếu bạn có database service

@@ -1,5 +1,5 @@
-# Use Node.js 18 as base image
-FROM node:18
+# Use Node.js 20 as base image
+FROM node:20
 
 # Set working directory
 WORKDIR /app
@@ -17,7 +17,7 @@ COPY . .
 RUN npm run build
 
 # Expose port
-EXPOSE 8080
+EXPOSE 3003
 
 # Start the application with migrations in production mode
 CMD ["sh", "-c", "npm run migration:run && node dist/src/main.js"]
