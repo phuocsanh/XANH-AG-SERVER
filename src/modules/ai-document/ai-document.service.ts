@@ -46,7 +46,7 @@ export class AiDocumentService {
 
     try {
       console.log('🚀 Starting AI processing with Google Search tool...');
-      
+
       // 2. Gửi yêu cầu API với công cụ tìm kiếm Google
       const response = await this.ai.models.generateContent({
         model: this.model,
@@ -82,7 +82,7 @@ export class AiDocumentService {
         console.log('✅ Successfully extracted answer from response');
         return answer;
       }
-      
+
       console.log('⚠️  No answer found in response');
       return '';
     } catch (error) {
