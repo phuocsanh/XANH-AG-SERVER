@@ -9,7 +9,7 @@ import { ConfigService } from '@nestjs/config';
 @Injectable()
 export class AiDocumentService {
   private ai: GoogleGenAI;
-  private readonly model = 'gemini-1.5-flash';
+  private readonly model = 'gemini-flash-latest';
 
   constructor(private configService: ConfigService) {
     const apiKey = this.configService.get<string>('GOOGLE_AI_API_KEY');
@@ -45,28 +45,48 @@ export class AiDocumentService {
     `;
 
     try {
+      console.log('🚀 Starting AI processing with Google Search tool...');
+      
       // 2. Gửi yêu cầu API với công cụ tìm kiếm Google
       const response = await this.ai.models.generateContent({
         model: this.model,
         contents: [{ role: 'user', parts: [{ text: finalPrompt }] }],
         config: {
-          // Thêm công cụ tìm kiếm Google vào cấu hình với cấu hình động
-          tools: [
-            {
-              googleSearchRetrieval: {
-                dynamicRetrievalConfig: {
-                  mode: 'MODE_DYNAMIC',
-                },
-              },
-            },
-          ],
+          // Thêm công cụ tìm kiếm Google vào cấu hình
+          tools: [{ googleSearch: {} }],
         },
       } as any);
 
-      // 3. Trả về văn bản kết quả
-      return response.text || '';
+      console.log('✅ Received response from AI');
+
+      // 3. Kiểm tra xem response có chứa groundingMetadata không
+      if (
+        response.candidates &&
+        response.candidates[0] &&
+        response.candidates[0].groundingMetadata
+      ) {
+        console.log('✅ Google Search tool is ACTIVE');
+      } else {
+        console.log('⚠️  Google Search tool might not be active');
+      }
+
+      // 4. Trả về văn bản kết quả
+      if (
+        response.candidates &&
+        response.candidates[0] &&
+        response.candidates[0].content &&
+        response.candidates[0].content.parts &&
+        response.candidates[0].content.parts[0]
+      ) {
+        const answer = response.candidates[0].content.parts[0].text || '';
+        console.log('✅ Successfully extracted answer from response');
+        return answer;
+      }
+      
+      console.log('⚠️  No answer found in response');
+      return '';
     } catch (error) {
-      console.error('Error calling Gemini API:', error);
+      console.error('❌ Error calling Gemini API:', error);
       throw new Error('Lỗi khi gọi API AI để xử lý câu hỏi.');
     }
   }
