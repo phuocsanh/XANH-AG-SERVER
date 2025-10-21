@@ -8,14 +8,18 @@ import {
   ValidationPipe,
   Logger,
 } from '@nestjs/common';
-import { AiDocumentService } from './ai-document.service';
 import { AskDto } from './dto/ask.dto';
+import { CompatibilityMixingPesticidesService } from './compatibility-mixing-pesticides.service';
 
-@Controller('ai-document')
-export class AiDocumentController {
-  private readonly logger = new Logger(AiDocumentController.name);
+@Controller('compatibility-mixing-pesticides')
+export class CompatibilityMixingPesticidesController {
+  private readonly logger = new Logger(
+    CompatibilityMixingPesticidesController.name,
+  );
 
-  constructor(private readonly aiDocumentService: AiDocumentService) {}
+  constructor(
+    private readonly CompatibilityMixingPesticidesService: CompatibilityMixingPesticidesService,
+  ) {}
 
   @Post('ask')
   @UsePipes(new ValidationPipe({ transform: true }))
@@ -34,7 +38,10 @@ export class AiDocumentController {
 
     try {
       this.logger.log(`Processing question: ${question}`);
-      const answer = await this.aiDocumentService.getDocumentAnswer(question);
+      const answer =
+        await this.CompatibilityMixingPesticidesService.getDocumentAnswer(
+          question,
+        );
       this.logger.log(`Generated answer length: ${answer.length}`);
 
       const response = {

@@ -7,7 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
-export class AiDocumentService {
+export class CompatibilityMixingPesticidesService {
   private ai: GoogleGenAI;
   private readonly model = 'gemini-2.5-flash';
 

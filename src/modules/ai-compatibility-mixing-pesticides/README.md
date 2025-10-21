@@ -13,7 +13,7 @@ Module này cung cấp chức năng sử dụng AI để đọc tài liệu có 
 ### Endpoint
 
 ```
-POST /ai-document/ask
+POST /compatibility-mixing-pesticides/ask
 ```
 
 ### Request Body
@@ -42,10 +42,10 @@ Module sử dụng các biến môi trường sau:
 ## Cấu trúc thư mục
 
 ```
-ai-document/
-├── ai-document.controller.ts
-├── ai-document.module.ts
-├── ai-document.service.ts
+compatibility-mixing-pesticides/
+├── compatibility-mixing-pesticides.controller.ts
+├── compatibility-mixing-pesticides.module.ts
+├── compatibility-mixing-pesticides.service.ts
 ├── dto/
 │   └── ask.dto.ts
 └── data/
