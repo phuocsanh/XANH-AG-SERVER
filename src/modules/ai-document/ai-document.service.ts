@@ -42,6 +42,7 @@ export class AiDocumentService {
       
       Hãy trả lời bằng tiếng Việt và cung cấp thông tin chi tiết, cụ thể dựa trên tài liệu được cung cấp.
       Nếu bạn cần tìm kiếm thông tin từ các liên kết hoặc sử dụng công cụ tìm kiếm, hãy thực hiện việc đó để cung cấp câu trả lời chính xác nhất.
+      Cố gắng trả lời và giải thích ngắn gọn tập trung vào câu hỏi thôi, để nông dân việt dễ hiểu không dùng các từ tiếng anh và từ viết tắt.
     `;
 
     try {
