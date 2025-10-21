@@ -27,8 +27,8 @@ export class AiDocumentService {
   async getDocumentAnswer(userQuestion: string): Promise<string> {
     // 1. Tạo Prompt cuối cùng với dữ liệu RAG
     const finalPrompt = `
-      Bạn là chuyên gia nông nghiệp. Hãy sử dụng tài liệu hướng dẫn phối trộn thuốc BVTV sau đây để trả lời câu hỏi.
-      Nếu thông tin trong tài liệu không đủ, hãy sử dụng công cụ tìm kiếm Google để tìm kiếm thông tin bổ sung và trả lời chi tiết câu hỏi.
+      Hãy sử dụng tài liệu hướng dẫn phối trộn thuốc Bảo Vệ Thực Vật sau đây để trả lời câu hỏi.
+      Nếu thông tin trong tài liệu không đủ, hãy sử dụng công cụ tìm kiếm Google để tìm kiếm thông tin bổ sung và trả lời câu hỏi.
 
       --- TÀI LIỆU NỀN TẢNG ---
       ${PESTICIDE_MIXING_DOCUMENT_TEXT}
@@ -39,10 +39,10 @@ export class AiDocumentService {
       --- KẾT THÚC LIÊN KẾT ---
 
       Câu hỏi cần trả lời: ${userQuestion}
-      
-      Hãy trả lời bằng tiếng Việt và cung cấp thông tin chi tiết, cụ thể dựa trên tài liệu được cung cấp.
-      Nếu bạn cần tìm kiếm thông tin từ các liên kết hoặc sử dụng công cụ tìm kiếm, hãy thực hiện việc đó để cung cấp câu trả lời chính xác nhất.
-      Cố gắng trả lời và giải thích ngắn gọn tập trung vào câu hỏi thôi, để nông dân việt dễ hiểu không dùng các từ tiếng anh và từ viết tắt.
+      - Luôn đọc kỹ, phân tích tài liệu và nguồn dữ liệu trước khi trả lời câu hỏi.
+      - Hãy trả lời bằng tiếng Việt dựa trên tài liệu được cung cấp.
+      - Nếu bạn cần tìm kiếm thông tin từ các liên kết hoặc sử dụng công cụ tìm kiếm, hãy thực hiện việc đó để cung cấp câu trả lời chính xác nhất.
+      - Cố gắng trả lời và giải thích ngắn gọn tập trung vào câu hỏi thôi, để nông dân việt dễ hiểu không dùng các từ tiếng anh và từ viết tắt.
     `;
 
     try {
