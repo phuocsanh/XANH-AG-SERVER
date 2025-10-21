@@ -36,7 +36,6 @@
   "description": "",
   "dependencies": {
     "@google/genai": "^1.25.0",
-    "@google/generative-ai": "^0.24.1",
     "@modelcontextprotocol/sdk": "^1.18.1",
     "@nestjs/common": "^11.1.6",
     "@nestjs/config": "^4.0.2",
