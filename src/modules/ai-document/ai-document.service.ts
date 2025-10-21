@@ -9,7 +9,7 @@ import { ConfigService } from '@nestjs/config';
 @Injectable()
 export class AiDocumentService {
   private ai: GoogleGenAI;
-  private readonly model = 'gemini-flash-latest';
+  private readonly model = 'gemini-2.5-flash';
 
   constructor(private configService: ConfigService) {
     const apiKey = this.configService.get<string>('GOOGLE_AI_API_KEY');
