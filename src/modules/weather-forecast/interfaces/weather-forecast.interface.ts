@@ -55,6 +55,36 @@ export interface YouTubeVideoData {
 }
 
 /**
+ * Interface cho kết quả tìm kiếm YouTube videos
+ */
+export interface YouTubeSearchResult {
+  /** Danh sách video tìm được */
+  videos: YouTubeVideoData[];
+
+  /** Từ khóa tìm kiếm */
+  query: string;
+
+  /** Thời gian tìm kiếm */
+  searchTime: string;
+
+  /** Tổng số video tìm được */
+  totalResults: number;
+
+  /** Thông tin chất lượng tìm kiếm (tùy chọn) */
+  searchQuality?: {
+    /** Có video gần đây không */
+    hasRecentVideos: boolean;
+    /** Số video có từ "hôm nay" */
+    todayVideosCount: number;
+    /** Điểm chất lượng (0-100) */
+    score: number;
+  };
+
+  /** Thông báo lỗi nếu có (tùy chọn) */
+  error?: string;
+}
+
+/**
  * Interface cho kết quả tìm kiếm web
  */
 export interface WebSearchResult {

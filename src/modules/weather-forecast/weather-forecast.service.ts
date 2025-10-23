@@ -7,6 +7,7 @@ import { GoogleGenAI } from '@google/genai';
 import {
   WeatherForecastResult,
   YouTubeVideoData,
+  YouTubeSearchResult,
 } from './interfaces/weather-forecast.interface';
 import { WeatherForecast } from '../../entities/weather-forecast.entity';
 import axios from 'axios';
@@ -228,8 +229,55 @@ export class WeatherForecastService {
   async getYouTubeVideos(
     query: string,
     maxResults: number = 5,
-  ): Promise<YouTubeVideoData[]> {
-    return this.searchYouTubeVideos(query, maxResults);
+  ): Promise<YouTubeSearchResult> {
+    try {
+      const videos = await this.searchYouTubeVideos(query, maxResults);
+
+      // Tính toán chất lượng tìm kiếm
+      const todayVideosCount = videos.filter(
+        (video) =>
+          video.uploadTime &&
+          (video.uploadTime.includes('ngày trước') ||
+            video.uploadTime.includes('giờ trước') ||
+            video.uploadTime.includes('phút trước') ||
+            video.uploadTime.includes('giờ') ||
+            video.uploadTime.includes('phút')),
+      ).length;
+
+      const searchQuality = {
+        hasRecentVideos: todayVideosCount > 0,
+        todayVideosCount: todayVideosCount,
+        score: Math.min(
+          100,
+          Math.round(
+            (videos.length / maxResults) * 70 +
+              (todayVideosCount / videos.length) * 30,
+          ),
+        ),
+      };
+
+      return {
+        videos: videos,
+        query: query,
+        searchTime: new Date().toISOString(),
+        totalResults: videos.length,
+        searchQuality: searchQuality,
+      };
+    } catch (error: any) {
+      this.logger.error('Lỗi khi tìm kiếm YouTube videos:', error.message);
+      return {
+        videos: [],
+        query: query,
+        searchTime: new Date().toISOString(),
+        totalResults: 0,
+        searchQuality: {
+          hasRecentVideos: false,
+          todayVideosCount: 0,
+          score: 0,
+        },
+        error: `Lỗi tìm kiếm YouTube: ${error.message}`,
+      };
+    }
   }
 
   /**

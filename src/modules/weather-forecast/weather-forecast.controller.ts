@@ -13,6 +13,7 @@ import { WeatherResponseDto } from './dto/weather-response.dto';
 import {
   WeatherForecastResult,
   YouTubeVideoData,
+  YouTubeSearchResult,
 } from './interfaces/weather-forecast.interface';
 import { WeatherForecast } from '../../entities/weather-forecast.entity';
 
@@ -139,7 +140,7 @@ export class WeatherForecastController {
    * Endpoint lấy danh sách video YouTube về dự báo thời tiết
    * @param query - Từ khóa tìm kiếm (mặc định: "dự báo thời tiết Việt Nam")
    * @param limit - Số lượng video tối đa (mặc định: 5)
-   * @returns Promise<YouTubeVideoData[]> - Danh sách video YouTube
+   * @returns Promise<YouTubeSearchResult> - Kết quả tìm kiếm YouTube
    */
   @Get('youtube-videos')
   @ApiOperation({
@@ -170,19 +171,20 @@ export class WeatherForecastController {
   async getYouTubeVideos(
     @Query('query') query?: string,
     @Query('limit') limit?: number,
-  ): Promise<YouTubeVideoData[]> {
+  ): Promise<YouTubeSearchResult> {
     try {
       this.logger.log(
         `Nhận yêu cầu lấy YouTube videos với query: "${query || 'dự báo thời tiết Việt Nam'}", limit: ${limit || 5}`,
       );
 
       // Gọi service để lấy video YouTube
-      const result = await this.weatherForecastService.getYouTubeVideos(
-        query || 'dự báo thời tiết Việt Nam',
-        limit || 5,
-      );
+      const result: YouTubeSearchResult =
+        await this.weatherForecastService.getYouTubeVideos(
+          query || 'dự báo thời tiết Việt Nam',
+          limit || 5,
+        );
 
-      this.logger.log(`Tìm thấy ${result.length} video YouTube`);
+      this.logger.log(`Tìm thấy ${result.totalResults} video YouTube`);
 
       return result;
     } catch (error: any) {
