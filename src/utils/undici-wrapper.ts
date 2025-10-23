@@ -11,15 +11,15 @@ if (typeof globalThis.File === 'undefined') {
 
 // Fix cho String.prototype methods không có trong Node.js v18
 if ((String.prototype as any).toWellFormed === undefined) {
-    (String.prototype as any).toWellFormed = function () {
-        return toUSVString(this);
-    }
+  (String.prototype as any).toWellFormed = function () {
+    return toUSVString(this);
+  };
 }
 
 if ((String.prototype as any).isWellFormed === undefined) {
-    (String.prototype as any).isWellFormed = function () {
-        return toUSVString(this) === this;
-    }
+  (String.prototype as any).isWellFormed = function () {
+    return toUSVString(this) === this;
+  };
 }
 
 // Export undici sau khi đã fix các global objects

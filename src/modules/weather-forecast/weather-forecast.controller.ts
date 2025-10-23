@@ -12,7 +12,6 @@ import { WeatherForecastService } from './weather-forecast.service';
 import { WeatherResponseDto } from './dto/weather-response.dto';
 import {
   WeatherForecastResult,
-  YouTubeVideoData,
   YouTubeSearchResult,
 } from './interfaces/weather-forecast.interface';
 import { WeatherForecast } from '../../entities/weather-forecast.entity';

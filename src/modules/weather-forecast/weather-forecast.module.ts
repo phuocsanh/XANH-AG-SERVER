@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { WeatherForecastController } from './weather-forecast.controller';
 import { WeatherForecastService } from './weather-forecast.service';
-import { McpServerService } from '../ai-analysis/mcp-server.service';
+import { McpServerService } from '../ai-analysis-rice/mcp-server.service';
 import { WebScrapingService } from './web-scraping.service';
 import { WeatherForecast } from '../../entities/weather-forecast.entity';
 

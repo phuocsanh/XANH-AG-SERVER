@@ -28,7 +28,7 @@ import { RiceMarketData } from '../../entities/rice-market.entity';
  * Controller xử lý các API endpoint liên quan đến phân tích AI thị trường lúa gạo
  */
 @ApiTags('AI Analysis')
-@Controller('ai-analysis')
+@Controller('ai-analysis-rice')
 export class AiAnalysisController {
   private readonly logger = new Logger(AiAnalysisController.name);
 

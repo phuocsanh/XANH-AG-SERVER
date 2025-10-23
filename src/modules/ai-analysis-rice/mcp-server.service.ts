@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { fetch } from './undici-wrapper';
+import { fetch } from '../../utils/undici-wrapper';
 import * as cheerio from 'cheerio';
 import {
   YouTubeSearchResult,
