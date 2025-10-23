@@ -269,7 +269,7 @@ export class AiAnalysisController {
       // Gọi MCP Server Service để lấy video YouTube
       const result = await this.mcpServerService.getYouTubeVideos(
         query || 'giá lúa gạo hôm nay',
-        limit || 10,
+        limit || 5,
       );
 
       this.logger.log(

@@ -21,9 +21,9 @@ export class CompatibilityMixingPesticidesController {
     private readonly CompatibilityMixingPesticidesService: CompatibilityMixingPesticidesService,
   ) {}
 
-  @Post('ask')
+  @Post('mix-pesticides')
   @UsePipes(new ValidationPipe({ transform: true }))
-  async askQuestion(@Body() askDto: AskDto) {
+  async mixPesticides(@Body() askDto: AskDto) {
     const { question } = askDto;
 
     if (!question || question.trim().length === 0) {
@@ -39,7 +39,47 @@ export class CompatibilityMixingPesticidesController {
     try {
       this.logger.log(`Processing question: ${question}`);
       const answer =
-        await this.CompatibilityMixingPesticidesService.getDocumentAnswer(
+        await this.CompatibilityMixingPesticidesService.mixPesticides(question);
+      this.logger.log(`Generated answer length: ${answer.length}`);
+
+      const response = {
+        success: true,
+        answer: answer,
+      };
+
+      this.logger.log(`Sending response with status 201`);
+      return response;
+    } catch (error: any) {
+      this.logger.error('Error in askQuestion:', error);
+      throw new HttpException(
+        {
+          success: false,
+          error: error.message || 'Lỗi xử lý AI từ server.',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Post('sort-pesticides')
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async sortPesticides(@Body() askDto: AskDto) {
+    const { question } = askDto;
+
+    if (!question || question.trim().length === 0) {
+      throw new HttpException(
+        {
+          success: false,
+          error: 'Vui lòng cung cấp câu hỏi.',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    try {
+      this.logger.log(`Processing question: ${question}`);
+      const answer =
+        await this.CompatibilityMixingPesticidesService.sortPesticides(
           question,
         );
       this.logger.log(`Generated answer length: ${answer.length}`);
