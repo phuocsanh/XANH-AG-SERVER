@@ -12,19 +12,25 @@ import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductStatus } from '../../entities/products.entity';
+import { InventoryService } from '../inventory/inventory.service';
+import { UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 /**
  * Controller xử lý các request liên quan đến sản phẩm
  * Bao gồm quản lý sản phẩm, Status Management và Soft Delete
  */
 @Controller('products')
-// @UseGuards(JwtAuthGuard) // Tạm thời comment để test
+@UseGuards(JwtAuthGuard)
 export class ProductController {
   /**
    * Constructor injection ProductService
    * @param productService - Service xử lý logic nghiệp vụ sản phẩm
    */
-  constructor(private readonly productService: ProductService) {}
+  constructor(
+    private readonly productService: ProductService,
+    private readonly inventoryService: InventoryService,
+  ) {}
 
   /**
    * Tạo sản phẩm mới
@@ -86,6 +92,30 @@ export class ProductController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.productService.findOne(+id);
+  }
+
+  /**
+   * Lấy thông tin chi tiết một sản phẩm theo ID cùng với thông tin giá nhập
+   * @param id - ID của sản phẩm cần tìm
+   * @returns Thông tin sản phẩm cùng với giá nhập mới nhất và giá nhập trung bình
+   */
+  @Get(':id/with-purchase-info')
+  async findOneWithPurchaseInfo(@Param('id') id: string) {
+    const productId = +id;
+    const product = await this.productService.findOne(productId);
+
+    if (!product) {
+      return null;
+    }
+
+    const purchaseInfo =
+      await this.inventoryService.getProductPurchasePrices(productId);
+
+    return {
+      ...product,
+      latestPurchasePrice: purchaseInfo.latestPurchasePrice,
+      averageCostPrice: purchaseInfo.averageCostPrice,
+    };
   }
 
   /**

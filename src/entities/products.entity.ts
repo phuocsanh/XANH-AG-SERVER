@@ -11,9 +11,9 @@ import {
  * Enum định nghĩa các trạng thái của sản phẩm
  */
 export enum ProductStatus {
-  ACTIVE = 'active',      // Sản phẩm đang hoạt động
-  INACTIVE = 'inactive',  // Sản phẩm tạm ngưng
-  ARCHIVED = 'archived',  // Sản phẩm đã lưu trữ
+  ACTIVE = 'active', // Sản phẩm đang hoạt động
+  INACTIVE = 'inactive', // Sản phẩm tạm ngưng
+  ARCHIVED = 'archived', // Sản phẩm đã lưu trữ
 }
 
 /**
@@ -33,10 +33,6 @@ export class Product {
   /** Giá sản phẩm */
   @Column({ name: 'product_price' })
   productPrice!: string;
-
-  /** Trạng thái sản phẩm (1: hoạt động, 0: không hoạt động) - Giữ lại để tương thích */
-  @Column({ name: 'product_status', nullable: true })
-  productStatus?: number;
 
   /** Trạng thái sản phẩm mới sử dụng enum */
   @Column({
@@ -100,7 +96,12 @@ export class Product {
   productSelled?: number;
 
   /** Thuộc tính bổ sung của sản phẩm (JSON) */
-  @Column({ name: 'product_attributes', type: 'jsonb', nullable: true, default: {} })
+  @Column({
+    name: 'product_attributes',
+    type: 'jsonb',
+    nullable: true,
+    default: {},
+  })
   productAttributes?: any;
 
   /** Trạng thái nháp (true: nháp, false: không phải nháp) */
@@ -110,6 +111,10 @@ export class Product {
   /** Trạng thái đã xuất bản (true: đã xuất bản, false: chưa xuất bản) */
   @Column({ name: 'is_published', nullable: true })
   isPublished?: boolean;
+
+  /** Phần trăm lợi nhuận */
+  @Column({ name: 'profit_margin_percent' })
+  profitMarginPercent!: string;
 
   /** Thời gian tạo sản phẩm */
   @CreateDateColumn({ name: 'created_at' })
@@ -123,11 +128,15 @@ export class Product {
   @Column({ name: 'average_cost_price' })
   averageCostPrice!: string;
 
-  /** Phần trăm lợi nhuận */
-  @Column({ name: 'profit_margin_percent' })
-  profitMarginPercent!: string;
-
   /** Thời gian xóa mềm (null nếu chưa bị xóa) */
   @DeleteDateColumn({ name: 'deleted_at' })
   deletedAt?: Date;
+
+  /** Đơn vị tính của sản phẩm */
+  @Column({ name: 'unit', nullable: true })
+  unit?: string;
+
+  /** Giá nhập mới nhất của sản phẩm */
+  @Column({ name: 'latest_purchase_price', nullable: true })
+  latestPurchasePrice?: number;
 }

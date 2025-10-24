@@ -53,7 +53,8 @@ export class ProductService {
    * @returns Danh sách sản phẩm
    */
   async findAll(): Promise<Product[]> {
-    return this.productRepository.createQueryBuilder('product')
+    return this.productRepository
+      .createQueryBuilder('product')
       .where('product.deletedAt IS NULL')
       .getMany();
   }
@@ -64,7 +65,8 @@ export class ProductService {
    * @returns Danh sách sản phẩm theo trạng thái
    */
   async findByStatus(status: ProductStatus): Promise<Product[]> {
-    return this.productRepository.createQueryBuilder('product')
+    return this.productRepository
+      .createQueryBuilder('product')
       .where('product.status = :status', { status })
       .andWhere('product.deletedAt IS NULL')
       .getMany();
@@ -76,10 +78,34 @@ export class ProductService {
    * @returns Thông tin sản phẩm hoặc null nếu không tìm thấy
    */
   async findOne(id: number): Promise<Product | null> {
-    return this.productRepository.createQueryBuilder('product')
+    return this.productRepository
+      .createQueryBuilder('product')
       .where('product.id = :id', { id })
       .andWhere('product.deletedAt IS NULL')
       .getOne();
+  }
+
+  /**
+   * Lấy thông tin sản phẩm cùng với giá nhập mới nhất
+   * @param id - ID của sản phẩm
+   * @returns Thông tin sản phẩm cùng với giá nhập mới nhất
+   */
+  async findOneWithPurchaseInfo(id: number): Promise<Product | null> {
+    const product = await this.findOne(id);
+    if (!product) {
+      return null;
+    }
+
+    // Inject thông tin giá nhập mới nhất vào sản phẩm
+    // Đây là cách tiếp cận tạm thời, trong thực tế nên sử dụng một DTO riêng
+    const inventoryService = (this as any).inventoryService;
+    if (inventoryService) {
+      const latestPurchasePrice =
+        await inventoryService.getLatestPurchasePrice(id);
+      product.latestPurchasePrice = latestPurchasePrice;
+    }
+
+    return product;
   }
 
   /**
@@ -150,8 +176,11 @@ export class ProductService {
    */
   async remove(id: number): Promise<void> {
     // Xóa tất cả file references liên quan đến sản phẩm trước khi xóa sản phẩm
-    await this.fileTrackingService.batchRemoveEntityFileReferences('Product', id);
-    
+    await this.fileTrackingService.batchRemoveEntityFileReferences(
+      'Product',
+      id,
+    );
+
     // Xóa sản phẩm
     await this.productRepository.delete(id);
   }
@@ -178,7 +207,8 @@ export class ProductService {
    * @returns Danh sách sản phẩm thuộc loại đó
    */
   async findByType(productType: number): Promise<Product[]> {
-    return this.productRepository.createQueryBuilder('product')
+    return this.productRepository
+      .createQueryBuilder('product')
       .where('product.productType = :productType', { productType })
       .andWhere('product.deletedAt IS NULL')
       .getMany();
@@ -202,8 +232,10 @@ export class ProductService {
     }
 
     // Lấy phần trăm lợi nhuận (mặc định 15% nếu không có)
-    const profitMarginPercent = parseFloat(product.profitMarginPercent?.toString() || '15');
-    
+    const profitMarginPercent = parseFloat(
+      product.profitMarginPercent?.toString() || '15',
+    );
+
     // Lấy phần trăm giảm giá (mặc định 0% nếu không có)
     const discount = parseFloat(product.discount?.toString() || '0');
 

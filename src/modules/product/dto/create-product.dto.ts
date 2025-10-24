@@ -1,4 +1,10 @@
-import { IsString, IsNumber, IsOptional, IsBoolean, IsArray, IsEnum } from 'class-validator';
+import {
+  IsString,
+  IsNumber,
+  IsOptional,
+  IsArray,
+  IsEnum,
+} from 'class-validator';
 import { ProductStatus } from '../../../entities/products.entity';
 
 /**
@@ -14,15 +20,11 @@ export class CreateProductDto {
   @IsString()
   productPrice!: string;
 
-  /** Trạng thái sản phẩm cũ (tùy chọn) - Giữ lại để tương thích */
-  @IsOptional()
-  @IsNumber()
-  productStatus?: number;
-
   /** Trạng thái sản phẩm mới sử dụng enum (tùy chọn) */
   @IsOptional()
   @IsEnum(ProductStatus, {
-    message: 'Trạng thái phải là một trong các giá trị: active, inactive, archived'
+    message:
+      'Trạng thái phải là một trong các giá trị: active, inactive, archived',
   })
   status?: ProductStatus;
 
@@ -77,16 +79,6 @@ export class CreateProductDto {
   @IsOptional()
   productAttributes?: any;
 
-  /** Trạng thái nháp (tùy chọn) */
-  @IsOptional()
-  @IsBoolean()
-  isDraft?: boolean;
-
-  /** Trạng thái đã xuất bản (tùy chọn) */
-  @IsOptional()
-  @IsBoolean()
-  isPublished?: boolean;
-
   /** Giá vốn trung bình của sản phẩm (bắt buộc) */
   @IsString()
   averageCostPrice!: string;
@@ -94,4 +86,14 @@ export class CreateProductDto {
   /** Phần trăm lợi nhuận (bắt buộc) */
   @IsString()
   profitMarginPercent!: string;
+
+  /** Đơn vị tính của sản phẩm (tùy chọn) */
+  @IsOptional()
+  @IsString()
+  unit?: string;
+
+  /** Giá nhập mới nhất của sản phẩm (tùy chọn) */
+  @IsOptional()
+  @IsNumber()
+  latestPurchasePrice?: number;
 }

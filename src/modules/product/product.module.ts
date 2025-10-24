@@ -7,6 +7,7 @@ import { ProductFactoryRegistry } from './factories/product-factory.registry';
 import { FertilizerProductFactory } from './factories/fertilizer-product.factory';
 import { PesticideProductFactory } from './factories/pesticide-product.factory';
 import { FileTrackingModule } from '../file-tracking/file-tracking.module';
+import { InventoryModule } from '../inventory/inventory.module';
 
 /**
  * Module quản lý sản phẩm
@@ -15,11 +16,11 @@ import { FileTrackingModule } from '../file-tracking/file-tracking.module';
 @Module({
   imports: [
     // Import TypeORM feature module với các entity liên quan đến sản phẩm
-    TypeOrmModule.forFeature([
-      Product,
-    ]),
+    TypeOrmModule.forFeature([Product]),
     // Import FileTrackingModule để sử dụng FileTrackingService
     FileTrackingModule,
+    // Import InventoryModule để sử dụng InventoryService
+    InventoryModule,
   ],
   controllers: [ProductController], // Controller xử lý các request liên quan đến sản phẩm
   providers: [

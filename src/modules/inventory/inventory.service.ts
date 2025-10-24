@@ -9,7 +9,11 @@ import { CreateInventoryBatchDto } from './dto/create-inventory-batch.dto';
 import { CreateInventoryTransactionDto } from './dto/create-inventory-transaction.dto';
 import { CreateInventoryReceiptDto } from './dto/create-inventory-receipt.dto';
 import { ProductService } from '../product/product.service';
-import { ProductGroup, StockData, LowStockProduct } from './interfaces/inventory-report.interface';
+import {
+  ProductGroup,
+  StockData,
+  LowStockProduct,
+} from './interfaces/inventory-report.interface';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến quản lý kho hàng
@@ -80,7 +84,10 @@ export class InventoryService {
    * @param updateData - Dữ liệu cập nhật lô hàng tồn kho
    * @returns Thông tin lô hàng tồn kho đã cập nhật
    */
-  async updateBatch(id: number, updateData: Partial<CreateInventoryBatchDto>): Promise<InventoryBatch | null> {
+  async updateBatch(
+    id: number,
+    updateData: Partial<CreateInventoryBatchDto>,
+  ): Promise<InventoryBatch | null> {
     await this.inventoryBatchRepository.update(id, updateData);
     return this.findBatchById(id);
   }
@@ -156,9 +163,9 @@ export class InventoryService {
   async getFifoValue(productId: number) {
     // Lấy tất cả lô hàng của sản phẩm, sắp xếp theo thời gian tạo tăng dần (FIFO)
     const batches = await this.inventoryBatchRepository.find({
-      where: { 
+      where: {
         productId,
-        remainingQuantity: MoreThan(0)
+        remainingQuantity: MoreThan(0),
       },
       order: { createdAt: 'ASC' },
     });
@@ -177,7 +184,7 @@ export class InventoryService {
       totalValue,
       totalQuantity,
       averageValue: totalQuantity > 0 ? totalValue / totalQuantity : 0, // Giá trị trung bình
-      batches: batches.map(batch => ({
+      batches: batches.map((batch) => ({
         id: batch.id,
         batchCode: batch.batchCode,
         remainingQuantity: batch.remainingQuantity,
@@ -185,8 +192,8 @@ export class InventoryService {
         value: batch.remainingQuantity * parseFloat(batch.unitCostPrice),
         expiryDate: batch.expiryDate,
         manufacturingDate: batch.manufacturingDate,
-        createdAt: batch.createdAt
-      }))
+        createdAt: batch.createdAt,
+      })),
     };
   }
 
@@ -199,9 +206,9 @@ export class InventoryService {
   async calculateFifoCost(productId: number, quantity: number) {
     // Lấy các lô hàng theo thứ tự FIFO
     const batches = await this.inventoryBatchRepository.find({
-      where: { 
+      where: {
         productId,
-        remainingQuantity: MoreThan(0)
+        remainingQuantity: MoreThan(0),
       },
       order: { createdAt: 'ASC' },
     });
@@ -213,12 +220,15 @@ export class InventoryService {
     for (const batch of batches) {
       if (remainingQuantity <= 0) break;
 
-      const quantityFromBatch = Math.min(remainingQuantity, batch.remainingQuantity);
+      const quantityFromBatch = Math.min(
+        remainingQuantity,
+        batch.remainingQuantity,
+      );
       const costFromBatch = quantityFromBatch * parseFloat(batch.unitCostPrice);
-      
+
       totalCost += costFromBatch;
       remainingQuantity -= quantityFromBatch;
-      
+
       usedBatches.push({
         batchId: batch.id,
         batchCode: batch.batchCode,
@@ -226,11 +236,12 @@ export class InventoryService {
         unitCostPrice: parseFloat(batch.unitCostPrice),
         totalCost: costFromBatch,
         expiryDate: batch.expiryDate,
-        manufacturingDate: batch.manufacturingDate
+        manufacturingDate: batch.manufacturingDate,
       });
     }
 
-    const averageFifoCost = quantity > 0 ? totalCost / (quantity - remainingQuantity) : 0;
+    const averageFifoCost =
+      quantity > 0 ? totalCost / (quantity - remainingQuantity) : 0;
 
     return {
       productId,
@@ -239,7 +250,7 @@ export class InventoryService {
       shortfall: remainingQuantity,
       totalFifoCost: totalCost,
       averageFifoCost,
-      usedBatches
+      usedBatches,
     };
   }
 
@@ -250,9 +261,9 @@ export class InventoryService {
    */
   async getBatchTrackingInfo(productId?: number) {
     let whereCondition: any = {
-      remainingQuantity: MoreThan(0)
+      remainingQuantity: MoreThan(0),
     };
-    
+
     if (productId) {
       whereCondition.productId = productId;
     }
@@ -263,12 +274,18 @@ export class InventoryService {
       relations: ['product'], // Giả sử có relation với Product
     });
 
-    return batches.map(batch => {
-      const daysUntilExpiry = batch.expiryDate 
-        ? Math.ceil((batch.expiryDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+    return batches.map((batch) => {
+      const daysUntilExpiry = batch.expiryDate
+        ? Math.ceil(
+            (batch.expiryDate.getTime() - new Date().getTime()) /
+              (1000 * 60 * 60 * 24),
+          )
         : null;
-      
-      const ageInDays = Math.ceil((new Date().getTime() - batch.createdAt.getTime()) / (1000 * 60 * 60 * 24));
+
+      const ageInDays = Math.ceil(
+        (new Date().getTime() - batch.createdAt.getTime()) /
+          (1000 * 60 * 60 * 24),
+      );
 
       return {
         id: batch.id,
@@ -278,7 +295,11 @@ export class InventoryService {
         originalQuantity: batch.originalQuantity,
         remainingQuantity: batch.remainingQuantity,
         usedQuantity: batch.originalQuantity - batch.remainingQuantity,
-        usagePercentage: ((batch.originalQuantity - batch.remainingQuantity) / batch.originalQuantity * 100).toFixed(2),
+        usagePercentage: (
+          ((batch.originalQuantity - batch.remainingQuantity) /
+            batch.originalQuantity) *
+          100
+        ).toFixed(2),
         totalValue: batch.remainingQuantity * parseFloat(batch.unitCostPrice),
         expiryDate: batch.expiryDate,
         manufacturingDate: batch.manufacturingDate,
@@ -288,11 +309,16 @@ export class InventoryService {
         notes: batch.notes,
         createdAt: batch.createdAt,
         updatedAt: batch.updatedAt,
-        status: daysUntilExpiry !== null ? (
-          daysUntilExpiry < 0 ? 'EXPIRED' :
-          daysUntilExpiry <= 7 ? 'EXPIRING_SOON' :
-          daysUntilExpiry <= 30 ? 'EXPIRING_WITHIN_MONTH' : 'GOOD'
-        ) : 'NO_EXPIRY'
+        status:
+          daysUntilExpiry !== null
+            ? daysUntilExpiry < 0
+              ? 'EXPIRED'
+              : daysUntilExpiry <= 7
+                ? 'EXPIRING_SOON'
+                : daysUntilExpiry <= 30
+                  ? 'EXPIRING_WITHIN_MONTH'
+                  : 'GOOD'
+            : 'NO_EXPIRY',
       };
     });
   }
@@ -304,12 +330,12 @@ export class InventoryService {
    */
   async getWeightedAverageCost(productId: number): Promise<number> {
     // Lấy tất cả lô hàng còn tồn kho của sản phẩm
-     const batches = await this.inventoryBatchRepository.find({
-       where: { 
-         productId,
-         remainingQuantity: MoreThan(0) // Chỉ lấy lô hàng còn tồn kho
-       },
-     });
+    const batches = await this.inventoryBatchRepository.find({
+      where: {
+        productId,
+        remainingQuantity: MoreThan(0), // Chỉ lấy lô hàng còn tồn kho
+      },
+    });
 
     if (batches.length === 0) {
       return 0;
@@ -320,7 +346,8 @@ export class InventoryService {
 
     // Tính tổng giá trị và số lượng có trọng số
     for (const batch of batches) {
-      const batchValue = batch.remainingQuantity * parseFloat(batch.unitCostPrice);
+      const batchValue =
+        batch.remainingQuantity * parseFloat(batch.unitCostPrice);
       totalValue += batchValue;
       totalQuantity += batch.remainingQuantity;
     }
@@ -349,16 +376,17 @@ export class InventoryService {
   ) {
     // Lấy giá vốn trung bình hiện tại
     const currentAverageCost = await this.getWeightedAverageCost(productId);
-    
+
     // Lấy tổng số lượng tồn kho hiện tại
     const currentInventory = await this.getInventorySummary(productId);
     const currentQuantity = currentInventory.totalQuantity;
-    
+
     // Tính giá vốn trung bình mới theo công thức WAC
     const currentTotalValue = currentQuantity * currentAverageCost;
-    const newTotalValue = currentTotalValue + (quantity * unitCostPrice);
+    const newTotalValue = currentTotalValue + quantity * unitCostPrice;
     const newTotalQuantity = currentQuantity + quantity;
-    const newAverageCost = newTotalQuantity > 0 ? newTotalValue / newTotalQuantity : unitCostPrice;
+    const newAverageCost =
+      newTotalQuantity > 0 ? newTotalValue / newTotalQuantity : unitCostPrice;
 
     // Tạo lô hàng mới
     const batchData: CreateInventoryBatchDto = {
@@ -370,8 +398,13 @@ export class InventoryService {
       ...(receiptItemId && { receiptItemId }),
       ...(expiryDate && { expiryDate }),
     };
-    
+
     const newBatch = await this.createBatch(batchData);
+
+    // Cập nhật giá nhập mới nhất cho sản phẩm
+    await this.productService.update(productId, {
+      latestPurchasePrice: unitCostPrice,
+    });
 
     // Tạo giao dịch nhập kho
     const transactionData: CreateInventoryTransactionDto = {
@@ -388,16 +421,28 @@ export class InventoryService {
       createdByUserId: 1, // TODO: Lấy từ context
       ...(receiptItemId && { receiptItemId }),
     };
-    
+
     const transaction = await this.createTransaction(transactionData);
 
     // Cập nhật giá sản phẩm dựa trên giá vốn trung bình mới và phần trăm lợi nhuận
     // Tương tự như UpdateProductAverageCostAndPrice trong Go server
     try {
-      await this.productService.updateProductAverageCostAndPrice(productId, newAverageCost);
+      await this.productService.updateProductAverageCostAndPrice(
+        productId,
+        newAverageCost,
+      );
+
+      // Cập nhật giá nhập mới nhất cho sản phẩm
+      await this.productService.update(productId, {
+        latestPurchasePrice: unitCostPrice,
+      });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.warn(`Không thể cập nhật giá sản phẩm ${productId}:`, errorMessage);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      console.warn(
+        `Không thể cập nhật giá sản phẩm ${productId}:`,
+        errorMessage,
+      );
       // Không throw error để không làm gián đoạn quá trình nhập kho
     }
 
@@ -429,20 +474,22 @@ export class InventoryService {
     // Kiểm tra tồn kho hiện tại
     const currentInventory = await this.getInventorySummary(productId);
     if (currentInventory.totalQuantity < quantity) {
-      throw new Error(`Không đủ tồn kho. Hiện có: ${currentInventory.totalQuantity}, yêu cầu: ${quantity}`);
+      throw new Error(
+        `Không đủ tồn kho. Hiện có: ${currentInventory.totalQuantity}, yêu cầu: ${quantity}`,
+      );
     }
 
     // Lấy giá vốn trung bình hiện tại
     const currentAverageCost = await this.getWeightedAverageCost(productId);
-    
+
     // Lấy các lô hàng theo thứ tự FIFO (First In, First Out)
-     const batches = await this.inventoryBatchRepository.find({
-       where: { 
-         productId,
-         remainingQuantity: MoreThan(0)
-       },
-       order: { createdAt: 'ASC' }, // FIFO: lô cũ nhất trước
-     });
+    const batches = await this.inventoryBatchRepository.find({
+      where: {
+        productId,
+        remainingQuantity: MoreThan(0),
+      },
+      order: { createdAt: 'ASC' }, // FIFO: lô cũ nhất trước
+    });
 
     let remainingToDeduct = quantity;
     let totalCostValue = 0;
@@ -452,16 +499,19 @@ export class InventoryService {
     for (const batch of batches) {
       if (remainingToDeduct <= 0) break;
 
-      const deductFromBatch = Math.min(remainingToDeduct, batch.remainingQuantity);
+      const deductFromBatch = Math.min(
+        remainingToDeduct,
+        batch.remainingQuantity,
+      );
       const batchCostValue = deductFromBatch * parseFloat(batch.unitCostPrice);
-      
+
       // Cập nhật số lượng còn lại trong lô
       batch.remainingQuantity -= deductFromBatch;
       await this.inventoryBatchRepository.save(batch);
-      
+
       totalCostValue += batchCostValue;
       remainingToDeduct -= deductFromBatch;
-      
+
       affectedBatches.push({
         batchId: batch.id,
         deductedQuantity: deductFromBatch,
@@ -472,7 +522,7 @@ export class InventoryService {
 
     // Tính số lượng tồn kho mới
     const newTotalQuantity = currentInventory.totalQuantity - quantity;
-    
+
     // Tạo giao dịch xuất kho
     const transactionData: CreateInventoryTransactionDto = {
       productId,
@@ -487,274 +537,295 @@ export class InventoryService {
       createdByUserId: 1, // TODO: Lấy từ context
       ...(referenceId && { referenceId }),
     };
-    
+
     const transaction = await this.createTransaction(transactionData);
 
     return {
-       transaction,
-       affectedBatches,
-       totalCostValue,
-       averageCostUsed: currentAverageCost,
-       remainingQuantity: newTotalQuantity,
-     };
-   }
+      transaction,
+      affectedBatches,
+      totalCostValue,
+      averageCostUsed: currentAverageCost,
+      remainingQuantity: newTotalQuantity,
+    };
+  }
 
-   /**
-    * Tính lại giá vốn trung bình gia quyền cho sản phẩm
-    * @param productId - ID của sản phẩm
-    * @returns Giá vốn trung bình gia quyền đã được tính lại
-    */
-   async recalculateWeightedAverageCost(productId: number): Promise<{
-     productId: number;
-     previousAverageCost: number;
-     newAverageCost: number;
-     totalQuantity: number;
-     totalValue: number;
-   }> {
-     const previousAverageCost = await this.getWeightedAverageCost(productId);
-     
-     // Lấy tất cả lô hàng còn tồn kho
-     const batches = await this.inventoryBatchRepository.find({
-       where: { 
-         productId,
-         remainingQuantity: MoreThan(0)
-       },
-     });
+  /**
+   * Tính lại giá vốn trung bình gia quyền cho sản phẩm
+   * @param productId - ID của sản phẩm
+   * @returns Giá vốn trung bình gia quyền đã được tính lại
+   */
+  async recalculateWeightedAverageCost(productId: number): Promise<{
+    productId: number;
+    previousAverageCost: number;
+    newAverageCost: number;
+    totalQuantity: number;
+    totalValue: number;
+  }> {
+    const previousAverageCost = await this.getWeightedAverageCost(productId);
 
-     let totalValue = 0;
-     let totalQuantity = 0;
+    // Lấy tất cả lô hàng còn tồn kho
+    const batches = await this.inventoryBatchRepository.find({
+      where: {
+        productId,
+        remainingQuantity: MoreThan(0),
+      },
+    });
 
-     // Tính lại tổng giá trị và số lượng
-     for (const batch of batches) {
-       const batchValue = batch.remainingQuantity * parseFloat(batch.unitCostPrice);
-       totalValue += batchValue;
-       totalQuantity += batch.remainingQuantity;
-     }
+    let totalValue = 0;
+    let totalQuantity = 0;
 
-     const newAverageCost = totalQuantity > 0 ? totalValue / totalQuantity : 0;
+    // Tính lại tổng giá trị và số lượng
+    for (const batch of batches) {
+      const batchValue =
+        batch.remainingQuantity * parseFloat(batch.unitCostPrice);
+      totalValue += batchValue;
+      totalQuantity += batch.remainingQuantity;
+    }
 
-     return {
-       productId,
-       previousAverageCost,
-       newAverageCost,
-       totalQuantity,
-       totalValue,
-     };
-   }
+    const newAverageCost = totalQuantity > 0 ? totalValue / totalQuantity : 0;
 
-   /**
-    * Lấy báo cáo giá trị tồn kho theo phương pháp weighted average cost
-    * @param productIds - Danh sách ID sản phẩm (tùy chọn, nếu không có sẽ lấy tất cả)
-    * @returns Báo cáo giá trị tồn kho
-    */
-   async getInventoryValueReport(productIds?: number[]) {
-      let whereCondition: any = {
-        remainingQuantity: MoreThan(0)
-      };
-      
-      if (productIds && productIds.length > 0) {
-        whereCondition.productId = In(productIds);
-      }
+    return {
+      productId,
+      previousAverageCost,
+      newAverageCost,
+      totalQuantity,
+      totalValue,
+    };
+  }
 
-      // Lấy tất cả lô hàng còn tồn kho
-      const batches = await this.inventoryBatchRepository.find({
-        where: whereCondition,
-        relations: ['product'], // Giả sử có relation với Product
-      });
+  /**
+   * Lấy báo cáo giá trị tồn kho theo phương pháp weighted average cost
+   * @param productIds - Danh sách ID sản phẩm (tùy chọn, nếu không có sẽ lấy tất cả)
+   * @returns Báo cáo giá trị tồn kho
+   */
+  async getInventoryValueReport(productIds?: number[]) {
+    let whereCondition: any = {
+      remainingQuantity: MoreThan(0),
+    };
 
-     // Nhóm theo sản phẩm
-     
-     const productGroups: Record<number, ProductGroup> = batches.reduce((groups, batch) => {
-       const productId = batch.productId;
-       if (!groups[productId]) {
-         groups[productId] = {
-           productId,
-           batches: [],
-           totalQuantity: 0,
-           totalValue: 0,
-           weightedAverageCost: 0,
-         };
-       }
-       
-       const batchValue = batch.remainingQuantity * parseFloat(batch.unitCostPrice);
-       const batchData: any = {
-         batchId: batch.id,
-         batchCode: batch.batchCode || '',
-         quantity: batch.remainingQuantity,
-         unitCost: parseFloat(batch.unitCostPrice),
-         totalValue: batchValue,
-       };
-       if (batch.expiryDate) {
-         batchData.expiryDate = batch.expiryDate;
-       }
-       groups[productId].batches.push(batchData);
-       
-       groups[productId].totalQuantity += batch.remainingQuantity;
-       groups[productId].totalValue += batchValue;
-       
-       return groups;
-     }, {} as Record<number, ProductGroup>);
+    if (productIds && productIds.length > 0) {
+      whereCondition.productId = In(productIds);
+    }
 
-     // Tính weighted average cost cho từng sản phẩm
-     const report = Object.values(productGroups).map((group) => {
-       group.weightedAverageCost = group.totalQuantity > 0 ? group.totalValue / group.totalQuantity : 0;
-       return group;
-     });
+    // Lấy tất cả lô hàng còn tồn kho
+    const batches = await this.inventoryBatchRepository.find({
+      where: whereCondition,
+      relations: ['product'], // Giả sử có relation với Product
+    });
 
-     // Tính tổng cộng
-     const totalSummary = {
-       totalProducts: report.length,
-       totalQuantity: report.reduce((sum, item) => sum + item.totalQuantity, 0),
-       totalValue: report.reduce((sum, item) => sum + item.totalValue, 0),
-       overallAverageCost: 0,
-     };
-     
-     totalSummary.overallAverageCost = totalSummary.totalQuantity > 0 
-       ? totalSummary.totalValue / totalSummary.totalQuantity 
-       : 0;
+    // Nhóm theo sản phẩm
 
-     return {
-       summary: totalSummary,
-       products: report,
-       generatedAt: new Date(),
-     };
-   }
+    const productGroups: Record<number, ProductGroup> = batches.reduce(
+      (groups, batch) => {
+        const productId = batch.productId;
+        if (!groups[productId]) {
+          groups[productId] = {
+            productId,
+            batches: [],
+            totalQuantity: 0,
+            totalValue: 0,
+            weightedAverageCost: 0,
+          };
+        }
 
-   /**
-    * Lấy cảnh báo tồn kho thấp
-    * @param minimumQuantity - Số lượng tối thiểu để cảnh báo (mặc định: 10)
-    * @returns Danh sách sản phẩm có tồn kho thấp
-    */
-   async getLowStockAlert(minimumQuantity: number = 10) {
-     // Lấy tất cả lô hàng còn tồn kho
-     const batches = await this.inventoryBatchRepository.find({
-       where: {
-         remainingQuantity: MoreThan(0)
-       },
-       relations: ['product'], // Giả sử có relation với Product
-     });
+        const batchValue =
+          batch.remainingQuantity * parseFloat(batch.unitCostPrice);
+        const batchData: any = {
+          batchId: batch.id,
+          batchCode: batch.batchCode || '',
+          quantity: batch.remainingQuantity,
+          unitCost: parseFloat(batch.unitCostPrice),
+          totalValue: batchValue,
+        };
+        if (batch.expiryDate) {
+          batchData.expiryDate = batch.expiryDate;
+        }
+        groups[productId].batches.push(batchData);
 
-     // Định nghĩa interface cho stock data đã được import
+        groups[productId].totalQuantity += batch.remainingQuantity;
+        groups[productId].totalValue += batchValue;
+
+        return groups;
+      },
+      {} as Record<number, ProductGroup>,
+    );
+
+    // Tính weighted average cost cho từng sản phẩm
+    const report = Object.values(productGroups).map((group) => {
+      group.weightedAverageCost =
+        group.totalQuantity > 0 ? group.totalValue / group.totalQuantity : 0;
+      return group;
+    });
+
+    // Tính tổng cộng
+    const totalSummary = {
+      totalProducts: report.length,
+      totalQuantity: report.reduce((sum, item) => sum + item.totalQuantity, 0),
+      totalValue: report.reduce((sum, item) => sum + item.totalValue, 0),
+      overallAverageCost: 0,
+    };
+
+    totalSummary.overallAverageCost =
+      totalSummary.totalQuantity > 0
+        ? totalSummary.totalValue / totalSummary.totalQuantity
+        : 0;
+
+    return {
+      summary: totalSummary,
+      products: report,
+      generatedAt: new Date(),
+    };
+  }
+
+  /**
+   * Lấy cảnh báo tồn kho thấp
+   * @param minimumQuantity - Số lượng tối thiểu để cảnh báo (mặc định: 10)
+   * @returns Danh sách sản phẩm có tồn kho thấp
+   */
+  async getLowStockAlert(minimumQuantity: number = 10) {
+    // Lấy tất cả lô hàng còn tồn kho
+    const batches = await this.inventoryBatchRepository.find({
+      where: {
+        remainingQuantity: MoreThan(0),
+      },
+      relations: ['product'], // Giả sử có relation với Product
+    });
+
+    // Định nghĩa interface cho stock data đã được import
 
     // Nhóm theo sản phẩm và tính tổng tồn kho
-    const productStocks: Record<number, StockData> = batches.reduce((stocks, batch) => {
-      const productId = batch.productId;
-      if (!stocks[productId]) {
-        stocks[productId] = {
-          productId,
-          totalQuantity: 0,
-          weightedAverageCost: 0,
-          batches: [],
+    const productStocks: Record<number, StockData> = batches.reduce(
+      (stocks, batch) => {
+        const productId = batch.productId;
+        if (!stocks[productId]) {
+          stocks[productId] = {
+            productId,
+            totalQuantity: 0,
+            weightedAverageCost: 0,
+            batches: [],
+          };
+        }
+
+        stocks[productId].totalQuantity += batch.remainingQuantity;
+        const stockBatchData: any = {
+          batchId: batch.id,
+          batchCode: batch.batchCode || '',
+          quantity: batch.remainingQuantity,
+          unitCost: parseFloat(batch.unitCostPrice),
         };
+        if (batch.expiryDate) {
+          stockBatchData.expiryDate = batch.expiryDate;
+        }
+        stocks[productId].batches.push(stockBatchData);
+
+        return stocks;
+      },
+      {} as Record<number, StockData>,
+    );
+
+    // Tính weighted average cost và lọc sản phẩm có tồn kho thấp
+    const lowStockProducts: LowStockProduct[] = [];
+
+    for (const productId in productStocks) {
+      const stock = productStocks[productId];
+      if (!stock) continue; // Kiểm tra null safety
+
+      // Tính weighted average cost
+      let totalValue = 0;
+      for (const batch of stock.batches) {
+        totalValue += batch.quantity * batch.unitCost;
       }
-      
-      stocks[productId].totalQuantity += batch.remainingQuantity;
-      const stockBatchData: any = {
+      stock.weightedAverageCost =
+        stock.totalQuantity > 0 ? totalValue / stock.totalQuantity : 0;
+
+      // Kiểm tra tồn kho thấp
+      if (stock.totalQuantity <= minimumQuantity) {
+        lowStockProducts.push({
+          ...stock,
+          alertLevel: stock.totalQuantity === 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK',
+          recommendedReorder: minimumQuantity * 2, // Gợi ý đặt hàng gấp đôi mức tối thiểu
+        });
+      }
+    }
+
+    return {
+      alertCount: lowStockProducts.length,
+      minimumQuantity,
+      products: lowStockProducts.sort(
+        (a, b) => a.totalQuantity - b.totalQuantity,
+      ), // Sắp xếp theo mức độ nghiêm trọng
+      generatedAt: new Date(),
+    };
+  }
+
+  /**
+   * Lấy cảnh báo lô hàng sắp hết hạn
+   * @param daysBeforeExpiry - Số ngày trước khi hết hạn để cảnh báo (mặc định: 30)
+   * @returns Danh sách lô hàng sắp hết hạn
+   */
+  async getExpiringBatchesAlert(daysBeforeExpiry: number = 30) {
+    const alertDate = new Date();
+    alertDate.setDate(alertDate.getDate() + daysBeforeExpiry);
+
+    // Lấy các lô hàng có ngày hết hạn trong khoảng cảnh báo
+    const expiringBatches = await this.inventoryBatchRepository
+      .createQueryBuilder('batch')
+      .where('batch.remainingQuantity > 0')
+      .andWhere('batch.expiryDate IS NOT NULL')
+      .andWhere('batch.expiryDate <= :alertDate', { alertDate })
+      .orderBy('batch.expiryDate', 'ASC')
+      .getMany();
+
+    const processedBatches = expiringBatches.map((batch) => {
+      const daysUntilExpiry = Math.ceil(
+        (new Date(batch.expiryDate!).getTime() - new Date().getTime()) /
+          (1000 * 60 * 60 * 24),
+      );
+
+      let alertLevel = 'WARNING';
+      if (daysUntilExpiry <= 0) {
+        alertLevel = 'EXPIRED';
+      } else if (daysUntilExpiry <= 7) {
+        alertLevel = 'CRITICAL';
+      } else if (daysUntilExpiry <= 15) {
+        alertLevel = 'HIGH';
+      }
+
+      return {
         batchId: batch.id,
-        batchCode: batch.batchCode || '',
-        quantity: batch.remainingQuantity,
-        unitCost: parseFloat(batch.unitCostPrice),
+        productId: batch.productId,
+        batchCode: batch.batchCode,
+        remainingQuantity: batch.remainingQuantity,
+        unitCostPrice: parseFloat(batch.unitCostPrice),
+        totalValue: batch.remainingQuantity * parseFloat(batch.unitCostPrice),
+        expiryDate: batch.expiryDate,
+        daysUntilExpiry,
+        alertLevel,
       };
-      if (batch.expiryDate) {
-        stockBatchData.expiryDate = batch.expiryDate;
-      }
-      stocks[productId].batches.push(stockBatchData);
-      
-      return stocks;
-    }, {} as Record<number, StockData>);
+    });
 
-     // Tính weighted average cost và lọc sản phẩm có tồn kho thấp
-     const lowStockProducts: LowStockProduct[] = [];
-     
-     for (const productId in productStocks) {
-       const stock = productStocks[productId];
-       if (!stock) continue; // Kiểm tra null safety
-       
-       // Tính weighted average cost
-       let totalValue = 0;
-       for (const batch of stock.batches) {
-         totalValue += batch.quantity * batch.unitCost;
-       }
-       stock.weightedAverageCost = stock.totalQuantity > 0 ? totalValue / stock.totalQuantity : 0;
-       
-       // Kiểm tra tồn kho thấp
-       if (stock.totalQuantity <= minimumQuantity) {
-         lowStockProducts.push({
-           ...stock,
-           alertLevel: stock.totalQuantity === 0 ? 'OUT_OF_STOCK' : 'LOW_STOCK',
-           recommendedReorder: minimumQuantity * 2, // Gợi ý đặt hàng gấp đôi mức tối thiểu
-         });
-       }
-     }
+    // Tính tổng giá trị có thể bị mất
+    const totalValueAtRisk = processedBatches.reduce(
+      (sum, batch) => sum + batch.totalValue,
+      0,
+    );
+    const expiredBatches = processedBatches.filter(
+      (batch) => batch.alertLevel === 'EXPIRED',
+    );
+    const criticalBatches = processedBatches.filter(
+      (batch) => batch.alertLevel === 'CRITICAL',
+    );
 
-     return {
-       alertCount: lowStockProducts.length,
-       minimumQuantity,
-       products: lowStockProducts.sort((a, b) => a.totalQuantity - b.totalQuantity), // Sắp xếp theo mức độ nghiêm trọng
-       generatedAt: new Date(),
-     };
-   }
-
-   /**
-    * Lấy cảnh báo lô hàng sắp hết hạn
-    * @param daysBeforeExpiry - Số ngày trước khi hết hạn để cảnh báo (mặc định: 30)
-    * @returns Danh sách lô hàng sắp hết hạn
-    */
-   async getExpiringBatchesAlert(daysBeforeExpiry: number = 30) {
-     const alertDate = new Date();
-     alertDate.setDate(alertDate.getDate() + daysBeforeExpiry);
-
-     // Lấy các lô hàng có ngày hết hạn trong khoảng cảnh báo
-     const expiringBatches = await this.inventoryBatchRepository
-       .createQueryBuilder('batch')
-       .where('batch.remainingQuantity > 0')
-       .andWhere('batch.expiryDate IS NOT NULL')
-       .andWhere('batch.expiryDate <= :alertDate', { alertDate })
-       .orderBy('batch.expiryDate', 'ASC')
-       .getMany();
-
-     const processedBatches = expiringBatches.map(batch => {
-       const daysUntilExpiry = Math.ceil(
-         (new Date(batch.expiryDate!).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
-       );
-       
-       let alertLevel = 'WARNING';
-       if (daysUntilExpiry <= 0) {
-         alertLevel = 'EXPIRED';
-       } else if (daysUntilExpiry <= 7) {
-         alertLevel = 'CRITICAL';
-       } else if (daysUntilExpiry <= 15) {
-         alertLevel = 'HIGH';
-       }
-
-       return {
-         batchId: batch.id,
-         productId: batch.productId,
-         batchCode: batch.batchCode,
-         remainingQuantity: batch.remainingQuantity,
-         unitCostPrice: parseFloat(batch.unitCostPrice),
-         totalValue: batch.remainingQuantity * parseFloat(batch.unitCostPrice),
-         expiryDate: batch.expiryDate,
-         daysUntilExpiry,
-         alertLevel,
-       };
-     });
-
-     // Tính tổng giá trị có thể bị mất
-     const totalValueAtRisk = processedBatches.reduce((sum, batch) => sum + batch.totalValue, 0);
-     const expiredBatches = processedBatches.filter(batch => batch.alertLevel === 'EXPIRED');
-     const criticalBatches = processedBatches.filter(batch => batch.alertLevel === 'CRITICAL');
-
-     return {
-       alertCount: processedBatches.length,
-       expiredCount: expiredBatches.length,
-       criticalCount: criticalBatches.length,
-       totalValueAtRisk,
-       daysBeforeExpiry,
-       batches: processedBatches,
-       generatedAt: new Date(),
-     };
-   }
+    return {
+      alertCount: processedBatches.length,
+      expiredCount: expiredBatches.length,
+      criticalCount: criticalBatches.length,
+      totalValueAtRisk,
+      daysBeforeExpiry,
+      batches: processedBatches,
+      generatedAt: new Date(),
+    };
+  }
 
   // Inventory Receipt methods
   /**
@@ -809,7 +880,9 @@ export class InventoryService {
    * @param receiptCode - Mã của phiếu nhập kho cần tìm
    * @returns Thông tin phiếu nhập kho
    */
-  async findReceiptByCode(receiptCode: string): Promise<InventoryReceipt | null> {
+  async findReceiptByCode(
+    receiptCode: string,
+  ): Promise<InventoryReceipt | null> {
     return this.inventoryReceiptRepository.findOne({
       where: { receiptCode },
       relations: ['items'], // Bao gồm cả các item trong phiếu
@@ -874,7 +947,10 @@ export class InventoryService {
    * @param reason - Lý do hủy phiếu nhập kho
    * @returns Thông tin phiếu nhập kho đã hủy
    */
-  async cancelReceipt(id: number, reason: string): Promise<InventoryReceipt | null> {
+  async cancelReceipt(
+    id: number,
+    reason: string,
+  ): Promise<InventoryReceipt | null> {
     const receipt = await this.findReceiptById(id);
     if (!receipt) {
       return null;
@@ -917,5 +993,40 @@ export class InventoryService {
    */
   async removeReceiptItem(id: number) {
     await this.inventoryReceiptItemRepository.delete(id);
+  }
+
+  /**
+   * Lấy thông tin giá nhập của sản phẩm bao gồm giá nhập mới nhất và giá nhập trung bình
+   * @param productId - ID của sản phẩm
+   * @returns Thông tin giá nhập của sản phẩm
+   */
+  async getProductPurchasePrices(productId: number): Promise<{
+    latestPurchasePrice: number | null;
+    averageCostPrice: number;
+  }> {
+    const latestPurchasePrice = await this.getLatestPurchasePrice(productId);
+    const product = await this.productService.findOne(productId);
+
+    return {
+      latestPurchasePrice,
+      averageCostPrice: product ? parseFloat(product.averageCostPrice) : 0,
+    };
+  }
+
+  /**
+   * Lấy giá nhập mới nhất của sản phẩm từ các phiếu nhập kho
+   * @param productId - ID của sản phẩm
+   * @returns Giá nhập mới nhất hoặc null nếu chưa có lần nhập nào
+   */
+  async getLatestPurchasePrice(productId: number): Promise<number | null> {
+    const latestReceiptItem = await this.inventoryReceiptItemRepository
+      .createQueryBuilder('item')
+      .innerJoin('item.receipt', 'receipt')
+      .where('item.productId = :productId', { productId })
+      .andWhere('receipt.status = :status', { status: 'completed' }) // Chỉ lấy từ các phiếu đã hoàn thành
+      .orderBy('receipt.createdAt', 'DESC')
+      .getOne();
+
+    return latestReceiptItem ? latestReceiptItem.unitCost : null;
   }
 }

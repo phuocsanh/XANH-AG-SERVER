@@ -30,31 +30,45 @@ async function bootstrap() {
 
   // Cấu hình CORS nghiêm ngặt hơn
   const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3000';
-  app.enableCors({
-    origin: corsOrigin.split(','), // Hỗ trợ nhiều domain
+  const corsOptions = {
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
     credentials: true, // Cho phép gửi cookies
     optionsSuccessStatus: 200, // Tương thích với IE11
-  });
+  };
+
+  // Xử lý trường hợp cho phép tất cả các nguồn (*)
+  if (corsOrigin === '*') {
+    app.enableCors({
+      ...corsOptions,
+      origin: true, // Cho phép tất cả các nguồn
+    });
+  } else {
+    app.enableCors({
+      ...corsOptions,
+      origin: corsOrigin.split(','), // Hỗ trợ nhiều domain cụ thể
+    });
+  }
 
   // Đăng ký global validation pipe để tự động xác thực dữ liệu đầu vào
-  app.useGlobalPipes(new ValidationPipe({
-    transform: true, // Tự động chuyển đổi dữ liệu theo DTO
-    whitelist: true, // Loại bỏ các thuộc tính không có trong DTO
-    forbidNonWhitelisted: true, // Báo lỗi nếu có thuộc tính không được định nghĩa trong DTO
-    transformOptions: {
-      enableImplicitConversion: true, // Tự động convert kiểu dữ liệu
-    },
-    validationError: {
-      target: false, // Không trả về target object trong error
-      value: false, // Không trả về giá trị trong error (bảo mật)
-    },
-    exceptionFactory: (errors) => {
-      // Custom error factory để format lỗi validation
-      return new ValidationPipe().createExceptionFactory()(errors);
-    },
-  }));
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true, // Tự động chuyển đổi dữ liệu theo DTO
+      whitelist: true, // Loại bỏ các thuộc tính không có trong DTO
+      forbidNonWhitelisted: true, // Báo lỗi nếu có thuộc tính không được định nghĩa trong DTO
+      transformOptions: {
+        enableImplicitConversion: true, // Tự động convert kiểu dữ liệu
+      },
+      validationError: {
+        target: false, // Không trả về target object trong error
+        value: false, // Không trả về giá trị trong error (bảo mật)
+      },
+      exceptionFactory: (errors) => {
+        // Custom error factory để format lỗi validation
+        return new ValidationPipe().createExceptionFactory()(errors);
+      },
+    }),
+  );
 
   // Sử dụng middleware để ghi log các request
   app.use(loggingMiddleware);

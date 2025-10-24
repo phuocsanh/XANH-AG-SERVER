@@ -15,7 +15,10 @@ import { CreateInventoryTransactionDto } from './dto/create-inventory-transactio
 import { CreateInventoryReceiptDto } from './dto/create-inventory-receipt.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { InventoryReceiptItem } from '../../entities/inventory-receipt-items.entity';
-import { ProductGroup, StockData } from './interfaces/inventory-report.interface';
+import {
+  ProductGroup,
+  StockData,
+} from './interfaces/inventory-report.interface';
 
 /**
  * Controller xử lý các request liên quan đến quản lý kho hàng
@@ -162,21 +165,24 @@ export class InventoryController {
    * @returns Kết quả xử lý nhập kho
    */
   @Post('stock-in')
-  processStockIn(@Body() stockInData: {
-    productId: number;
-    quantity: number;
-    unitCost: number;
-    receiptItemId?: number;
-    batchCode?: string;
-    expiryDate?: Date;
-  }) {
+  processStockIn(
+    @Body()
+    stockInData: {
+      productId: number;
+      quantity: number;
+      unitCost: number;
+      receiptItemId?: number;
+      batchCode?: string;
+      expiryDate?: Date;
+    },
+  ) {
     return this.inventoryService.processStockIn(
       stockInData.productId,
       stockInData.quantity,
       stockInData.unitCost,
       stockInData.receiptItemId,
       stockInData.batchCode,
-      stockInData.expiryDate
+      stockInData.expiryDate,
     );
   }
 
@@ -186,19 +192,22 @@ export class InventoryController {
    * @returns Kết quả xử lý xuất kho
    */
   @Post('stock-out')
-  processStockOut(@Body() stockOutData: {
-    productId: number;
-    quantity: number;
-    referenceType: string;
-    referenceId?: number;
-    notes?: string;
-  }) {
+  processStockOut(
+    @Body()
+    stockOutData: {
+      productId: number;
+      quantity: number;
+      referenceType: string;
+      referenceId?: number;
+      notes?: string;
+    },
+  ) {
     return this.inventoryService.processStockOut(
       stockOutData.productId,
       stockOutData.quantity,
       stockOutData.referenceType,
       stockOutData.referenceId,
-      stockOutData.notes
+      stockOutData.notes,
     );
   }
 
@@ -228,7 +237,7 @@ export class InventoryController {
     products: ProductGroup[];
     generatedAt: Date;
   }> {
-    const ids = productIds ? productIds.split(',').map(id => +id) : undefined;
+    const ids = productIds ? productIds.split(',').map((id) => +id) : undefined;
     return this.inventoryService.getInventoryValueReport(ids);
   }
 
@@ -241,7 +250,9 @@ export class InventoryController {
   getLowStockAlert(@Query('threshold') threshold?: string): Promise<{
     alertCount: number;
     minimumQuantity: number;
-    products: Array<StockData & { alertLevel: string; recommendedReorder: number }>;
+    products: Array<
+      StockData & { alertLevel: string; recommendedReorder: number }
+    >;
     generatedAt: Date;
   }> {
     const thresholdValue = threshold ? +threshold : 10;
@@ -268,7 +279,7 @@ export class InventoryController {
   @Get('fifo-cost/product/:productId')
   calculateFifoCost(
     @Param('productId') productId: string,
-    @Query('quantity') quantity: string
+    @Query('quantity') quantity: string,
   ) {
     return this.inventoryService.calculateFifoCost(+productId, +quantity);
   }
@@ -421,5 +432,25 @@ export class InventoryController {
   @Delete('receipt/item/:id')
   removeReceiptItem(@Param('id') id: string) {
     return this.inventoryService.removeReceiptItem(+id);
+  }
+
+  /**
+   * Lấy thông tin giá nhập của sản phẩm bao gồm giá nhập mới nhất và giá nhập trung bình
+   * @param productId - ID của sản phẩm
+   * @returns Thông tin giá nhập của sản phẩm
+   */
+  @Get('purchase-prices/product/:productId')
+  getProductPurchasePrices(@Param('productId') productId: string) {
+    return this.inventoryService.getProductPurchasePrices(+productId);
+  }
+
+  /**
+   * Lấy giá nhập mới nhất của sản phẩm từ các phiếu nhập kho
+   * @param productId - ID của sản phẩm
+   * @returns Giá nhập mới nhất hoặc null nếu chưa có lần nhập nào
+   */
+  @Get('latest-purchase-price/product/:productId')
+  getLatestPurchasePrice(@Param('productId') productId: string) {
+    return this.inventoryService.getLatestPurchasePrice(+productId);
   }
 }
