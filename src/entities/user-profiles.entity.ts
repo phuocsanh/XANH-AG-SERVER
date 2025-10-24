@@ -1,4 +1,12 @@
-import { Entity, Column, PrimaryColumn, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  DeleteDateColumn,
+} from 'typeorm';
+import { BaseStatus } from './base-status.enum';
 
 /**
  * Entity biểu diễn thông tin chi tiết profile của người dùng
@@ -22,9 +30,13 @@ export class UserProfile {
   @Column({ name: 'user_avatar', nullable: true })
   userAvatar?: string;
 
-  /** Trạng thái người dùng (1: hoạt động, 0: không hoạt động) */
-  @Column({ name: 'user_state' })
-  userState!: number;
+  /** Trạng thái người dùng sử dụng enum chung */
+  @Column({
+    type: 'enum',
+    enum: BaseStatus,
+    default: BaseStatus.ACTIVE,
+  })
+  status!: BaseStatus;
 
   /** Số điện thoại di động của người dùng */
   @Column({ name: 'user_mobile', nullable: true })

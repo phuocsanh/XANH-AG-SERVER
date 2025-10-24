@@ -8,6 +8,7 @@ import { FertilizerProductFactory } from './factories/fertilizer-product.factory
 import { PesticideProductFactory } from './factories/pesticide-product.factory';
 import { FileTrackingModule } from '../file-tracking/file-tracking.module';
 import { InventoryModule } from '../inventory/inventory.module';
+import { UnitModule } from '../unit/unit.module';
 
 /**
  * Module quản lý sản phẩm
@@ -21,6 +22,8 @@ import { InventoryModule } from '../inventory/inventory.module';
     FileTrackingModule,
     // Import InventoryModule để sử dụng InventoryService
     InventoryModule,
+    // Import UnitModule để sử dụng UnitService
+    UnitModule,
   ],
   controllers: [ProductController], // Controller xử lý các request liên quan đến sản phẩm
   providers: [

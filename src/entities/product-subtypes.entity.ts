@@ -6,15 +6,7 @@ import {
   UpdateDateColumn,
   DeleteDateColumn,
 } from 'typeorm';
-
-/**
- * Enum định nghĩa các trạng thái của loại phụ sản phẩm
- */
-export enum ProductSubtypeStatus {
-  ACTIVE = 'active',      // Loại phụ sản phẩm đang hoạt động
-  INACTIVE = 'inactive',  // Loại phụ sản phẩm tạm ngưng
-  ARCHIVED = 'archived',  // Loại phụ sản phẩm đã lưu trữ
-}
+import { BaseStatus } from './base-status.enum';
 
 /**
  * Entity biểu diễn thông tin loại phụ sản phẩm
@@ -42,13 +34,13 @@ export class ProductSubtype {
   @Column({ name: 'description', nullable: true })
   description?: string;
 
-  /** Trạng thái của loại phụ sản phẩm */
+  /** Trạng thái của loại phụ sản phẩm sử dụng enum chung */
   @Column({
     type: 'enum',
-    enum: ProductSubtypeStatus,
-    default: ProductSubtypeStatus.ACTIVE,
+    enum: BaseStatus,
+    default: BaseStatus.ACTIVE,
   })
-  status!: ProductSubtypeStatus;
+  status!: BaseStatus;
 
   /** Thời gian tạo loại phụ sản phẩm */
   @CreateDateColumn({ name: 'created_at' })

@@ -1,5 +1,5 @@
 import { IsString, IsOptional, IsEnum } from 'class-validator';
-import { ProductTypeStatus } from '../../../entities/product-types.entity';
+import { BaseStatus } from '../../../entities/base-status.enum';
 
 /**
  * DTO cho việc tạo loại sản phẩm mới
@@ -21,6 +21,6 @@ export class CreateProductTypeDto {
 
   /** Trạng thái của loại sản phẩm (mặc định: active) */
   @IsOptional()
-  @IsEnum(ProductTypeStatus)
-  status?: ProductTypeStatus;
+  @IsEnum(BaseStatus)
+  status?: BaseStatus;
 }

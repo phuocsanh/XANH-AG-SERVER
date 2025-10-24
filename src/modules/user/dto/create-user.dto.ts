@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsOptional, IsEmail } from 'class-validator';
+import { IsString, IsOptional, IsEmail } from 'class-validator';
 
 /**
  * DTO (Data Transfer Object) dùng để tạo người dùng mới
@@ -22,9 +22,4 @@ export class CreateUserDto {
   @IsOptional()
   @IsEmail()
   userEmail?: string;
-
-  /** Trạng thái người dùng (tùy chọn) */
-  @IsOptional()
-  @IsNumber()
-  userState?: number;
 }

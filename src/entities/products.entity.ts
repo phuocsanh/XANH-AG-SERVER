@@ -5,16 +5,11 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   DeleteDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
-
-/**
- * Enum định nghĩa các trạng thái của sản phẩm
- */
-export enum ProductStatus {
-  ACTIVE = 'active', // Sản phẩm đang hoạt động
-  INACTIVE = 'inactive', // Sản phẩm tạm ngưng
-  ARCHIVED = 'archived', // Sản phẩm đã lưu trữ
-}
+import { Unit } from './unit.entity';
+import { BaseStatus } from './base-status.enum';
 
 /**
  * Entity biểu diễn thông tin sản phẩm trong hệ thống
@@ -34,13 +29,13 @@ export class Product {
   @Column({ name: 'product_price' })
   productPrice!: string;
 
-  /** Trạng thái sản phẩm mới sử dụng enum */
+  /** Trạng thái sản phẩm sử dụng enum chung */
   @Column({
     type: 'enum',
-    enum: ProductStatus,
-    default: ProductStatus.ACTIVE,
+    enum: BaseStatus,
+    default: BaseStatus.ACTIVE,
   })
-  status!: ProductStatus;
+  status!: BaseStatus;
 
   /** Đường dẫn thumbnail của sản phẩm */
   @Column({ name: 'product_thumb' })
@@ -104,14 +99,6 @@ export class Product {
   })
   productAttributes?: any;
 
-  /** Trạng thái nháp (true: nháp, false: không phải nháp) */
-  @Column({ name: 'is_draft', nullable: true })
-  isDraft?: boolean;
-
-  /** Trạng thái đã xuất bản (true: đã xuất bản, false: chưa xuất bản) */
-  @Column({ name: 'is_published', nullable: true })
-  isPublished?: boolean;
-
   /** Phần trăm lợi nhuận */
   @Column({ name: 'profit_margin_percent' })
   profitMarginPercent!: string;
@@ -133,8 +120,13 @@ export class Product {
   deletedAt?: Date;
 
   /** Đơn vị tính của sản phẩm */
-  @Column({ name: 'unit', nullable: true })
-  unit?: string;
+  @Column({ name: 'unit_id', nullable: true })
+  unitId?: number;
+
+  /** Mối quan hệ nhiều-một với đơn vị tính */
+  @ManyToOne(() => Unit, { nullable: true })
+  @JoinColumn({ name: 'unit_id' })
+  unit?: Unit;
 
   /** Giá nhập mới nhất của sản phẩm */
   @Column({ name: 'latest_purchase_price', nullable: true })

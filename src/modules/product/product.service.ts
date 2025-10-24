@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Product, ProductStatus } from '../../entities/products.entity';
+import { Product } from '../../entities/products.entity';
+import { BaseStatus } from '../../entities/base-status.enum';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductFactoryRegistry } from './factories/product-factory.registry';
@@ -49,13 +50,14 @@ export class ProductService {
   }
 
   /**
-   * Lấy danh sách tất cả sản phẩm (chỉ các bản ghi chưa bị soft delete)
+   * Lấy danh sách tất cả sản phẩm (chỉ các bản ghi chưa bị soft delete và đang hoạt động)
    * @returns Danh sách sản phẩm
    */
   async findAll(): Promise<Product[]> {
     return this.productRepository
       .createQueryBuilder('product')
-      .where('product.deletedAt IS NULL')
+      .where('product.status = :status', { status: BaseStatus.ACTIVE })
+      .andWhere('product.deletedAt IS NULL')
       .getMany();
   }
 
@@ -64,7 +66,7 @@ export class ProductService {
    * @param status - Trạng thái cần lọc (active, inactive, archived)
    * @returns Danh sách sản phẩm theo trạng thái
    */
-  async findByStatus(status: ProductStatus): Promise<Product[]> {
+  async findByStatus(status: BaseStatus): Promise<Product[]> {
     return this.productRepository
       .createQueryBuilder('product')
       .where('product.status = :status', { status })
@@ -128,7 +130,7 @@ export class ProductService {
    * @returns Thông tin sản phẩm đã kích hoạt
    */
   async activate(id: number): Promise<Product | null> {
-    await this.productRepository.update(id, { status: ProductStatus.ACTIVE });
+    await this.productRepository.update(id, { status: BaseStatus.ACTIVE });
     return this.findOne(id);
   }
 
@@ -138,7 +140,7 @@ export class ProductService {
    * @returns Thông tin sản phẩm đã vô hiệu hóa
    */
   async deactivate(id: number): Promise<Product | null> {
-    await this.productRepository.update(id, { status: ProductStatus.INACTIVE });
+    await this.productRepository.update(id, { status: BaseStatus.INACTIVE });
     return this.findOne(id);
   }
 
@@ -148,7 +150,7 @@ export class ProductService {
    * @returns Thông tin sản phẩm đã lưu trữ
    */
   async archive(id: number): Promise<Product | null> {
-    await this.productRepository.update(id, { status: ProductStatus.ARCHIVED });
+    await this.productRepository.update(id, { status: BaseStatus.ARCHIVED });
     return this.findOne(id);
   }
 
@@ -186,7 +188,7 @@ export class ProductService {
   }
 
   /**
-   * Tìm kiếm sản phẩm theo từ khóa (chỉ các bản ghi chưa bị soft delete)
+   * Tìm kiếm sản phẩm theo từ khóa (chỉ các bản ghi chưa bị soft delete và đang hoạt động)
    * @param query - Từ khóa tìm kiếm
    * @returns Danh sách sản phẩm phù hợp
    */
@@ -197,12 +199,13 @@ export class ProductService {
       .orWhere('product.productDescription ILIKE :query', {
         query: `%${query}%`,
       })
+      .andWhere('product.status = :status', { status: BaseStatus.ACTIVE })
       .andWhere('product.deletedAt IS NULL')
       .getMany();
   }
 
   /**
-   * Tìm sản phẩm theo loại sản phẩm (chỉ các bản ghi chưa bị soft delete)
+   * Tìm sản phẩm theo loại sản phẩm (chỉ các bản ghi chưa bị soft delete và đang hoạt động)
    * @param productType - ID loại sản phẩm
    * @returns Danh sách sản phẩm thuộc loại đó
    */
@@ -210,6 +213,7 @@ export class ProductService {
     return this.productRepository
       .createQueryBuilder('product')
       .where('product.productType = :productType', { productType })
+      .andWhere('product.status = :status', { status: BaseStatus.ACTIVE })
       .andWhere('product.deletedAt IS NULL')
       .getMany();
   }

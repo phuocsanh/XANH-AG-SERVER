@@ -1,13 +1,12 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
-
-/**
- * Enum định nghĩa các trạng thái của người dùng
- */
-export enum UserStatus {
-  ACTIVE = 'active',      // Người dùng đang hoạt động
-  INACTIVE = 'inactive',  // Người dùng tạm ngưng
-  ARCHIVED = 'archived',  // Người dùng đã lưu trữ
-}
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  DeleteDateColumn,
+} from 'typeorm';
+import { BaseStatus } from './base-status.enum';
 
 /**
  * Entity biểu diễn thông tin người dùng trong hệ thống
@@ -43,13 +42,13 @@ export class User {
   @Column({ name: 'user_login_ip', nullable: true })
   userLoginIp?: string;
 
-  /** Trạng thái người dùng sử dụng enum */
+  /** Trạng thái người dùng sử dụng enum chung */
   @Column({
     type: 'enum',
-    enum: UserStatus,
-    default: UserStatus.ACTIVE,
+    enum: BaseStatus,
+    default: BaseStatus.ACTIVE,
   })
-  status!: UserStatus;
+  status!: BaseStatus;
 
   /** Thời gian tạo tài khoản người dùng */
   @CreateDateColumn({ name: 'user_created_at' })

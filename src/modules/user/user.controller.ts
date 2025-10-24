@@ -12,7 +12,7 @@ import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { UserStatus } from '../../entities/users.entity';
+import { BaseStatus } from '../../entities/base-status.enum';
 
 /**
  * Controller xử lý các request liên quan đến người dùng
@@ -64,7 +64,7 @@ export class UserController {
    * @returns Danh sách người dùng có trạng thái tương ứng
    */
   @Get('status/:status')
-  findByStatus(@Param('status') status: UserStatus) {
+  findByStatus(@Param('status') status: BaseStatus) {
     return this.userService.findByStatus(status);
   }
 

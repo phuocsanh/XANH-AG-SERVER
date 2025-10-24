@@ -28,7 +28,8 @@
     "migration:run": "npm run typeorm migration:run -- -d ormconfig.ts",
     "migration:generate": "npm run typeorm migration:generate -- -d ormconfig.ts",
     "migration:create": "npm run typeorm migration:create -- -d ormconfig.ts",
-    "migration:revert": "npm run typeorm migration:revert -- -d ormconfig.ts"
+    "migration:revert": "npm run typeorm migration:revert -- -d ormconfig.ts",
+    "seed:units": "ts-node src/database/seeds/run-unit-seeder.ts"
   },
   "keywords": [],
   "author": "",

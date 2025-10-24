@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { ProductSubtype, ProductSubtypeStatus } from '../../entities/product-subtypes.entity';
+import { ProductSubtype } from '../../entities/product-subtypes.entity';
+import { BaseStatus } from '../../entities/base-status.enum';
 import { CreateProductSubtypeDto } from './dto/create-product-subtype.dto';
 import { UpdateProductSubtypeDto } from './dto/update-product-subtype.dto';
 import { FileTrackingService } from '../file-tracking/file-tracking.service';
@@ -19,11 +20,6 @@ export class ProductSubtypeService {
   ) {}
 
   /**
-   * Tạo loại phụ sản phẩm mới
-   * @param createProductSubtypeDto - Dữ liệu tạo loại phụ sản phẩm mới
-   * @returns Thông tin loại phụ sản phẩm đã tạo
-   */
-  /**
    * Tạo mới loại phụ sản phẩm
    * @param createProductSubtypeDto - Dữ liệu tạo loại phụ sản phẩm
    * @returns Thông tin loại phụ sản phẩm đã tạo
@@ -33,12 +29,12 @@ export class ProductSubtypeService {
   ): Promise<ProductSubtype> {
     const productSubtype = new ProductSubtype();
     Object.assign(productSubtype, createProductSubtypeDto);
-    
+
     // Đặt giá trị mặc định cho status nếu không được cung cấp
     if (!productSubtype.status) {
-      productSubtype.status = ProductSubtypeStatus.ACTIVE;
+      productSubtype.status = BaseStatus.ACTIVE;
     }
-    
+
     const savedProductSubtype =
       await this.productSubtypeRepository.save(productSubtype);
     return savedProductSubtype;
@@ -50,21 +46,22 @@ export class ProductSubtypeService {
    * @returns Danh sách loại phụ sản phẩm
    */
   async findAll(includeInactive: boolean = false): Promise<ProductSubtype[]> {
-    const queryBuilder = this.productSubtypeRepository.createQueryBuilder('productSubtype');
-    
+    const queryBuilder =
+      this.productSubtypeRepository.createQueryBuilder('productSubtype');
+
     // Loại bỏ các bản ghi đã bị soft delete
     queryBuilder.where('productSubtype.deletedAt IS NULL');
-    
+
     if (!includeInactive) {
-      queryBuilder.andWhere('productSubtype.status = :status', { 
-        status: ProductSubtypeStatus.ACTIVE 
+      queryBuilder.andWhere('productSubtype.status = :status', {
+        status: BaseStatus.ACTIVE,
       });
     } else {
-      queryBuilder.andWhere('productSubtype.status IN (:...statuses)', { 
-        statuses: [ProductSubtypeStatus.ACTIVE, ProductSubtypeStatus.INACTIVE] 
+      queryBuilder.andWhere('productSubtype.status IN (:...statuses)', {
+        statuses: [BaseStatus.ACTIVE, BaseStatus.INACTIVE],
       });
     }
-    
+
     return queryBuilder.getMany();
   }
 
@@ -74,21 +71,25 @@ export class ProductSubtypeService {
    * @param includeInactive - Có bao gồm các bản ghi inactive không (mặc định: false)
    * @returns Danh sách loại phụ sản phẩm thuộc loại sản phẩm đó
    */
-  async findByProductType(productTypeId: number, includeInactive: boolean = false): Promise<ProductSubtype[]> {
-    const queryBuilder = this.productSubtypeRepository.createQueryBuilder('productSubtype')
+  async findByProductType(
+    productTypeId: number,
+    includeInactive: boolean = false,
+  ): Promise<ProductSubtype[]> {
+    const queryBuilder = this.productSubtypeRepository
+      .createQueryBuilder('productSubtype')
       .where('productSubtype.productTypeId = :productTypeId', { productTypeId })
       .andWhere('productSubtype.deletedAt IS NULL');
-    
+
     if (!includeInactive) {
-      queryBuilder.andWhere('productSubtype.status = :status', { 
-        status: ProductSubtypeStatus.ACTIVE 
+      queryBuilder.andWhere('productSubtype.status = :status', {
+        status: BaseStatus.ACTIVE,
       });
     } else {
-      queryBuilder.andWhere('productSubtype.status IN (:...statuses)', { 
-        statuses: [ProductSubtypeStatus.ACTIVE, ProductSubtypeStatus.INACTIVE] 
+      queryBuilder.andWhere('productSubtype.status IN (:...statuses)', {
+        statuses: [BaseStatus.ACTIVE, BaseStatus.INACTIVE],
       });
     }
-    
+
     return queryBuilder.getMany();
   }
 
@@ -98,14 +99,18 @@ export class ProductSubtypeService {
    * @param withDeleted - Có bao gồm bản ghi đã bị soft delete không (mặc định: false)
    * @returns Thông tin loại phụ sản phẩm hoặc null nếu không tìm thấy
    */
-  async findOne(id: number, withDeleted: boolean = false): Promise<ProductSubtype | null> {
-    const queryBuilder = this.productSubtypeRepository.createQueryBuilder('productSubtype')
+  async findOne(
+    id: number,
+    withDeleted: boolean = false,
+  ): Promise<ProductSubtype | null> {
+    const queryBuilder = this.productSubtypeRepository
+      .createQueryBuilder('productSubtype')
       .where('productSubtype.id = :id', { id });
-    
+
     if (withDeleted) {
       queryBuilder.withDeleted();
     }
-    
+
     return queryBuilder.getOne();
   }
 
@@ -129,8 +134,8 @@ export class ProductSubtypeService {
    * @returns Thông tin loại phụ sản phẩm đã kích hoạt
    */
   async activate(id: number): Promise<ProductSubtype | null> {
-    await this.productSubtypeRepository.update(id, { 
-      status: ProductSubtypeStatus.ACTIVE,
+    await this.productSubtypeRepository.update(id, {
+      status: BaseStatus.ACTIVE,
     });
     return this.findOne(id);
   }
@@ -141,8 +146,8 @@ export class ProductSubtypeService {
    * @returns Thông tin loại phụ sản phẩm đã vô hiệu hóa
    */
   async deactivate(id: number): Promise<ProductSubtype | null> {
-    await this.productSubtypeRepository.update(id, { 
-      status: ProductSubtypeStatus.INACTIVE,
+    await this.productSubtypeRepository.update(id, {
+      status: BaseStatus.INACTIVE,
     });
     return this.findOne(id);
   }
@@ -153,8 +158,8 @@ export class ProductSubtypeService {
    * @returns Thông tin loại phụ sản phẩm đã lưu trữ
    */
   async archive(id: number): Promise<ProductSubtype | null> {
-    await this.productSubtypeRepository.update(id, { 
-      status: ProductSubtypeStatus.ARCHIVED,
+    await this.productSubtypeRepository.update(id, {
+      status: BaseStatus.ARCHIVED,
     });
     return this.findOne(id);
   }
@@ -183,8 +188,11 @@ export class ProductSubtypeService {
    */
   async remove(id: number): Promise<void> {
     // Xóa tất cả file references liên quan đến loại phụ sản phẩm trước khi xóa
-    await this.fileTrackingService.batchRemoveEntityFileReferences('ProductSubtype', id);
-    
+    await this.fileTrackingService.batchRemoveEntityFileReferences(
+      'ProductSubtype',
+      id,
+    );
+
     // Hard delete loại phụ sản phẩm
     await this.productSubtypeRepository.delete(id);
   }
@@ -194,7 +202,8 @@ export class ProductSubtypeService {
    * @returns Danh sách loại phụ sản phẩm đã bị soft delete
    */
   async findDeleted(): Promise<ProductSubtype[]> {
-    return this.productSubtypeRepository.createQueryBuilder('productSubtype')
+    return this.productSubtypeRepository
+      .createQueryBuilder('productSubtype')
       .withDeleted()
       .where('productSubtype.deletedAt IS NOT NULL')
       .getMany();
@@ -205,11 +214,12 @@ export class ProductSubtypeService {
    * @param status - Trạng thái cần lọc
    * @returns Danh sách loại phụ sản phẩm có trạng thái đó
    */
-  async findByStatus(status: ProductSubtypeStatus): Promise<ProductSubtype[]> {
-    const queryBuilder = this.productSubtypeRepository.createQueryBuilder('productSubtype')
+  async findByStatus(status: BaseStatus): Promise<ProductSubtype[]> {
+    const queryBuilder = this.productSubtypeRepository
+      .createQueryBuilder('productSubtype')
       .where('productSubtype.status = :status', { status })
       .andWhere('productSubtype.deletedAt IS NULL');
-    
+
     return queryBuilder.getMany();
   }
 }

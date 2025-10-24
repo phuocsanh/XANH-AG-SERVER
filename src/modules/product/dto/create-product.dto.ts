@@ -5,7 +5,7 @@ import {
   IsArray,
   IsEnum,
 } from 'class-validator';
-import { ProductStatus } from '../../../entities/products.entity';
+import { BaseStatus } from '../../../entities/base-status.enum';
 
 /**
  * DTO (Data Transfer Object) dùng để tạo sản phẩm mới
@@ -22,11 +22,11 @@ export class CreateProductDto {
 
   /** Trạng thái sản phẩm mới sử dụng enum (tùy chọn) */
   @IsOptional()
-  @IsEnum(ProductStatus, {
+  @IsEnum(BaseStatus, {
     message:
       'Trạng thái phải là một trong các giá trị: active, inactive, archived',
   })
-  status?: ProductStatus;
+  status?: BaseStatus;
 
   /** Đường dẫn thumbnail của sản phẩm (bắt buộc) */
   @IsString()
@@ -89,8 +89,8 @@ export class CreateProductDto {
 
   /** Đơn vị tính của sản phẩm (tùy chọn) */
   @IsOptional()
-  @IsString()
-  unit?: string;
+  @IsNumber()
+  unitId?: number;
 
   /** Giá nhập mới nhất của sản phẩm (tùy chọn) */
   @IsOptional()

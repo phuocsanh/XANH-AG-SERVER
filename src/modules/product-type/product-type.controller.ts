@@ -10,7 +10,7 @@ import {
 import { ProductTypeService } from './product-type.service';
 import { CreateProductTypeDto } from './dto/create-product-type.dto';
 import { UpdateProductTypeDto } from './dto/update-product-type.dto';
-import { ProductTypeStatus } from '../../entities/product-types.entity';
+import { BaseStatus } from '../../entities/base-status.enum';
 
 /**
  * Controller xử lý các request liên quan đến loại sản phẩm
@@ -50,7 +50,7 @@ export class ProductTypeController {
    * @returns Danh sách loại sản phẩm theo trạng thái
    */
   @Get('by-status/:status')
-  findByStatus(@Param('status') status: ProductTypeStatus) {
+  findByStatus(@Param('status') status: BaseStatus) {
     return this.productTypeService.findByStatus(status);
   }
 

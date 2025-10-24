@@ -10,7 +10,7 @@ import {
 import { ProductSubtypeService } from './product-subtype.service';
 import { CreateProductSubtypeDto } from './dto/create-product-subtype.dto';
 import { UpdateProductSubtypeDto } from './dto/update-product-subtype.dto';
-import { ProductSubtypeStatus } from '../../entities/product-subtypes.entity';
+import { BaseStatus } from '../../entities/base-status.enum';
 
 /**
  * Controller xử lý các request liên quan đến loại phụ sản phẩm
@@ -51,7 +51,7 @@ export class ProductSubtypeController {
    * @returns Danh sách loại phụ sản phẩm theo trạng thái
    */
   @Get('by-status/:status')
-  findByStatus(@Param('status') status: ProductSubtypeStatus) {
+  findByStatus(@Param('status') status: BaseStatus) {
     return this.productSubtypeService.findByStatus(status);
   }
 

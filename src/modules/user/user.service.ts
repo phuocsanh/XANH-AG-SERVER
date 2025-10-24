@@ -2,8 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull } from 'typeorm';
 import * as bcrypt from 'bcrypt';
-import { User, UserStatus } from '../../entities/users.entity';
+import { User } from '../../entities/users.entity';
 import { UserProfile } from '../../entities/user-profiles.entity';
+import { BaseStatus } from '../../entities/base-status.enum';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -41,6 +42,7 @@ export class UserService {
       userAccount: createUserDto.userAccount,
       userPassword: createUserDto.userPassword, // Password đã được hash từ AuthService
       userSalt: createUserDto.userSalt || '', // Use empty string if salt is not provided
+      status: BaseStatus.ACTIVE, // Sử dụng BaseStatus thay vì UserStatus
     });
     const savedUser = await this.userRepository.save(user);
 
@@ -48,15 +50,16 @@ export class UserService {
     const userProfileData: Partial<UserProfile> = {
       userId: savedUser.userId,
       userAccount: createUserDto.userAccount,
-      userState: createUserDto.userState || 1,
+      // userState: createUserDto.userState || 1, // Xóa dòng này vì UserProfile đã có status
       userIsAuthentication: 0,
+      status: BaseStatus.ACTIVE, // Thêm status cho UserProfile
     };
-    
+
     // Chỉ thêm userEmail nếu có giá trị
     if (createUserDto.userEmail) {
       userProfileData.userEmail = createUserDto.userEmail;
     }
-    
+
     const userProfile = this.userProfileRepository.create(userProfileData);
     await this.userProfileRepository.save(userProfile);
 
@@ -69,10 +72,10 @@ export class UserService {
    */
   async findAll(): Promise<User[]> {
     const users = await this.userRepository.find({
-      where: { deletedAt: IsNull() }
+      where: { deletedAt: IsNull() },
     });
     // Loại bỏ password khỏi response để bảo mật
-    return users.map(user => {
+    return users.map((user) => {
       const { userPassword, ...userWithoutPassword } = user;
       return userWithoutPassword as User;
     });
@@ -84,8 +87,8 @@ export class UserService {
    * @returns Thông tin người dùng (không bao gồm password) hoặc null nếu không tìm thấy
    */
   async findOne(userId: number): Promise<User | null> {
-    const user = await this.userRepository.findOne({ 
-      where: { userId, deletedAt: IsNull() } 
+    const user = await this.userRepository.findOne({
+      where: { userId, deletedAt: IsNull() },
     });
     if (user) {
       // Loại bỏ password khỏi response để bảo mật
@@ -109,12 +112,12 @@ export class UserService {
    * @param status - Trạng thái cần lọc
    * @returns Danh sách người dùng có trạng thái tương ứng
    */
-  async findByStatus(status: UserStatus): Promise<User[]> {
+  async findByStatus(status: BaseStatus): Promise<User[]> {
     const users = await this.userRepository.find({
-      where: { status, deletedAt: IsNull() }
+      where: { status, deletedAt: IsNull() },
     });
     // Loại bỏ password khỏi response để bảo mật
-    return users.map(user => {
+    return users.map((user) => {
       const { userPassword, ...userWithoutPassword } = user;
       return userWithoutPassword as User;
     });
@@ -126,11 +129,11 @@ export class UserService {
    */
   async findDeleted(): Promise<User[]> {
     const users = await this.userRepository.find({
-      withDeleted: true
+      withDeleted: true,
     });
-    const deletedUsers = users.filter(user => user.deletedAt !== null);
+    const deletedUsers = users.filter((user) => user.deletedAt !== null);
     // Loại bỏ password khỏi response để bảo mật
-    return deletedUsers.map(user => {
+    return deletedUsers.map((user) => {
       const { userPassword, ...userWithoutPassword } = user;
       return userWithoutPassword as User;
     });
@@ -142,7 +145,10 @@ export class UserService {
    * @param updateUserDto - Dữ liệu cập nhật người dùng
    * @returns Thông tin người dùng đã cập nhật
    */
-  async update(userId: number, updateUserDto: UpdateUserDto): Promise<User | null> {
+  async update(
+    userId: number,
+    updateUserDto: UpdateUserDto,
+  ): Promise<User | null> {
     await this.userRepository.update(userId, updateUserDto);
     return this.findOne(userId);
   }
@@ -202,32 +208,32 @@ export class UserService {
   }
 
   /**
-   * Kích hoạt người dùng (chuyển trạng thái thành ACTIVE)
+   * Kích hoạt người dùng
    * @param userId - ID của người dùng cần kích hoạt
-   * @returns Thông tin người dùng đã được kích hoạt
+   * @returns Thông tin người dùng đã kích hoạt
    */
   async activate(userId: number): Promise<User | null> {
-    await this.userRepository.update(userId, { status: UserStatus.ACTIVE });
+    await this.userRepository.update(userId, { status: BaseStatus.ACTIVE });
     return this.findOne(userId);
   }
 
   /**
-   * Vô hiệu hóa người dùng (chuyển trạng thái thành INACTIVE)
+   * Vô hiệu hóa người dùng
    * @param userId - ID của người dùng cần vô hiệu hóa
-   * @returns Thông tin người dùng đã được vô hiệu hóa
+   * @returns Thông tin người dùng đã vô hiệu hóa
    */
   async deactivate(userId: number): Promise<User | null> {
-    await this.userRepository.update(userId, { status: UserStatus.INACTIVE });
+    await this.userRepository.update(userId, { status: BaseStatus.INACTIVE });
     return this.findOne(userId);
   }
 
   /**
-   * Lưu trữ người dùng (chuyển trạng thái thành ARCHIVED)
+   * Lưu trữ người dùng
    * @param userId - ID của người dùng cần lưu trữ
-   * @returns Thông tin người dùng đã được lưu trữ
+   * @returns Thông tin người dùng đã lưu trữ
    */
   async archive(userId: number): Promise<User | null> {
-    await this.userRepository.update(userId, { status: UserStatus.ARCHIVED });
+    await this.userRepository.update(userId, { status: BaseStatus.ARCHIVED });
     return this.findOne(userId);
   }
 
@@ -241,11 +247,11 @@ export class UserService {
     if (!user) {
       return null;
     }
-    
+
     await this.userRepository.softDelete(userId);
-    return this.userRepository.findOne({ 
-      where: { userId }, 
-      withDeleted: true 
+    return this.userRepository.findOne({
+      where: { userId },
+      withDeleted: true,
     });
   }
 

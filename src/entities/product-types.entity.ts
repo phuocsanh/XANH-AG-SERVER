@@ -6,15 +6,7 @@ import {
   UpdateDateColumn,
   DeleteDateColumn,
 } from 'typeorm';
-
-/**
- * Enum định nghĩa các trạng thái của loại sản phẩm
- */
-export enum ProductTypeStatus {
-  ACTIVE = 'active',
-  INACTIVE = 'inactive',
-  ARCHIVED = 'archived',
-}
+import { BaseStatus } from './base-status.enum';
 
 /**
  * Entity biểu diễn thông tin loại sản phẩm
@@ -38,14 +30,14 @@ export class ProductType {
   @Column({ name: 'description', nullable: true })
   description?: string;
 
-  /** Trạng thái của loại sản phẩm (active, inactive, archived) */
+  /** Trạng thái của loại sản phẩm sử dụng enum chung */
   @Column({
     name: 'status',
     type: 'enum',
-    enum: ProductTypeStatus,
-    default: ProductTypeStatus.ACTIVE,
+    enum: BaseStatus,
+    default: BaseStatus.ACTIVE,
   })
-  status!: ProductTypeStatus;
+  status!: BaseStatus;
 
   /** Thời gian tạo loại sản phẩm */
   @CreateDateColumn({ name: 'created_at' })

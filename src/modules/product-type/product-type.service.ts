@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { ProductType, ProductTypeStatus } from '../../entities/product-types.entity';
+import { ProductType } from '../../entities/product-types.entity';
+import { BaseStatus } from '../../entities/base-status.enum';
 import { CreateProductTypeDto } from './dto/create-product-type.dto';
 import { UpdateProductTypeDto } from './dto/update-product-type.dto';
 import { FileTrackingService } from '../file-tracking/file-tracking.service';
@@ -28,7 +29,9 @@ export class ProductTypeService {
    * @param createProductTypeDto - Dữ liệu tạo loại sản phẩm mới
    * @returns Thông tin loại sản phẩm đã tạo
    */
-  async create(createProductTypeDto: CreateProductTypeDto): Promise<ProductType> {
+  async create(
+    createProductTypeDto: CreateProductTypeDto,
+  ): Promise<ProductType> {
     const productType = new ProductType();
     Object.assign(productType, createProductTypeDto);
     const savedProductType = await this.productTypeRepository.save(productType);
@@ -40,7 +43,8 @@ export class ProductTypeService {
    * @returns Danh sách loại sản phẩm
    */
   async findAll(): Promise<ProductType[]> {
-    return this.productTypeRepository.createQueryBuilder('productType')
+    return this.productTypeRepository
+      .createQueryBuilder('productType')
       .where('productType.deletedAt IS NULL')
       .getMany();
   }
@@ -50,8 +54,9 @@ export class ProductTypeService {
    * @param status - Trạng thái cần lọc (active, inactive, archived)
    * @returns Danh sách loại sản phẩm theo trạng thái
    */
-  async findByStatus(status: ProductTypeStatus): Promise<ProductType[]> {
-    return this.productTypeRepository.createQueryBuilder('productType')
+  async findByStatus(status: BaseStatus): Promise<ProductType[]> {
+    return this.productTypeRepository
+      .createQueryBuilder('productType')
       .where('productType.status = :status', { status })
       .andWhere('productType.deletedAt IS NULL')
       .getMany();
@@ -63,7 +68,8 @@ export class ProductTypeService {
    * @returns Thông tin loại sản phẩm hoặc null nếu không tìm thấy
    */
   async findOne(id: number): Promise<ProductType | null> {
-    return this.productTypeRepository.createQueryBuilder('productType')
+    return this.productTypeRepository
+      .createQueryBuilder('productType')
       .where('productType.id = :id', { id })
       .andWhere('productType.deletedAt IS NULL')
       .getOne();
@@ -90,7 +96,7 @@ export class ProductTypeService {
    */
   async activate(id: number): Promise<ProductType | null> {
     await this.productTypeRepository.update(id, {
-      status: ProductTypeStatus.ACTIVE,
+      status: BaseStatus.ACTIVE,
     });
     return this.findOne(id);
   }
@@ -102,7 +108,7 @@ export class ProductTypeService {
    */
   async deactivate(id: number): Promise<ProductType | null> {
     await this.productTypeRepository.update(id, {
-      status: ProductTypeStatus.INACTIVE,
+      status: BaseStatus.INACTIVE,
     });
     return this.findOne(id);
   }
@@ -114,7 +120,7 @@ export class ProductTypeService {
    */
   async archive(id: number): Promise<ProductType | null> {
     await this.productTypeRepository.update(id, {
-      status: ProductTypeStatus.ARCHIVED,
+      status: BaseStatus.ARCHIVED,
     });
     return this.findOne(id);
   }
@@ -143,8 +149,11 @@ export class ProductTypeService {
    */
   async remove(id: number): Promise<void> {
     // Xóa tất cả file references liên quan đến loại sản phẩm trước khi xóa
-    await this.fileTrackingService.batchRemoveEntityFileReferences('ProductType', id);
-    
+    await this.fileTrackingService.batchRemoveEntityFileReferences(
+      'ProductType',
+      id,
+    );
+
     // Xóa vĩnh viễn loại sản phẩm
     await this.productTypeRepository.delete(id);
   }

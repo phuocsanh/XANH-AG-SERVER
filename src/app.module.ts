@@ -17,6 +17,7 @@ import { WeatherForecast } from './entities/weather-forecast.entity';
 import { RiceMarketData } from './entities/rice-market.entity';
 import typeOrmConfig from './config/typeorm.config';
 import { CompatibilityMixingPesticidesModule } from './modules/ai-compatibility-mixing-pesticides/compatibility-mixing-pesticides.module';
+import { UnitModule } from './modules/unit/unit.module';
 
 /**
  * Module chính của ứng dụng NestJS
@@ -72,6 +73,7 @@ import { CompatibilityMixingPesticidesModule } from './modules/ai-compatibility-
     AiAnalysisModule, // Module phân tích AI thị trường lúa gạo
     WeatherForecastModule, // Module dự báo thời tiết
     CompatibilityMixingPesticidesModule, // Module AI đọc tài liệu và trả lời câu hỏi
+    UnitModule, // Module quản lý đơn vị tính
   ],
   controllers: [], // Các controller global (nếu có)
   providers: [
