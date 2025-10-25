@@ -5,7 +5,6 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { loggingMiddleware } from './common/middleware/logging.middleware';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
-// import helmet from 'helmet';
 
 /**
  * Hàm khởi tạo ứng dụng NestJS

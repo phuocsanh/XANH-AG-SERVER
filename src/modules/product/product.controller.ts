@@ -15,7 +15,6 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { BaseStatus } from '../../entities/base-status.enum';
 import { InventoryService } from '../inventory/inventory.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { ProductTypeService } from '../product-type/product-type.service';
 
 /**
  * Controller xử lý các request liên quan đến sản phẩm
@@ -31,7 +30,6 @@ export class ProductController {
   constructor(
     private readonly productService: ProductService,
     private readonly inventoryService: InventoryService,
-    private readonly productTypeService: ProductTypeService,
   ) {}
 
   /**
@@ -42,19 +40,6 @@ export class ProductController {
   @Post()
   create(@Body() createProductDto: CreateProductDto) {
     return this.productService.create(createProductDto);
-  }
-
-  /**
-   * Endpoint test để kiểm tra chuyển đổi ngày tháng
-   * @param testData - Dữ liệu test chứa ngày tháng
-   * @returns Thông tin về việc chuyển đổi ngày tháng
-   */
-  @Post('test-date')
-  testDate(@Body() testData: any) {
-    console.log('Test Date DTO:', testData);
-    console.log('myDate type:', typeof testData.myDate);
-    console.log('myDate instanceof Date:', testData.myDate instanceof Date);
-    return { success: true, data: testData };
   }
 
   /**
@@ -84,29 +69,6 @@ export class ProductController {
   @Get('search')
   search(@Query('q') query: string) {
     return this.productService.searchProducts(query);
-  }
-
-  /**
-   * Lấy danh sách tất cả loại sản phẩm
-   * @returns Danh sách loại sản phẩm
-   */
-  @Get('type')
-  findAllProductTypes() {
-    return this.productTypeService.findAll();
-  }
-
-  /**
-   * Lấy danh sách sản phẩm theo loại sản phẩm
-   * @param productType - ID loại sản phẩm
-   * @returns Danh sách sản phẩm thuộc loại đó
-   */
-  @Get('type/:productType')
-  findByType(@Param('productType') productType: string) {
-    const type = +productType;
-    if (isNaN(type)) {
-      throw new Error('Invalid product type ID');
-    }
-    return this.productService.findByType(type);
   }
 
   /**
