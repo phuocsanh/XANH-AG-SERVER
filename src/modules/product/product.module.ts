@@ -9,6 +9,7 @@ import { PesticideProductFactory } from './factories/pesticide-product.factory';
 import { FileTrackingModule } from '../file-tracking/file-tracking.module';
 import { InventoryModule } from '../inventory/inventory.module';
 import { UnitModule } from '../unit/unit.module';
+import { ProductTypeModule } from '../product-type/product-type.module';
 
 /**
  * Module quản lý sản phẩm
@@ -24,6 +25,8 @@ import { UnitModule } from '../unit/unit.module';
     InventoryModule,
     // Import UnitModule để sử dụng UnitService
     UnitModule,
+    // Import ProductTypeModule để sử dụng ProductTypeService
+    ProductTypeModule,
   ],
   controllers: [ProductController], // Controller xử lý các request liên quan đến sản phẩm
   providers: [

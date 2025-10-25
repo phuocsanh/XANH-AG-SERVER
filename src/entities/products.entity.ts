@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { Unit } from './unit.entity';
 import { BaseStatus } from './base-status.enum';
+import { Symbol } from './symbols.entity';
 
 /**
  * Entity biểu diễn thông tin sản phẩm trong hệ thống
@@ -131,4 +132,17 @@ export class Product {
   /** Giá nhập mới nhất của sản phẩm */
   @Column({ name: 'latest_purchase_price', nullable: true })
   latestPurchasePrice?: number;
+
+  /** Mã ký hiệu của sản phẩm (liên kết với bảng symbols) */
+  @Column({ name: 'symbol_id', nullable: true })
+  symbolId?: number;
+
+  /** Mối quan hệ nhiều-một với ký hiệu */
+  @ManyToOne(() => Symbol, { nullable: true })
+  @JoinColumn({ name: 'symbol_id' })
+  symbol?: Symbol;
+
+  /** Thành phần nguyên liệu của sản phẩm (mảng chuỗi) */
+  @Column({ name: 'ingredient', type: 'text', array: true, default: [] })
+  ingredient!: string[];
 }

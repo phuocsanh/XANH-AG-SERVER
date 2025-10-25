@@ -96,4 +96,15 @@ export class CreateProductDto {
   @IsOptional()
   @IsNumber()
   latestPurchasePrice?: number;
+
+  /** Mã ký hiệu của sản phẩm (tùy chọn) */
+  @IsOptional()
+  @IsNumber()
+  symbolId?: number;
+
+  /** Thành phần nguyên liệu của sản phẩm (tùy chọn) */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  ingredient?: string[];
 }

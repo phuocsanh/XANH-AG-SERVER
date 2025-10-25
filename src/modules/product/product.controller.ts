@@ -15,6 +15,7 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { BaseStatus } from '../../entities/base-status.enum';
 import { InventoryService } from '../inventory/inventory.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ProductTypeService } from '../product-type/product-type.service';
 
 /**
  * Controller xử lý các request liên quan đến sản phẩm
@@ -30,6 +31,7 @@ export class ProductController {
   constructor(
     private readonly productService: ProductService,
     private readonly inventoryService: InventoryService,
+    private readonly productTypeService: ProductTypeService,
   ) {}
 
   /**
@@ -85,13 +87,40 @@ export class ProductController {
   }
 
   /**
+   * Lấy danh sách tất cả loại sản phẩm
+   * @returns Danh sách loại sản phẩm
+   */
+  @Get('type')
+  findAllProductTypes() {
+    return this.productTypeService.findAll();
+  }
+
+  /**
+   * Lấy danh sách sản phẩm theo loại sản phẩm
+   * @param productType - ID loại sản phẩm
+   * @returns Danh sách sản phẩm thuộc loại đó
+   */
+  @Get('type/:productType')
+  findByType(@Param('productType') productType: string) {
+    const type = +productType;
+    if (isNaN(type)) {
+      throw new Error('Invalid product type ID');
+    }
+    return this.productService.findByType(type);
+  }
+
+  /**
    * Lấy thông tin chi tiết một sản phẩm theo ID
    * @param id - ID của sản phẩm cần tìm
    * @returns Thông tin sản phẩm
    */
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.productService.findOne(+id);
+    const productId = +id;
+    if (isNaN(productId)) {
+      throw new Error('Invalid product ID');
+    }
+    return this.productService.findOne(productId);
   }
 
   /**
@@ -102,6 +131,9 @@ export class ProductController {
   @Get(':id/with-purchase-info')
   async findOneWithPurchaseInfo(@Param('id') id: string) {
     const productId = +id;
+    if (isNaN(productId)) {
+      throw new Error('Invalid product ID');
+    }
     const product = await this.productService.findOne(productId);
 
     if (!product) {
@@ -126,7 +158,11 @@ export class ProductController {
    */
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateProductDto: UpdateProductDto) {
-    return this.productService.update(+id, updateProductDto);
+    const productId = +id;
+    if (isNaN(productId)) {
+      throw new Error('Invalid product ID');
+    }
+    return this.productService.update(productId, updateProductDto);
   }
 
   /**
@@ -136,7 +172,11 @@ export class ProductController {
    */
   @Patch(':id/activate')
   activate(@Param('id') id: string) {
-    return this.productService.activate(+id);
+    const productId = +id;
+    if (isNaN(productId)) {
+      throw new Error('Invalid product ID');
+    }
+    return this.productService.activate(productId);
   }
 
   /**
@@ -146,7 +186,11 @@ export class ProductController {
    */
   @Patch(':id/deactivate')
   deactivate(@Param('id') id: string) {
-    return this.productService.deactivate(+id);
+    const productId = +id;
+    if (isNaN(productId)) {
+      throw new Error('Invalid product ID');
+    }
+    return this.productService.deactivate(productId);
   }
 
   /**
@@ -156,7 +200,11 @@ export class ProductController {
    */
   @Patch(':id/archive')
   archive(@Param('id') id: string) {
-    return this.productService.archive(+id);
+    const productId = +id;
+    if (isNaN(productId)) {
+      throw new Error('Invalid product ID');
+    }
+    return this.productService.archive(productId);
   }
 
   /**
@@ -165,7 +213,11 @@ export class ProductController {
    */
   @Delete(':id/soft')
   softDelete(@Param('id') id: string) {
-    return this.productService.softDelete(+id);
+    const productId = +id;
+    if (isNaN(productId)) {
+      throw new Error('Invalid product ID');
+    }
+    return this.productService.softDelete(productId);
   }
 
   /**
@@ -175,7 +227,11 @@ export class ProductController {
    */
   @Patch(':id/restore')
   restore(@Param('id') id: string) {
-    return this.productService.restore(+id);
+    const productId = +id;
+    if (isNaN(productId)) {
+      throw new Error('Invalid product ID');
+    }
+    return this.productService.restore(productId);
   }
 
   /**
@@ -185,6 +241,10 @@ export class ProductController {
    */
   @Delete(':id')
   remove(@Param('id') id: string) {
-    return this.productService.remove(+id);
+    const productId = +id;
+    if (isNaN(productId)) {
+      throw new Error('Invalid product ID');
+    }
+    return this.productService.remove(productId);
   }
 }
