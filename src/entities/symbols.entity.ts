@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
   DeleteDateColumn,
 } from 'typeorm';
+import { BaseStatus } from './base-status.enum';
 
 /**
  * Entity biểu diễn thông tin mã ký hiệu trong hệ thống
@@ -36,6 +37,15 @@ export class Symbol {
   /** Thời gian cập nhật gần nhất ký hiệu */
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt!: Date;
+
+  /** Trạng thái của ký hiệu sử dụng enum chung */
+  @Column({
+    name: 'status',
+    type: 'enum',
+    enum: BaseStatus,
+    default: BaseStatus.ACTIVE,
+  })
+  status!: BaseStatus;
 
   /** Thời gian xóa mềm (null nếu chưa bị xóa) */
   @DeleteDateColumn({ name: 'deleted_at' })
