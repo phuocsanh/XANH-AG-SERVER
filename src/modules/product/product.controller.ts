@@ -6,8 +6,9 @@ import {
   Patch,
   Param,
   Delete,
-  Query,
   UseGuards,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -15,6 +16,7 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { BaseStatus } from '../../entities/base-status.enum';
 import { InventoryService } from '../inventory/inventory.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { SearchProductDto } from './dto/search-product.dto';
 
 /**
  * Controller xử lý các request liên quan đến sản phẩm
@@ -62,13 +64,20 @@ export class ProductController {
   }
 
   /**
-   * Tìm kiếm sản phẩm theo từ khóa
-   * @param query - Từ khóa tìm kiếm
+   * Tìm kiếm sản phẩm nâng cao với cấu trúc filter lồng nhau
+   * @param searchDto - Điều kiện tìm kiếm
    * @returns Danh sách sản phẩm phù hợp
    */
-  @Get('search')
-  search(@Query('q') query: string) {
-    return this.productService.searchProducts(query);
+  @Post('search')
+  search(@Body() searchDto: SearchProductDto) {
+    try {
+      return this.productService.searchProductsAdvanced(searchDto);
+    } catch (error) {
+      throw new HttpException(
+        'Error occurred while searching products',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   /**

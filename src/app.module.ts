@@ -19,7 +19,6 @@ import typeOrmConfig from './config/typeorm.config';
 import { CompatibilityMixingPesticidesModule } from './modules/ai-compatibility-mixing-pesticides/compatibility-mixing-pesticides.module';
 import { UnitModule } from './modules/unit/unit.module';
 import { SymbolModule } from './modules/symbol/symbol.module';
-import { TestModule } from './modules/test/test.module';
 
 /**
  * Module chính của ứng dụng NestJS
@@ -77,7 +76,6 @@ import { TestModule } from './modules/test/test.module';
     CompatibilityMixingPesticidesModule, // Module AI đọc tài liệu và trả lời câu hỏi
     UnitModule, // Module quản lý đơn vị tính
     SymbolModule, // Module quản lý ký hiệu sản phẩm
-    TestModule, // Module kiểm tra
   ],
   controllers: [], // Các controller global (nếu có)
   providers: [
