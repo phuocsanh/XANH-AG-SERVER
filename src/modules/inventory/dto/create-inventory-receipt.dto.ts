@@ -43,15 +43,9 @@ export class CreateInventoryReceiptDto {
   @IsString()
   receiptCode!: string;
 
-  /** Tên nhà cung cấp (tùy chọn) */
-  @IsString()
-  @IsOptional()
-  supplierName?: string;
-
-  /** Thông tin liên hệ nhà cung cấp (tùy chọn) */
-  @IsString()
-  @IsOptional()
-  supplierContact?: string;
+  /** ID của nhà cung cấp (bắt buộc) */
+  @IsNumber()
+  supplierId!: number;
 
   /** Tổng số tiền của phiếu nhập kho (bắt buộc) */
   @IsNumber()
@@ -65,6 +59,10 @@ export class CreateInventoryReceiptDto {
   /** Trạng thái phiếu nhập kho (draft, approved, completed, cancelled) (bắt buộc) */
   @IsString()
   status!: string;
+
+  /** ID của người tạo phiếu nhập kho (bắt buộc) */
+  @IsNumber()
+  createdBy!: number;
 
   /** Mảng chi tiết phiếu nhập kho (bắt buộc) */
   @IsArray()

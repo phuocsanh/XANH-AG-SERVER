@@ -18,12 +18,12 @@ export class FertilizerProductFactory implements ProductFactory {
     Object.assign(product, dto);
 
     // Gán loại sản phẩm là phân bón (giả sử type 3 là phân bón)
-    product.productType = 3;
+    product.type = 3;
 
     // Xử lý các thuộc tính đặc biệt cho phân bón nếu có
-    if (dto.productAttributes) {
+    if (dto.attributes) {
       // Có thể thêm xử lý đặc biệt cho thuộc tính của phân bón ở đây
-      product.productAttributes = dto.productAttributes;
+      product.attributes = dto.attributes;
     }
 
     return this.productRepository.save(product);

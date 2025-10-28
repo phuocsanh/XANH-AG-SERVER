@@ -15,7 +15,7 @@ import {
   LowStockProduct,
 } from './interfaces/inventory-report.interface';
 import { SearchInventoryDto } from './dto/search-inventory.dto';
-import { FilterConditionDto } from './dto/filter-condition.dto';
+import { FilterConditionDto } from '../supplier/dto/filter-condition.dto';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến quản lý kho hàng
@@ -327,7 +327,7 @@ export class InventoryService {
       averageValue: totalQuantity > 0 ? totalValue / totalQuantity : 0, // Giá trị trung bình
       batches: batches.map((batch) => ({
         id: batch.id,
-        batchCode: batch.batchCode,
+        code: batch.code,
         remainingQuantity: batch.remainingQuantity,
         unitCostPrice: parseFloat(batch.unitCostPrice),
         value: batch.remainingQuantity * parseFloat(batch.unitCostPrice),
@@ -372,7 +372,7 @@ export class InventoryService {
 
       usedBatches.push({
         batchId: batch.id,
-        batchCode: batch.batchCode,
+        code: batch.code,
         quantityUsed: quantityFromBatch,
         unitCostPrice: parseFloat(batch.unitCostPrice),
         totalCost: costFromBatch,
@@ -431,7 +431,7 @@ export class InventoryService {
       return {
         id: batch.id,
         productId: batch.productId,
-        batchCode: batch.batchCode,
+        code: batch.code,
         unitCostPrice: parseFloat(batch.unitCostPrice),
         originalQuantity: batch.originalQuantity,
         remainingQuantity: batch.remainingQuantity,
@@ -503,7 +503,7 @@ export class InventoryService {
    * @param quantity - Số lượng nhập kho
    * @param unitCostPrice - Giá vốn đơn vị
    * @param receiptItemId - ID của item trong phiếu nhập (tùy chọn)
-   * @param batchCode - Mã lô hàng (tùy chọn)
+   * @param code - Mã lô hàng (tùy chọn)
    * @param expiryDate - Ngày hết hạn (tùy chọn)
    * @returns Thông tin giao dịch nhập kho và giá vốn trung bình mới
    */
@@ -512,7 +512,7 @@ export class InventoryService {
     quantity: number,
     unitCostPrice: number,
     receiptItemId?: number,
-    batchCode?: string,
+    code?: string,
     expiryDate?: Date,
   ) {
     // Lấy giá vốn trung bình hiện tại
@@ -532,7 +532,7 @@ export class InventoryService {
     // Tạo lô hàng mới
     const batchData: CreateInventoryBatchDto = {
       productId,
-      batchCode: batchCode || `BATCH_${Date.now()}`,
+      code: code || `BATCH_${Date.now()}`,
       unitCostPrice: unitCostPrice.toString(),
       originalQuantity: quantity,
       remainingQuantity: quantity,
@@ -773,7 +773,7 @@ export class InventoryService {
           batch.remainingQuantity * parseFloat(batch.unitCostPrice);
         const batchData: any = {
           batchId: batch.id,
-          batchCode: batch.batchCode || '',
+          code: batch.code || '',
           quantity: batch.remainingQuantity,
           unitCost: parseFloat(batch.unitCostPrice),
           totalValue: batchValue,
@@ -850,7 +850,7 @@ export class InventoryService {
         stocks[productId].totalQuantity += batch.remainingQuantity;
         const stockBatchData: any = {
           batchId: batch.id,
-          batchCode: batch.batchCode || '',
+          code: batch.code || '',
           quantity: batch.remainingQuantity,
           unitCost: parseFloat(batch.unitCostPrice),
         };
@@ -935,7 +935,7 @@ export class InventoryService {
       return {
         batchId: batch.id,
         productId: batch.productId,
-        batchCode: batch.batchCode,
+        code: batch.code,
         remainingQuantity: batch.remainingQuantity,
         unitCostPrice: parseFloat(batch.unitCostPrice),
         totalValue: batch.remainingQuantity * parseFloat(batch.unitCostPrice),
@@ -978,7 +978,8 @@ export class InventoryService {
     // Tạo phiếu nhập kho
     const receipt = this.inventoryReceiptRepository.create({
       ...createInventoryReceiptDto,
-      createdByUserId: 1, // TODO: Lấy user ID từ context
+      createdBy: createInventoryReceiptDto.createdBy, // Sử dụng createdBy từ DTO
+      updatedBy: createInventoryReceiptDto.createdBy, // Người tạo cũng là người cập nhật đầu tiên
     });
     const savedReceipt = await this.inventoryReceiptRepository.save(receipt);
 
@@ -991,7 +992,11 @@ export class InventoryService {
     );
     await this.inventoryReceiptItemRepository.save(items);
 
-    return savedReceipt;
+    // Trả về phiếu nhập kho với thông tin nhà cung cấp
+    return this.inventoryReceiptRepository.findOne({
+      where: { id: savedReceipt.id },
+      relations: ['supplier'], // Bao gồm thông tin nhà cung cấp
+    });
   }
 
   /**
@@ -1018,14 +1023,12 @@ export class InventoryService {
 
   /**
    * Tìm phiếu nhập kho theo mã
-   * @param receiptCode - Mã của phiếu nhập kho cần tìm
+   * @param code - Mã của phiếu nhập kho cần tìm
    * @returns Thông tin phiếu nhập kho
    */
-  async findReceiptByCode(
-    receiptCode: string,
-  ): Promise<InventoryReceipt | null> {
+  async findReceiptByCode(code: string): Promise<InventoryReceipt | null> {
     return this.inventoryReceiptRepository.findOne({
-      where: { receiptCode },
+      where: { code },
       relations: ['items'], // Bao gồm cả các item trong phiếu
     });
   }

@@ -19,19 +19,19 @@ export class ProductSubtype {
   id!: number;
 
   /** Tên loại phụ sản phẩm */
-  @Column({ name: 'subtype_name' })
-  subtypeName!: string;
+  @Column()
+  name!: string;
 
   /** Mã loại phụ sản phẩm (duy nhất) */
-  @Column({ name: 'subtype_code', unique: true })
-  subtypeCode!: string;
+  @Column({ unique: true })
+  code!: string;
 
   /** ID loại sản phẩm mà loại phụ sản phẩm này thuộc về */
-  @Column({ name: 'product_type_id' })
+  @Column()
   productTypeId!: number;
 
   /** Mô tả loại phụ sản phẩm */
-  @Column({ name: 'description', nullable: true })
+  @Column({ nullable: true })
   description?: string;
 
   /** Trạng thái của loại phụ sản phẩm sử dụng enum chung */

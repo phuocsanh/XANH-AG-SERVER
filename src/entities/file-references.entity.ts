@@ -20,32 +20,32 @@ export class FileReference {
   id!: number;
 
   /** ID của file được tham chiếu */
-  @Column({ name: 'file_id' })
+  @Column()
   fileId!: number;
 
   /** Loại thực thể tham chiếu file (ví dụ: 'product', 'user', 'product_type') */
-  @Column({ name: 'entity_type' })
+  @Column()
   entityType!: string;
 
   /** ID của thực thể tham chiếu file */
-  @Column({ name: 'entity_id' })
+  @Column()
   entityId!: number;
 
   /** Trường cụ thể của thực thể chứa file (ví dụ: 'productThumb', 'productPictures', 'userAvatar') */
-  @Column({ name: 'field_name', nullable: true })
+  @Column({ nullable: true })
   fieldName?: string;
 
   /** Vị trí của file trong mảng (nếu trường là mảng) */
-  @Column({ name: 'array_index', nullable: true })
+  @Column({ nullable: true })
   arrayIndex?: number;
 
   /** ID của người dùng tạo tham chiếu */
-  @Column({ name: 'created_by_user_id', nullable: true })
-  createdByUserId?: number;
+  @Column({ nullable: true })
+  createdBy?: number;
 
   /** ID của người dùng xóa tham chiếu */
-  @Column({ name: 'deleted_by_user_id', nullable: true })
-  deletedByUserId?: number;
+  @Column({ nullable: true })
+  deletedBy?: number;
 
   /** Thời gian tạo tham chiếu */
   @CreateDateColumn({ name: 'created_at' })

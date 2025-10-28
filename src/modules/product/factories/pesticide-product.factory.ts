@@ -18,12 +18,12 @@ export class PesticideProductFactory implements ProductFactory {
     Object.assign(product, dto);
 
     // Gán loại sản phẩm là thuốc trừ sâu (giả sử type 4 là thuốc trừ sâu)
-    product.productType = 4;
+    product.type = 4;
 
     // Xử lý các thuộc tính đặc biệt cho thuốc trừ sâu nếu có
-    if (dto.productAttributes) {
+    if (dto.attributes) {
       // Có thể thêm xử lý đặc biệt cho thuộc tính của thuốc trừ sâu ở đây
-      product.productAttributes = dto.productAttributes;
+      product.attributes = dto.attributes;
     }
 
     return this.productRepository.save(product);

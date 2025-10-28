@@ -19,15 +19,15 @@ export class ProductType {
   id!: number;
 
   /** Tên loại sản phẩm */
-  @Column({ name: 'type_name' })
-  typeName!: string;
+  @Column()
+  name!: string;
 
   /** Mã loại sản phẩm (duy nhất) */
-  @Column({ name: 'type_code', unique: true })
-  typeCode!: string;
+  @Column({ unique: true })
+  code!: string;
 
   /** Mô tả loại sản phẩm */
-  @Column({ name: 'description', nullable: true })
+  @Column({ nullable: true })
   description?: string;
 
   /** Trạng thái của loại sản phẩm sử dụng enum chung */

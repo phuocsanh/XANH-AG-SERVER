@@ -15,20 +15,20 @@ import { BaseStatus } from './base-status.enum';
 @Entity('user_profiles')
 export class UserProfile {
   /** ID của người dùng (khóa chính, tham chiếu đến user_id trong bảng users) */
-  @PrimaryColumn({ name: 'user_id' })
+  @PrimaryColumn({ name: 'id' })
   userId!: number;
 
   /** Tên tài khoản của người dùng */
-  @Column({ name: 'user_account' })
-  userAccount!: string;
+  @Column()
+  account!: string;
 
   /** Biệt danh của người dùng */
-  @Column({ name: 'user_nickname', nullable: true })
-  userNickname?: string;
+  @Column({ nullable: true })
+  nickname?: string;
 
   /** Đường dẫn avatar của người dùng */
-  @Column({ name: 'user_avatar', nullable: true })
-  userAvatar?: string;
+  @Column({ nullable: true })
+  avatar?: string;
 
   /** Trạng thái người dùng sử dụng enum chung */
   @Column({
@@ -39,24 +39,24 @@ export class UserProfile {
   status!: BaseStatus;
 
   /** Số điện thoại di động của người dùng */
-  @Column({ name: 'user_mobile', nullable: true })
-  userMobile?: string;
+  @Column({ nullable: true })
+  mobile?: string;
 
   /** Giới tính của người dùng (1: nam, 2: nữ, 3: khác) */
-  @Column({ name: 'user_gender', nullable: true })
-  userGender?: number;
+  @Column({ nullable: true })
+  gender?: number;
 
   /** Ngày sinh của người dùng */
-  @Column({ name: 'user_birthday', nullable: true })
-  userBirthday?: Date;
+  @Column({ nullable: true })
+  birthday?: Date;
 
   /** Địa chỉ email của người dùng */
-  @Column({ name: 'user_email', nullable: true })
-  userEmail?: string;
+  @Column({ nullable: true })
+  email?: string;
 
   /** Trạng thái xác thực người dùng (0: chưa xác thực, 1: đã xác thực) */
-  @Column({ name: 'user_is_authentication' })
-  userIsAuthentication!: number;
+  @Column()
+  isAuthentication!: number;
 
   /** Thời gian tạo profile người dùng */
   @CreateDateColumn({ name: 'created_at' })

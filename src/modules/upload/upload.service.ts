@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { v2 as cloudinary } from 'cloudinary';
 import { FileTrackingService } from '../file-tracking/file-tracking.service';
 import { UploadResponseDto } from './dto/upload-response.dto';
@@ -6,9 +10,7 @@ import * as fs from 'fs';
 
 @Injectable()
 export class UploadService {
-  constructor(
-    private readonly fileTrackingService: FileTrackingService,
-  ) {
+  constructor(private readonly fileTrackingService: FileTrackingService) {
     // Service khởi tạo với FileTrackingService
   }
 
@@ -19,9 +21,16 @@ export class UploadService {
       }
 
       // Validate file type
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      const allowedTypes = [
+        'image/jpeg',
+        'image/png',
+        'image/gif',
+        'image/webp',
+      ];
       if (!allowedTypes.includes(file.mimetype)) {
-        throw new BadRequestException('Invalid file type. Only images are allowed.');
+        throw new BadRequestException(
+          'Invalid file type. Only images are allowed.',
+        );
       }
 
       // Upload to Cloudinary
@@ -38,19 +47,19 @@ export class UploadService {
       // Save to database via file-tracking service
       const fileUpload = await this.fileTrackingService.create({
         publicId: result.public_id,
-        fileUrl: result.secure_url,
-        fileName: file.originalname,
-        fileType: file.mimetype,
-        fileSize: file.size,
+        url: result.secure_url,
+        name: file.originalname,
+        type: file.mimetype,
+        size: file.size,
       });
 
       return {
         id: fileUpload.id.toString(),
         publicId: fileUpload.publicId,
-        fileUrl: fileUpload.fileUrl,
-        fileName: fileUpload.fileName,
-        fileType: fileUpload.fileType,
-        fileSize: fileUpload.fileSize,
+        url: fileUpload.url,
+        name: fileUpload.name,
+        type: fileUpload.type,
+        size: fileUpload.size,
         createdAt: fileUpload.createdAt,
         updatedAt: fileUpload.updatedAt,
       };
@@ -59,12 +68,13 @@ export class UploadService {
       if (file?.path && fs.existsSync(file.path)) {
         fs.unlinkSync(file.path);
       }
-      
+
       if (error instanceof BadRequestException) {
         throw error;
       }
-      
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       throw new InternalServerErrorException(`Upload failed: ${errorMessage}`);
     }
   }
@@ -89,19 +99,19 @@ export class UploadService {
       // Save to database via file-tracking service
       const fileUpload = await this.fileTrackingService.create({
         publicId: result.public_id,
-        fileUrl: result.secure_url,
-        fileName: file.originalname,
-        fileType: file.mimetype,
-        fileSize: file.size,
+        url: result.secure_url,
+        name: file.originalname,
+        type: file.mimetype,
+        size: file.size,
       });
 
       return {
         id: fileUpload.id.toString(),
         publicId: fileUpload.publicId,
-        fileUrl: fileUpload.fileUrl,
-        fileName: fileUpload.fileName,
-        fileType: fileUpload.fileType,
-        fileSize: fileUpload.fileSize,
+        url: fileUpload.url,
+        name: fileUpload.name,
+        type: fileUpload.type,
+        size: fileUpload.size,
         createdAt: fileUpload.createdAt,
         updatedAt: fileUpload.updatedAt,
       };
@@ -110,43 +120,49 @@ export class UploadService {
       if (file?.path && fs.existsSync(file.path)) {
         fs.unlinkSync(file.path);
       }
-      
+
       if (error instanceof BadRequestException) {
         throw error;
       }
-      
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       throw new InternalServerErrorException(`Upload failed: ${errorMessage}`);
     }
   }
 
-  async deleteFile(publicId: string): Promise<{ success: boolean; message: string }> {
+  async deleteFile(
+    publicId: string,
+  ): Promise<{ success: boolean; message: string }> {
     try {
       // Thử xóa với resource_type 'raw' trước (cho file text/document)
       let result = await cloudinary.uploader.destroy(publicId, {
-        resource_type: 'raw'
+        resource_type: 'raw',
       });
-      
+
       // Nếu không thành công, thử với resource_type 'image'
       if (result.result !== 'ok') {
         result = await cloudinary.uploader.destroy(publicId, {
-          resource_type: 'image'
+          resource_type: 'image',
         });
       }
-      
+
       // Nếu vẫn không thành công, thử với resource_type 'video'
       if (result.result !== 'ok') {
         result = await cloudinary.uploader.destroy(publicId, {
-          resource_type: 'video'
+          resource_type: 'video',
         });
       }
-      
+
       if (result.result !== 'ok') {
-        throw new BadRequestException(`Failed to delete file from Cloudinary: ${result.result}`);
+        throw new BadRequestException(
+          `Failed to delete file from Cloudinary: ${result.result}`,
+        );
       }
 
       // Delete from database
-      const fileToDelete = await this.fileTrackingService.findByPublicId(publicId);
+      const fileToDelete =
+        await this.fileTrackingService.findByPublicId(publicId);
       if (fileToDelete) {
         await this.fileTrackingService.remove(fileToDelete.id);
       }
@@ -159,59 +175,70 @@ export class UploadService {
       if (error instanceof BadRequestException) {
         throw error;
       }
-      
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       throw new InternalServerErrorException(`Delete failed: ${errorMessage}`);
     }
   }
 
-  async markFileAsUsed(publicId: string): Promise<{ success: boolean; message: string }> {
+  async markFileAsUsed(
+    publicId: string,
+  ): Promise<{ success: boolean; message: string }> {
     try {
       const file = await this.fileTrackingService.findByPublicId(publicId);
       if (file) {
         await this.fileTrackingService.incrementReferenceCount(file.id);
       }
-      
+
       return {
         success: true,
         message: 'File marked as used successfully',
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      throw new InternalServerErrorException(`Mark as used failed: ${errorMessage}`);
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      throw new InternalServerErrorException(
+        `Mark as used failed: ${errorMessage}`,
+      );
     }
   }
 
-  async cleanupUnusedFiles(): Promise<{ success: boolean; deletedCount: number }> {
+  async cleanupUnusedFiles(): Promise<{
+    success: boolean;
+    deletedCount: number;
+  }> {
     try {
       // Get orphaned files (files with reference count 0 and created more than 24 hours ago)
       const orphanedFiles = await this.fileTrackingService.findOrphanedFiles();
-      
+
       let deletedCount = 0;
-      
+
       for (const file of orphanedFiles) {
         try {
           // Delete from Cloudinary
           await cloudinary.uploader.destroy(file.publicId);
-          
+
           // Delete from database
           await this.fileTrackingService.remove(file.id);
-          
+
           deletedCount++;
         } catch (error) {
-          console.error(`Failed to delete orphaned file ${file.publicId}:`, error);
+          console.error(
+            `Failed to delete orphaned file ${file.publicId}:`,
+            error,
+          );
         }
       }
-      
+
       return {
         success: true,
         deletedCount,
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       throw new InternalServerErrorException(`Cleanup failed: ${errorMessage}`);
     }
   }
-
-
 }

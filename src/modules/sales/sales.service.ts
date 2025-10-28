@@ -40,7 +40,7 @@ export class SalesService {
     // Tạo phiếu bán hàng với trạng thái mặc định là DRAFT
     const invoice = this.salesInvoiceRepository.create({
       ...createSalesInvoiceDto,
-      createdByUserId: 1, // TODO: Lấy user ID từ context
+      createdBy: 1, // TODO: Lấy user ID từ context
       status: SalesInvoiceStatus.DRAFT, // Trạng thái mặc định
     });
     const savedInvoice = await this.salesInvoiceRepository.save(invoice);
@@ -118,9 +118,9 @@ export class SalesService {
    * @param invoiceCode - Mã của hóa đơn bán hàng cần tìm
    * @returns Thông tin hóa đơn bán hàng
    */
-  async findByCode(invoiceCode: string): Promise<SalesInvoice | null> {
+  async findByCode(code: string): Promise<SalesInvoice | null> {
     return this.salesInvoiceRepository.findOne({
-      where: { invoiceCode, deletedAt: IsNull() },
+      where: { code, deletedAt: IsNull() },
       relations: ['items'], // Bao gồm cả các item trong hóa đơn
     });
   }

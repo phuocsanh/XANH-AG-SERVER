@@ -17,48 +17,48 @@ export class FileUpload {
   id!: number;
 
   /** ID công khai của file (dùng để truy cập file) */
-  @Column({ name: 'public_id' })
+  @Column()
   publicId!: string;
 
   /** URL truy cập file */
-  @Column({ name: 'file_url' })
-  fileUrl!: string;
+  @Column()
+  url!: string;
 
   /** Tên file */
-  @Column({ name: 'file_name' })
-  fileName!: string;
+  @Column()
+  name!: string;
 
   /** Loại file */
-  @Column({ name: 'file_type' })
-  fileType!: string;
+  @Column()
+  type!: string;
 
   /** Kích thước file (bytes) */
-  @Column({ name: 'file_size' })
-  fileSize!: number;
+  @Column()
+  size!: number;
 
   /** Thư mục chứa file */
-  @Column({ name: 'folder', nullable: true })
+  @Column({ nullable: true })
   folder?: string;
 
   /** Loại MIME của file */
-  @Column({ name: 'mime_type', nullable: true })
+  @Column({ nullable: true })
   mimeType?: string;
 
   /** Số lượng tham chiếu đến file */
-  @Column({ name: 'reference_count', nullable: true })
+  @Column({ nullable: true })
   referenceCount?: number;
 
   /** Trạng thái file tạm thời (true: tạm thời, false: không phải tạm thời) */
-  @Column({ name: 'is_temporary', nullable: true })
+  @Column({ nullable: true })
   isTemporary?: boolean;
 
   /** Trạng thái file không được sử dụng (true: không được sử dụng, false: đang được sử dụng) */
-  @Column({ name: 'is_orphaned', nullable: true })
+  @Column({ nullable: true })
   isOrphaned?: boolean;
 
   /** ID của người dùng upload file */
-  @Column({ name: 'uploaded_by_user_id', nullable: true })
-  uploadedByUserId?: number;
+  @Column({ nullable: true })
+  uploadedBy?: number;
 
   /** Mảng tag của file */
   @Column('text', { array: true, default: [] })

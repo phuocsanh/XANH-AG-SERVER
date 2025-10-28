@@ -32,10 +32,10 @@ export class AuthService {
     const user = await this.userService.findByAccount(userAccount);
     if (user) {
       // So sánh mật khẩu đã hash với mật khẩu nhập vào
-      const isPasswordValid = await bcrypt.compare(pass, user.userPassword);
+      const isPasswordValid = await bcrypt.compare(pass, user.password);
       if (isPasswordValid) {
         // Loại bỏ mật khẩu khỏi kết quả trả về
-        const { userPassword, ...result } = user;
+        const { password, ...result } = user;
         return result;
       }
     }
@@ -50,9 +50,9 @@ export class AuthService {
   async login(user: User) {
     // Tạo payload cho token JWT
     const payload = {
-      userAccount: user.userAccount,
-      sub: user.userId,
-      userId: user.userId,
+      userAccount: user.account,
+      sub: user.id,
+      userId: user.id,
     };
 
     return {
@@ -62,8 +62,8 @@ export class AuthService {
         expiresIn: '7d', // Refresh token có thời gian dài hơn (7 ngày)
       }),
       user: {
-        userId: user.userId,
-        userAccount: user.userAccount,
+        userId: user.id,
+        userAccount: user.account,
       },
     };
   }
@@ -128,18 +128,18 @@ export class AuthService {
   async register(createUserDto: CreateUserDto) {
     // Hash mật khẩu và tạo salt tự động
     const { hashedPassword, salt } = await this.hashPasswordWithSalt(
-      createUserDto.userPassword,
+      createUserDto.password,
     );
 
     // Tạo người dùng với mật khẩu đã hash và salt
     const user = await this.userService.create({
       ...createUserDto,
-      userPassword: hashedPassword,
-      userSalt: salt,
+      password: hashedPassword,
+      salt: salt,
     });
 
     // Trả về thông tin người dùng không bao gồm mật khẩu
-    const { userPassword, ...result } = user;
+    const { password, ...result } = user;
     return result;
   }
 

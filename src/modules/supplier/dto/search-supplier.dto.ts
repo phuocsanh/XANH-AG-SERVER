@@ -1,8 +1,8 @@
 import { IsOptional, IsArray, ValidateNested, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
-import { FilterConditionDto } from '../../supplier/dto/filter-condition.dto';
+import { FilterConditionDto } from './filter-condition.dto';
 
-export class SearchInventoryDto {
+export class SearchSupplierDto {
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
@@ -16,6 +16,6 @@ export class SearchInventoryDto {
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => SearchInventoryDto)
-  nestedFilters?: SearchInventoryDto[];
+  @Type(() => SearchSupplierDto)
+  nestedFilters?: SearchSupplierDto[];
 }

@@ -41,25 +41,25 @@ export class UserService {
   async create(createUserDto: CreateUserDto): Promise<User> {
     // Tạo user (password đã được hash từ AuthService)
     const user = this.userRepository.create({
-      userAccount: createUserDto.userAccount,
-      userPassword: createUserDto.userPassword, // Password đã được hash từ AuthService
-      userSalt: createUserDto.userSalt || '', // Use empty string if salt is not provided
+      account: createUserDto.account,
+      password: createUserDto.password, // Password đã được hash từ AuthService
+      salt: createUserDto.salt || '', // Use empty string if salt is not provided
       status: BaseStatus.ACTIVE, // Sử dụng BaseStatus thay vì UserStatus
     });
     const savedUser = await this.userRepository.save(user);
 
     // Tạo user profile
     const userProfileData: Partial<UserProfile> = {
-      userId: savedUser.userId,
-      userAccount: createUserDto.userAccount,
+      userId: savedUser.id,
+      account: createUserDto.account,
       // userState: createUserDto.userState || 1, // Xóa dòng này vì UserProfile đã có status
-      userIsAuthentication: 0,
+      isAuthentication: 0,
       status: BaseStatus.ACTIVE, // Thêm status cho UserProfile
     };
 
     // Chỉ thêm userEmail nếu có giá trị
-    if (createUserDto.userEmail) {
-      userProfileData.userEmail = createUserDto.userEmail;
+    if (createUserDto.email) {
+      userProfileData.email = createUserDto.email;
     }
 
     const userProfile = this.userProfileRepository.create(userProfileData);
@@ -78,7 +78,7 @@ export class UserService {
     });
     // Loại bỏ password khỏi response để bảo mật
     return users.map((user) => {
-      const { userPassword, ...userWithoutPassword } = user;
+      const { password, ...userWithoutPassword } = user;
       return userWithoutPassword as User;
     });
   }
@@ -90,11 +90,11 @@ export class UserService {
    */
   async findOne(userId: number): Promise<User | null> {
     const user = await this.userRepository.findOne({
-      where: { userId, deletedAt: IsNull() },
+      where: { id: userId, deletedAt: IsNull() },
     });
     if (user) {
       // Loại bỏ password khỏi response để bảo mật
-      const { userPassword, ...userWithoutPassword } = user;
+      const { password, ...userWithoutPassword } = user;
       return userWithoutPassword as User;
     }
     return null;
@@ -105,8 +105,8 @@ export class UserService {
    * @param userAccount - Tên tài khoản của người dùng cần tìm
    * @returns Thông tin người dùng hoặc null nếu không tìm thấy
    */
-  async findByAccount(userAccount: string): Promise<User | null> {
-    return this.userRepository.findOne({ where: { userAccount } });
+  async findByAccount(account: string): Promise<User | null> {
+    return this.userRepository.findOne({ where: { account } });
   }
 
   /**
@@ -120,7 +120,7 @@ export class UserService {
     });
     // Loại bỏ password khỏi response để bảo mật
     return users.map((user) => {
-      const { userPassword, ...userWithoutPassword } = user;
+      const { password, ...userWithoutPassword } = user;
       return userWithoutPassword as User;
     });
   }
@@ -136,14 +136,14 @@ export class UserService {
     const deletedUsers = users.filter((user) => user.deletedAt !== null);
     // Loại bỏ password khỏi response để bảo mật
     return deletedUsers.map((user) => {
-      const { userPassword, ...userWithoutPassword } = user;
+      const { password, ...userWithoutPassword } = user;
       return userWithoutPassword as User;
     });
   }
 
   /**
    * Cập nhật thông tin người dùng
-   * @param userId - ID của người dùng cần cập nhật
+   * @param id - ID của người dùng cần cập nhật
    * @param updateUserDto - Dữ liệu cập nhật người dùng
    * @returns Thông tin người dùng đã cập nhật
    */
@@ -157,7 +157,7 @@ export class UserService {
 
   /**
    * Thay đổi mật khẩu người dùng
-   * @param userId - ID của người dùng cần thay đổi mật khẩu
+   * @param id - ID của người dùng cần thay đổi mật khẩu
    * @param changePasswordDto - Dữ liệu thay đổi mật khẩu
    * @returns true nếu thay đổi thành công, false nếu thất bại
    */
@@ -166,7 +166,7 @@ export class UserService {
     changePasswordDto: ChangePasswordDto,
   ): Promise<boolean> {
     // Tìm người dùng theo ID
-    const user = await this.userRepository.findOne({ where: { userId } });
+    const user = await this.userRepository.findOne({ where: { id: userId } });
 
     if (!user) {
       return false;
@@ -175,7 +175,7 @@ export class UserService {
     // Kiểm tra mật khẩu cũ
     const isOldPasswordValid = await bcrypt.compare(
       changePasswordDto.oldPassword,
-      user.userPassword,
+      user.password,
     );
     if (!isOldPasswordValid) {
       return false;
@@ -189,7 +189,7 @@ export class UserService {
 
     // Cập nhật mật khẩu
     await this.userRepository.update(userId, {
-      userPassword: hashedNewPassword,
+      password: hashedNewPassword,
     });
 
     return true;
@@ -197,7 +197,7 @@ export class UserService {
 
   /**
    * Cập nhật thông tin profile người dùng
-   * @param userId - ID của người dùng cần cập nhật profile
+   * @param id - ID của người dùng cần cập nhật profile
    * @param profileData - Dữ liệu cập nhật profile
    * @returns Thông tin profile đã cập nhật
    */
@@ -211,7 +211,7 @@ export class UserService {
 
   /**
    * Kích hoạt người dùng
-   * @param userId - ID của người dùng cần kích hoạt
+   * @param id - ID của người dùng cần kích hoạt
    * @returns Thông tin người dùng đã kích hoạt
    */
   async activate(userId: number): Promise<User | null> {
@@ -221,7 +221,7 @@ export class UserService {
 
   /**
    * Vô hiệu hóa người dùng
-   * @param userId - ID của người dùng cần vô hiệu hóa
+   * @param id - ID của người dùng cần vô hiệu hóa
    * @returns Thông tin người dùng đã vô hiệu hóa
    */
   async deactivate(userId: number): Promise<User | null> {
@@ -231,7 +231,7 @@ export class UserService {
 
   /**
    * Lưu trữ người dùng
-   * @param userId - ID của người dùng cần lưu trữ
+   * @param id - ID của người dùng cần lưu trữ
    * @returns Thông tin người dùng đã lưu trữ
    */
   async archive(userId: number): Promise<User | null> {
@@ -241,25 +241,25 @@ export class UserService {
 
   /**
    * Xóa mềm người dùng (soft delete)
-   * @param userId - ID của người dùng cần xóa mềm
+   * @param id - ID của người dùng cần xóa mềm
    * @returns Thông tin người dùng đã được xóa mềm
    */
   async softRemove(userId: number): Promise<User | null> {
-    const user = await this.userRepository.findOne({ where: { userId } });
+    const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) {
       return null;
     }
 
     await this.userRepository.softDelete(userId);
     return this.userRepository.findOne({
-      where: { userId },
+      where: { id: userId },
       withDeleted: true,
     });
   }
 
   /**
    * Khôi phục người dùng đã bị xóa mềm
-   * @param userId - ID của người dùng cần khôi phục
+   * @param id - ID của người dùng cần khôi phục
    * @returns Thông tin người dùng đã được khôi phục
    */
   async restore(userId: number): Promise<User | null> {
@@ -269,7 +269,7 @@ export class UserService {
 
   /**
    * Xóa vĩnh viễn người dùng (hard delete)
-   * @param userId - ID của người dùng cần xóa vĩnh viễn
+   * @param id - ID của người dùng cần xóa vĩnh viễn
    */
   async remove(userId: number): Promise<void> {
     // Xóa tất cả file references liên quan đến người dùng trước khi xóa
@@ -303,7 +303,7 @@ export class UserService {
 
     // Loại bỏ password khỏi response để bảo mật
     return users.map((user) => {
-      const { userPassword, ...userWithoutPassword } = user;
+      const { password, ...userWithoutPassword } = user;
       return userWithoutPassword as User;
     });
   }

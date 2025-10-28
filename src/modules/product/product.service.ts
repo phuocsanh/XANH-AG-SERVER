@@ -37,7 +37,7 @@ export class ProductService {
   async create(createProductDto: CreateProductDto): Promise<Product> {
     // Kiểm tra xem có factory nào phù hợp với productType không
     const factory = this.productFactoryRegistry.getFactory(
-      createProductDto.productType,
+      createProductDto.type,
     );
 
     if (factory) {
@@ -197,8 +197,8 @@ export class ProductService {
   async searchProducts(query: string): Promise<Product[]> {
     return this.productRepository
       .createQueryBuilder('product')
-      .where('product.productName ILIKE :query', { query: `%${query}%` })
-      .orWhere('product.productDescription ILIKE :query', {
+      .where('product.name ILIKE :query', { query: `%${query}%` })
+      .orWhere('product.description ILIKE :query', {
         query: `%${query}%`,
       })
       .andWhere('product.status = :status', { status: BaseStatus.ACTIVE })
@@ -414,8 +414,8 @@ export class ProductService {
     // Cập nhật sản phẩm với giá vốn trung bình và giá bán mới
     await this.productRepository.update(productId, {
       averageCostPrice: averageCostPrice.toFixed(2),
-      productPrice: productPrice.toFixed(2),
-      productDiscountedPrice: productDiscountedPrice.toFixed(2),
+      price: productPrice.toFixed(2),
+      discountedPrice: productDiscountedPrice.toFixed(2),
     });
 
     // Trả về thông tin sản phẩm đã cập nhật

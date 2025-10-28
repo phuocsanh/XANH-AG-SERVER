@@ -13,7 +13,7 @@ export class CreateInventoryBatchDto {
   /** Mã lô hàng (tùy chọn) */
   @IsOptional()
   @IsString()
-  batchCode?: string;
+  code?: string;
 
   /** Giá vốn đơn vị của sản phẩm trong lô hàng (bắt buộc) */
   @IsString()

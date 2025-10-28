@@ -6,8 +6,11 @@ import {
   UpdateDateColumn,
   DeleteDateColumn,
   OneToMany,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { InventoryReceiptItem } from './inventory-receipt-items.entity';
+import { Supplier } from './suppliers.entity';
 
 /**
  * Entity biểu diễn thông tin phiếu nhập kho
@@ -20,32 +23,41 @@ export class InventoryReceipt {
   id!: number;
 
   /** Mã phiếu nhập kho (duy nhất) */
-  @Column({ name: 'receipt_code', unique: true })
-  receiptCode!: string;
+  @Column({ unique: true })
+  code!: string;
 
-  /** Tên nhà cung cấp */
-  @Column({ name: 'supplier_name', nullable: true })
-  supplierName?: string;
+  /** ID của nhà cung cấp */
+  @Column()
+  supplierId!: number;
 
-  /** Thông tin liên hệ nhà cung cấp */
-  @Column({ name: 'supplier_contact', nullable: true })
-  supplierContact?: string;
+  /** Quan hệ với nhà cung cấp */
+  @ManyToOne(() => Supplier, { nullable: false })
+  @JoinColumn({ name: 'supplier_id' })
+  supplier!: Supplier;
 
   /** Tổng số tiền của phiếu nhập kho */
-  @Column({ name: 'total_amount' })
+  @Column()
   totalAmount!: number;
 
   /** Trạng thái phiếu nhập kho (draft, approved, completed, cancelled) */
-  @Column({ name: 'status', default: 'draft' })
+  @Column({ default: 'draft' })
   status!: string;
 
   /** Ghi chú về phiếu nhập kho */
-  @Column({ name: 'notes', nullable: true })
+  @Column({ nullable: true })
   notes?: string;
 
-  /** ID của người dùng tạo phiếu nhập kho */
-  @Column({ name: 'created_by_user_id' })
-  createdByUserId!: number;
+  /** ID của người tạo phiếu nhập kho */
+  @Column()
+  createdBy!: number;
+
+  /** ID của người cập nhật phiếu nhập kho */
+  @Column({ nullable: true })
+  updatedBy?: number;
+
+  /** ID của người xóa phiếu nhập kho */
+  @Column({ nullable: true })
+  deletedBy?: number;
 
   /** Thời gian tạo phiếu nhập kho */
   @CreateDateColumn({ name: 'created_at' })

@@ -18,19 +18,19 @@ export class CreateFileUploadDto {
 
   /** URL truy cập file (bắt buộc) */
   @IsString()
-  fileUrl!: string;
+  url!: string;
 
   /** Tên file (bắt buộc) */
   @IsString()
-  fileName!: string;
+  name!: string;
 
   /** Loại file (bắt buộc) */
   @IsString()
-  fileType!: string;
+  type!: string;
 
   /** Kích thước file (bytes) (bắt buộc) */
   @IsNumber()
-  fileSize!: number;
+  size!: number;
 
   /** Thư mục chứa file (tùy chọn) */
   @IsOptional()

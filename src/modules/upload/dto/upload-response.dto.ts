@@ -1,10 +1,10 @@
 export class UploadResponseDto {
   id!: string;
   publicId!: string;
-  fileUrl!: string;
-  fileName!: string;
-  fileType!: string;
-  fileSize!: number;
+  url!: string;
+  name!: string;
+  type!: string;
+  size!: number;
   createdAt!: Date;
   updatedAt!: Date;
 }

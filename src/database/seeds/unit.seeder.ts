@@ -21,62 +21,62 @@ export class UnitSeeder {
     // Danh sách các đơn vị tính mặc định
     const defaultUnits = [
       {
-        unitName: 'Kilogram',
-        unitCode: 'kg',
+        name: 'Kilogram',
+        code: 'kg',
         description: 'Đơn vị khối lượng kilogram',
         status: BaseStatus.ACTIVE,
       },
       {
-        unitName: 'Gram',
-        unitCode: 'g',
+        name: 'Gram',
+        code: 'g',
         description: 'Đơn vị khối lượng gram',
         status: BaseStatus.ACTIVE,
       },
       {
-        unitName: 'Liter',
-        unitCode: 'l',
+        name: 'Liter',
+        code: 'l',
         description: 'Đơn vị thể tích lít',
         status: BaseStatus.ACTIVE,
       },
       {
-        unitName: 'Milliliter',
-        unitCode: 'ml',
+        name: 'Milliliter',
+        code: 'ml',
         description: 'Đơn vị thể tích mililit',
         status: BaseStatus.ACTIVE,
       },
       {
-        unitName: 'Piece',
-        unitCode: 'pc',
+        name: 'Piece',
+        code: 'pc',
         description: 'Đơn vị tính theo cái',
         status: BaseStatus.ACTIVE,
       },
       {
-        unitName: 'Box',
-        unitCode: 'box',
+        name: 'Box',
+        code: 'box',
         description: 'Đơn vị tính theo hộp',
         status: BaseStatus.ACTIVE,
       },
       {
-        unitName: 'Bag',
-        unitCode: 'bag',
+        name: 'Bag',
+        code: 'bag',
         description: 'Đơn vị tính theo bao',
         status: BaseStatus.ACTIVE,
       },
       {
-        unitName: 'Bottle',
-        unitCode: 'bottle',
+        name: 'Bottle',
+        code: 'bottle',
         description: 'Đơn vị tính theo chai',
         status: BaseStatus.ACTIVE,
       },
       {
-        unitName: 'Can',
-        unitCode: 'can',
+        name: 'Can',
+        code: 'can',
         description: 'Đơn vị tính theo lon',
         status: BaseStatus.ACTIVE,
       },
       {
-        unitName: 'Packet',
-        unitCode: 'packet',
+        name: 'Packet',
+        code: 'packet',
         description: 'Đơn vị tính theo gói',
         status: BaseStatus.ACTIVE,
       },
@@ -86,7 +86,7 @@ export class UnitSeeder {
     for (const unitData of defaultUnits) {
       const existingUnit = await unitRepository.findOne({
         where: {
-          unitCode: unitData.unitCode,
+          code: unitData.code,
           deletedAt: IsNull(),
         },
       });
@@ -94,13 +94,9 @@ export class UnitSeeder {
       if (!existingUnit) {
         const unit = unitRepository.create(unitData);
         await unitRepository.save(unit);
-        console.log(
-          `Đã thêm đơn vị: ${unitData.unitName} (${unitData.unitCode})`,
-        );
+        console.log(`Đã thêm đơn vị: ${unitData.name} (${unitData.code})`);
       } else {
-        console.log(
-          `Đơn vị ${unitData.unitName} (${unitData.unitCode}) đã tồn tại`,
-        );
+        console.log(`Đơn vị ${unitData.name} (${unitData.code}) đã tồn tại`);
       }
     }
 

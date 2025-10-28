@@ -13,11 +13,11 @@ import { SalesInvoiceItem } from './sales-invoice-items.entity';
  * Enum định nghĩa các trạng thái của hóa đơn bán hàng
  */
 export enum SalesInvoiceStatus {
-  DRAFT = 'draft',           // Bản nháp
-  CONFIRMED = 'confirmed',   // Đã xác nhận
-  PAID = 'paid',            // Đã thanh toán
-  CANCELLED = 'cancelled',   // Đã hủy
-  REFUNDED = 'refunded',    // Đã hoàn tiền
+  DRAFT = 'draft', // Bản nháp
+  CONFIRMED = 'confirmed', // Đã xác nhận
+  PAID = 'paid', // Đã thanh toán
+  CANCELLED = 'cancelled', // Đã hủy
+  REFUNDED = 'refunded', // Đã hoàn tiền
 }
 
 /**
@@ -31,52 +31,52 @@ export class SalesInvoice {
   id!: number;
 
   /** Mã hóa đơn bán hàng (duy nhất) */
-  @Column({ name: 'invoice_code', unique: true })
-  invoiceCode!: string;
+  @Column({ unique: true })
+  code!: string;
 
   /** Tên khách hàng */
-  @Column({ name: 'customer_name' })
+  @Column()
   customerName!: string;
 
   /** Số điện thoại khách hàng */
-  @Column({ name: 'customer_phone', nullable: true })
+  @Column({ nullable: true })
   customerPhone?: string;
 
   /** Email khách hàng */
-  @Column({ name: 'customer_email', nullable: true })
+  @Column({ nullable: true })
   customerEmail?: string;
 
   /** Địa chỉ khách hàng */
-  @Column({ name: 'customer_address', nullable: true })
+  @Column({ nullable: true })
   customerAddress?: string;
 
   /** Tổng số tiền của hóa đơn */
-  @Column({ name: 'total_amount' })
+  @Column()
   totalAmount!: number;
 
   /** Số tiền giảm giá */
-  @Column({ name: 'discount_amount', default: 0 })
+  @Column({ default: 0 })
   discountAmount!: number;
 
   /** Số tiền cuối cùng sau khi giảm giá */
-  @Column({ name: 'final_amount' })
+  @Column()
   finalAmount!: number;
 
   /** Phương thức thanh toán */
-  @Column({ name: 'payment_method' })
+  @Column()
   paymentMethod!: string;
 
   /** Trạng thái thanh toán */
-  @Column({ name: 'payment_status', default: 'pending' })
+  @Column({ default: 'pending' })
   paymentStatus!: string;
 
   /** Ghi chú */
-  @Column({ name: 'notes', nullable: true })
+  @Column({ nullable: true })
   notes?: string;
 
   /** ID người tạo hóa đơn */
-  @Column({ name: 'created_by_user_id' })
-  createdByUserId!: number;
+  @Column()
+  createdBy!: number;
 
   /** Trạng thái hóa đơn */
   @Column({

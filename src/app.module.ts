@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ProductModule } from './modules/product/product.module';
+import { SupplierModule } from './modules/supplier/supplier.module';
 import { ProductTypeModule } from './modules/product-type/product-type.module';
 import { ProductSubtypeModule } from './modules/product-subtype/product-subtype.module';
 import { UserModule } from './modules/user/user.module';
@@ -76,6 +77,7 @@ import { SymbolModule } from './modules/symbol/symbol.module';
     CompatibilityMixingPesticidesModule, // Module AI đọc tài liệu và trả lời câu hỏi
     UnitModule, // Module quản lý đơn vị tính
     SymbolModule, // Module quản lý ký hiệu sản phẩm
+    SupplierModule, // Module quản lý nhà cung cấp
   ],
   controllers: [], // Các controller global (nếu có)
   providers: [

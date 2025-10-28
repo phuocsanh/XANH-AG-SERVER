@@ -19,15 +19,15 @@ export class Symbol {
   id!: number;
 
   /** Mã ký hiệu */
-  @Column({ name: 'symbol_code', unique: true })
-  symbolCode!: string;
+  @Column({ unique: true })
+  code!: string;
 
   /** Tên ký hiệu */
-  @Column({ name: 'symbol_name' })
-  symbolName!: string;
+  @Column()
+  name!: string;
 
   /** Mô tả ký hiệu */
-  @Column({ name: 'description', nullable: true })
+  @Column({ nullable: true })
   description?: string;
 
   /** Thời gian tạo ký hiệu */

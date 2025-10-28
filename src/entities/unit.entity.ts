@@ -19,15 +19,15 @@ export class Unit {
   id!: number;
 
   /** Tên đơn vị tính */
-  @Column({ name: 'unit_name' })
-  unitName!: string;
+  @Column()
+  name!: string;
 
   /** Mã đơn vị tính (ví dụ: kg, l, m, v.v.) */
-  @Column({ name: 'unit_code' })
-  unitCode!: string;
+  @Column()
+  code!: string;
 
   /** Mô tả đơn vị tính */
-  @Column({ name: 'description', nullable: true })
+  @Column({ nullable: true })
   description?: string;
 
   /** Trạng thái đơn vị tính sử dụng enum chung */

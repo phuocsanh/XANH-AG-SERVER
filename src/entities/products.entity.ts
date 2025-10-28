@@ -23,12 +23,12 @@ export class Product {
   id!: number;
 
   /** Tên sản phẩm */
-  @Column({ name: 'product_name' })
-  productName!: string;
+  @Column()
+  name!: string;
 
   /** Giá sản phẩm */
-  @Column({ name: 'product_price' })
-  productPrice!: string;
+  @Column()
+  price!: string;
 
   /** Trạng thái sản phẩm sử dụng enum chung */
   @Column({
@@ -39,36 +39,36 @@ export class Product {
   status!: BaseStatus;
 
   /** Đường dẫn thumbnail của sản phẩm */
-  @Column({ name: 'product_thumb' })
-  productThumb!: string;
+  @Column()
+  thumb!: string;
 
   /** Mảng đường dẫn hình ảnh của sản phẩm */
-  @Column({ name: 'product_pictures', type: 'text', array: true, default: [] })
-  productPictures!: string[];
+  @Column({ type: 'text', array: true, default: [] })
+  pictures!: string[];
 
   /** Mảng đường dẫn video của sản phẩm */
-  @Column({ name: 'product_videos', type: 'text', array: true, default: [] })
-  productVideos!: string[];
+  @Column({ type: 'text', array: true, default: [] })
+  videos!: string[];
 
   /** Điểm đánh giá trung bình của sản phẩm */
-  @Column({ name: 'product_ratings_average', nullable: true })
-  productRatingsAverage?: string;
+  @Column({ nullable: true })
+  ratingsAverage?: string;
 
   /** Mô tả sản phẩm */
-  @Column({ name: 'product_description', nullable: true })
-  productDescription?: string;
+  @Column({ nullable: true })
+  description?: string;
 
   /** Slug của sản phẩm (dùng cho SEO) */
-  @Column({ name: 'product_slug', nullable: true })
-  productSlug?: string;
+  @Column({ nullable: true })
+  slug?: string;
 
   /** Số lượng tồn kho của sản phẩm */
-  @Column({ name: 'product_quantity', nullable: true })
-  productQuantity?: number;
+  @Column({ nullable: true })
+  quantity?: number;
 
   /** Loại sản phẩm (tham chiếu đến product_types) */
-  @Column({ name: 'product_type' })
-  productType!: number;
+  @Column()
+  type!: number;
 
   /** Mảng loại phụ sản phẩm (tham chiếu đến product_subtypes) */
   @Column({
@@ -80,48 +80,47 @@ export class Product {
   subProductType!: number[];
 
   /** Phần trăm giảm giá */
-  @Column({ name: 'discount', nullable: true })
+  @Column({ nullable: true })
   discount?: string;
 
   /** Giá sau khi giảm giá */
-  @Column({ name: 'product_discounted_price' })
-  productDiscountedPrice!: string;
+  @Column()
+  discountedPrice!: string;
 
   /** Số lượng đã bán */
-  @Column({ name: 'product_selled', nullable: true })
-  productSelled?: number;
+  @Column({ nullable: true })
+  selled?: number;
 
   /** Thuộc tính bổ sung của sản phẩm (JSON) */
   @Column({
-    name: 'product_attributes',
     type: 'jsonb',
     nullable: true,
     default: {},
   })
-  productAttributes?: any;
+  attributes?: any;
 
   /** Phần trăm lợi nhuận */
-  @Column({ name: 'profit_margin_percent' })
+  @Column()
   profitMarginPercent!: string;
 
   /** Thời gian tạo sản phẩm */
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn()
   createdAt!: Date;
 
   /** Thời gian cập nhật gần nhất sản phẩm */
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn()
   updatedAt!: Date;
 
   /** Giá vốn trung bình của sản phẩm */
-  @Column({ name: 'average_cost_price' })
+  @Column()
   averageCostPrice!: string;
 
   /** Thời gian xóa mềm (null nếu chưa bị xóa) */
-  @DeleteDateColumn({ name: 'deleted_at' })
+  @DeleteDateColumn()
   deletedAt?: Date;
 
   /** Đơn vị tính của sản phẩm */
-  @Column({ name: 'unit_id', nullable: true })
+  @Column({ nullable: true })
   unitId?: number;
 
   /** Mối quan hệ nhiều-một với đơn vị tính */
@@ -130,11 +129,11 @@ export class Product {
   unit?: Unit;
 
   /** Giá nhập mới nhất của sản phẩm */
-  @Column({ name: 'latest_purchase_price', nullable: true })
+  @Column({ nullable: true })
   latestPurchasePrice?: number;
 
   /** Mã ký hiệu của sản phẩm (liên kết với bảng symbols) */
-  @Column({ name: 'symbol_id', nullable: true })
+  @Column({ nullable: true })
   symbolId?: number;
 
   /** Mối quan hệ nhiều-một với ký hiệu */
@@ -143,6 +142,6 @@ export class Product {
   symbol?: Symbol;
 
   /** Thành phần nguyên liệu của sản phẩm (mảng chuỗi) */
-  @Column({ name: 'ingredient', type: 'text', array: true, default: [] })
+  @Column({ type: 'text', array: true, default: [] })
   ingredient!: string[];
 }

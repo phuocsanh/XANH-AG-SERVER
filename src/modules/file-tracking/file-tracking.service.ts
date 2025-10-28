@@ -278,7 +278,7 @@ export class FileTrackingService {
     // Giảm reference count cho từng file
     for (const reference of fileReferences) {
       await this.decrementReferenceCount(reference.fileId);
-      
+
       // Kiểm tra và đánh dấu file là orphaned nếu không còn tham chiếu
       const file = await this.findOne(reference.fileId);
       if (file && (file.referenceCount || 0) <= 0) {
@@ -292,8 +292,8 @@ export class FileTrackingService {
    * @param fileUrl - URL của file
    * @returns Thông tin file upload
    */
-  async findByFileUrl(fileUrl: string): Promise<FileUpload | null> {
-    return this.fileUploadRepository.findOne({ where: { fileUrl } });
+  async findByFileUrl(url: string): Promise<FileUpload | null> {
+    return this.fileUploadRepository.findOne({ where: { url } });
   }
 
   /**
@@ -316,7 +316,12 @@ export class FileTrackingService {
     }
 
     // Xóa tham chiếu
-    await this.removeFileReference(file.id, entityType, entityId, deletedByUserId);
+    await this.removeFileReference(
+      file.id,
+      entityType,
+      entityId,
+      deletedByUserId,
+    );
   }
 
   /**

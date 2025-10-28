@@ -14,11 +14,11 @@ import { BaseStatus } from '../../../entities/base-status.enum';
 export class CreateProductDto {
   /** Tên sản phẩm (bắt buộc) */
   @IsString()
-  productName!: string;
+  name!: string;
 
   /** Giá sản phẩm (bắt buộc) */
   @IsString()
-  productPrice!: string;
+  price!: string;
 
   /** Trạng thái sản phẩm mới sử dụng enum (tùy chọn) */
   @IsOptional()
@@ -30,31 +30,31 @@ export class CreateProductDto {
 
   /** Đường dẫn thumbnail của sản phẩm (bắt buộc) */
   @IsString()
-  productThumb!: string;
+  thumb!: string;
 
   /** Mảng đường dẫn hình ảnh của sản phẩm (tùy chọn) */
   @IsOptional()
   @IsArray()
-  productPictures?: string[];
+  pictures?: string[];
 
   /** Mảng đường dẫn video của sản phẩm (tùy chọn) */
   @IsOptional()
   @IsArray()
-  productVideos?: string[];
+  videos?: string[];
 
   /** Mô tả sản phẩm (tùy chọn) */
   @IsOptional()
   @IsString()
-  productDescription?: string;
+  description?: string;
 
   /** Số lượng tồn kho của sản phẩm (tùy chọn) */
   @IsOptional()
   @IsNumber()
-  productQuantity?: number;
+  quantity?: number;
 
   /** Loại sản phẩm (bắt buộc) */
   @IsNumber()
-  productType!: number;
+  type!: number;
 
   /** Mảng loại phụ sản phẩm (tùy chọn) */
   @IsOptional()
@@ -68,16 +68,16 @@ export class CreateProductDto {
 
   /** Giá sau khi giảm giá (bắt buộc) */
   @IsString()
-  productDiscountedPrice!: string;
+  discountedPrice!: string;
 
   /** Số lượng đã bán (tùy chọn) */
   @IsOptional()
   @IsNumber()
-  productSelled?: number;
+  selled?: number;
 
   /** Thuộc tính sản phẩm (tùy chọn) */
   @IsOptional()
-  productAttributes?: any;
+  attributes?: any;
 
   /** Giá vốn trung bình của sản phẩm (bắt buộc) */
   @IsString()
