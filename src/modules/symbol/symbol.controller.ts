@@ -8,9 +8,12 @@ import {
   Body,
   ParseIntPipe,
   NotFoundException,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { SymbolService } from './symbol.service';
 import { Symbol } from '../../entities/symbols.entity';
+import { SearchSymbolDto } from './dto/search-symbol.dto';
 
 /**
  * Controller xử lý các yêu cầu HTTP liên quan đến ký hiệu sản phẩm
@@ -82,5 +85,22 @@ export class SymbolController {
   @Delete(':id')
   async remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
     return this.symbolService.remove(id);
+  }
+
+  /**
+   * Tìm kiếm nâng cao ký hiệu
+   * @param searchDto - Điều kiện tìm kiếm
+   * @returns Danh sách ký hiệu phù hợp
+   */
+  @Post('search')
+  search(@Body() searchDto: SearchSymbolDto) {
+    try {
+      return this.symbolService.searchSymbols(searchDto);
+    } catch (error) {
+      throw new HttpException(
+        'Error occurred while searching symbols',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 }

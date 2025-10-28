@@ -7,6 +7,8 @@ import {
   Param,
   Delete,
   // UseGuards,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { SalesService } from './sales.service';
 import { CreateSalesInvoiceDto } from './dto/create-sales-invoice.dto';
@@ -14,6 +16,7 @@ import { UpdateSalesInvoiceDto } from './dto/update-sales-invoice.dto';
 // import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
 import { SalesInvoiceStatus } from '../../entities/sales-invoices.entity';
+import { SearchSalesDto } from './dto/search-sales.dto';
 
 /**
  * Controller xử lý các request liên quan đến quản lý bán hàng
@@ -216,5 +219,22 @@ export class SalesController {
   @Delete('invoice/item/:id')
   removeInvoiceItem(@Param('id') id: string) {
     return this.salesService.removeInvoiceItem(+id);
+  }
+
+  /**
+   * Tìm kiếm nâng cao hóa đơn bán hàng
+   * @param searchDto - Điều kiện tìm kiếm
+   * @returns Danh sách hóa đơn bán hàng phù hợp
+   */
+  @Post('invoices/search')
+  search(@Body() searchDto: SearchSalesDto) {
+    try {
+      return this.salesService.searchSalesInvoices(searchDto);
+    } catch (error) {
+      throw new HttpException(
+        'Error occurred while searching sales invoices',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 }

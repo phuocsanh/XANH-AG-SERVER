@@ -6,11 +6,14 @@ import {
   Patch,
   Param,
   Delete,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { ProductTypeService } from './product-type.service';
 import { CreateProductTypeDto } from './dto/create-product-type.dto';
 import { UpdateProductTypeDto } from './dto/update-product-type.dto';
 import { BaseStatus } from '../../entities/base-status.enum';
+import { SearchProductTypeDto } from './dto/search-product-type.dto';
 
 /**
  * Controller xử lý các request liên quan đến loại sản phẩm
@@ -52,6 +55,23 @@ export class ProductTypeController {
   @Get('by-status/:status')
   findByStatus(@Param('status') status: BaseStatus) {
     return this.productTypeService.findByStatus(status);
+  }
+
+  /**
+   * Tìm kiếm nâng cao loại sản phẩm
+   * @param searchDto - Điều kiện tìm kiếm
+   * @returns Danh sách loại sản phẩm phù hợp
+   */
+  @Post('search')
+  search(@Body() searchDto: SearchProductTypeDto) {
+    try {
+      return this.productTypeService.searchProductTypes(searchDto);
+    } catch (error) {
+      throw new HttpException(
+        'Error occurred while searching product types',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   /**

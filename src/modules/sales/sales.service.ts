@@ -1,10 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull, Not } from 'typeorm';
-import { SalesInvoice, SalesInvoiceStatus } from '../../entities/sales-invoices.entity';
+import { Repository, IsNull, Not, SelectQueryBuilder } from 'typeorm';
+import {
+  SalesInvoice,
+  SalesInvoiceStatus,
+} from '../../entities/sales-invoices.entity';
 import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
 import { CreateSalesInvoiceDto } from './dto/create-sales-invoice.dto';
 import { UpdateSalesInvoiceDto } from './dto/update-sales-invoice.dto';
+import { SearchSalesDto } from './dto/search-sales.dto';
+import { FilterConditionDto } from './dto/filter-condition.dto';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến quản lý bán hàng
@@ -43,8 +48,9 @@ export class SalesService {
     // Tạo các item trong phiếu với tính toán totalPrice
     const items = createSalesInvoiceDto.items.map((item) => {
       // Tính tổng giá tiền = (giá đơn vị * số lượng) - số tiền giảm giá
-      const totalPrice = (item.unitPrice * item.quantity) - (item.discountAmount || 0);
-      
+      const totalPrice =
+        item.unitPrice * item.quantity - (item.discountAmount || 0);
+
       return this.salesInvoiceItemRepository.create({
         ...item,
         invoiceId: savedInvoice.id,
@@ -74,9 +80,9 @@ export class SalesService {
    */
   async findByStatus(status: SalesInvoiceStatus): Promise<SalesInvoice[]> {
     return this.salesInvoiceRepository.find({
-      where: { 
+      where: {
         status,
-        deletedAt: IsNull() 
+        deletedAt: IsNull(),
       },
       order: { createdAt: 'DESC' },
     });
@@ -147,12 +153,12 @@ export class SalesService {
     if (!invoice) {
       return null;
     }
-    
-    await this.salesInvoiceRepository.update(id, { 
+
+    await this.salesInvoiceRepository.update(id, {
       status,
-      updatedAt: new Date()
+      updatedAt: new Date(),
     });
-    
+
     return this.findOne(id);
   }
 
@@ -202,13 +208,13 @@ export class SalesService {
     if (!invoice) {
       return null;
     }
-    
+
     await this.salesInvoiceRepository.softDelete(id);
-    
-    return this.salesInvoiceRepository.findOne({ 
+
+    return this.salesInvoiceRepository.findOne({
       where: { id },
       withDeleted: true,
-      relations: ['items']
+      relations: ['items'],
     });
   }
 
@@ -218,17 +224,17 @@ export class SalesService {
    * @returns Thông tin hóa đơn bán hàng đã khôi phục
    */
   async restore(id: number): Promise<SalesInvoice | null> {
-    const invoice = await this.salesInvoiceRepository.findOne({ 
+    const invoice = await this.salesInvoiceRepository.findOne({
       where: { id, deletedAt: Not(IsNull()) },
-      withDeleted: true
+      withDeleted: true,
     });
-    
+
     if (!invoice) {
       return null;
     }
-    
+
     await this.salesInvoiceRepository.restore(id);
-    
+
     return this.findOne(id);
   }
 
@@ -290,5 +296,147 @@ export class SalesService {
    */
   async removeInvoiceItem(id: number): Promise<void> {
     await this.salesInvoiceItemRepository.delete(id);
+  }
+
+  /**
+   * Tìm kiếm nâng cao hóa đơn bán hàng
+   * @param searchDto - Điều kiện tìm kiếm
+   * @returns Danh sách hóa đơn bán hàng phù hợp
+   */
+  async searchSalesInvoices(
+    searchDto: SearchSalesDto,
+  ): Promise<SalesInvoice[]> {
+    const queryBuilder =
+      this.salesInvoiceRepository.createQueryBuilder('invoice');
+
+    // Thêm điều kiện mặc định
+    queryBuilder.where('invoice.deletedAt IS NULL');
+
+    // Xây dựng điều kiện tìm kiếm
+    this.buildSearchConditions(queryBuilder, searchDto, 'invoice');
+
+    return await queryBuilder.getMany();
+  }
+
+  /**
+   * Xây dựng các điều kiện tìm kiếm động
+   * @param queryBuilder - Query builder
+   * @param searchDto - DTO tìm kiếm
+   * @param alias - Alias của bảng
+   * @param parameterIndex - Chỉ số để tạo parameter name duy nhất
+   */
+  private buildSearchConditions(
+    queryBuilder: SelectQueryBuilder<SalesInvoice>,
+    searchDto: SearchSalesDto,
+    alias: string,
+    parameterIndex: number = 0,
+  ): number {
+    // Xử lý các điều kiện lọc cơ bản
+    if (searchDto.filters && searchDto.filters.length > 0) {
+      const operator = searchDto.operator || 'AND';
+      const conditions: string[] = [];
+      const parameters: { [key: string]: any } = {};
+
+      searchDto.filters.forEach((filter, index) => {
+        const condition = this.buildFilterCondition(
+          filter,
+          alias,
+          parameterIndex + index,
+          parameters,
+        );
+        if (condition) {
+          conditions.push(condition);
+        }
+      });
+
+      if (conditions.length > 0) {
+        const combinedCondition = conditions.join(` ${operator} `);
+        queryBuilder.andWhere(`(${combinedCondition})`, parameters);
+      }
+
+      parameterIndex += searchDto.filters.length;
+    }
+
+    // Xử lý các bộ lọc lồng nhau
+    if (searchDto.nestedFilters && searchDto.nestedFilters.length > 0) {
+      // Xây dựng điều kiện cho từng bộ lọc lồng nhau
+      searchDto.nestedFilters.forEach((nestedFilter) => {
+        parameterIndex = this.buildSearchConditions(
+          queryBuilder,
+          nestedFilter,
+          alias,
+          parameterIndex,
+        );
+      });
+    }
+
+    return parameterIndex;
+  }
+
+  /**
+   * Xây dựng điều kiện lọc đơn lẻ
+   * @param filter - Điều kiện lọc
+   * @param alias - Alias của bảng
+   * @param index - Chỉ số để tạo parameter name duy nhất
+   * @param parameters - Object chứa các parameter
+   * @returns Chuỗi điều kiện SQL
+   */
+  private buildFilterCondition(
+    filter: FilterConditionDto,
+    alias: string,
+    index: number,
+    parameters: { [key: string]: any },
+  ): string | null {
+    if (!filter.field || !filter.operator) {
+      return null;
+    }
+
+    const paramName = `param_${index}`;
+    const field = `${alias}.${filter.field}`;
+
+    switch (filter.operator) {
+      case 'eq':
+        parameters[paramName] = filter.value;
+        return `${field} = :${paramName}`;
+      case 'ne':
+        parameters[paramName] = filter.value;
+        return `${field} != :${paramName}`;
+      case 'gt':
+        parameters[paramName] = filter.value;
+        return `${field} > :${paramName}`;
+      case 'lt':
+        parameters[paramName] = filter.value;
+        return `${field} < :${paramName}`;
+      case 'gte':
+        parameters[paramName] = filter.value;
+        return `${field} >= :${paramName}`;
+      case 'lte':
+        parameters[paramName] = filter.value;
+        return `${field} <= :${paramName}`;
+      case 'like':
+        parameters[paramName] = `%${filter.value}%`;
+        return `${field} LIKE :${paramName}`;
+      case 'ilike':
+        parameters[paramName] = `%${filter.value}%`;
+        return `LOWER(${field}) LIKE LOWER(:${paramName})`;
+      case 'in':
+        if (Array.isArray(filter.value)) {
+          parameters[paramName] = filter.value;
+          return `${field} IN (:...${paramName})`;
+        }
+        return null;
+      case 'notin':
+        if (Array.isArray(filter.value)) {
+          parameters[paramName] = filter.value;
+          return `${field} NOT IN (:...${paramName})`;
+        }
+        return null;
+      case 'isnull':
+        return `${field} IS NULL`;
+      case 'isnotnull':
+        return `${field} IS NOT NULL`;
+      default:
+        return null;
+    }
   }
 }

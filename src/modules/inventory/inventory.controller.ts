@@ -8,6 +8,8 @@ import {
   Delete,
   Query,
   UseGuards,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
 import { CreateInventoryBatchDto } from './dto/create-inventory-batch.dto';
@@ -19,6 +21,7 @@ import {
   ProductGroup,
   StockData,
 } from './interfaces/inventory-report.interface';
+import { SearchInventoryDto } from './dto/search-inventory.dto';
 
 /**
  * Controller xử lý các request liên quan đến quản lý kho hàng
@@ -50,6 +53,23 @@ export class InventoryController {
   @Get('batches')
   findAllBatches() {
     return this.inventoryService.findAllBatches();
+  }
+
+  /**
+   * Tìm kiếm nâng cao lô hàng tồn kho
+   * @param searchDto - Điều kiện tìm kiếm
+   * @returns Danh sách lô hàng tồn kho phù hợp
+   */
+  @Post('batches/search')
+  searchBatches(@Body() searchDto: SearchInventoryDto) {
+    try {
+      return this.inventoryService.searchBatches(searchDto);
+    } catch (error) {
+      throw new HttpException(
+        'Error occurred while searching inventory batches',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   /**

@@ -6,11 +6,14 @@ import {
   Patch,
   Param,
   Delete,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { ProductSubtypeService } from './product-subtype.service';
 import { CreateProductSubtypeDto } from './dto/create-product-subtype.dto';
 import { UpdateProductSubtypeDto } from './dto/update-product-subtype.dto';
 import { BaseStatus } from '../../entities/base-status.enum';
+import { SearchProductSubtypeDto } from './dto/search-product-subtype.dto';
 
 /**
  * Controller xử lý các request liên quan đến loại phụ sản phẩm
@@ -82,6 +85,23 @@ export class ProductSubtypeController {
   @Get('by-product-type/:productTypeId')
   findByProductType(@Param('productTypeId') productTypeId: string) {
     return this.productSubtypeService.findByProductType(+productTypeId);
+  }
+
+  /**
+   * Tìm kiếm nâng cao loại phụ sản phẩm
+   * @param searchDto - Điều kiện tìm kiếm
+   * @returns Danh sách loại phụ sản phẩm phù hợp
+   */
+  @Post('search')
+  search(@Body() searchDto: SearchProductSubtypeDto) {
+    try {
+      return this.productSubtypeService.searchProductSubtypes(searchDto);
+    } catch (error) {
+      throw new HttpException(
+        'Error occurred while searching product subtypes',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   /**

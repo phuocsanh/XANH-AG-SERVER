@@ -7,12 +7,15 @@ import {
   Param,
   Delete,
   UseGuards,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { BaseStatus } from '../../entities/base-status.enum';
+import { SearchUserDto } from './dto/search-user.dto';
 
 /**
  * Controller xử lý các request liên quan đến người dùng
@@ -160,5 +163,22 @@ export class UserController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.userService.remove(+id);
+  }
+
+  /**
+   * Tìm kiếm nâng cao người dùng
+   * @param searchDto - Điều kiện tìm kiếm
+   * @returns Danh sách người dùng phù hợp
+   */
+  @Post('search')
+  search(@Body() searchDto: SearchUserDto) {
+    try {
+      return this.userService.searchUsers(searchDto);
+    } catch (error) {
+      throw new HttpException(
+        'Error occurred while searching users',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 }

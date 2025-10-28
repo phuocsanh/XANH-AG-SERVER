@@ -6,11 +6,14 @@ import {
   Patch,
   Param,
   Delete,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { UnitService } from './unit.service';
 import { CreateUnitDto } from './dto/create-unit.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
 import { BaseStatus } from '../../entities/base-status.enum';
+import { SearchUnitDto } from './dto/search-unit.dto';
 
 /**
  * Controller xử lý các request liên quan đến đơn vị tính
@@ -131,5 +134,22 @@ export class UnitController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.unitService.remove(+id);
+  }
+
+  /**
+   * Tìm kiếm nâng cao đơn vị tính
+   * @param searchDto - Điều kiện tìm kiếm
+   * @returns Danh sách đơn vị tính phù hợp
+   */
+  @Post('search')
+  search(@Body() searchDto: SearchUnitDto) {
+    try {
+      return this.unitService.searchUnits(searchDto);
+    } catch (error) {
+      throw new HttpException(
+        'Error occurred while searching units',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 }
