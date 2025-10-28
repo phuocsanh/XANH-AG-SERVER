@@ -1,4 +1,11 @@
-import { IsOptional, IsArray, ValidateNested, IsEnum } from 'class-validator';
+import {
+  IsOptional,
+  IsArray,
+  ValidateNested,
+  IsEnum,
+  IsNumber,
+  Min,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { FilterConditionDto } from './filter-condition.dto';
 
@@ -18,4 +25,14 @@ export class SearchProductDto {
   @ValidateNested({ each: true })
   @Type(() => SearchProductDto)
   nestedFilters?: SearchProductDto[];
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  page?: number = 1;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  limit?: number = 20;
 }

@@ -69,9 +69,11 @@ export class ProductController {
    * @returns Danh sách sản phẩm phù hợp
    */
   @Post('search')
-  search(@Body() searchDto: SearchProductDto) {
+  async search(@Body() searchDto: SearchProductDto) {
     try {
-      return this.productService.searchProductsAdvanced(searchDto);
+      const result =
+        await this.productService.searchProductsAdvanced(searchDto);
+      return result;
     } catch (error) {
       throw new HttpException(
         'Error occurred while searching products',

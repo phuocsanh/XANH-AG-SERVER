@@ -213,7 +213,7 @@ export class ProductService {
    */
   async searchProductsAdvanced(
     searchDto: SearchProductDto,
-  ): Promise<Product[]> {
+  ): Promise<{ data: Product[]; total: number; page: number; limit: number }> {
     const queryBuilder = this.productRepository.createQueryBuilder('product');
 
     // Thêm điều kiện mặc định
@@ -224,7 +224,22 @@ export class ProductService {
     // Xây dựng điều kiện tìm kiếm
     this.buildSearchConditions(queryBuilder, searchDto, 'product');
 
-    return await queryBuilder.getMany();
+    // Xử lý phân trang
+    const page = searchDto.page || 1;
+    const limit = searchDto.limit || 20;
+    const offset = (page - 1) * limit;
+
+    queryBuilder.skip(offset).take(limit);
+
+    // Thực hiện truy vấn
+    const [data, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+    };
   }
 
   /**
