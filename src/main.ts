@@ -5,6 +5,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { loggingMiddleware } from './common/middleware/logging.middleware';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 
 /**
  * Hàm khởi tạo ứng dụng NestJS
@@ -77,6 +78,9 @@ async function bootstrap() {
 
   // Đăng ký global interceptor để ghi log thời gian xử lý
   app.useGlobalInterceptors(new LoggingInterceptor());
+
+  // Đăng ký global interceptor để chuẩn hóa response
+  app.useGlobalInterceptors(new ResponseInterceptor());
 
   // Cấu hình Swagger để tạo tài liệu API
   const config = new DocumentBuilder()
