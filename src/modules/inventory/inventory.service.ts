@@ -116,18 +116,38 @@ export class InventoryService {
   /**
    * Tìm kiếm nâng cao lô hàng tồn kho
    * @param searchDto - Điều kiện tìm kiếm
-   * @returns Danh sách lô hàng tồn kho phù hợp
+   * @returns Danh sách lô hàng tồn kho phù hợp với thông tin phân trang
    */
   async searchBatches(
     searchDto: SearchInventoryDto,
-  ): Promise<InventoryBatch[]> {
+  ): Promise<{
+    data: InventoryBatch[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
     const queryBuilder =
       this.inventoryBatchRepository.createQueryBuilder('batch');
 
     // Xây dựng điều kiện tìm kiếm
     this.buildSearchConditions(queryBuilder, searchDto, 'batch');
 
-    return await queryBuilder.getMany();
+    // Xử lý phân trang
+    const page = searchDto.page || 1;
+    const limit = searchDto.limit || 20;
+    const offset = (page - 1) * limit;
+
+    queryBuilder.skip(offset).take(limit);
+
+    // Thực hiện truy vấn
+    const [data, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+    };
   }
 
   /**

@@ -250,15 +250,32 @@ export class UserService {
   /**
    * Tìm kiếm nâng cao người dùng
    * @param searchDto - Điều kiện tìm kiếm
-   * @returns Danh sách người dùng phù hợp
+   * @returns Danh sách người dùng phù hợp với thông tin phân trang
    */
-  async searchUsers(searchDto: SearchUserDto): Promise<User[]> {
+  async searchUsers(
+    searchDto: SearchUserDto,
+  ): Promise<{ data: User[]; total: number; page: number; limit: number }> {
     const queryBuilder = this.userRepository.createQueryBuilder('user');
 
     // Xây dựng điều kiện tìm kiếm
     this.buildSearchConditions(queryBuilder, searchDto, 'user');
 
-    return await queryBuilder.getMany();
+    // Xử lý phân trang
+    const page = searchDto.page || 1;
+    const limit = searchDto.limit || 20;
+    const offset = (page - 1) * limit;
+
+    queryBuilder.skip(offset).take(limit);
+
+    // Thực hiện truy vấn
+    const [data, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+    };
   }
 
   /**

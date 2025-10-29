@@ -8,6 +8,7 @@ import {
   Delete,
   HttpException,
   HttpStatus,
+  Query,
 } from '@nestjs/common';
 import { UnitService } from './unit.service';
 import { CreateUnitDto } from './dto/create-unit.dto';
@@ -38,12 +39,54 @@ export class UnitController {
   }
 
   /**
-   * Lấy danh sách tất cả đơn vị tính
-   * @returns Danh sách đơn vị tính
+   * Lấy danh sách tất cả đơn vị tính với phân trang và điều kiện lọc
+   * @param page - Trang hiện tại (mặc định: 1)
+   * @param limit - Số bản ghi mỗi trang (mặc định: 20)
+   * @param status - Trạng thái cần lọc (active, inactive, archived)
+   * @param deleted - Lọc theo trạng thái xóa (true: đã xóa, false: chưa xóa, undefined: tất cả)
+   * @returns Danh sách đơn vị tính với thông tin phân trang
    */
   @Get()
-  findAll() {
-    return this.unitService.findAll();
+  async findAll(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20,
+    @Query('status') status?: string,
+    @Query('deleted') deleted?: boolean,
+  ) {
+    // Chuyển đổi thành cấu trúc search với điều kiện lọc
+    const searchDto = new SearchUnitDto();
+    searchDto.page = Number(page);
+    searchDto.limit = Number(limit);
+    searchDto.filters = [];
+    searchDto.nestedFilters = [];
+
+    // Thêm điều kiện lọc status nếu có
+    if (status) {
+      searchDto.filters.push({
+        field: 'status',
+        operator: 'eq',
+        value: status,
+      });
+    }
+
+    // Thêm điều kiện lọc deletedAt nếu có
+    if (deleted !== undefined) {
+      if (deleted) {
+        searchDto.filters.push({
+          field: 'deletedAt',
+          operator: 'isnotnull',
+          value: null,
+        });
+      } else {
+        searchDto.filters.push({
+          field: 'deletedAt',
+          operator: 'isnull',
+          value: null,
+        });
+      }
+    }
+
+    return this.unitService.searchUnits(searchDto);
   }
 
   /**

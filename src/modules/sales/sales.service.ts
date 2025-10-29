@@ -310,11 +310,16 @@ export class SalesService {
   /**
    * Tìm kiếm nâng cao hóa đơn bán hàng
    * @param searchDto - Điều kiện tìm kiếm
-   * @returns Danh sách hóa đơn bán hàng phù hợp
+   * @returns Danh sách hóa đơn bán hàng phù hợp với thông tin phân trang
    */
   async searchSalesInvoices(
     searchDto: SearchSalesDto,
-  ): Promise<SalesInvoice[]> {
+  ): Promise<{
+    data: SalesInvoice[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
     const queryBuilder =
       this.salesInvoiceRepository.createQueryBuilder('invoice');
 
@@ -324,7 +329,22 @@ export class SalesService {
     // Xây dựng điều kiện tìm kiếm
     this.buildSearchConditions(queryBuilder, searchDto, 'invoice');
 
-    return await queryBuilder.getMany();
+    // Xử lý phân trang
+    const page = searchDto.page || 1;
+    const limit = searchDto.limit || 20;
+    const offset = (page - 1) * limit;
+
+    queryBuilder.skip(offset).take(limit);
+
+    // Thực hiện truy vấn
+    const [data, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+    };
   }
 
   /**

@@ -1,8 +1,24 @@
-import { IsOptional, IsArray, ValidateNested, IsEnum } from 'class-validator';
+import {
+  IsOptional,
+  IsArray,
+  ValidateNested,
+  IsEnum,
+  IsNumber,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { FilterConditionDto } from './filter-condition.dto';
 
 export class SearchUnitDto {
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  page?: number = 1;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  limit?: number = 20;
+
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })

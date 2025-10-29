@@ -8,6 +8,7 @@ import {
   Delete,
   HttpException,
   HttpStatus,
+  Query,
 } from '@nestjs/common';
 import { ProductTypeService } from './product-type.service';
 import { CreateProductTypeDto } from './dto/create-product-type.dto';
@@ -39,12 +40,43 @@ export class ProductTypeController {
   }
 
   /**
-   * Lấy danh sách tất cả loại sản phẩm
-   * @returns Danh sách loại sản phẩm
+   * Lấy danh sách tất cả loại sản phẩm với phân trang và điều kiện lọc
+   * @param page - Trang hiện tại (mặc định: 1)
+   * @param limit - Số bản ghi mỗi trang (mặc định: 20)
+   * @param deleted - Lọc theo trạng thái xóa (true: đã xóa, false: chưa xóa, undefined: tất cả)
+   * @returns Danh sách loại sản phẩm với thông tin phân trang
    */
   @Get()
-  findAll() {
-    return this.productTypeService.findAll();
+  async findAll(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20,
+    @Query('deleted') deleted?: boolean,
+  ) {
+    // Chuyển đổi thành cấu trúc search với điều kiện lọc
+    const searchDto = new SearchProductTypeDto();
+    searchDto.page = Number(page);
+    searchDto.limit = Number(limit);
+    searchDto.filters = [];
+    searchDto.nestedFilters = [];
+
+    // Thêm điều kiện lọc deletedAt nếu có
+    if (deleted !== undefined) {
+      if (deleted) {
+        searchDto.filters.push({
+          field: 'deletedAt',
+          operator: 'isnotnull',
+          value: null,
+        });
+      } else {
+        searchDto.filters.push({
+          field: 'deletedAt',
+          operator: 'isnull',
+          value: null,
+        });
+      }
+    }
+
+    return this.productTypeService.searchProductTypes(searchDto);
   }
 
   /**

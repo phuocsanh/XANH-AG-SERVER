@@ -9,6 +9,7 @@ import {
   // UseGuards,
   HttpException,
   HttpStatus,
+  Query,
 } from '@nestjs/common';
 import { SalesService } from './sales.service';
 import { CreateSalesInvoiceDto } from './dto/create-sales-invoice.dto';
@@ -42,12 +43,54 @@ export class SalesController {
   }
 
   /**
-   * Lấy danh sách tất cả hóa đơn bán hàng (không bao gồm đã xóa mềm)
-   * @returns Danh sách hóa đơn bán hàng
+   * Lấy danh sách tất cả hóa đơn bán hàng với phân trang và điều kiện lọc
+   * @param page - Trang hiện tại (mặc định: 1)
+   * @param limit - Số bản ghi mỗi trang (mặc định: 20)
+   * @param status - Trạng thái cần lọc
+   * @param deleted - Lọc theo trạng thái xóa (true: đã xóa, false: chưa xóa, undefined: tất cả)
+   * @returns Danh sách hóa đơn bán hàng với thông tin phân trang
    */
   @Get('invoices')
-  findAll() {
-    return this.salesService.findAll();
+  async findAll(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20,
+    @Query('status') status?: string,
+    @Query('deleted') deleted?: boolean,
+  ) {
+    // Chuyển đổi thành cấu trúc search với điều kiện lọc
+    const searchDto = new SearchSalesDto();
+    searchDto.page = Number(page);
+    searchDto.limit = Number(limit);
+    searchDto.filters = [];
+    searchDto.nestedFilters = [];
+
+    // Thêm điều kiện lọc status nếu có
+    if (status) {
+      searchDto.filters.push({
+        field: 'status',
+        operator: 'eq',
+        value: status,
+      });
+    }
+
+    // Thêm điều kiện lọc deletedAt nếu có
+    if (deleted !== undefined) {
+      if (deleted) {
+        searchDto.filters.push({
+          field: 'deletedAt',
+          operator: 'isnotnull',
+          value: null,
+        });
+      } else {
+        searchDto.filters.push({
+          field: 'deletedAt',
+          operator: 'isnull',
+          value: null,
+        });
+      }
+    }
+
+    return this.salesService.searchSalesInvoices(searchDto);
   }
 
   /**

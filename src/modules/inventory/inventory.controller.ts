@@ -47,18 +47,30 @@ export class InventoryController {
   }
 
   /**
-   * Lấy danh sách tất cả lô hàng tồn kho
-   * @returns Danh sách lô hàng tồn kho
+   * Lấy danh sách tất cả lô hàng tồn kho với phân trang và điều kiện lọc
+   * @param page - Trang hiện tại (mặc định: 1)
+   * @param limit - Số bản ghi mỗi trang (mặc định: 20)
+   * @returns Danh sách lô hàng tồn kho với thông tin phân trang
    */
   @Get('batches')
-  findAllBatches() {
-    return this.inventoryService.findAllBatches();
+  async findAllBatches(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20,
+  ) {
+    // Chuyển đổi thành cấu trúc search với điều kiện mặc định
+    const searchDto = new SearchInventoryDto();
+    searchDto.page = Number(page);
+    searchDto.limit = Number(limit);
+    searchDto.filters = [];
+    searchDto.nestedFilters = [];
+
+    return this.inventoryService.searchBatches(searchDto);
   }
 
   /**
    * Tìm kiếm nâng cao lô hàng tồn kho
    * @param searchDto - Điều kiện tìm kiếm
-   * @returns Danh sách lô hàng tồn kho phù hợp
+   * @returns Danh sách lô hàng tồn kho phù hợp với thông tin phân trang
    */
   @Post('batches/search')
   searchBatches(@Body() searchDto: SearchInventoryDto) {

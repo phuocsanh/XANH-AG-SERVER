@@ -173,11 +173,16 @@ export class ProductTypeService {
   /**
    * Tìm kiếm nâng cao loại sản phẩm
    * @param searchDto - Điều kiện tìm kiếm
-   * @returns Danh sách loại sản phẩm phù hợp
+   * @returns Danh sách loại sản phẩm phù hợp với thông tin phân trang
    */
   async searchProductTypes(
     searchDto: SearchProductTypeDto,
-  ): Promise<ProductType[]> {
+  ): Promise<{
+    data: ProductType[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
     const queryBuilder =
       this.productTypeRepository.createQueryBuilder('productType');
 
@@ -187,7 +192,22 @@ export class ProductTypeService {
     // Xây dựng điều kiện tìm kiếm
     this.buildSearchConditions(queryBuilder, searchDto, 'productType');
 
-    return await queryBuilder.getMany();
+    // Xử lý phân trang
+    const page = searchDto.page || 1;
+    const limit = searchDto.limit || 20;
+    const offset = (page - 1) * limit;
+
+    queryBuilder.skip(offset).take(limit);
+
+    // Thực hiện truy vấn
+    const [data, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+    };
   }
 
   /**

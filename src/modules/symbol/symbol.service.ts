@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Symbol } from '../../entities/symbols.entity';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
+import { SearchSymbolDto } from './dto/search-symbol.dto';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến ký hiệu
@@ -79,9 +80,11 @@ export class SymbolService {
   /**
    * Tìm kiếm ký hiệu theo điều kiện
    * @param searchDto - Điều kiện tìm kiếm
-   * @returns Danh sách ký hiệu phù hợp
+   * @returns Danh sách ký hiệu phù hợp với thông tin phân trang
    */
-  async searchSymbols(searchDto: any): Promise<Symbol[]> {
+  async searchSymbols(
+    searchDto: SearchSymbolDto,
+  ): Promise<{ data: Symbol[]; total: number; page: number; limit: number }> {
     const queryBuilder = this.symbolRepository.createQueryBuilder('symbol');
 
     // Thêm điều kiện tìm kiếm nếu có
@@ -108,6 +111,21 @@ export class SymbolService {
       });
     }
 
-    return await queryBuilder.getMany();
+    // Xử lý phân trang
+    const page = searchDto.page || 1;
+    const limit = searchDto.limit || 20;
+    const offset = (page - 1) * limit;
+
+    queryBuilder.skip(offset).take(limit);
+
+    // Thực hiện truy vấn
+    const [data, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+    };
   }
 }

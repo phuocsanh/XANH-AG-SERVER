@@ -75,9 +75,11 @@ export class SupplierService {
   /**
    * Tìm kiếm nâng cao nhà cung cấp
    * @param searchDto - Điều kiện tìm kiếm
-   * @returns Danh sách nhà cung cấp phù hợp
+   * @returns Danh sách nhà cung cấp phù hợp với thông tin phân trang
    */
-  async searchSuppliers(searchDto: SearchSupplierDto): Promise<Supplier[]> {
+  async searchSuppliers(
+    searchDto: SearchSupplierDto,
+  ): Promise<{ data: Supplier[]; total: number; page: number; limit: number }> {
     const queryBuilder = this.supplierRepository.createQueryBuilder('supplier');
 
     // Thêm điều kiện mặc định
@@ -86,7 +88,22 @@ export class SupplierService {
     // Xây dựng điều kiện tìm kiếm
     this.buildSearchConditions(queryBuilder, searchDto, 'supplier');
 
-    return await queryBuilder.getMany();
+    // Xử lý phân trang
+    const page = searchDto.page || 1;
+    const limit = searchDto.limit || 20;
+    const offset = (page - 1) * limit;
+
+    queryBuilder.skip(offset).take(limit);
+
+    // Thực hiện truy vấn
+    const [data, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+    };
   }
 
   /**

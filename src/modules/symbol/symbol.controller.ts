@@ -10,6 +10,7 @@ import {
   NotFoundException,
   HttpException,
   HttpStatus,
+  Query,
 } from '@nestjs/common';
 import { SymbolService } from './symbol.service';
 import { Symbol } from '../../entities/symbols.entity';
@@ -38,12 +39,24 @@ export class SymbolController {
   }
 
   /**
-   * Lấy danh sách tất cả ký hiệu
-   * @returns Danh sách ký hiệu
+   * Lấy danh sách tất cả ký hiệu với phân trang và điều kiện lọc
+   * @param page - Trang hiện tại (mặc định: 1)
+   * @param limit - Số bản ghi mỗi trang (mặc định: 20)
+   * @returns Danh sách ký hiệu với thông tin phân trang
    */
   @Get()
-  async findAll(): Promise<Symbol[]> {
-    return this.symbolService.findAll();
+  async findAll(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20,
+  ): Promise<{ data: Symbol[]; total: number; page: number; limit: number }> {
+    // Chuyển đổi thành cấu trúc search với điều kiện mặc định
+    const searchDto = new SearchSymbolDto();
+    searchDto.page = Number(page);
+    searchDto.limit = Number(limit);
+    searchDto.filters = [];
+    searchDto.nestedFilters = [];
+
+    return this.symbolService.searchSymbols(searchDto);
   }
 
   /**

@@ -140,15 +140,32 @@ export class UnitService {
   /**
    * Tìm kiếm nâng cao đơn vị tính
    * @param searchDto - Điều kiện tìm kiếm
-   * @returns Danh sách đơn vị tính phù hợp
+   * @returns Danh sách đơn vị tính phù hợp với thông tin phân trang
    */
-  async searchUnits(searchDto: SearchUnitDto): Promise<Unit[]> {
+  async searchUnits(
+    searchDto: SearchUnitDto,
+  ): Promise<{ data: Unit[]; total: number; page: number; limit: number }> {
     const queryBuilder = this.unitRepository.createQueryBuilder('unit');
 
     // Xây dựng điều kiện tìm kiếm
     this.buildSearchConditions(queryBuilder, searchDto, 'unit');
 
-    return await queryBuilder.getMany();
+    // Xử lý phân trang
+    const page = searchDto.page || 1;
+    const limit = searchDto.limit || 20;
+    const offset = (page - 1) * limit;
+
+    queryBuilder.skip(offset).take(limit);
+
+    // Thực hiện truy vấn
+    const [data, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+    };
   }
 
   /**
