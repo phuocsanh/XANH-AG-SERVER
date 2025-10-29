@@ -5,9 +5,16 @@ import {
   HttpException,
   HttpStatus,
   BadRequestException,
+  ConflictException,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { DatabaseException } from '../exceptions/database.exception';
+import { DuplicateRecordException } from '../exceptions/duplicate-record.exception';
+import { ValidationException } from '../exceptions/validation.exception';
+import { ResourceNotFoundException } from '../exceptions/not-found.exception';
+import { BusinessLogicException } from '../exceptions/business-logic.exception';
 // import { ThrottlerException } from '@nestjs/throttler';
 
 /**
@@ -29,9 +36,58 @@ export class HttpExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
-      
+
+      // Xử lý ConflictException
+      if (exception instanceof ConflictException) {
+        errorResponse = {
+          error: 'Conflict',
+          message: exception.message || 'Dữ liệu đã tồn tại',
+        };
+      }
+      // Xử lý NotFoundException
+      else if (exception instanceof NotFoundException) {
+        errorResponse = {
+          error: 'Not Found',
+          message: exception.message || 'Không tìm thấy tài nguyên',
+        };
+      }
+      // Xử lý các custom exception
+      else if (exception instanceof DuplicateRecordException) {
+        errorResponse = {
+          error: 'Duplicate Record',
+          message: exception.message || 'Bản ghi đã tồn tại',
+          field: (exception as any).field,
+        };
+      } else if (exception instanceof DatabaseException) {
+        errorResponse = {
+          error: 'Database Error',
+          message: exception.message || 'Lỗi cơ sở dữ liệu',
+          details: (exception as any).details,
+        };
+      } else if (exception instanceof ValidationException) {
+        errorResponse = {
+          error: 'Validation Error',
+          message: exception.message || 'Dữ liệu đầu vào không hợp lệ',
+          details: (exception as any).details,
+        };
+      } else if (exception instanceof ResourceNotFoundException) {
+        errorResponse = {
+          error: 'Resource Not Found',
+          message: exception.message || 'Không tìm thấy tài nguyên',
+          resource: (exception as any).resource,
+        };
+      } else if (exception instanceof BusinessLogicException) {
+        errorResponse = {
+          error: 'Business Logic Error',
+          message: exception.message || 'Lỗi logic nghiệp vụ',
+          code: (exception as any).code,
+        };
+      }
       // Xử lý validation errors từ class-validator
-      if (exception instanceof BadRequestException && typeof exceptionResponse === 'object') {
+      else if (
+        exception instanceof BadRequestException &&
+        typeof exceptionResponse === 'object'
+      ) {
         const responseObj = exceptionResponse as any;
         if (Array.isArray(responseObj.message)) {
           errorResponse = {
@@ -40,21 +96,23 @@ export class HttpExceptionFilter implements ExceptionFilter {
             details: responseObj.message,
           };
         } else {
-          errorResponse = typeof exceptionResponse === 'string'
-            ? { message: exceptionResponse }
-            : exceptionResponse;
+          errorResponse =
+            typeof exceptionResponse === 'string'
+              ? { message: exceptionResponse }
+              : exceptionResponse;
         }
       } else {
-        errorResponse = typeof exceptionResponse === 'string'
-          ? { message: exceptionResponse }
-          : exceptionResponse;
+        errorResponse =
+          typeof exceptionResponse === 'string'
+            ? { message: exceptionResponse }
+            : exceptionResponse;
       }
-    // } else if (exception instanceof ThrottlerException) {
-    //   status = HttpStatus.TOO_MANY_REQUESTS;
-    //   errorResponse = {
-    //     error: 'Too Many Requests',
-    //     message: 'Quá nhiều yêu cầu. Vui lòng thử lại sau.',
-    //   };
+      // } else if (exception instanceof ThrottlerException) {
+      //   status = HttpStatus.TOO_MANY_REQUESTS;
+      //   errorResponse = {
+      //     error: 'Too Many Requests',
+      //     message: 'Quá nhiều yêu cầu. Vui lòng thử lại sau.',
+      //   };
     } else {
       // Xử lý các exception không phải HttpException
       status = HttpStatus.INTERNAL_SERVER_ERROR;
@@ -62,7 +120,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         error: 'Internal Server Error',
         message: 'Đã xảy ra lỗi không mong muốn',
       };
-      
+
       // Log lỗi chi tiết cho developer
       this.logger.error(
         `Unhandled exception: ${exception}`,

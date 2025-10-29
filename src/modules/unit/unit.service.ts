@@ -1,16 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull, SelectQueryBuilder } from 'typeorm';
+import { Repository, SelectQueryBuilder } from 'typeorm';
 import { Unit } from '../../entities/unit.entity';
-import { BaseStatus } from '../../entities/base-status.enum';
 import { CreateUnitDto } from './dto/create-unit.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
 import { SearchUnitDto } from './dto/search-unit.dto';
 import { FilterConditionDto } from './dto/filter-condition.dto';
+import { ErrorHandler } from '../../common/helpers/error-handler.helper';
+import { BaseStatus } from '../../entities/base-status.enum';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến đơn vị tính
- * Bao gồm quản lý đơn vị tính, Status Management và Soft Delete
+ * Bao gồm các thao tác CRUD cho Unit
  */
 @Injectable()
 export class UnitService {
@@ -29,49 +30,29 @@ export class UnitService {
    * @returns Thông tin đơn vị tính đã tạo
    */
   async create(createUnitDto: CreateUnitDto): Promise<Unit> {
-    const unit = this.unitRepository.create(createUnitDto);
-    return this.unitRepository.save(unit);
+    try {
+      const unit = this.unitRepository.create(createUnitDto);
+      return this.unitRepository.save(unit);
+    } catch (error) {
+      ErrorHandler.handleCreateError(error, 'đơn vị tính');
+    }
   }
 
   /**
-   * Lấy danh sách tất cả đơn vị tính (chỉ các bản ghi chưa bị soft delete và đang hoạt động)
+   * Lấy danh sách tất cả đơn vị tính
    * @returns Danh sách đơn vị tính
    */
   async findAll(): Promise<Unit[]> {
-    return this.unitRepository.find({
-      where: {
-        status: BaseStatus.ACTIVE,
-        deletedAt: IsNull(),
-      },
-    });
+    return this.unitRepository.find();
   }
 
   /**
-   * Lấy danh sách đơn vị tính theo trạng thái
-   * @param status - Trạng thái cần lọc (active, inactive, archived)
-   * @returns Danh sách đơn vị tính theo trạng thái
-   */
-  async findByStatus(status: BaseStatus): Promise<Unit[]> {
-    return this.unitRepository.find({
-      where: {
-        status,
-        deletedAt: IsNull(),
-      },
-    });
-  }
-
-  /**
-   * Tìm đơn vị tính theo ID (chỉ các bản ghi chưa bị soft delete)
+   * Tìm đơn vị tính theo ID
    * @param id - ID của đơn vị tính cần tìm
-   * @returns Thông tin đơn vị tính hoặc null nếu không tìm thấy
+   * @returns Thông tin đơn vị tính
    */
   async findOne(id: number): Promise<Unit | null> {
-    return this.unitRepository.findOne({
-      where: {
-        id,
-        deletedAt: IsNull(),
-      },
-    });
+    return this.unitRepository.findOne({ where: { id } });
   }
 
   /**
@@ -81,12 +62,35 @@ export class UnitService {
    * @returns Thông tin đơn vị tính đã cập nhật
    */
   async update(id: number, updateUnitDto: UpdateUnitDto): Promise<Unit | null> {
-    await this.unitRepository.update(id, updateUnitDto);
-    return this.findOne(id);
+    try {
+      await this.unitRepository.update(id, updateUnitDto);
+      return this.findOne(id);
+    } catch (error) {
+      ErrorHandler.handleUpdateError(error, 'đơn vị tính');
+    }
   }
 
   /**
-   * Kích hoạt đơn vị tính (chuyển trạng thái thành active)
+   * Xóa đơn vị tính theo ID
+   * @param id - ID của đơn vị tính cần xóa
+   */
+  async remove(id: number): Promise<void> {
+    await this.unitRepository.delete(id);
+  }
+
+  /**
+   * Lấy danh sách đơn vị tính theo trạng thái
+   * @param status - Trạng thái cần lọc
+   * @returns Danh sách đơn vị tính theo trạng thái
+   */
+  async findByStatus(status: BaseStatus): Promise<Unit[]> {
+    return this.unitRepository.find({
+      where: { status },
+    });
+  }
+
+  /**
+   * Kích hoạt đơn vị tính
    * @param id - ID của đơn vị tính cần kích hoạt
    * @returns Thông tin đơn vị tính đã kích hoạt
    */
@@ -96,7 +100,7 @@ export class UnitService {
   }
 
   /**
-   * Vô hiệu hóa đơn vị tính (chuyển trạng thái thành inactive)
+   * Vô hiệu hóa đơn vị tính
    * @param id - ID của đơn vị tính cần vô hiệu hóa
    * @returns Thông tin đơn vị tính đã vô hiệu hóa
    */
@@ -106,7 +110,7 @@ export class UnitService {
   }
 
   /**
-   * Lưu trữ đơn vị tính (chuyển trạng thái thành archived)
+   * Lưu trữ đơn vị tính
    * @param id - ID của đơn vị tính cần lưu trữ
    * @returns Thông tin đơn vị tính đã lưu trữ
    */
@@ -116,15 +120,15 @@ export class UnitService {
   }
 
   /**
-   * Soft delete đơn vị tính (đánh dấu deletedAt)
-   * @param id - ID của đơn vị tính cần soft delete
+   * Xóa mềm đơn vị tính (soft delete)
+   * @param id - ID của đơn vị tính cần xóa mềm
    */
   async softDelete(id: number): Promise<void> {
     await this.unitRepository.softDelete(id);
   }
 
   /**
-   * Khôi phục đơn vị tính đã bị soft delete
+   * Khôi phục đơn vị tính đã bị xóa mềm
    * @param id - ID của đơn vị tính cần khôi phục
    * @returns Thông tin đơn vị tính đã khôi phục
    */
@@ -134,25 +138,12 @@ export class UnitService {
   }
 
   /**
-   * Xóa cứng đơn vị tính theo ID (hard delete)
-   * @param id - ID của đơn vị tính cần xóa
-   */
-  async remove(id: number): Promise<void> {
-    await this.unitRepository.delete(id);
-  }
-
-  /**
    * Tìm kiếm nâng cao đơn vị tính
    * @param searchDto - Điều kiện tìm kiếm
    * @returns Danh sách đơn vị tính phù hợp
    */
   async searchUnits(searchDto: SearchUnitDto): Promise<Unit[]> {
     const queryBuilder = this.unitRepository.createQueryBuilder('unit');
-
-    // Thêm điều kiện mặc định
-    queryBuilder
-      .where('unit.status = :status', { status: BaseStatus.ACTIVE })
-      .andWhere('unit.deletedAt IS NULL');
 
     // Xây dựng điều kiện tìm kiếm
     this.buildSearchConditions(queryBuilder, searchDto, 'unit');

@@ -9,6 +9,7 @@ import { ProductFactoryRegistry } from './factories/product-factory.registry';
 import { FileTrackingService } from '../file-tracking/file-tracking.service';
 import { SearchProductDto } from './dto/search-product.dto';
 import { FilterConditionDto } from './dto/filter-condition.dto';
+import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến sản phẩm
@@ -35,19 +36,23 @@ export class ProductService {
    * @returns Thông tin sản phẩm đã tạo
    */
   async create(createProductDto: CreateProductDto): Promise<Product> {
-    // Kiểm tra xem có factory nào phù hợp với productType không
-    const factory = this.productFactoryRegistry.getFactory(
-      createProductDto.type,
-    );
+    try {
+      // Kiểm tra xem có factory nào phù hợp với productType không
+      const factory = this.productFactoryRegistry.getFactory(
+        createProductDto.type,
+      );
 
-    if (factory) {
-      // Sử dụng factory để tạo product
-      return factory.createProduct(createProductDto);
-    } else {
-      // Nếu không có factory phù hợp, tạo product theo cách thông thường
-      const product = new Product();
-      Object.assign(product, createProductDto);
-      return this.productRepository.save(product);
+      if (factory) {
+        // Sử dụng factory để tạo product
+        return factory.createProduct(createProductDto);
+      } else {
+        // Nếu không có factory phù hợp, tạo product theo cách thông thường
+        const product = new Product();
+        Object.assign(product, createProductDto);
+        return this.productRepository.save(product);
+      }
+    } catch (error) {
+      ErrorHandler.handleCreateError(error, 'sản phẩm');
     }
   }
 
@@ -122,8 +127,12 @@ export class ProductService {
     id: number,
     updateProductDto: UpdateProductDto,
   ): Promise<Product | null> {
-    await this.productRepository.update(id, updateProductDto);
-    return this.findOne(id);
+    try {
+      await this.productRepository.update(id, updateProductDto);
+      return this.findOne(id);
+    } catch (error) {
+      ErrorHandler.handleUpdateError(error, 'sản phẩm');
+    }
   }
 
   /**

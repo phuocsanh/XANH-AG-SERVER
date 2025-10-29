@@ -16,6 +16,7 @@ import {
 } from './interfaces/inventory-report.interface';
 import { SearchInventoryDto } from './dto/search-inventory.dto';
 import { FilterConditionDto } from '../supplier/dto/filter-condition.dto';
+import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến quản lý kho hàng
@@ -50,8 +51,14 @@ export class InventoryService {
    * @returns Thông tin lô hàng tồn kho đã tạo
    */
   async createBatch(createInventoryBatchDto: CreateInventoryBatchDto) {
-    const batch = this.inventoryBatchRepository.create(createInventoryBatchDto);
-    return this.inventoryBatchRepository.save(batch);
+    try {
+      const batch = this.inventoryBatchRepository.create(
+        createInventoryBatchDto,
+      );
+      return this.inventoryBatchRepository.save(batch);
+    } catch (error) {
+      ErrorHandler.handleCreateError(error, 'lô hàng tồn kho');
+    }
   }
 
   /**
@@ -90,8 +97,12 @@ export class InventoryService {
     id: number,
     updateData: Partial<CreateInventoryBatchDto>,
   ): Promise<InventoryBatch | null> {
-    await this.inventoryBatchRepository.update(id, updateData);
-    return this.findBatchById(id);
+    try {
+      await this.inventoryBatchRepository.update(id, updateData);
+      return this.findBatchById(id);
+    } catch (error) {
+      ErrorHandler.handleUpdateError(error, 'lô hàng tồn kho');
+    }
   }
 
   /**

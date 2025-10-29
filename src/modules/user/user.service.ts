@@ -1,36 +1,33 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull, SelectQueryBuilder } from 'typeorm';
-import * as bcrypt from 'bcrypt';
+import { Repository, SelectQueryBuilder, Not, IsNull } from 'typeorm';
 import { User } from '../../entities/users.entity';
 import { UserProfile } from '../../entities/user-profiles.entity';
-import { BaseStatus } from '../../entities/base-status.enum';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { FileTrackingService } from '../file-tracking/file-tracking.service';
 import { SearchUserDto } from './dto/search-user.dto';
 import { FilterConditionDto } from './dto/filter-condition.dto';
+import * as bcrypt from 'bcrypt';
+import { ErrorHandler } from '../../common/helpers/error-handler.helper';
+import { BaseStatus } from '../../entities/base-status.enum';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến người dùng
- * Bao gồm tạo, tìm kiếm, cập nhật và xóa thông tin người dùng
- * Hỗ trợ quản lý trạng thái và xóa mềm
+ * Bao gồm các thao tác CRUD, xác thực và quản lý mật khẩu cho User
  */
 @Injectable()
 export class UserService {
   /**
-   * Constructor injection các repository và service cần thiết
+   * Constructor injection các repository cần thiết
    * @param userRepository - Repository để thao tác với entity User
    * @param userProfileRepository - Repository để thao tác với entity UserProfile
-   * @param fileTrackingService - Service quản lý theo dõi file
    */
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
     @InjectRepository(UserProfile)
     private userProfileRepository: Repository<UserProfile>,
-    private fileTrackingService: FileTrackingService,
   ) {}
 
   /**
@@ -39,106 +36,58 @@ export class UserService {
    * @returns Thông tin người dùng đã tạo
    */
   async create(createUserDto: CreateUserDto): Promise<User> {
-    // Tạo user (password đã được hash từ AuthService)
-    const user = this.userRepository.create({
-      account: createUserDto.account,
-      password: createUserDto.password, // Password đã được hash từ AuthService
-      salt: createUserDto.salt || '', // Use empty string if salt is not provided
-      status: BaseStatus.ACTIVE, // Sử dụng BaseStatus thay vì UserStatus
-    });
-    const savedUser = await this.userRepository.save(user);
+    try {
+      // Tạo salt và hash password
+      const salt = await bcrypt.genSalt();
+      const hashedPassword = await bcrypt.hash(createUserDto.password, salt);
 
-    // Tạo user profile
-    const userProfileData: Partial<UserProfile> = {
-      userId: savedUser.id,
-      account: createUserDto.account,
-      // userState: createUserDto.userState || 1, // Xóa dòng này vì UserProfile đã có status
-      isAuthentication: 0,
-      status: BaseStatus.ACTIVE, // Thêm status cho UserProfile
-    };
+      // Tạo user entity
+      const user = this.userRepository.create({
+        account: createUserDto.account,
+        password: hashedPassword,
+        salt: salt,
+      });
 
-    // Chỉ thêm userEmail nếu có giá trị
-    if (createUserDto.email) {
-      userProfileData.email = createUserDto.email;
+      // Lưu user
+      const savedUser = await this.userRepository.save(user);
+
+      // Tạo user profile mặc định
+      const userProfile = this.userProfileRepository.create({
+        userId: savedUser.id,
+        account: savedUser.account,
+      });
+      await this.userProfileRepository.save(userProfile);
+
+      return savedUser;
+    } catch (error) {
+      ErrorHandler.handleCreateError(error, 'người dùng');
     }
-
-    const userProfile = this.userProfileRepository.create(userProfileData);
-    await this.userProfileRepository.save(userProfile);
-
-    return savedUser;
   }
 
   /**
-   * Lấy danh sách tất cả người dùng (không bao gồm đã xóa mềm)
-   * @returns Danh sách người dùng (không bao gồm password)
+   * Lấy danh sách tất cả người dùng
+   * @returns Danh sách người dùng
    */
   async findAll(): Promise<User[]> {
-    const users = await this.userRepository.find({
-      where: { deletedAt: IsNull() },
-    });
-    // Loại bỏ password khỏi response để bảo mật
-    return users.map((user) => {
-      const { password, ...userWithoutPassword } = user;
-      return userWithoutPassword as User;
-    });
+    return this.userRepository.find();
   }
 
   /**
-   * Tìm người dùng theo ID (không bao gồm đã xóa mềm)
-   * @param userId - ID của người dùng cần tìm
-   * @returns Thông tin người dùng (không bao gồm password) hoặc null nếu không tìm thấy
+   * Tìm người dùng theo ID
+   * @param id - ID của người dùng cần tìm
+   * @returns Thông tin người dùng
    */
-  async findOne(userId: number): Promise<User | null> {
-    const user = await this.userRepository.findOne({
-      where: { id: userId, deletedAt: IsNull() },
-    });
-    if (user) {
-      // Loại bỏ password khỏi response để bảo mật
-      const { password, ...userWithoutPassword } = user;
-      return userWithoutPassword as User;
-    }
-    return null;
+  async findOne(id: number): Promise<User | null> {
+    return this.userRepository.findOne({ where: { id } });
   }
 
   /**
-   * Tìm người dùng theo tên tài khoản (bao gồm cả đã xóa mềm)
-   * @param userAccount - Tên tài khoản của người dùng cần tìm
-   * @returns Thông tin người dùng hoặc null nếu không tìm thấy
+   * Tìm người dùng theo tên tài khoản
+   * @param account - Tên tài khoản cần tìm
+   * @returns Thông tin người dùng
    */
   async findByAccount(account: string): Promise<User | null> {
     return this.userRepository.findOne({ where: { account } });
-  }
-
-  /**
-   * Lấy danh sách người dùng theo trạng thái
-   * @param status - Trạng thái cần lọc
-   * @returns Danh sách người dùng có trạng thái tương ứng
-   */
-  async findByStatus(status: BaseStatus): Promise<User[]> {
-    const users = await this.userRepository.find({
-      where: { status, deletedAt: IsNull() },
-    });
-    // Loại bỏ password khỏi response để bảo mật
-    return users.map((user) => {
-      const { password, ...userWithoutPassword } = user;
-      return userWithoutPassword as User;
-    });
-  }
-
-  /**
-   * Lấy danh sách người dùng đã bị xóa mềm
-   * @returns Danh sách người dùng đã bị xóa mềm
-   */
-  async findDeleted(): Promise<User[]> {
-    const users = await this.userRepository.find({
-      withDeleted: true,
-    });
-    const deletedUsers = users.filter((user) => user.deletedAt !== null);
-    // Loại bỏ password khỏi response để bảo mật
-    return deletedUsers.map((user) => {
-      const { password, ...userWithoutPassword } = user;
-      return userWithoutPassword as User;
-    });
   }
 
   /**
@@ -147,12 +96,13 @@ export class UserService {
    * @param updateUserDto - Dữ liệu cập nhật người dùng
    * @returns Thông tin người dùng đã cập nhật
    */
-  async update(
-    userId: number,
-    updateUserDto: UpdateUserDto,
-  ): Promise<User | null> {
-    await this.userRepository.update(userId, updateUserDto);
-    return this.findOne(userId);
+  async update(id: number, updateUserDto: UpdateUserDto): Promise<User | null> {
+    try {
+      await this.userRepository.update(id, updateUserDto);
+      return this.findOne(id);
+    } catch (error) {
+      ErrorHandler.handleUpdateError(error, 'người dùng');
+    }
   }
 
   /**
@@ -240,6 +190,28 @@ export class UserService {
   }
 
   /**
+   * Lấy danh sách người dùng theo trạng thái
+   * @param status - Trạng thái cần lọc
+   * @returns Danh sách người dùng theo trạng thái
+   */
+  async findByStatus(status: BaseStatus): Promise<User[]> {
+    return this.userRepository.find({
+      where: { status },
+    });
+  }
+
+  /**
+   * Lấy danh sách người dùng đã xóa mềm
+   * @returns Danh sách người dùng đã xóa mềm
+   */
+  async findDeleted(): Promise<User[]> {
+    return this.userRepository.find({
+      where: { deletedAt: Not(IsNull()) },
+      withDeleted: true,
+    });
+  }
+
+  /**
    * Xóa mềm người dùng (soft delete)
    * @param id - ID của người dùng cần xóa mềm
    * @returns Thông tin người dùng đã được xóa mềm
@@ -260,28 +232,18 @@ export class UserService {
   /**
    * Khôi phục người dùng đã bị xóa mềm
    * @param id - ID của người dùng cần khôi phục
-   * @returns Thông tin người dùng đã được khôi phục
+   * @returns Thông tin người dùng đã khôi phục
    */
   async restore(userId: number): Promise<User | null> {
     await this.userRepository.restore(userId);
-    return this.findOne(userId);
+    return this.userRepository.findOne({ where: { id: userId } });
   }
 
   /**
-   * Xóa vĩnh viễn người dùng (hard delete)
+   * Xóa vĩnh viễn người dùng
    * @param id - ID của người dùng cần xóa vĩnh viễn
    */
   async remove(userId: number): Promise<void> {
-    // Xóa tất cả file references liên quan đến người dùng trước khi xóa
-    await this.fileTrackingService.batchRemoveEntityFileReferences(
-      'User',
-      userId,
-    );
-
-    // Xóa user profile trước
-    await this.userProfileRepository.delete({ userId });
-
-    // Xóa người dùng vĩnh viễn
     await this.userRepository.delete(userId);
   }
 
@@ -293,19 +255,10 @@ export class UserService {
   async searchUsers(searchDto: SearchUserDto): Promise<User[]> {
     const queryBuilder = this.userRepository.createQueryBuilder('user');
 
-    // Thêm điều kiện mặc định
-    queryBuilder.where('user.deletedAt IS NULL');
-
     // Xây dựng điều kiện tìm kiếm
     this.buildSearchConditions(queryBuilder, searchDto, 'user');
 
-    const users = await queryBuilder.getMany();
-
-    // Loại bỏ password khỏi response để bảo mật
-    return users.map((user) => {
-      const { password, ...userWithoutPassword } = user;
-      return userWithoutPassword as User;
-    });
+    return await queryBuilder.getMany();
   }
 
   /**

@@ -6,6 +6,7 @@ import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { SearchSupplierDto } from './dto/search-supplier.dto';
 import { FilterConditionDto } from './dto/filter-condition.dto';
+import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến nhà cung cấp
@@ -23,8 +24,12 @@ export class SupplierService {
    * @returns Thông tin nhà cung cấp đã tạo
    */
   async create(createSupplierDto: CreateSupplierDto) {
-    const supplier = this.supplierRepository.create(createSupplierDto);
-    return this.supplierRepository.save(supplier);
+    try {
+      const supplier = this.supplierRepository.create(createSupplierDto);
+      return await this.supplierRepository.save(supplier);
+    } catch (error) {
+      ErrorHandler.handleCreateError(error, 'nhà cung cấp');
+    }
   }
 
   /**
@@ -51,8 +56,12 @@ export class SupplierService {
    * @returns Thông tin nhà cung cấp đã cập nhật
    */
   async update(id: number, updateSupplierDto: UpdateSupplierDto) {
-    await this.supplierRepository.update(id, updateSupplierDto);
-    return this.findOne(id);
+    try {
+      await this.supplierRepository.update(id, updateSupplierDto);
+      return this.findOne(id);
+    } catch (error) {
+      ErrorHandler.handleUpdateError(error, 'nhà cung cấp');
+    }
   }
 
   /**

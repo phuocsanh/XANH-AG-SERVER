@@ -10,6 +10,7 @@ import { CreateSalesInvoiceDto } from './dto/create-sales-invoice.dto';
 import { UpdateSalesInvoiceDto } from './dto/update-sales-invoice.dto';
 import { SearchSalesDto } from './dto/search-sales.dto';
 import { FilterConditionDto } from './dto/filter-condition.dto';
+import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến quản lý bán hàng
@@ -37,29 +38,33 @@ export class SalesService {
   async create(
     createSalesInvoiceDto: CreateSalesInvoiceDto,
   ): Promise<SalesInvoice> {
-    // Tạo phiếu bán hàng với trạng thái mặc định là DRAFT
-    const invoice = this.salesInvoiceRepository.create({
-      ...createSalesInvoiceDto,
-      createdBy: 1, // TODO: Lấy user ID từ context
-      status: SalesInvoiceStatus.DRAFT, // Trạng thái mặc định
-    });
-    const savedInvoice = await this.salesInvoiceRepository.save(invoice);
-
-    // Tạo các item trong phiếu với tính toán totalPrice
-    const items = createSalesInvoiceDto.items.map((item) => {
-      // Tính tổng giá tiền = (giá đơn vị * số lượng) - số tiền giảm giá
-      const totalPrice =
-        item.unitPrice * item.quantity - (item.discountAmount || 0);
-
-      return this.salesInvoiceItemRepository.create({
-        ...item,
-        invoiceId: savedInvoice.id,
-        totalPrice: totalPrice,
+    try {
+      // Tạo phiếu bán hàng với trạng thái mặc định là DRAFT
+      const invoice = this.salesInvoiceRepository.create({
+        ...createSalesInvoiceDto,
+        createdBy: 1, // TODO: Lấy user ID từ context
+        status: SalesInvoiceStatus.DRAFT, // Trạng thái mặc định
       });
-    });
-    await this.salesInvoiceItemRepository.save(items);
+      const savedInvoice = await this.salesInvoiceRepository.save(invoice);
 
-    return savedInvoice;
+      // Tạo các item trong phiếu với tính toán totalPrice
+      const items = createSalesInvoiceDto.items.map((item) => {
+        // Tính tổng giá tiền = (giá đơn vị * số lượng) - số tiền giảm giá
+        const totalPrice =
+          item.unitPrice * item.quantity - (item.discountAmount || 0);
+
+        return this.salesInvoiceItemRepository.create({
+          ...item,
+          invoiceId: savedInvoice.id,
+          totalPrice: totalPrice,
+        });
+      });
+      await this.salesInvoiceItemRepository.save(items);
+
+      return savedInvoice;
+    } catch (error) {
+      ErrorHandler.handleCreateError(error, 'hóa đơn bán hàng');
+    }
   }
 
   /**
@@ -135,8 +140,12 @@ export class SalesService {
     id: number,
     updateSalesInvoiceDto: UpdateSalesInvoiceDto,
   ): Promise<SalesInvoice | null> {
-    await this.salesInvoiceRepository.update(id, updateSalesInvoiceDto);
-    return this.findOne(id);
+    try {
+      await this.salesInvoiceRepository.update(id, updateSalesInvoiceDto);
+      return this.findOne(id);
+    } catch (error) {
+      ErrorHandler.handleUpdateError(error, 'hóa đơn bán hàng');
+    }
   }
 
   /**

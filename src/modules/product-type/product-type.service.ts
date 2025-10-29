@@ -8,6 +8,7 @@ import { UpdateProductTypeDto } from './dto/update-product-type.dto';
 import { FileTrackingService } from '../file-tracking/file-tracking.service';
 import { SearchProductTypeDto } from './dto/search-product-type.dto';
 import { FilterConditionDto } from './dto/filter-condition.dto';
+import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến loại sản phẩm
@@ -34,10 +35,15 @@ export class ProductTypeService {
   async create(
     createProductTypeDto: CreateProductTypeDto,
   ): Promise<ProductType> {
-    const productType = new ProductType();
-    Object.assign(productType, createProductTypeDto);
-    const savedProductType = await this.productTypeRepository.save(productType);
-    return savedProductType;
+    try {
+      const productType = new ProductType();
+      Object.assign(productType, createProductTypeDto);
+      const savedProductType =
+        await this.productTypeRepository.save(productType);
+      return savedProductType;
+    } catch (error) {
+      ErrorHandler.handleCreateError(error, 'loại sản phẩm');
+    }
   }
 
   /**
@@ -87,8 +93,12 @@ export class ProductTypeService {
     id: number,
     updateProductTypeDto: UpdateProductTypeDto,
   ): Promise<ProductType | null> {
-    await this.productTypeRepository.update(id, updateProductTypeDto);
-    return this.findOne(id);
+    try {
+      await this.productTypeRepository.update(id, updateProductTypeDto);
+      return this.findOne(id);
+    } catch (error) {
+      ErrorHandler.handleUpdateError(error, 'loại sản phẩm');
+    }
   }
 
   /**

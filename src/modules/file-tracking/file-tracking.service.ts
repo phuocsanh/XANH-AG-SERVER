@@ -4,15 +4,16 @@ import { Repository, IsNull } from 'typeorm';
 import { FileUpload } from '../../entities/file-uploads.entity';
 import { FileReference } from '../../entities/file-references.entity';
 import { CreateFileUploadDto } from './dto/create-file-upload.dto';
+import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 
 /**
- * Service xử lý logic nghiệp vụ liên quan đến quản lý file tracking
- * Bao gồm quản lý file upload và các chức năng liên quan
+ * Service xử lý logic nghiệp vụ liên quan đến theo dõi file
+ * Bao gồm các thao tác CRUD cho FileUpload và FileReference
  */
 @Injectable()
 export class FileTrackingService {
   /**
-   * Constructor injection repository cần thiết
+   * Constructor injection các repository cần thiết
    * @param fileUploadRepository - Repository để thao tác với entity FileUpload
    * @param fileReferenceRepository - Repository để thao tác với entity FileReference
    */
@@ -24,13 +25,17 @@ export class FileTrackingService {
   ) {}
 
   /**
-   * Tạo file upload mới
+   * Tạo bản ghi file upload mới
    * @param createFileUploadDto - Dữ liệu tạo file upload mới
    * @returns Thông tin file upload đã tạo
    */
   async create(createFileUploadDto: CreateFileUploadDto): Promise<FileUpload> {
-    const fileUpload = this.fileUploadRepository.create(createFileUploadDto);
-    return this.fileUploadRepository.save(fileUpload);
+    try {
+      const fileUpload = this.fileUploadRepository.create(createFileUploadDto);
+      return this.fileUploadRepository.save(fileUpload);
+    } catch (error) {
+      ErrorHandler.handleCreateError(error, 'file upload');
+    }
   }
 
   /**
@@ -51,8 +56,8 @@ export class FileTrackingService {
   }
 
   /**
-   * Tìm file upload theo public ID
-   * @param publicId - Public ID của file upload cần tìm
+   * Tìm file upload theo publicId
+   * @param publicId - Public ID của file cần tìm
    * @returns Thông tin file upload
    */
   async findByPublicId(publicId: string): Promise<FileUpload | null> {
@@ -69,8 +74,12 @@ export class FileTrackingService {
     id: number,
     updateData: Partial<FileUpload>,
   ): Promise<FileUpload | null> {
-    await this.fileUploadRepository.update(id, updateData);
-    return this.findOne(id);
+    try {
+      await this.fileUploadRepository.update(id, updateData);
+      return this.findOne(id);
+    } catch (error) {
+      ErrorHandler.handleUpdateError(error, 'file upload');
+    }
   }
 
   /**
