@@ -23,27 +23,27 @@ export class SalesInvoiceItem {
 
   /** ID của hóa đơn bán hàng */
   @Column({ name: 'invoice_id' })
-  invoiceId!: number;
+  invoice_id!: number;
 
   /** ID của sản phẩm */
   @Column({ name: 'product_id' })
-  productId!: number;
+  product_id!: number;
 
   /** Số lượng sản phẩm trong hóa đơn */
-  @Column()
+  @Column({ name: 'quantity' })
   quantity!: number;
 
   /** Giá đơn vị của sản phẩm */
   @Column({ name: 'unit_price' })
-  unitPrice!: number;
+  unit_price!: number;
 
   /** Số tiền giảm giá cho sản phẩm */
   @Column({ name: 'discount_amount', default: 0 })
-  discountAmount!: number;
+  discount_amount!: number;
 
   /** Tổng giá tiền của sản phẩm */
   @Column({ name: 'total_price' })
-  totalPrice!: number;
+  total_price!: number;
 
   /** Ghi chú về chi tiết hóa đơn */
   @Column({ name: 'notes', nullable: true })
@@ -51,15 +51,15 @@ export class SalesInvoiceItem {
 
   /** Thời gian tạo chi tiết hóa đơn */
   @CreateDateColumn({ name: 'created_at' })
-  createdAt!: Date;
+  created_at!: Date;
 
   /** Thời gian cập nhật gần nhất chi tiết hóa đơn bán hàng */
   @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt!: Date;
+  updated_at!: Date;
 
   /** Thời gian xóa mềm (soft delete) */
   @DeleteDateColumn({ name: 'deleted_at' })
-  deletedAt?: Date;
+  deleted_at?: Date;
 
   // Relations
   /** Mối quan hệ nhiều-một với hóa đơn bán hàng */

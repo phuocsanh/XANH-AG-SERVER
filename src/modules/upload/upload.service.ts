@@ -46,7 +46,7 @@ export class UploadService {
 
       // Save to database via file-tracking service
       const fileUpload = await this.fileTrackingService.create({
-        publicId: result.public_id,
+        public_id: result.public_id,
         url: result.secure_url,
         name: file.originalname,
         type: file.mimetype,
@@ -55,13 +55,13 @@ export class UploadService {
 
       return {
         id: fileUpload.id.toString(),
-        publicId: fileUpload.publicId,
+        public_id: result.public_id,
         url: fileUpload.url,
         name: fileUpload.name,
         type: fileUpload.type,
         size: fileUpload.size,
-        createdAt: fileUpload.createdAt,
-        updatedAt: fileUpload.updatedAt,
+        created_at: fileUpload.created_at,
+        updated_at: fileUpload.updated_at,
       };
     } catch (error) {
       // Clean up temporary file in case of error
@@ -98,7 +98,7 @@ export class UploadService {
 
       // Save to database via file-tracking service
       const fileUpload = await this.fileTrackingService.create({
-        publicId: result.public_id,
+        public_id: result.public_id,
         url: result.secure_url,
         name: file.originalname,
         type: file.mimetype,
@@ -107,13 +107,13 @@ export class UploadService {
 
       return {
         id: fileUpload.id.toString(),
-        publicId: fileUpload.publicId,
+        public_id: result.public_id,
         url: fileUpload.url,
         name: fileUpload.name,
         type: fileUpload.type,
         size: fileUpload.size,
-        createdAt: fileUpload.createdAt,
-        updatedAt: fileUpload.updatedAt,
+        created_at: fileUpload.created_at,
+        updated_at: fileUpload.updated_at,
       };
     } catch (error) {
       // Clean up temporary file in case of error
@@ -217,7 +217,7 @@ export class UploadService {
       for (const file of orphanedFiles) {
         try {
           // Delete from Cloudinary
-          await cloudinary.uploader.destroy(file.publicId);
+          await cloudinary.uploader.destroy(file.public_id);
 
           // Delete from database
           await this.fileTrackingService.remove(file.id);
@@ -225,7 +225,7 @@ export class UploadService {
           deletedCount++;
         } catch (error) {
           console.error(
-            `Failed to delete orphaned file ${file.publicId}:`,
+            `Failed to delete orphaned file ${file.public_id}:`,
             error,
           );
         }

@@ -2,6 +2,9 @@
 trigger: always_on
 alwaysApply: true
 ---
+
+- Test API nhớ xem log của docker để biết lỗi mà sửa.
+- Chạy dự án bằng npm run docker:dev , không dùng npm run start:dev
 - Không tạo mock data trả về cho font-end
 - Luôn trả lời bằng tiếng việt
 - Luôn kiểm lỗi eslint và typescript sau khi code xong 1 file hoặc 1 chức năng.
@@ -10,4 +13,3 @@ alwaysApply: true
 - Luôn xem xét cấu trúc dự án có sẵn, không nên tạo file hoặc folder mới khi không có lý do cụ thể.
 - Bám sát cấu trúc dự án, không nên thay đổi cấu trúc dự án khi không có lý do cụ thể.
 - Hàm, code, hay file nào sau khi thêm chức năng mới hoặc chỉnh sửa xong mà không dùng nữa xóa đi.
-

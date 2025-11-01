@@ -31,55 +31,56 @@ export class SalesInvoice {
   id!: number;
 
   /** Mã hóa đơn bán hàng (duy nhất) */
-  @Column({ unique: true })
+  @Column({ name: 'code', unique: true })
   code!: string;
 
   /** Tên khách hàng */
-  @Column()
-  customerName!: string;
+  @Column({ name: 'customer_name' })
+  customer_name!: string;
 
   /** Số điện thoại khách hàng */
-  @Column({ nullable: true })
-  customerPhone?: string;
+  @Column({ name: 'customer_phone', nullable: true })
+  customer_phone?: string;
 
   /** Email khách hàng */
-  @Column({ nullable: true })
-  customerEmail?: string;
+  @Column({ name: 'customer_email', nullable: true })
+  customer_email?: string;
 
   /** Địa chỉ khách hàng */
-  @Column({ nullable: true })
-  customerAddress?: string;
+  @Column({ name: 'customer_address', nullable: true })
+  customer_address?: string;
 
   /** Tổng số tiền của hóa đơn */
-  @Column()
-  totalAmount!: number;
+  @Column({ name: 'total_amount' })
+  total_amount!: number;
 
   /** Số tiền giảm giá */
-  @Column({ default: 0 })
-  discountAmount!: number;
+  @Column({ name: 'discount_amount', default: 0 })
+  discount_amount!: number;
 
   /** Số tiền cuối cùng sau khi giảm giá */
-  @Column()
-  finalAmount!: number;
+  @Column({ name: 'final_amount' })
+  final_amount!: number;
 
   /** Phương thức thanh toán */
-  @Column()
-  paymentMethod!: string;
+  @Column({ name: 'payment_method' })
+  payment_method!: string;
 
   /** Trạng thái thanh toán */
-  @Column({ default: 'pending' })
-  paymentStatus!: string;
+  @Column({ name: 'payment_status', default: 'pending' })
+  payment_status!: string;
 
   /** Ghi chú */
-  @Column({ nullable: true })
+  @Column({ name: 'notes', nullable: true })
   notes?: string;
 
   /** ID người tạo hóa đơn */
-  @Column()
-  createdBy!: number;
+  @Column({ name: 'created_by' })
+  created_by!: number;
 
   /** Trạng thái hóa đơn */
   @Column({
+    name: 'status',
     type: 'enum',
     enum: SalesInvoiceStatus,
     default: SalesInvoiceStatus.DRAFT,
@@ -88,15 +89,15 @@ export class SalesInvoice {
 
   /** Thời gian tạo */
   @CreateDateColumn({ name: 'created_at' })
-  createdAt!: Date;
+  created_at!: Date;
 
   /** Thời gian cập nhật */
   @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt!: Date;
+  updated_at!: Date;
 
   /** Ngày xóa mềm (null nếu chưa bị xóa) */
   @DeleteDateColumn({ name: 'deleted_at' })
-  deletedAt?: Date;
+  deleted_at?: Date;
 
   /** Danh sách các item trong hóa đơn */
   @OneToMany(() => SalesInvoiceItem, (item) => item.invoice)

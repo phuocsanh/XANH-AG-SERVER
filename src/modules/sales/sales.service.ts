@@ -42,7 +42,7 @@ export class SalesService {
       // Tạo phiếu bán hàng với trạng thái mặc định là DRAFT
       const invoice = this.salesInvoiceRepository.create({
         ...createSalesInvoiceDto,
-        createdBy: 1, // TODO: Lấy user ID từ context
+        created_by: 1, // TODO: Lấy user ID từ context
         status: SalesInvoiceStatus.DRAFT, // Trạng thái mặc định
       });
       const savedInvoice = await this.salesInvoiceRepository.save(invoice);
@@ -51,12 +51,12 @@ export class SalesService {
       const items = createSalesInvoiceDto.items.map((item) => {
         // Tính tổng giá tiền = (giá đơn vị * số lượng) - số tiền giảm giá
         const totalPrice =
-          item.unitPrice * item.quantity - (item.discountAmount || 0);
+          item.unit_price * item.quantity - (item.discount_amount || 0);
 
         return this.salesInvoiceItemRepository.create({
           ...item,
-          invoiceId: savedInvoice.id,
-          totalPrice: totalPrice,
+          invoice_id: savedInvoice.id,
+          total_price: totalPrice,
         });
       });
       await this.salesInvoiceItemRepository.save(items);
@@ -73,8 +73,8 @@ export class SalesService {
    */
   async findAll(): Promise<SalesInvoice[]> {
     return this.salesInvoiceRepository.find({
-      where: { deletedAt: IsNull() },
-      order: { createdAt: 'DESC' }, // Sắp xếp theo thời gian tạo giảm dần
+      where: { deleted_at: IsNull() },
+      order: { created_at: 'DESC' }, // Sắp xếp theo thời gian tạo giảm dần
     });
   }
 
@@ -87,9 +87,9 @@ export class SalesService {
     return this.salesInvoiceRepository.find({
       where: {
         status,
-        deletedAt: IsNull(),
+        deleted_at: IsNull(),
       },
-      order: { createdAt: 'DESC' },
+      order: { created_at: 'DESC' },
     });
   }
 
@@ -99,8 +99,8 @@ export class SalesService {
    */
   async findDeleted(): Promise<SalesInvoice[]> {
     return this.salesInvoiceRepository.find({
-      where: { deletedAt: Not(IsNull()) },
-      order: { deletedAt: 'DESC' },
+      where: { deleted_at: Not(IsNull()) },
+      order: { deleted_at: 'DESC' },
       withDeleted: true,
       relations: ['items'],
     });
@@ -113,7 +113,7 @@ export class SalesService {
    */
   async findOne(id: number): Promise<SalesInvoice | null> {
     return this.salesInvoiceRepository.findOne({
-      where: { id, deletedAt: IsNull() },
+      where: { id, deleted_at: IsNull() },
       relations: ['items'], // Bao gồm cả các item trong hóa đơn
     });
   }
@@ -125,7 +125,7 @@ export class SalesService {
    */
   async findByCode(code: string): Promise<SalesInvoice | null> {
     return this.salesInvoiceRepository.findOne({
-      where: { code, deletedAt: IsNull() },
+      where: { code, deleted_at: IsNull() },
       relations: ['items'], // Bao gồm cả các item trong hóa đơn
     });
   }
@@ -165,7 +165,7 @@ export class SalesService {
 
     await this.salesInvoiceRepository.update(id, {
       status,
-      updatedAt: new Date(),
+      updated_at: new Date(),
     });
 
     return this.findOne(id);
@@ -234,7 +234,7 @@ export class SalesService {
    */
   async restore(id: number): Promise<SalesInvoice | null> {
     const invoice = await this.salesInvoiceRepository.findOne({
-      where: { id, deletedAt: Not(IsNull()) },
+      where: { id, deleted_at: Not(IsNull()) },
       withDeleted: true,
     });
 
@@ -258,30 +258,29 @@ export class SalesService {
   /**
    * Cập nhật trạng thái thanh toán của hóa đơn bán hàng
    * @param id - ID của hóa đơn bán hàng cần cập nhật
-   * @param paymentStatus - Trạng thái thanh toán mới
+   * @param payment_status - Trạng thái thanh toán mới
    * @returns Thông tin hóa đơn bán hàng đã cập nhật
    */
   async updatePaymentStatus(
     id: number,
-    paymentStatus: string,
+    payment_status: string,
   ): Promise<SalesInvoice | null> {
     const invoice = await this.findOne(id);
     if (!invoice) {
       return null;
     }
-    invoice.paymentStatus = paymentStatus; // Cập nhật trạng thái thanh toán
+    invoice.payment_status = payment_status; // Cập nhật trạng thái thanh toán
     return this.salesInvoiceRepository.save(invoice);
   }
 
   /**
-   * Lấy danh sách chi tiết hóa đơn bán hàng
-   * @param invoiceId - ID của hóa đơn bán hàng
-   * @returns Danh sách chi tiết hóa đơn bán hàng
+   * Lấy danh sách các item trong hóa đơn bán hàng
+   * @param invoice_id - ID của hóa đơn bán hàng
+   * @returns Danh sách các item trong hóa đơn bán hàng
    */
-  async getInvoiceItems(invoiceId: number): Promise<SalesInvoiceItem[]> {
+  async getInvoiceItems(invoice_id: number): Promise<SalesInvoiceItem[]> {
     return this.salesInvoiceItemRepository.find({
-      where: { invoiceId },
-      relations: ['product'], // Bao gồm thông tin sản phẩm
+      where: { invoice_id },
     });
   }
 
@@ -312,9 +311,7 @@ export class SalesService {
    * @param searchDto - Điều kiện tìm kiếm
    * @returns Danh sách hóa đơn bán hàng phù hợp với thông tin phân trang
    */
-  async searchSalesInvoices(
-    searchDto: SearchSalesDto,
-  ): Promise<{
+  async searchSalesInvoices(searchDto: SearchSalesDto): Promise<{
     data: SalesInvoice[];
     total: number;
     page: number;
@@ -324,7 +321,7 @@ export class SalesService {
       this.salesInvoiceRepository.createQueryBuilder('invoice');
 
     // Thêm điều kiện mặc định
-    queryBuilder.where('invoice.deletedAt IS NULL');
+    queryBuilder.where('invoice.deleted_at IS NULL');
 
     // Xây dựng điều kiện tìm kiếm
     this.buildSearchConditions(queryBuilder, searchDto, 'invoice');
@@ -387,9 +384,9 @@ export class SalesService {
     }
 
     // Xử lý các bộ lọc lồng nhau
-    if (searchDto.nestedFilters && searchDto.nestedFilters.length > 0) {
+    if (searchDto.nested_filters && searchDto.nested_filters.length > 0) {
       // Xây dựng điều kiện cho từng bộ lọc lồng nhau
-      searchDto.nestedFilters.forEach((nestedFilter) => {
+      searchDto.nested_filters.forEach((nestedFilter) => {
         parameterIndex = this.buildSearchConditions(
           queryBuilder,
           nestedFilter,

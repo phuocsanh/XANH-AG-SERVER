@@ -33,5 +33,5 @@ export class SearchProductSubtypeDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => SearchProductSubtypeDto)
-  nestedFilters?: SearchProductSubtypeDto[];
+  nested_filters?: SearchProductSubtypeDto[];
 }

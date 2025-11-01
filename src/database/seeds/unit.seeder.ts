@@ -87,7 +87,7 @@ export class UnitSeeder {
       const existingUnit = await unitRepository.findOne({
         where: {
           code: unitData.code,
-          deletedAt: IsNull(),
+          deleted_at: IsNull(),
         },
       });
 

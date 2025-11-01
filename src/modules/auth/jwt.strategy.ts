@@ -1,37 +1,34 @@
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PassportStrategy } from '@nestjs/passport';
-import { Injectable } from '@nestjs/common';
-import { UserService } from '../user/user.service';
+import { Injectable, Logger } from '@nestjs/common';
 
 /**
  * Strategy xử lý xác thực JWT (JSON Web Token)
  * Được sử dụng để xác thực người dùng từ token trong header của request
  */
 @Injectable()
-export class JwtStrategy extends PassportStrategy(Strategy) {
+export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
+  private readonly logger = new Logger(JwtStrategy.name);
+
   /**
    * Constructor cấu hình JWT strategy
-   * @param userService - Service để lấy thông tin người dùng từ database
    */
-  constructor(private userService: UserService) {
+  constructor() {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(), // Trích xuất token từ header Authorization
       ignoreExpiration: false, // Không bỏ qua thời gian hết hạn của token
-      secretOrKey: process.env.JWT_SECRET || 'your-secret-key', // Secret key để xác minh token
+      secretOrKey: process.env.JWT_SECRET || 'my_jwt_secret_key', // Secret key để xác minh token
     });
   }
 
   /**
    * Phương thức validate để xác thực người dùng từ payload của token
-   * @param payload - Dữ liệu từ token JWT
-   * @returns Thông tin người dùng nếu hợp lệ, null nếu không hợp lệ
+   * @param payload - Dữ liệu được giải mã từ token
+   * @returns Dữ liệu người dùng được truyền vào request
    */
   async validate(payload: any) {
-    // Lấy thông tin người dùng từ database để đảm bảo người dùng vẫn tồn tại
-    const user = await this.userService.findOne(payload.userId || payload.sub);
-    if (!user) {
-      return null;
-    }
-    return user;
+    this.logger.log(`Validating JWT payload: ${JSON.stringify(payload)}`);
+    // Trả về payload để có thể truy cập trong request.user
+    return payload;
   }
 }

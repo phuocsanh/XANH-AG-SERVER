@@ -19,23 +19,24 @@ export class ProductSubtype {
   id!: number;
 
   /** Tên loại phụ sản phẩm */
-  @Column()
+  @Column({ name: 'name' })
   name!: string;
 
   /** Mã loại phụ sản phẩm (duy nhất) */
-  @Column({ unique: true })
+  @Column({ name: 'code', unique: true })
   code!: string;
 
   /** ID loại sản phẩm mà loại phụ sản phẩm này thuộc về */
-  @Column()
-  productTypeId!: number;
+  @Column({ name: 'product_type_id' })
+  product_type_id!: number;
 
   /** Mô tả loại phụ sản phẩm */
-  @Column({ nullable: true })
+  @Column({ name: 'description', nullable: true })
   description?: string;
 
   /** Trạng thái của loại phụ sản phẩm sử dụng enum chung */
   @Column({
+    name: 'status',
     type: 'enum',
     enum: BaseStatus,
     default: BaseStatus.ACTIVE,
@@ -44,13 +45,13 @@ export class ProductSubtype {
 
   /** Thời gian tạo loại phụ sản phẩm */
   @CreateDateColumn({ name: 'created_at' })
-  createdAt!: Date;
+  created_at!: Date;
 
   /** Thời gian cập nhật loại phụ sản phẩm */
   @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt!: Date;
+  updated_at!: Date;
 
   /** Thời gian xóa loại phụ sản phẩm (soft delete) */
   @DeleteDateColumn({ name: 'deleted_at' })
-  deletedAt?: Date;
+  deleted_at?: Date;
 }

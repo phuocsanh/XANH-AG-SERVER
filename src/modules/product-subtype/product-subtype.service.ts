@@ -53,7 +53,7 @@ export class ProductSubtypeService {
   async findAll(): Promise<ProductSubtype[]> {
     return this.productSubtypeRepository
       .createQueryBuilder('productSubtype')
-      .where('productSubtype.deletedAt IS NULL')
+      .where('productSubtype.deleted_at IS NULL')
       .getMany();
   }
 
@@ -66,7 +66,7 @@ export class ProductSubtypeService {
     return this.productSubtypeRepository
       .createQueryBuilder('productSubtype')
       .where('productSubtype.status = :status', { status })
-      .andWhere('productSubtype.deletedAt IS NULL')
+      .andWhere('productSubtype.deleted_at IS NULL')
       .getMany();
   }
 
@@ -79,7 +79,7 @@ export class ProductSubtypeService {
     return this.productSubtypeRepository
       .createQueryBuilder('productSubtype')
       .where('productSubtype.id = :id', { id })
-      .andWhere('productSubtype.deletedAt IS NULL')
+      .andWhere('productSubtype.deleted_at IS NULL')
       .getOne();
   }
 
@@ -138,7 +138,7 @@ export class ProductSubtypeService {
   }
 
   /**
-   * Soft delete nhóm sản phẩm (đánh dấu deletedAt)
+   * Soft delete nhóm sản phẩm (đánh dấu deleted_at)
    * @param id - ID của nhóm sản phẩm cần soft delete
    */
   async softRemove(id: number): Promise<void> {
@@ -178,7 +178,7 @@ export class ProductSubtypeService {
     return this.productSubtypeRepository
       .createQueryBuilder('productSubtype')
       .withDeleted()
-      .where('productSubtype.deletedAt IS NOT NULL')
+      .where('productSubtype.deleted_at IS NOT NULL')
       .getMany();
   }
 
@@ -187,9 +187,7 @@ export class ProductSubtypeService {
    * @param searchDto - Điều kiện tìm kiếm
    * @returns Danh sách nhóm sản phẩm phù hợp với thông tin phân trang
    */
-  async searchProductSubtypes(
-    searchDto: SearchProductSubtypeDto,
-  ): Promise<{
+  async searchProductSubtypes(searchDto: SearchProductSubtypeDto): Promise<{
     data: ProductSubtype[];
     total: number;
     page: number;
@@ -199,7 +197,7 @@ export class ProductSubtypeService {
       this.productSubtypeRepository.createQueryBuilder('productSubtype');
 
     // Thêm điều kiện mặc định
-    queryBuilder.where('productSubtype.deletedAt IS NULL');
+    queryBuilder.where('productSubtype.deleted_at IS NULL');
 
     // Xây dựng điều kiện tìm kiếm
     this.buildSearchConditions(queryBuilder, searchDto, 'productSubtype');
@@ -229,7 +227,7 @@ export class ProductSubtypeService {
    */
   async findByProductType(productTypeId: number): Promise<ProductSubtype[]> {
     return this.productSubtypeRepository.find({
-      where: { productTypeId },
+      where: { product_type_id: productTypeId },
       order: { name: 'ASC' },
     });
   }
@@ -274,9 +272,9 @@ export class ProductSubtypeService {
     }
 
     // Xử lý các bộ lọc lồng nhau
-    if (searchDto.nestedFilters && searchDto.nestedFilters.length > 0) {
+    if (searchDto.nested_filters && searchDto.nested_filters.length > 0) {
       // Xây dựng điều kiện cho từng bộ lọc lồng nhau
-      searchDto.nestedFilters.forEach((nestedFilter) => {
+      searchDto.nested_filters.forEach((nestedFilter) => {
         parameterIndex = this.buildSearchConditions(
           queryBuilder,
           nestedFilter,

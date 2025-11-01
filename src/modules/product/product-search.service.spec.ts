@@ -184,7 +184,7 @@ describe('ProductService - Search', () => {
       const searchDto: SearchProductDto = {
         filters: [
           {
-            field: 'deletedAt',
+            field: 'deleted_at',
             operator: 'isnull',
           },
           {

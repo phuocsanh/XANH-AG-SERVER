@@ -23,23 +23,23 @@ export class InventoryReceiptItem {
 
   /** ID của phiếu nhập kho */
   @Column({ name: 'receipt_id' })
-  receiptId!: number;
+  receipt_id!: number;
 
   /** ID của sản phẩm */
   @Column({ name: 'product_id' })
-  productId!: number;
+  product_id!: number;
 
   /** Số lượng sản phẩm trong phiếu */
-  @Column()
+  @Column({ name: 'quantity' })
   quantity!: number;
 
   /** Giá vốn đơn vị của sản phẩm */
   @Column({ name: 'unit_cost' })
-  unitCost!: number;
+  unit_cost!: number;
 
   /** Tổng giá tiền của sản phẩm */
   @Column({ name: 'total_price' })
-  totalPrice!: number;
+  total_price!: number;
 
   /** Ghi chú về chi tiết phiếu nhập kho */
   @Column({ name: 'notes', nullable: true })
@@ -47,15 +47,15 @@ export class InventoryReceiptItem {
 
   /** Thời gian tạo chi tiết phiếu nhập kho */
   @CreateDateColumn({ name: 'created_at' })
-  createdAt!: Date;
+  created_at!: Date;
 
   /** Thời gian cập nhật gần nhất chi tiết phiếu nhập kho */
   @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt!: Date;
+  updated_at!: Date;
 
   /** Thời gian xóa mềm (soft delete) */
   @DeleteDateColumn({ name: 'deleted_at' })
-  deletedAt?: Date;
+  deleted_at?: Date;
 
   // Relations
   /** Mối quan hệ nhiều-một với phiếu nhập kho */

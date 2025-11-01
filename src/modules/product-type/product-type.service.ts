@@ -36,8 +36,11 @@ export class ProductTypeService {
     createProductTypeDto: CreateProductTypeDto,
   ): Promise<ProductType> {
     try {
+      // Vì tên field đã giống nhau giữa DTO và Entity nên có thể dùng Object.assign
       const productType = new ProductType();
       Object.assign(productType, createProductTypeDto);
+      productType.status = createProductTypeDto.status || BaseStatus.ACTIVE;
+
       const savedProductType =
         await this.productTypeRepository.save(productType);
       return savedProductType;
@@ -53,7 +56,7 @@ export class ProductTypeService {
   async findAll(): Promise<ProductType[]> {
     return this.productTypeRepository
       .createQueryBuilder('productType')
-      .where('productType.deletedAt IS NULL')
+      .where('productType.deleted_at IS NULL')
       .getMany();
   }
 
@@ -66,7 +69,19 @@ export class ProductTypeService {
     return this.productTypeRepository
       .createQueryBuilder('productType')
       .where('productType.status = :status', { status })
-      .andWhere('productType.deletedAt IS NULL')
+      .andWhere('productType.deleted_at IS NULL')
+      .getMany();
+  }
+
+  /**
+   * Lấy danh sách loại sản phẩm đã bị soft delete
+   * @returns Danh sách loại sản phẩm đã bị soft delete
+   */
+  async findDeleted(): Promise<ProductType[]> {
+    return this.productTypeRepository
+      .createQueryBuilder('productType')
+      .withDeleted()
+      .where('productType.deleted_at IS NOT NULL')
       .getMany();
   }
 
@@ -79,7 +94,7 @@ export class ProductTypeService {
     return this.productTypeRepository
       .createQueryBuilder('productType')
       .where('productType.id = :id', { id })
-      .andWhere('productType.deletedAt IS NULL')
+      .andWhere('productType.deleted_at IS NULL')
       .getOne();
   }
 
@@ -138,7 +153,7 @@ export class ProductTypeService {
   }
 
   /**
-   * Soft delete loại sản phẩm (đánh dấu deletedAt)
+   * Soft delete loại sản phẩm (đánh dấu deleted_at)
    * @param id - ID của loại sản phẩm cần soft delete
    */
   async softDelete(id: number): Promise<void> {
@@ -175,9 +190,7 @@ export class ProductTypeService {
    * @param searchDto - Điều kiện tìm kiếm
    * @returns Danh sách loại sản phẩm phù hợp với thông tin phân trang
    */
-  async searchProductTypes(
-    searchDto: SearchProductTypeDto,
-  ): Promise<{
+  async searchProductTypes(searchDto: SearchProductTypeDto): Promise<{
     data: ProductType[];
     total: number;
     page: number;
@@ -186,8 +199,30 @@ export class ProductTypeService {
     const queryBuilder =
       this.productTypeRepository.createQueryBuilder('productType');
 
-    // Thêm điều kiện mặc định
-    queryBuilder.where('productType.deletedAt IS NULL');
+    // Kiểm tra xem có filter deleted_at không
+    const hasDeletedFilter = searchDto.filters?.some(
+      (filter) => filter.field === 'deleted_at',
+    );
+
+    // Thêm điều kiện mặc định chỉ khi không có filter deleted_at
+    if (!hasDeletedFilter) {
+      queryBuilder.where('productType.deleted_at IS NULL');
+    } else {
+      // Nếu có filter deleted_at, cần sử dụng withDeleted() để bao gồm các bản ghi đã xóa
+      queryBuilder.withDeleted();
+
+      // Kiểm tra xem filter deleted_at có giá trị là isnotnull không
+      const deletedFilter = searchDto.filters?.find(
+        (filter) => filter.field === 'deleted_at',
+      );
+
+      if (deletedFilter && deletedFilter.operator === 'isnotnull') {
+        // Nếu đang tìm kiếm các bản ghi đã xóa, không cần thêm điều kiện mặc định
+      } else if (deletedFilter && deletedFilter.operator === 'isnull') {
+        // Nếu đang tìm kiếm các bản ghi chưa xóa, thêm điều kiện này
+        queryBuilder.where('productType.deleted_at IS NULL');
+      }
+    }
 
     // Xây dựng điều kiện tìm kiếm
     this.buildSearchConditions(queryBuilder, searchDto, 'productType');
@@ -250,9 +285,9 @@ export class ProductTypeService {
     }
 
     // Xử lý các bộ lọc lồng nhau
-    if (searchDto.nestedFilters && searchDto.nestedFilters.length > 0) {
+    if (searchDto.nested_filters && searchDto.nested_filters.length > 0) {
       // Xây dựng điều kiện cho từng bộ lọc lồng nhau
-      searchDto.nestedFilters.forEach((nestedFilter) => {
+      searchDto.nested_filters.forEach((nestedFilter) => {
         parameterIndex = this.buildSearchConditions(
           queryBuilder,
           nestedFilter,
@@ -283,8 +318,14 @@ export class ProductTypeService {
       return null;
     }
 
+    // Xử lý chuyển đổi tên trường từ camelCase sang snake_case cho các trường đặc biệt
+    let fieldName = filter.field;
+    if (fieldName === 'deleted_at') {
+      fieldName = 'deleted_at';
+    }
+
     const paramName = `param_${index}`;
-    const field = `${alias}.${filter.field}`;
+    const field = `${alias}.${fieldName}`;
 
     switch (filter.operator) {
       case 'eq':

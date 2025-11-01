@@ -55,7 +55,7 @@ async function bootstrap() {
     new ValidationPipe({
       transform: true, // Tự động chuyển đổi dữ liệu theo DTO
       whitelist: true, // Loại bỏ các thuộc tính không có trong DTO
-      forbidNonWhitelisted: true, // Báo lỗi nếu có thuộc tính không được định nghĩa trong DTO
+      forbidNonWhitelisted: false, // Allow properties not defined in DTO for testing
       transformOptions: {
         enableImplicitConversion: true, // Tự động convert kiểu dữ liệu
       },

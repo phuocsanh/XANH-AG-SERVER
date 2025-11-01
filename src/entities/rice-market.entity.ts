@@ -19,33 +19,33 @@ export class RiceMarketData {
   summary!: string;
 
   @Column({ type: 'text', name: 'price_analysis' })
-  priceAnalysis!: string;
+  price_analysis!: string;
 
   @Column({ type: 'text', name: 'supply_demand' })
-  supplyDemand!: string;
+  supply_demand!: string;
 
   @Column({ type: 'text', name: 'export_import_info' })
-  exportImportInfo!: string;
+  export_import_info!: string;
 
   @Column({ type: 'jsonb', name: 'related_news' })
-  relatedNews!: any[];
+  related_news!: any[];
 
   @Column({ type: 'timestamp', name: 'last_updated' })
-  lastUpdated!: Date;
+  last_updated!: Date;
 
   @Column({ type: 'jsonb', name: 'data_sources' })
-  dataSources!: string[];
+  data_sources!: string[];
 
   @Column({ type: 'jsonb', name: 'data_quality' })
-  dataQuality!: {
+  data_quality!: {
     reliability: string;
     sourcesUsed: number;
     score: number;
   };
 
   @CreateDateColumn({ name: 'created_at' })
-  createdAt!: Date;
+  created_at!: Date;
 
   @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt!: Date;
+  updated_at!: Date;
 }

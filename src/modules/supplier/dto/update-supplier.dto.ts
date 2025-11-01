@@ -34,7 +34,7 @@ export class UpdateSupplierDto {
   /** Người liên hệ (tùy chọn) */
   @IsString()
   @IsOptional()
-  contactPerson?: string;
+  contact_person?: string;
 
   /** Trạng thái nhà cung cấp (tùy chọn) */
   @IsOptional()
@@ -49,5 +49,5 @@ export class UpdateSupplierDto {
   /** ID của người cập nhật (tùy chọn) */
   @IsNumber()
   @IsOptional()
-  updatedBy?: number;
+  updated_by?: number;
 }

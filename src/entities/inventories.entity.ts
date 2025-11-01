@@ -19,53 +19,53 @@ export class InventoryBatch {
 
   /** ID của sản phẩm trong lô hàng */
   @Column({ name: 'product_id' })
-  productId!: number;
+  product_id!: number;
 
   /** Mã lô hàng (có thể null) */
-  @Column({ nullable: true })
+  @Column({ name: 'code', nullable: true })
   code?: string;
 
   /** Giá vốn đơn vị của sản phẩm trong lô hàng */
-  @Column()
-  unitCostPrice!: string;
+  @Column({ name: 'unit_cost_price' })
+  unit_cost_price!: string;
 
   /** Số lượng ban đầu của lô hàng */
-  @Column()
-  originalQuantity!: number;
+  @Column({ name: 'original_quantity' })
+  original_quantity!: number;
 
   /** Số lượng còn lại của lô hàng */
-  @Column()
-  remainingQuantity!: number;
+  @Column({ name: 'remaining_quantity' })
+  remaining_quantity!: number;
 
   /** Ngày hết hạn của lô hàng (có thể null) */
-  @Column({ nullable: true })
-  expiryDate?: Date;
+  @Column({ name: 'expiry_date', nullable: true })
+  expiry_date?: Date;
 
   /** Ngày sản xuất của lô hàng (có thể null) */
-  @Column({ nullable: true })
-  manufacturingDate?: Date;
+  @Column({ name: 'manufacturing_date', nullable: true })
+  manufacturing_date?: Date;
 
   /** ID nhà cung cấp (có thể null) */
-  @Column({ nullable: true })
-  supplierId?: number;
+  @Column({ name: 'supplier_id', nullable: true })
+  supplier_id?: number;
 
   /** Ghi chú về lô hàng (có thể null) */
-  @Column({ nullable: true, type: 'text' })
+  @Column({ name: 'notes', nullable: true, type: 'text' })
   notes?: string;
 
   /** ID của item phiếu nhập kho tương ứng (có thể null) */
-  @Column({ nullable: true })
-  receiptItemId?: number;
+  @Column({ name: 'receipt_item_id', nullable: true })
+  receipt_item_id?: number;
 
   /** Thời gian tạo lô hàng tồn kho */
   @CreateDateColumn({ name: 'created_at' })
-  createdAt!: Date;
+  created_at!: Date;
 
   /** Thời gian cập nhật gần nhất lô hàng tồn kho */
   @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt!: Date;
+  updated_at!: Date;
 
   /** Thời gian xóa mềm (soft delete) */
   @DeleteDateColumn({ name: 'deleted_at' })
-  deletedAt?: Date;
+  deleted_at?: Date;
 }

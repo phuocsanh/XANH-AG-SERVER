@@ -78,13 +78,13 @@ export class AiAnalysisService {
         this.logger.log('Đã có bản ghi thị trường gạo, cập nhật dữ liệu...');
         riceMarketData = existingData;
         riceMarketData.summary = result.summary;
-        riceMarketData.priceAnalysis = result.marketInsights.join('\n\n');
-        riceMarketData.supplyDemand = ''; // Có thể cập nhật sau nếu cần
-        riceMarketData.exportImportInfo = ''; // Có thể cập nhật sau nếu cần
-        riceMarketData.relatedNews = []; // Có thể cập nhật sau nếu cần
-        riceMarketData.lastUpdated = new Date(result.lastUpdated);
-        riceMarketData.dataSources = result.additionalSources || [];
-        riceMarketData.dataQuality = {
+        riceMarketData.price_analysis = result.marketInsights.join('\n\n');
+        riceMarketData.supply_demand = ''; // Có thể cập nhật sau nếu cần
+        riceMarketData.export_import_info = ''; // Có thể cập nhật sau nếu cần
+        riceMarketData.related_news = []; // Có thể cập nhật sau nếu cần
+        riceMarketData.last_updated = new Date(result.lastUpdated);
+        riceMarketData.data_sources = result.additionalSources || [];
+        riceMarketData.data_quality = {
           reliability: result.dataQuality?.completeness || 'medium',
           sourcesUsed: result.dataQuality?.pricesExtracted || 0,
           score: Math.round((result.dataQuality?.score || 0) * 100),
@@ -94,13 +94,13 @@ export class AiAnalysisService {
         this.logger.log('Chưa có bản ghi thị trường gạo, tạo mới dữ liệu...');
         riceMarketData = new RiceMarketData();
         riceMarketData.summary = result.summary;
-        riceMarketData.priceAnalysis = result.marketInsights.join('\n\n');
-        riceMarketData.supplyDemand = ''; // Có thể cập nhật sau nếu cần
-        riceMarketData.exportImportInfo = ''; // Có thể cập nhật sau nếu cần
-        riceMarketData.relatedNews = []; // Có thể cập nhật sau nếu cần
-        riceMarketData.lastUpdated = new Date(result.lastUpdated);
-        riceMarketData.dataSources = result.additionalSources || [];
-        riceMarketData.dataQuality = {
+        riceMarketData.price_analysis = result.marketInsights.join('\n\n');
+        riceMarketData.supply_demand = ''; // Có thể cập nhật sau nếu cần
+        riceMarketData.export_import_info = ''; // Có thể cập nhật sau nếu cần
+        riceMarketData.related_news = []; // Có thể cập nhật sau nếu cần
+        riceMarketData.last_updated = new Date(result.lastUpdated);
+        riceMarketData.data_sources = result.additionalSources || [];
+        riceMarketData.data_quality = {
           reliability: result.dataQuality?.completeness || 'medium',
           sourcesUsed: result.dataQuality?.pricesExtracted || 0,
           score: Math.round((result.dataQuality?.score || 0) * 100),
@@ -129,7 +129,7 @@ export class AiAnalysisService {
     try {
       const latestData = await this.riceMarketRepository
         .createQueryBuilder('rice')
-        .orderBy('rice.createdAt', 'DESC')
+        .orderBy('rice.created_at', 'DESC')
         .limit(1)
         .getOne();
 

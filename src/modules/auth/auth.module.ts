@@ -22,7 +22,7 @@ import { RefreshJwtStrategy } from './refresh-jwt.strategy';
 
     // Cấu hình JwtModule với secret key và thời gian hết hạn
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'your-secret-key', // Secret key để ký và xác minh token
+      secret: process.env.JWT_SECRET || 'my_jwt_secret_key', // Secret key để ký và xác minh token
       signOptions: { expiresIn: '1h' }, // Thời gian hết hạn của token (1 giờ)
     }),
   ],

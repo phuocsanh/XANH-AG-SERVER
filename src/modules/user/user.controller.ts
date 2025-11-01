@@ -10,6 +10,7 @@ import {
   HttpException,
   HttpStatus,
   Query,
+  Request,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -44,13 +45,13 @@ export class UserController {
   /**
    * Lấy thông tin profile của người dùng hiện tại
    * Yêu cầu xác thực JWT
-   * @param user - Thông tin người dùng từ token
+   * @param req - Request object chứa thông tin user từ token
    * @returns Thông tin profile người dùng
    */
   @UseGuards(JwtAuthGuard)
   @Get('profile')
-  getProfile(@Body() user: any) {
-    return user;
+  getProfile(@Request() req) {
+    return req.user;
   }
 
   /**
@@ -73,7 +74,7 @@ export class UserController {
     searchDto.page = Number(page);
     searchDto.limit = Number(limit);
     searchDto.filters = [];
-    searchDto.nestedFilters = [];
+    searchDto.nested_filters = [];
 
     // Thêm điều kiện lọc status nếu có
     if (status) {
@@ -84,17 +85,17 @@ export class UserController {
       });
     }
 
-    // Thêm điều kiện lọc deletedAt nếu có
+    // Thêm điều kiện lọc deleted_at nếu có
     if (deleted !== undefined) {
       if (deleted) {
         searchDto.filters.push({
-          field: 'deletedAt',
+          field: 'deleted_at',
           operator: 'isnotnull',
           value: null,
         });
       } else {
         searchDto.filters.push({
-          field: 'deletedAt',
+          field: 'deleted_at',
           operator: 'isnull',
           value: null,
         });

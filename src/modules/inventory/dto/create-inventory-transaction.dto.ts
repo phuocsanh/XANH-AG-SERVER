@@ -7,11 +7,11 @@ import { IsNumber, IsString, IsOptional } from 'class-validator';
 export class CreateInventoryTransactionDto {
   /** ID của sản phẩm trong giao dịch (bắt buộc) */
   @IsNumber()
-  productId!: number;
+  product_id!: number;
 
   /** Loại giao dịch (ví dụ: 'IN' cho nhập kho, 'OUT' cho xuất kho) (bắt buộc) */
   @IsString()
-  transactionType!: string;
+  transaction_type!: string;
 
   /** Số lượng trong giao dịch (bắt buộc) */
   @IsNumber()
@@ -19,34 +19,34 @@ export class CreateInventoryTransactionDto {
 
   /** Giá vốn đơn vị của sản phẩm trong giao dịch (bắt buộc) */
   @IsString()
-  unitCostPrice!: string;
+  unit_cost_price!: string;
 
   /** Tổng giá trị chi phí của giao dịch (bắt buộc) */
   @IsString()
-  totalCostValue!: string;
+  total_cost_value!: string;
 
   /** Số lượng còn lại sau giao dịch (bắt buộc) */
   @IsNumber()
-  remainingQuantity!: number;
+  remaining_quantity!: number;
 
   /** Giá vốn trung bình mới sau giao dịch (bắt buộc) */
   @IsString()
-  newAverageCost!: string;
+  new_average_cost!: string;
 
   /** ID của item phiếu nhập kho tương ứng (tùy chọn) */
   @IsOptional()
   @IsNumber()
-  receiptItemId?: number;
+  receipt_item_id?: number;
 
   /** Loại tham chiếu (ví dụ: 'SALE' cho bán hàng, 'ADJUSTMENT' cho điều chỉnh) (tùy chọn) */
   @IsOptional()
   @IsString()
-  referenceType?: string;
+  reference_type?: string;
 
   /** ID của tham chiếu (ví dụ: ID hóa đơn bán hàng) (tùy chọn) */
   @IsOptional()
   @IsNumber()
-  referenceId?: number;
+  reference_id?: number;
 
   /** Ghi chú về giao dịch (tùy chọn) */
   @IsOptional()
@@ -55,5 +55,5 @@ export class CreateInventoryTransactionDto {
 
   /** ID của người dùng tạo giao dịch (bắt buộc) */
   @IsNumber()
-  createdByUserId!: number;
+  created_by_user_id!: number;
 }

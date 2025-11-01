@@ -19,15 +19,15 @@ export class ProductType {
   id!: number;
 
   /** Tên loại sản phẩm */
-  @Column()
+  @Column({ name: 'name' })
   name!: string;
 
   /** Mã loại sản phẩm (duy nhất) */
-  @Column({ unique: true })
+  @Column({ name: 'code', unique: true })
   code!: string;
 
   /** Mô tả loại sản phẩm */
-  @Column({ nullable: true })
+  @Column({ name: 'description', nullable: true })
   description?: string;
 
   /** Trạng thái của loại sản phẩm sử dụng enum chung */
@@ -41,13 +41,13 @@ export class ProductType {
 
   /** Thời gian tạo loại sản phẩm */
   @CreateDateColumn({ name: 'created_at' })
-  createdAt!: Date;
+  created_at!: Date;
 
   /** Thời gian cập nhật gần nhất loại sản phẩm */
   @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt!: Date;
+  updated_at!: Date;
 
   /** Thời gian xóa mềm (soft delete) */
   @DeleteDateColumn({ name: 'deleted_at' })
-  deletedAt?: Date;
+  deleted_at?: Date;
 }

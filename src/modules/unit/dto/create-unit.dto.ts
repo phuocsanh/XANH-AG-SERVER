@@ -8,11 +8,11 @@ import { BaseStatus } from '../../../entities/base-status.enum';
 export class CreateUnitDto {
   /** Tên đơn vị tính (bắt buộc) */
   @IsString()
-  unitName!: string;
+  name!: string;
 
   /** Mã đơn vị tính (bắt buộc) */
   @IsString()
-  unitCode!: string;
+  code!: string;
 
   /** Mô tả đơn vị tính (tùy chọn) */
   @IsOptional()

@@ -32,7 +32,7 @@ export class CreateSupplierDto {
   /** Người liên hệ (tùy chọn) */
   @IsString()
   @IsOptional()
-  contactPerson?: string;
+  contact_person?: string;
 
   /** Trạng thái nhà cung cấp (tùy chọn) */
   @IsOptional()
@@ -46,5 +46,5 @@ export class CreateSupplierDto {
 
   /** ID của người tạo (bắt buộc) */
   @IsNumber()
-  createdBy!: number;
+  created_by!: number;
 }

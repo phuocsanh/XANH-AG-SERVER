@@ -1,18 +1,18 @@
 export class UploadResponseDto {
   id!: string;
-  publicId!: string;
+  public_id!: string;
   url!: string;
   name!: string;
   type!: string;
   size!: number;
-  createdAt!: Date;
-  updatedAt!: Date;
+  created_at!: Date;
+  updated_at!: Date;
 }
 
 export class DeleteFileDto {
-  publicId!: string;
+  public_id!: string;
 }
 
 export class MarkFileUsedDto {
-  publicId!: string;
+  public_id!: string;
 }

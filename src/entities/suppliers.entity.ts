@@ -42,7 +42,7 @@ export class Supplier {
 
   /** Người liên hệ */
   @Column({ name: 'contact_person', nullable: true })
-  contactPerson?: string;
+  contact_person?: string;
 
   /** Trạng thái nhà cung cấp */
   @Column({
@@ -59,27 +59,27 @@ export class Supplier {
 
   /** ID của người tạo */
   @Column({ name: 'created_by' })
-  createdBy!: number;
+  created_by!: number;
 
   /** ID của người cập nhật cuối cùng */
   @Column({ name: 'updated_by', nullable: true })
-  updatedBy?: number;
+  updated_by?: number;
 
   /** ID của người xóa (soft delete) */
   @Column({ name: 'deleted_by', nullable: true })
-  deletedBy?: number;
+  deleted_by?: number;
 
   /** Thời gian tạo nhà cung cấp */
   @CreateDateColumn({ name: 'created_at' })
-  createdAt!: Date;
+  created_at!: Date;
 
   /** Thời gian cập nhật gần nhất */
   @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt!: Date;
+  updated_at!: Date;
 
   /** Thời gian xóa mềm */
   @DeleteDateColumn({ name: 'deleted_at' })
-  deletedAt?: Date;
+  deleted_at?: Date;
 
   /** Quan hệ với các phiếu nhập kho */
   @OneToMany(() => InventoryReceipt, (receipt) => receipt.supplier)

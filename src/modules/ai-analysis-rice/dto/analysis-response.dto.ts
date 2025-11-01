@@ -4,19 +4,28 @@ import { ApiProperty } from '@nestjs/swagger';
  * DTO cho dữ liệu giá lúa gạo
  */
 export class PriceDataDto {
-  @ApiProperty({ description: 'Giá lúa tươi', example: '6.800 - 7.200 đồng/kg' })
-  freshRice!: string;
+  @ApiProperty({
+    description: 'Giá lúa tươi',
+    example: '6.800 - 7.200 đồng/kg',
+  })
+  fresh_rice!: string;
 
-  @ApiProperty({ description: 'Giá gạo xuất khẩu', example: '580 - 620 USD/tấn' })
-  exportRice!: string;
+  @ApiProperty({
+    description: 'Giá gạo xuất khẩu',
+    example: '580 - 620 USD/tấn',
+  })
+  export_rice!: string;
 
-  @ApiProperty({ description: 'Giá gạo trong nước', example: '18.000 - 22.000 đồng/kg' })
-  domesticRice!: string;
+  @ApiProperty({
+    description: 'Giá gạo trong nước',
+    example: '18.000 - 22.000 đồng/kg',
+  })
+  domestic_rice!: string;
 
-  @ApiProperty({ 
-    description: 'Xu hướng giá', 
+  @ApiProperty({
+    description: 'Xu hướng giá',
     enum: ['tăng', 'giảm', 'ổn định'],
-    example: 'tăng' 
+    example: 'tăng',
   })
   trend!: 'tăng' | 'giảm' | 'ổn định';
 }
@@ -42,21 +51,28 @@ export class AnalysisResponseDto {
   @ApiProperty({ description: 'Tóm tắt tình hình thị trường' })
   summary!: string;
 
-  @ApiProperty({ description: 'Dữ liệu giá cả (tùy chọn)', type: PriceDataDto, required: false })
-  priceData?: PriceDataDto;
-
-  @ApiProperty({ 
-    description: 'Danh sách các giống lúa và giá', 
-    type: [RiceVarietyDto] 
+  @ApiProperty({
+    description: 'Dữ liệu giá cả (tùy chọn)',
+    type: PriceDataDto,
+    required: false,
   })
-  riceVarieties!: RiceVarietyDto[];
+  price_data?: PriceDataDto;
 
-  @ApiProperty({ 
+  @ApiProperty({
+    description: 'Danh sách các giống lúa và giá',
+    type: [RiceVarietyDto],
+  })
+  rice_varieties!: RiceVarietyDto[];
+
+  @ApiProperty({
     description: 'Những thông tin quan trọng về thị trường',
-    type: [String]
+    type: [String],
   })
-  marketInsights!: string[];
+  market_insights!: string[];
 
-  @ApiProperty({ description: 'Thời gian cập nhật cuối', example: '2024-01-15 10:30:00' })
-  lastUpdated!: string;
+  @ApiProperty({
+    description: 'Thời gian cập nhật cuối',
+    example: '2024-01-15 10:30:00',
+  })
+  last_updated!: string;
 }

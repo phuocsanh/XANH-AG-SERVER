@@ -24,7 +24,7 @@ export class SearchProductDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => SearchProductDto)
-  nestedFilters?: SearchProductDto[];
+  nested_filters?: SearchProductDto[];
 
   @IsOptional()
   @IsNumber()

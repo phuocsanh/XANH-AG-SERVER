@@ -53,7 +53,7 @@ export class UserService {
 
       // Tạo user profile mặc định
       const userProfile = this.userProfileRepository.create({
-        userId: savedUser.id,
+        user_id: savedUser.id,
         account: savedUser.account,
       });
       await this.userProfileRepository.save(userProfile);
@@ -87,7 +87,12 @@ export class UserService {
    * @returns Thông tin người dùng
    */
   async findByAccount(account: string): Promise<User | null> {
-    return this.userRepository.findOne({ where: { account } });
+    return this.userRepository.findOne({
+      where: {
+        account,
+        deleted_at: IsNull(),
+      },
+    });
   }
 
   /**
@@ -98,7 +103,33 @@ export class UserService {
    */
   async update(id: number, updateUserDto: UpdateUserDto): Promise<User | null> {
     try {
-      await this.userRepository.update(id, updateUserDto);
+      // Tách các trường thuộc UserProfile
+      const userProfileFields = ['email'];
+      const userProfileData: any = {};
+      const userData: any = {};
+
+      // Phân loại các trường vào đúng entity
+      for (const [key, value] of Object.entries(updateUserDto)) {
+        if (userProfileFields.includes(key)) {
+          userProfileData[key] = value;
+        } else {
+          userData[key] = value;
+        }
+      }
+
+      // Cập nhật thông tin User nếu có dữ liệu
+      if (Object.keys(userData).length > 0) {
+        await this.userRepository.update(id, userData);
+      }
+
+      // Cập nhật thông tin UserProfile nếu có dữ liệu
+      if (Object.keys(userProfileData).length > 0) {
+        await this.userProfileRepository.update(
+          { user_id: id },
+          userProfileData,
+        );
+      }
+
       return this.findOne(id);
     } catch (error) {
       ErrorHandler.handleUpdateError(error, 'người dùng');
@@ -124,7 +155,7 @@ export class UserService {
 
     // Kiểm tra mật khẩu cũ
     const isOldPasswordValid = await bcrypt.compare(
-      changePasswordDto.oldPassword,
+      changePasswordDto.old_password,
       user.password,
     );
     if (!isOldPasswordValid) {
@@ -133,7 +164,7 @@ export class UserService {
 
     // Mã hóa mật khẩu mới
     const hashedNewPassword = await bcrypt.hash(
-      changePasswordDto.newPassword,
+      changePasswordDto.new_password,
       10,
     );
 
@@ -155,8 +186,8 @@ export class UserService {
     userId: number,
     profileData: Partial<UserProfile>,
   ): Promise<UserProfile | null> {
-    await this.userProfileRepository.update({ userId }, profileData);
-    return this.userProfileRepository.findOne({ where: { userId } });
+    await this.userProfileRepository.update({ user_id: userId }, profileData);
+    return this.userProfileRepository.findOne({ where: { user_id: userId } });
   }
 
   /**
@@ -206,7 +237,7 @@ export class UserService {
    */
   async findDeleted(): Promise<User[]> {
     return this.userRepository.find({
-      where: { deletedAt: Not(IsNull()) },
+      where: { deleted_at: Not(IsNull()) },
       withDeleted: true,
     });
   }
@@ -318,9 +349,9 @@ export class UserService {
     }
 
     // Xử lý các bộ lọc lồng nhau
-    if (searchDto.nestedFilters && searchDto.nestedFilters.length > 0) {
+    if (searchDto.nested_filters && searchDto.nested_filters.length > 0) {
       // Xây dựng điều kiện cho từng bộ lọc lồng nhau
-      searchDto.nestedFilters.forEach((nestedFilter) => {
+      searchDto.nested_filters.forEach((nestedFilter) => {
         parameterIndex = this.buildSearchConditions(
           queryBuilder,
           nestedFilter,

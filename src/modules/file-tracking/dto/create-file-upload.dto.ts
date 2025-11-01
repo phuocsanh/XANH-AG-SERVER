@@ -7,14 +7,10 @@ import {
   IsDate,
 } from 'class-validator';
 
-/**
- * DTO (Data Transfer Object) dùng để tạo file upload mới
- * Chứa các trường cần thiết để tạo một file upload
- */
 export class CreateFileUploadDto {
   /** ID công khai của file (bắt buộc) */
   @IsString()
-  publicId!: string;
+  public_id!: string;
 
   /** URL truy cập file (bắt buộc) */
   @IsString()
@@ -40,27 +36,27 @@ export class CreateFileUploadDto {
   /** Loại MIME của file (tùy chọn) */
   @IsOptional()
   @IsString()
-  mimeType?: string;
+  mime_type?: string;
 
   /** Số lượng tham chiếu đến file (tùy chọn) */
   @IsOptional()
   @IsNumber()
-  referenceCount?: number;
+  reference_count?: number;
 
   /** Trạng thái file tạm thời (tùy chọn) */
   @IsOptional()
   @IsBoolean()
-  isTemporary?: boolean;
+  is_temporary?: boolean;
 
   /** Trạng thái file không được sử dụng (tùy chọn) */
   @IsOptional()
   @IsBoolean()
-  isOrphaned?: boolean;
+  is_orphaned?: boolean;
 
   /** ID của người dùng upload file (tùy chọn) */
   @IsOptional()
   @IsNumber()
-  uploadedByUserId?: number;
+  uploaded_by_user_id?: number;
 
   /** Mảng tag của file (tùy chọn) */
   @IsOptional()
@@ -74,10 +70,10 @@ export class CreateFileUploadDto {
   /** Thời gian đánh dấu để xóa file (tùy chọn) */
   @IsOptional()
   @IsDate()
-  markedForDeletionAt?: Date;
+  marked_for_deletion_at?: Date;
 
   /** Thời gian xóa file (tùy chọn) */
   @IsOptional()
   @IsDate()
-  deletedAt?: Date;
+  deleted_at?: Date;
 }

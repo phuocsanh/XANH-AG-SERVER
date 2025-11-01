@@ -15,17 +15,17 @@ export class CreateProductSubtypeDto {
   /** Tên loại phụ sản phẩm */
   @IsString({ message: 'Tên loại phụ sản phẩm phải là chuỗi ký tự' })
   @IsNotEmpty({ message: 'Tên loại phụ sản phẩm không được để trống' })
-  subtypeName!: string;
+  name!: string;
 
   /** Mã loại phụ sản phẩm (duy nhất) */
   @IsString({ message: 'Mã loại phụ sản phẩm phải là chuỗi ký tự' })
   @IsNotEmpty({ message: 'Mã loại phụ sản phẩm không được để trống' })
-  subtypeCode!: string;
+  code!: string;
 
   /** ID loại sản phẩm mà loại phụ sản phẩm này thuộc về */
   @IsNumber({}, { message: 'ID loại sản phẩm phải là số' })
   @IsNotEmpty({ message: 'ID loại sản phẩm không được để trống' })
-  productTypeId!: number;
+  product_type_id!: number;
 
   /** Mô tả loại phụ sản phẩm (tùy chọn) */
   @IsOptional()

@@ -62,7 +62,7 @@ export class InventoryController {
     searchDto.page = Number(page);
     searchDto.limit = Number(limit);
     searchDto.filters = [];
-    searchDto.nestedFilters = [];
+    searchDto.nested_filters = [];
 
     return this.inventoryService.searchBatches(searchDto);
   }

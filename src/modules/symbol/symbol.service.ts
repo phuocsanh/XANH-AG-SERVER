@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Symbol } from '../../entities/symbols.entity';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 import { SearchSymbolDto } from './dto/search-symbol.dto';
+import { BaseStatus } from '../../entities/base-status.enum';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến ký hiệu
@@ -52,6 +53,17 @@ export class SymbolService {
   }
 
   /**
+   * Lấy danh sách ký hiệu theo trạng thái
+   * @param status - Trạng thái cần lọc
+   * @returns Danh sách ký hiệu theo trạng thái
+   */
+  async findByStatus(status: BaseStatus): Promise<Symbol[]> {
+    return this.symbolRepository.find({
+      where: { status },
+    });
+  }
+
+  /**
    * Cập nhật thông tin ký hiệu
    * @param id - ID của ký hiệu cần cập nhật
    * @param updateData - Dữ liệu cập nhật ký hiệu
@@ -67,6 +79,54 @@ export class SymbolService {
     } catch (error) {
       ErrorHandler.handleUpdateError(error, 'ký hiệu');
     }
+  }
+
+  /**
+   * Kích hoạt ký hiệu
+   * @param id - ID của ký hiệu cần kích hoạt
+   * @returns Thông tin ký hiệu đã kích hoạt
+   */
+  async activate(id: number): Promise<Symbol | null> {
+    await this.symbolRepository.update(id, { status: BaseStatus.ACTIVE });
+    return this.findOne(id);
+  }
+
+  /**
+   * Vô hiệu hóa ký hiệu
+   * @param id - ID của ký hiệu cần vô hiệu hóa
+   * @returns Thông tin ký hiệu đã vô hiệu hóa
+   */
+  async deactivate(id: number): Promise<Symbol | null> {
+    await this.symbolRepository.update(id, { status: BaseStatus.INACTIVE });
+    return this.findOne(id);
+  }
+
+  /**
+   * Lưu trữ ký hiệu
+   * @param id - ID của ký hiệu cần lưu trữ
+   * @returns Thông tin ký hiệu đã lưu trữ
+   */
+  async archive(id: number): Promise<Symbol | null> {
+    await this.symbolRepository.update(id, { status: BaseStatus.ARCHIVED });
+    return this.findOne(id);
+  }
+
+  /**
+   * Xóa mềm ký hiệu (soft delete)
+   * @param id - ID của ký hiệu cần xóa mềm
+   */
+  async softDelete(id: number): Promise<void> {
+    await this.symbolRepository.softDelete(id);
+  }
+
+  /**
+   * Khôi phục ký hiệu đã bị xóa mềm
+   * @param id - ID của ký hiệu cần khôi phục
+   * @returns Thông tin ký hiệu đã khôi phục
+   */
+  async restore(id: number): Promise<Symbol | null> {
+    await this.symbolRepository.restore(id);
+    return this.symbolRepository.findOne({ where: { id } });
   }
 
   /**

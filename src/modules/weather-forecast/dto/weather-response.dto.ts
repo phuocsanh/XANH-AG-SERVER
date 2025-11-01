@@ -1,46 +1,45 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  WeatherForecastResult,
-  YouTubeVideoData,
-} from '../interfaces/weather-forecast.interface';
 
-/**
- * DTO cho response dự báo thời tiết
- */
-export class WeatherResponseDto implements WeatherForecastResult {
+export interface YouTubeVideoData {
+  id: string;
+  title: string;
+  thumbnail: string;
+  publishedAt: string;
+}
+
+export class WeatherResponseDto {
   @ApiProperty({
-    description: 'Tóm tắt tình hình thời tiết hiện tại',
-    example:
-      'Trong 10 ngày tới, khu vực ĐBSCL có mưa rào và dông nhiều nơi, nguy cơ có bão ảnh hưởng',
+    description: 'Tóm tắt dự báo thời tiết dạng text',
+    example: 'Thời tiết miền Bắc hôm nay có mưa rào vào chiều tối...',
   })
   summary: string;
 
   @ApiProperty({
     description: 'Thông tin về mưa bão dạng text tóm tắt',
   })
-  hydrologyInfo: string;
+  hydrology_info: string;
 
   @ApiProperty({
     description: 'Thông tin mực nước Đồng bằng sông Cửu Long',
   })
-  waterLevelInfo: string;
+  water_level_info: string;
 
   @ApiProperty({
     description: 'Dự báo bão, áp thấp nhiệt đới',
   })
-  stormsAndTropicalDepressionsInfo: string;
+  storms_and_tropical_depressions_info: string;
 
   @ApiProperty({
     description: 'Danh sách video YouTube về dự báo thời tiết',
     type: [Object],
   })
-  youtubeVideos: YouTubeVideoData[];
+  youtube_videos: YouTubeVideoData[];
 
   @ApiProperty({
     description: 'Thời gian cập nhật',
     example: '2024-01-15T10:30:00.000Z',
   })
-  lastUpdated: string;
+  last_updated: string;
 
   @ApiProperty({
     description: 'Danh sách nguồn dữ liệu',
@@ -51,12 +50,12 @@ export class WeatherResponseDto implements WeatherForecastResult {
       'YouTube',
     ],
   })
-  dataSources: string[];
+  data_sources: string[];
 
   @ApiProperty({
     description: 'Chất lượng dữ liệu',
   })
-  dataQuality: {
+  data_quality: {
     reliability: 'high' | 'medium' | 'low';
     sourcesUsed: number;
     score: number;
@@ -65,12 +64,12 @@ export class WeatherResponseDto implements WeatherForecastResult {
   constructor() {
     // Khởi tạo giá trị mặc định để tránh lỗi TypeScript
     this.summary = '';
-    this.hydrologyInfo = '';
-    this.waterLevelInfo = '';
-    this.stormsAndTropicalDepressionsInfo = '';
-    this.youtubeVideos = [];
-    this.lastUpdated = new Date().toISOString();
-    this.dataSources = [];
-    this.dataQuality = { reliability: 'low', sourcesUsed: 0, score: 0 };
+    this.hydrology_info = '';
+    this.water_level_info = '';
+    this.storms_and_tropical_depressions_info = '';
+    this.youtube_videos = [];
+    this.last_updated = new Date().toISOString();
+    this.data_sources = [];
+    this.data_quality = { reliability: 'low', sourcesUsed: 0, score: 0 };
   }
 }

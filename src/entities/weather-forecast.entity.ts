@@ -19,30 +19,30 @@ export class WeatherForecast {
   summary!: string;
 
   @Column({ type: 'text', name: 'hydrology_info' })
-  hydrologyInfo!: string;
+  hydrology_info!: string;
 
   @Column({ type: 'text', name: 'water_level_info' })
-  waterLevelInfo!: string;
+  water_level_info!: string;
 
   @Column({ type: 'text', name: 'storms_and_tropical_depressions_info' })
-  stormsAndTropicalDepressionsInfo!: string;
+  storms_and_tropical_depressions_info!: string;
 
   @Column({ type: 'timestamp', name: 'last_updated' })
-  lastUpdated!: Date;
+  last_updated!: Date;
 
   @Column({ type: 'jsonb', name: 'data_sources' })
-  dataSources!: string[];
+  data_sources!: string[];
 
   @Column({ type: 'jsonb', name: 'data_quality' })
-  dataQuality!: {
+  data_quality!: {
     reliability: string;
     sourcesUsed: number;
     score: number;
   };
 
   @CreateDateColumn({ name: 'created_at' })
-  createdAt!: Date;
+  created_at!: Date;
 
   @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt!: Date;
+  updated_at!: Date;
 }

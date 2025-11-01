@@ -57,19 +57,19 @@ export class ProductTypeController {
     searchDto.page = Number(page);
     searchDto.limit = Number(limit);
     searchDto.filters = [];
-    searchDto.nestedFilters = [];
+    searchDto.nested_filters = [];
 
-    // Thêm điều kiện lọc deletedAt nếu có
+    // Thêm điều kiện lọc deleted_at nếu có
     if (deleted !== undefined) {
       if (deleted) {
         searchDto.filters.push({
-          field: 'deletedAt',
+          field: 'deleted_at',
           operator: 'isnotnull',
           value: null,
         });
       } else {
         searchDto.filters.push({
-          field: 'deletedAt',
+          field: 'deleted_at',
           operator: 'isnull',
           value: null,
         });
@@ -87,6 +87,15 @@ export class ProductTypeController {
   @Get('by-status/:status')
   findByStatus(@Param('status') status: BaseStatus) {
     return this.productTypeService.findByStatus(status);
+  }
+
+  /**
+   * Lấy danh sách loại sản phẩm đã bị xóa mềm
+   * @returns Danh sách loại sản phẩm đã bị xóa
+   */
+  @Get('deleted')
+  findDeleted() {
+    return this.productTypeService.findDeleted();
   }
 
   /**
@@ -161,7 +170,7 @@ export class ProductTypeController {
   }
 
   /**
-   * Soft delete loại sản phẩm (đánh dấu deletedAt)
+   * Soft delete loại sản phẩm (đánh dấu deleted_at)
    * @param id - ID của loại sản phẩm cần soft delete
    * @returns Kết quả soft delete
    */

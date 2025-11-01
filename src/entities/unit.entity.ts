@@ -19,19 +19,20 @@ export class Unit {
   id!: number;
 
   /** Tên đơn vị tính */
-  @Column()
+  @Column({ name: 'name' })
   name!: string;
 
   /** Mã đơn vị tính (ví dụ: kg, l, m, v.v.) */
-  @Column()
+  @Column({ name: 'code' })
   code!: string;
 
   /** Mô tả đơn vị tính */
-  @Column({ nullable: true })
+  @Column({ name: 'description', nullable: true })
   description?: string;
 
   /** Trạng thái đơn vị tính sử dụng enum chung */
   @Column({
+    name: 'status',
     type: 'enum',
     enum: BaseStatus,
     default: BaseStatus.ACTIVE,
@@ -40,13 +41,13 @@ export class Unit {
 
   /** Thời gian tạo đơn vị tính */
   @CreateDateColumn({ name: 'created_at' })
-  createdAt!: Date;
+  created_at!: Date;
 
   /** Thời gian cập nhật gần nhất đơn vị tính */
   @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt!: Date;
+  updated_at!: Date;
 
   /** Thời gian xóa mềm (null nếu chưa bị xóa) */
   @DeleteDateColumn({ name: 'deleted_at' })
-  deletedAt?: Date;
+  deleted_at?: Date;
 }

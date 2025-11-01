@@ -17,51 +17,51 @@ export class FileUpload {
   id!: number;
 
   /** ID công khai của file (dùng để truy cập file) */
-  @Column()
-  publicId!: string;
+  @Column({ name: 'public_id' })
+  public_id!: string;
 
   /** URL truy cập file */
-  @Column()
+  @Column({ name: 'url' })
   url!: string;
 
   /** Tên file */
-  @Column()
+  @Column({ name: 'name' })
   name!: string;
 
   /** Loại file */
-  @Column()
+  @Column({ name: 'type' })
   type!: string;
 
   /** Kích thước file (bytes) */
-  @Column()
+  @Column({ name: 'size' })
   size!: number;
 
   /** Thư mục chứa file */
-  @Column({ nullable: true })
+  @Column({ name: 'folder', nullable: true })
   folder?: string;
 
   /** Loại MIME của file */
-  @Column({ nullable: true })
-  mimeType?: string;
+  @Column({ name: 'mime_type', nullable: true })
+  mime_type?: string;
 
   /** Số lượng tham chiếu đến file */
-  @Column({ nullable: true })
-  referenceCount?: number;
+  @Column({ name: 'reference_count', nullable: true })
+  reference_count?: number;
 
   /** Trạng thái file tạm thời (true: tạm thời, false: không phải tạm thời) */
-  @Column({ nullable: true })
-  isTemporary?: boolean;
+  @Column({ name: 'is_temporary', nullable: true })
+  is_temporary?: boolean;
 
   /** Trạng thái file không được sử dụng (true: không được sử dụng, false: đang được sử dụng) */
-  @Column({ nullable: true })
-  isOrphaned?: boolean;
+  @Column({ name: 'is_orphaned', nullable: true })
+  is_orphaned?: boolean;
 
   /** ID của người dùng upload file */
-  @Column({ nullable: true })
-  uploadedBy?: number;
+  @Column({ name: 'uploaded_by', nullable: true })
+  uploaded_by?: number;
 
   /** Mảng tag của file */
-  @Column('text', { array: true, default: [] })
+  @Column({ name: 'tags', type: 'text', array: true, default: [] })
   tags!: string[];
 
   /** Metadata của file (dưới dạng JSON) */
@@ -70,17 +70,17 @@ export class FileUpload {
 
   /** Thời gian tạo file upload */
   @CreateDateColumn({ name: 'created_at' })
-  createdAt!: Date;
+  created_at!: Date;
 
   /** Thời gian cập nhật gần nhất file upload */
   @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt!: Date;
+  updated_at!: Date;
 
   /** Thời gian đánh dấu để xóa file */
   @Column({ name: 'marked_for_deletion_at', nullable: true })
-  markedForDeletionAt?: Date;
+  marked_for_deletion_at?: Date;
 
   /** Thời gian xóa file */
   @Column({ name: 'deleted_at', nullable: true })
-  deletedAt?: Date;
+  deleted_at?: Date;
 }

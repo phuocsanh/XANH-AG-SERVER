@@ -10,13 +10,14 @@ import { FileTrackingService } from '../file-tracking/file-tracking.service';
 import { SearchProductDto } from './dto/search-product.dto';
 import { FilterConditionDto } from './dto/filter-condition.dto';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
+import { BaseSearchService } from '../../common/services/base-search.service';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến sản phẩm
  * Bao gồm quản lý sản phẩm, Status Management và Soft Delete
  */
 @Injectable()
-export class ProductService {
+export class ProductService extends BaseSearchService<Product> {
   /**
    * Constructor injection các repository và service cần thiết
    * @param productRepository - Repository để thao tác với entity Product
@@ -28,7 +29,9 @@ export class ProductService {
     private productRepository: Repository<Product>,
     private productFactoryRegistry: ProductFactoryRegistry,
     private fileTrackingService: FileTrackingService,
-  ) {}
+  ) {
+    super();
+  }
 
   /**
    * Tạo sản phẩm mới
@@ -49,6 +52,7 @@ export class ProductService {
         // Nếu không có factory phù hợp, tạo product theo cách thông thường
         const product = new Product();
         Object.assign(product, createProductDto);
+        product.status = createProductDto.status || BaseStatus.ACTIVE;
         return this.productRepository.save(product);
       }
     } catch (error) {
@@ -64,7 +68,7 @@ export class ProductService {
     return this.productRepository
       .createQueryBuilder('product')
       .where('product.status = :status', { status: BaseStatus.ACTIVE })
-      .andWhere('product.deletedAt IS NULL')
+      .andWhere('product.deleted_at IS NULL')
       .getMany();
   }
 
@@ -77,7 +81,7 @@ export class ProductService {
     return this.productRepository
       .createQueryBuilder('product')
       .where('product.status = :status', { status })
-      .andWhere('product.deletedAt IS NULL')
+      .andWhere('product.deleted_at IS NULL')
       .getMany();
   }
 
@@ -90,7 +94,7 @@ export class ProductService {
     return this.productRepository
       .createQueryBuilder('product')
       .where('product.id = :id', { id })
-      .andWhere('product.deletedAt IS NULL')
+      .andWhere('product.deleted_at IS NULL')
       .getOne();
   }
 
@@ -111,7 +115,7 @@ export class ProductService {
     if (inventoryService) {
       const latestPurchasePrice =
         await inventoryService.getLatestPurchasePrice(id);
-      product.latestPurchasePrice = latestPurchasePrice;
+      product.latest_purchase_price = latestPurchasePrice;
     }
 
     return product;
@@ -166,7 +170,7 @@ export class ProductService {
   }
 
   /**
-   * Soft delete sản phẩm (đánh dấu deletedAt)
+   * Soft delete sản phẩm (đánh dấu deleted_at)
    * @param id - ID của sản phẩm cần soft delete
    */
   async softDelete(id: number): Promise<void> {
@@ -211,7 +215,7 @@ export class ProductService {
         query: `%${query}%`,
       })
       .andWhere('product.status = :status', { status: BaseStatus.ACTIVE })
-      .andWhere('product.deletedAt IS NULL')
+      .andWhere('product.deleted_at IS NULL')
       .getMany();
   }
 
@@ -225,13 +229,50 @@ export class ProductService {
   ): Promise<{ data: Product[]; total: number; page: number; limit: number }> {
     const queryBuilder = this.productRepository.createQueryBuilder('product');
 
-    // Thêm điều kiện mặc định
-    queryBuilder
-      .where('product.status = :status', { status: BaseStatus.ACTIVE })
-      .andWhere('product.deletedAt IS NULL');
+    // Kiểm tra xem có filter deleted_at không
+    const hasDeletedFilter = searchDto.filters?.some(
+      (filter) => filter.field === 'deleted_at',
+    );
+
+    // Thêm điều kiện mặc định chỉ khi không có filter deleted_at
+    if (!hasDeletedFilter) {
+      queryBuilder
+        .where('product.status = :status', { status: BaseStatus.ACTIVE })
+        .andWhere('product.deleted_at IS NULL');
+    } else {
+      // Nếu có filter deleted_at, cần sử dụng withDeleted() để bao gồm các bản ghi đã xóa
+      queryBuilder.withDeleted();
+
+      // Kiểm tra xem filter deleted_at có giá trị là isnotnull không
+      const deletedFilter = searchDto.filters?.find(
+        (filter) => filter.field === 'deleted_at',
+      );
+
+      if (deletedFilter && deletedFilter.operator === 'isnotnull') {
+        // Nếu đang tìm kiếm các bản ghi đã xóa, chỉ hiển thị các bản ghi có deleted_at IS NOT NULL
+        queryBuilder.where('product.deleted_at IS NOT NULL');
+      } else if (deletedFilter && deletedFilter.operator === 'isnull') {
+        // Nếu đang tìm kiếm các bản ghi chưa xóa, thêm điều kiện này
+        queryBuilder.where('product.deleted_at IS NULL');
+      }
+
+      // Luôn thêm điều kiện status nếu không có filter status
+      const hasStatusFilter = searchDto.filters?.some(
+        (filter) => filter.field === 'status',
+      );
+
+      if (!hasStatusFilter) {
+        queryBuilder.andWhere('product.status = :status', {
+          status: BaseStatus.ACTIVE,
+        });
+      }
+    }
+
+    // Tạo một bản sao sâu của searchDto để tránh thay đổi dữ liệu gốc
+    const searchDtoCopy = JSON.parse(JSON.stringify(searchDto));
 
     // Xây dựng điều kiện tìm kiếm
-    this.buildSearchConditions(queryBuilder, searchDto, 'product');
+    this.buildSearchConditions(queryBuilder, searchDtoCopy, 'product');
 
     // Xử lý phân trang
     const page = searchDto.page || 1;
@@ -252,128 +293,6 @@ export class ProductService {
   }
 
   /**
-   * Xây dựng các điều kiện tìm kiếm động
-   * @param queryBuilder - Query builder
-   * @param searchDto - DTO tìm kiếm
-   * @param alias - Alias của bảng
-   * @param parameterIndex - Chỉ số để tạo parameter name duy nhất
-   */
-  private buildSearchConditions(
-    queryBuilder: SelectQueryBuilder<Product>,
-    searchDto: SearchProductDto,
-    alias: string,
-    parameterIndex: number = 0,
-  ): number {
-    // Xử lý các điều kiện lọc cơ bản
-    if (searchDto.filters && searchDto.filters.length > 0) {
-      const operator = searchDto.operator || 'AND';
-      const conditions: string[] = [];
-      const parameters: { [key: string]: any } = {};
-
-      searchDto.filters.forEach((filter, index) => {
-        const condition = this.buildFilterCondition(
-          filter,
-          alias,
-          parameterIndex + index,
-          parameters,
-        );
-        if (condition) {
-          conditions.push(condition);
-        }
-      });
-
-      if (conditions.length > 0) {
-        const combinedCondition = conditions.join(` ${operator} `);
-        queryBuilder.andWhere(`(${combinedCondition})`, parameters);
-      }
-
-      parameterIndex += searchDto.filters.length;
-    }
-
-    // Xử lý các bộ lọc lồng nhau
-    if (searchDto.nestedFilters && searchDto.nestedFilters.length > 0) {
-      // Xây dựng điều kiện cho từng bộ lọc lồng nhau
-      searchDto.nestedFilters.forEach((nestedFilter) => {
-        parameterIndex = this.buildSearchConditions(
-          queryBuilder,
-          nestedFilter,
-          alias,
-          parameterIndex,
-        );
-      });
-    }
-
-    return parameterIndex;
-  }
-
-  /**
-   * Xây dựng điều kiện lọc đơn lẻ
-   * @param filter - Điều kiện lọc
-   * @param alias - Alias của bảng
-   * @param index - Chỉ số để tạo parameter name duy nhất
-   * @param parameters - Object chứa các parameter
-   * @returns Chuỗi điều kiện SQL
-   */
-  private buildFilterCondition(
-    filter: FilterConditionDto,
-    alias: string,
-    index: number,
-    parameters: { [key: string]: any },
-  ): string | null {
-    if (!filter.field || !filter.operator) {
-      return null;
-    }
-
-    const paramName = `param_${index}`;
-    const field = `${alias}.${filter.field}`;
-
-    switch (filter.operator) {
-      case 'eq':
-        parameters[paramName] = filter.value;
-        return `${field} = :${paramName}`;
-      case 'ne':
-        parameters[paramName] = filter.value;
-        return `${field} != :${paramName}`;
-      case 'gt':
-        parameters[paramName] = filter.value;
-        return `${field} > :${paramName}`;
-      case 'lt':
-        parameters[paramName] = filter.value;
-        return `${field} < :${paramName}`;
-      case 'gte':
-        parameters[paramName] = filter.value;
-        return `${field} >= :${paramName}`;
-      case 'lte':
-        parameters[paramName] = filter.value;
-        return `${field} <= :${paramName}`;
-      case 'like':
-        parameters[paramName] = `%${filter.value}%`;
-        return `${field} LIKE :${paramName}`;
-      case 'ilike':
-        parameters[paramName] = `%${filter.value}%`;
-        return `LOWER(${field}) LIKE LOWER(:${paramName})`;
-      case 'in':
-        if (Array.isArray(filter.value)) {
-          parameters[paramName] = filter.value;
-          return `${field} IN (:...${paramName})`;
-        }
-        return null;
-      case 'notin':
-        if (Array.isArray(filter.value)) {
-          parameters[paramName] = filter.value;
-          return `${field} NOT IN (:...${paramName})`;
-        }
-        return null;
-      case 'isnull':
-        return `${field} IS NULL`;
-      case 'isnotnull':
-        return `${field} IS NOT NULL`;
-      default:
-        return null;
-    }
-  }
-
-  /**
    * Tìm sản phẩm theo loại sản phẩm (chỉ các bản ghi chưa bị soft delete và đang hoạt động)
    * @param productType - ID loại sản phẩm
    * @returns Danh sách sản phẩm thuộc loại đó
@@ -383,7 +302,7 @@ export class ProductService {
       .createQueryBuilder('product')
       .where('product.productType = :productType', { productType })
       .andWhere('product.status = :status', { status: BaseStatus.ACTIVE })
-      .andWhere('product.deletedAt IS NULL')
+      .andWhere('product.deleted_at IS NULL')
       .getMany();
   }
 
@@ -406,7 +325,7 @@ export class ProductService {
 
     // Lấy phần trăm lợi nhuận (mặc định 15% nếu không có)
     const profitMarginPercent = parseFloat(
-      product.profitMarginPercent?.toString() || '15',
+      product.profit_margin_percent?.toString() || '15',
     );
 
     // Lấy phần trăm giảm giá (mặc định 0% nếu không có)
@@ -422,9 +341,9 @@ export class ProductService {
 
     // Cập nhật sản phẩm với giá vốn trung bình và giá bán mới
     await this.productRepository.update(productId, {
-      averageCostPrice: averageCostPrice.toFixed(2),
+      average_cost_price: averageCostPrice.toFixed(2),
       price: productPrice.toFixed(2),
-      discountedPrice: productDiscountedPrice.toFixed(2),
+      discounted_price: productDiscountedPrice.toFixed(2),
     });
 
     // Trả về thông tin sản phẩm đã cập nhật

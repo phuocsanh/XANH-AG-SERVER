@@ -20,44 +20,44 @@ export class FileReference {
   id!: number;
 
   /** ID của file được tham chiếu */
-  @Column()
-  fileId!: number;
+  @Column({ name: 'file_id' })
+  file_id!: number;
 
   /** Loại thực thể tham chiếu file (ví dụ: 'product', 'user', 'product_type') */
-  @Column()
-  entityType!: string;
+  @Column({ name: 'entity_type' })
+  entity_type!: string;
 
   /** ID của thực thể tham chiếu file */
-  @Column()
-  entityId!: number;
+  @Column({ name: 'entity_id' })
+  entity_id!: number;
 
   /** Trường cụ thể của thực thể chứa file (ví dụ: 'productThumb', 'productPictures', 'userAvatar') */
-  @Column({ nullable: true })
-  fieldName?: string;
+  @Column({ name: 'field_name', nullable: true })
+  field_name?: string;
 
   /** Vị trí của file trong mảng (nếu trường là mảng) */
-  @Column({ nullable: true })
-  arrayIndex?: number;
+  @Column({ name: 'array_index', nullable: true })
+  array_index?: number;
 
   /** ID của người dùng tạo tham chiếu */
-  @Column({ nullable: true })
-  createdBy?: number;
+  @Column({ name: 'created_by', nullable: true })
+  created_by?: number;
 
   /** ID của người dùng xóa tham chiếu */
-  @Column({ nullable: true })
-  deletedBy?: number;
+  @Column({ name: 'deleted_by', nullable: true })
+  deleted_by?: number;
 
   /** Thời gian tạo tham chiếu */
   @CreateDateColumn({ name: 'created_at' })
-  createdAt!: Date;
+  created_at!: Date;
 
   /** Thời gian cập nhật gần nhất tham chiếu */
   @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt!: Date;
+  updated_at!: Date;
 
   /** Thời gian xóa mềm tham chiếu */
   @Column({ name: 'deleted_at', nullable: true })
-  deletedAt?: Date;
+  deleted_at?: Date;
 
   // Relations
   /** Mối quan hệ nhiều-một với file upload */

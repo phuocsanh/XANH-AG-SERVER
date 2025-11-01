@@ -59,7 +59,7 @@ export class CreateProductDto {
   /** Mảng loại phụ sản phẩm (tùy chọn) */
   @IsOptional()
   @IsArray()
-  subProductType?: number[];
+  sub_product_type?: number[];
 
   /** Phần trăm giảm giá (tùy chọn) */
   @IsOptional()
@@ -68,7 +68,7 @@ export class CreateProductDto {
 
   /** Giá sau khi giảm giá (bắt buộc) */
   @IsString()
-  discountedPrice!: string;
+  discounted_price!: string;
 
   /** Số lượng đã bán (tùy chọn) */
   @IsOptional()
@@ -81,26 +81,26 @@ export class CreateProductDto {
 
   /** Giá vốn trung bình của sản phẩm (bắt buộc) */
   @IsString()
-  averageCostPrice!: string;
+  average_cost_price!: string;
 
   /** Phần trăm lợi nhuận (bắt buộc) */
   @IsString()
-  profitMarginPercent!: string;
+  profit_margin_percent!: string;
 
   /** Đơn vị tính của sản phẩm (tùy chọn) */
   @IsOptional()
   @IsNumber()
-  unitId?: number;
+  unit_id?: number;
 
   /** Giá nhập mới nhất của sản phẩm (tùy chọn) */
   @IsOptional()
   @IsNumber()
-  latestPurchasePrice?: number;
+  latest_purchase_price?: number;
 
   /** Mã ký hiệu của sản phẩm (tùy chọn) */
   @IsOptional()
   @IsNumber()
-  symbolId?: number;
+  symbol_id?: number;
 
   /** Thành phần nguyên liệu của sản phẩm (tùy chọn) */
   @IsOptional()

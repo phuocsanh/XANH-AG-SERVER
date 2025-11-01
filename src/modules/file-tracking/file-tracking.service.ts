@@ -60,8 +60,8 @@ export class FileTrackingService {
    * @param publicId - Public ID của file cần tìm
    * @returns Thông tin file upload
    */
-  async findByPublicId(publicId: string): Promise<FileUpload | null> {
-    return this.fileUploadRepository.findOne({ where: { publicId } });
+  async findByPublicId(public_id: string): Promise<FileUpload | null> {
+    return this.fileUploadRepository.findOne({ where: { public_id } });
   }
 
   /**
@@ -98,7 +98,7 @@ export class FileTrackingService {
   async incrementReferenceCount(id: number): Promise<FileUpload | null> {
     const file = await this.findOne(id);
     if (file) {
-      file.referenceCount = (file.referenceCount || 0) + 1;
+      file.reference_count = (file.reference_count || 0) + 1;
       return this.fileUploadRepository.save(file);
     }
     return null;
@@ -111,8 +111,8 @@ export class FileTrackingService {
    */
   async decrementReferenceCount(id: number): Promise<FileUpload | null> {
     const file = await this.findOne(id);
-    if (file && (file.referenceCount || 0) > 0) {
-      file.referenceCount = (file.referenceCount || 0) - 1;
+    if (file && (file.reference_count || 0) > 0) {
+      file.reference_count = (file.reference_count || 0) - 1;
       return this.fileUploadRepository.save(file);
     }
     return null;
@@ -124,7 +124,7 @@ export class FileTrackingService {
    * @returns Thông tin file đã đánh dấu
    */
   async markAsOrphaned(id: number): Promise<FileUpload | null> {
-    return this.update(id, { isOrphaned: true });
+    return this.update(id, { is_orphaned: true });
   }
 
   /**
@@ -134,8 +134,8 @@ export class FileTrackingService {
   async findOrphanedFiles(): Promise<FileUpload[]> {
     return this.fileUploadRepository.find({
       where: {
-        isOrphaned: true,
-        deletedAt: IsNull(),
+        is_orphaned: true,
+        deleted_at: IsNull(),
       },
     });
   }
@@ -147,8 +147,8 @@ export class FileTrackingService {
    */
   async markForDeletion(id: number): Promise<FileUpload | null> {
     return this.update(id, {
-      markedForDeletionAt: new Date(), // Ghi nhận thời gian đánh dấu
-      isOrphaned: true, // Đánh dấu là không được sử dụng
+      marked_for_deletion_at: new Date(), // Ghi nhận thời gian đánh dấu
+      is_orphaned: true, // Đánh dấu là không được sử dụng
     });
   }
 
@@ -160,7 +160,7 @@ export class FileTrackingService {
     return this.fileUploadRepository
       .createQueryBuilder('file')
       .where('file.markedForDeletionAt IS NOT NULL') // File đã được đánh dấu để xóa
-      .andWhere('file.deletedAt IS NULL') // File chưa bị xóa
+      .andWhere('file.deleted_at IS NULL') // File chưa bị xóa
       .getMany();
   }
 
@@ -170,7 +170,7 @@ export class FileTrackingService {
    */
   async softDelete(id: number): Promise<void> {
     await this.fileUploadRepository.update(id, {
-      deletedAt: new Date(), // Ghi nhận thời gian xóa
+      deleted_at: new Date(), // Ghi nhận thời gian xóa
     });
   }
 
@@ -185,20 +185,22 @@ export class FileTrackingService {
    * @returns Tham chiếu file đã tạo
    */
   async createFileReference(
-    fileId: number,
+    fileUpload: FileUpload,
     entityType: string,
     entityId: number,
     fieldName?: string,
-    arrayIndex?: number,
-    createdByUserId?: number,
+    // arrayIndex?: number,
+    // createdByUserId?: number,
   ): Promise<FileReference> {
+    if (!fileUpload) {
+      throw new Error('File not found');
+    }
+
     const fileReference = this.fileReferenceRepository.create({
-      fileId,
-      entityType,
-      entityId,
-      ...(fieldName !== undefined && { fieldName }),
-      ...(arrayIndex !== undefined && { arrayIndex }),
-      ...(createdByUserId !== undefined && { createdByUserId }),
+      file_id: fileUpload.id,
+      entity_type: entityType,
+      entity_id: entityId,
+      ...(fieldName && { field_name: fieldName }), // Chỉ thêm field_name nếu nó không null/undefined
     });
     return this.fileReferenceRepository.save(fileReference);
   }
@@ -215,9 +217,9 @@ export class FileTrackingService {
   ): Promise<FileReference[]> {
     return this.fileReferenceRepository.find({
       where: {
-        entityType,
-        entityId,
-        deletedAt: IsNull(), // Chỉ lấy các tham chiếu chưa bị xóa
+        entity_type: entityType,
+        entity_id: entityId,
+        deleted_at: IsNull(), // Chỉ lấy các tham chiếu chưa bị xóa
       },
       relations: ['fileUpload'], // Bao gồm thông tin file
     });
@@ -238,13 +240,13 @@ export class FileTrackingService {
   ): Promise<void> {
     await this.fileReferenceRepository.update(
       {
-        fileId,
-        entityType,
-        entityId,
-        deletedAt: IsNull(), // Chỉ cập nhật các tham chiếu chưa bị xóa
+        file_id: fileId,
+        entity_type: entityType,
+        entity_id: entityId,
+        deleted_at: IsNull(), // Chỉ cập nhật các tham chiếu chưa bị xóa
       },
       {
-        deletedAt: new Date(),
+        deleted_at: new Date(),
         ...(deletedByUserId !== undefined && { deletedByUserId }),
       },
     );
@@ -274,24 +276,24 @@ export class FileTrackingService {
     // Xóa mềm tất cả tham chiếu
     await this.fileReferenceRepository.update(
       {
-        entityType,
-        entityId,
-        deletedAt: IsNull(), // Chỉ cập nhật các tham chiếu chưa bị xóa
+        entity_type: entityType,
+        entity_id: entityId,
+        deleted_at: IsNull(), // Chỉ cập nhật các tham chiếu chưa bị xóa
       },
       {
-        deletedAt: new Date(),
+        deleted_at: new Date(),
         ...(deletedByUserId !== undefined && { deletedByUserId }),
       },
     );
 
     // Giảm reference count cho từng file
     for (const reference of fileReferences) {
-      await this.decrementReferenceCount(reference.fileId);
+      await this.decrementReferenceCount(reference.file_id);
 
       // Kiểm tra và đánh dấu file là orphaned nếu không còn tham chiếu
-      const file = await this.findOne(reference.fileId);
-      if (file && (file.referenceCount || 0) <= 0) {
-        await this.markAsOrphaned(reference.fileId);
+      const file = await this.findOne(reference.file_id);
+      if (file && (file.reference_count || 0) <= 0) {
+        await this.markAsOrphaned(reference.file_id);
       }
     }
   }

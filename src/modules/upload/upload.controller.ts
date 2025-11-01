@@ -34,7 +34,10 @@ export class UploadController {
       }),
       fileFilter: (_req, file, cb) => {
         if (!file.mimetype.match(/\/(jpg|jpeg|png|gif|webp)$/)) {
-          return cb(new BadRequestException('Only image files are allowed!'), false);
+          return cb(
+            new BadRequestException('Only image files are allowed!'),
+            false,
+          );
         }
         cb(null, true);
       },
@@ -76,22 +79,25 @@ export class UploadController {
   }
 
   @Delete(':folder/:filename')
-  async deleteFile(@Param('folder') folder: string, @Param('filename') filename: string) {
+  async deleteFile(
+    @Param('folder') folder: string,
+    @Param('filename') filename: string,
+  ) {
     const publicId = `${folder}/${filename}`;
-    
+
     if (!publicId) {
       throw new BadRequestException('PublicId is required');
     }
-    
+
     // Decode URL-encoded publicId
     const decodedPublicId = decodeURIComponent(publicId);
-    
+
     return this.uploadService.deleteFile(decodedPublicId);
   }
 
   @Patch('mark-used')
   async markFileAsUsed(@Body() markFileUsedDto: MarkFileUsedDto) {
-    return this.uploadService.markFileAsUsed(markFileUsedDto.publicId);
+    return this.uploadService.markFileAsUsed(markFileUsedDto.public_id);
   }
 
   @Post('cleanup')

@@ -1,20 +1,14 @@
-import {
-  IsString,
-  IsNumber,
-  IsOptional,
-  IsArray,
-  ValidateNested,
-} from 'class-validator';
+import { IsNumber, IsString, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
 
 /**
  * DTO (Data Transfer Object) dùng để tạo chi tiết hóa đơn bán hàng
  * Chứa các trường cần thiết để tạo một chi tiết hóa đơn bán hàng
  */
-class CreateSalesInvoiceItemDto {
+export class CreateSalesInvoiceItemDto {
   /** ID của sản phẩm (bắt buộc) */
   @IsNumber()
-  productId!: number;
+  product_id!: number;
 
   /** Số lượng sản phẩm trong hóa đơn (bắt buộc) */
   @IsNumber()
@@ -22,12 +16,12 @@ class CreateSalesInvoiceItemDto {
 
   /** Giá đơn vị của sản phẩm (bắt buộc) */
   @IsNumber()
-  unitPrice!: number;
+  unit_price!: number;
 
   /** Số tiền giảm giá cho sản phẩm (tùy chọn) */
   @IsNumber()
   @IsOptional()
-  discountAmount?: number;
+  discount_amount?: number;
 
   /** Ghi chú về chi tiết hóa đơn (tùy chọn) */
   @IsString()
@@ -42,52 +36,50 @@ class CreateSalesInvoiceItemDto {
 export class CreateSalesInvoiceDto {
   /** Mã hóa đơn bán hàng (bắt buộc) */
   @IsString()
-  invoiceCode!: string;
+  invoice_code!: string;
 
   /** Tên khách hàng (bắt buộc) */
   @IsString()
-  customerName!: string;
+  customer_name!: string;
 
   /** Số điện thoại khách hàng (tùy chọn) */
   @IsString()
   @IsOptional()
-  customerPhone?: string;
+  customer_phone?: string;
 
   /** Email khách hàng (tùy chọn) */
   @IsString()
   @IsOptional()
-  customerEmail?: string;
+  customer_email?: string;
 
   /** Địa chỉ khách hàng (tùy chọn) */
   @IsString()
   @IsOptional()
-  customerAddress?: string;
+  customer_address?: string;
 
   /** Tổng số tiền của hóa đơn (bắt buộc) */
   @IsNumber()
-  totalAmount!: number;
+  total_amount!: number;
 
   /** Số tiền giảm giá (tùy chọn) */
   @IsNumber()
   @IsOptional()
-  discountAmount?: number;
+  discount_amount?: number;
 
   /** Số tiền cuối cùng sau khi giảm giá (bắt buộc) */
   @IsNumber()
-  finalAmount!: number;
+  final_amount!: number;
 
   /** Phương thức thanh toán (bắt buộc) */
   @IsString()
-  paymentMethod!: string;
+  payment_method!: string;
 
   /** Ghi chú về hóa đơn (tùy chọn) */
   @IsString()
   @IsOptional()
   notes?: string;
 
-  /** Mảng chi tiết hóa đơn bán hàng (bắt buộc) */
-  @IsArray()
-  @ValidateNested({ each: true })
+  /** Các chi tiết hóa đơn (bắt buộc) */
   @Type(() => CreateSalesInvoiceItemDto)
   items!: CreateSalesInvoiceItemDto[];
 }

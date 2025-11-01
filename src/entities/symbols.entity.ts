@@ -19,24 +19,16 @@ export class Symbol {
   id!: number;
 
   /** Mã ký hiệu */
-  @Column({ unique: true })
+  @Column({ name: 'code', unique: true })
   code!: string;
 
   /** Tên ký hiệu */
-  @Column()
+  @Column({ name: 'name' })
   name!: string;
 
   /** Mô tả ký hiệu */
-  @Column({ nullable: true })
+  @Column({ name: 'description', nullable: true })
   description?: string;
-
-  /** Thời gian tạo ký hiệu */
-  @CreateDateColumn({ name: 'created_at' })
-  createdAt!: Date;
-
-  /** Thời gian cập nhật gần nhất ký hiệu */
-  @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt!: Date;
 
   /** Trạng thái của ký hiệu sử dụng enum chung */
   @Column({
@@ -47,7 +39,15 @@ export class Symbol {
   })
   status!: BaseStatus;
 
+  /** Thời gian tạo ký hiệu */
+  @CreateDateColumn({ name: 'created_at' })
+  created_at!: Date;
+
+  /** Thời gian cập nhật gần nhất ký hiệu */
+  @UpdateDateColumn({ name: 'updated_at' })
+  updated_at!: Date;
+
   /** Thời gian xóa mềm (null nếu chưa bị xóa) */
   @DeleteDateColumn({ name: 'deleted_at' })
-  deletedAt?: Date;
+  deleted_at?: Date;
 }

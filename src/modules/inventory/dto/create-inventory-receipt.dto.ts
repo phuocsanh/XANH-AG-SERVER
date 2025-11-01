@@ -1,9 +1,9 @@
 import {
-  IsString,
   IsNumber,
+  IsString,
   IsOptional,
-  IsArray,
   ValidateNested,
+  IsArray,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -11,10 +11,10 @@ import { Type } from 'class-transformer';
  * DTO (Data Transfer Object) dùng để tạo chi tiết phiếu nhập kho
  * Chứa các trường cần thiết để tạo một chi tiết phiếu nhập kho
  */
-class CreateInventoryReceiptItemDto {
+export class CreateInventoryReceiptItemDto {
   /** ID của sản phẩm (bắt buộc) */
   @IsNumber()
-  productId!: number;
+  product_id!: number;
 
   /** Số lượng sản phẩm trong phiếu (bắt buộc) */
   @IsNumber()
@@ -22,11 +22,11 @@ class CreateInventoryReceiptItemDto {
 
   /** Giá vốn đơn vị của sản phẩm (bắt buộc) */
   @IsNumber()
-  unitCost!: number;
+  unit_cost!: number;
 
   /** Tổng giá tiền của sản phẩm (bắt buộc) */
   @IsNumber()
-  totalPrice!: number;
+  total_price!: number;
 
   /** Ghi chú về chi tiết phiếu nhập kho (tùy chọn) */
   @IsString()
@@ -41,15 +41,15 @@ class CreateInventoryReceiptItemDto {
 export class CreateInventoryReceiptDto {
   /** Mã phiếu nhập kho (bắt buộc) */
   @IsString()
-  receiptCode!: string;
+  receipt_code!: string;
 
   /** ID của nhà cung cấp (bắt buộc) */
   @IsNumber()
-  supplierId!: number;
+  supplier_id!: number;
 
   /** Tổng số tiền của phiếu nhập kho (bắt buộc) */
   @IsNumber()
-  totalAmount!: number;
+  total_amount!: number;
 
   /** Ghi chú về phiếu nhập kho (tùy chọn) */
   @IsString()
@@ -62,11 +62,11 @@ export class CreateInventoryReceiptDto {
 
   /** ID của người tạo phiếu nhập kho (bắt buộc) */
   @IsNumber()
-  createdBy!: number;
+  created_by!: number;
 
-  /** Mảng chi tiết phiếu nhập kho (bắt buộc) */
-  @IsArray()
+  /** Các chi tiết sản phẩm trong phiếu nhập kho (bắt buộc) */
   @ValidateNested({ each: true })
   @Type(() => CreateInventoryReceiptItemDto)
+  @IsArray()
   items!: CreateInventoryReceiptItemDto[];
 }

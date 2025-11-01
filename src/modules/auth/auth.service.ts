@@ -126,17 +126,8 @@ export class AuthService {
    * @returns Thông tin người dùng đã tạo (không bao gồm mật khẩu)
    */
   async register(createUserDto: CreateUserDto) {
-    // Hash mật khẩu và tạo salt tự động
-    const { hashedPassword, salt } = await this.hashPasswordWithSalt(
-      createUserDto.password,
-    );
-
-    // Tạo người dùng với mật khẩu đã hash và salt
-    const user = await this.userService.create({
-      ...createUserDto,
-      password: hashedPassword,
-      salt: salt,
-    });
+    // Tạo người dùng - mật khẩu sẽ được hash trong UserService.create
+    const user = await this.userService.create(createUserDto);
 
     // Trả về thông tin người dùng không bao gồm mật khẩu
     const { password, ...result } = user;

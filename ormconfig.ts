@@ -12,6 +12,6 @@ export default new DataSource({
   database: process.env.DB_NAME || 'GO_GN_FARM',
   entities: [__dirname + '/src/entities/*.entity{.ts,.js}'],
   migrations: [__dirname + '/src/database/migrations/*{.ts,.js}'],
-  synchronize: false,
+  synchronize: true, // Enable schema synchronization for development
   logging: true,
 });

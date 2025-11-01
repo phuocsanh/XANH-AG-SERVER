@@ -78,7 +78,7 @@ export class WeatherForecastService {
       // Kiểm tra xem đã có bản ghi nào chưa
       const existingForecast = await this.weatherForecastRepository
         .createQueryBuilder('forecast')
-        .orderBy('forecast.createdAt', 'DESC')
+        .orderBy('forecast.created_at', 'DESC')
         .getOne();
 
       let weatherForecast: WeatherForecast;
@@ -88,13 +88,13 @@ export class WeatherForecastService {
         this.logger.log('Đã có bản ghi, cập nhật dữ liệu...');
         weatherForecast = existingForecast;
         weatherForecast.summary = result.summary;
-        weatherForecast.hydrologyInfo = result.hydrologyInfo;
-        weatherForecast.waterLevelInfo = result.waterLevelInfo;
-        weatherForecast.stormsAndTropicalDepressionsInfo =
+        weatherForecast.hydrology_info = result.hydrologyInfo;
+        weatherForecast.water_level_info = result.waterLevelInfo;
+        weatherForecast.storms_and_tropical_depressions_info =
           result.stormsAndTropicalDepressionsInfo;
-        weatherForecast.lastUpdated = new Date(result.lastUpdated);
-        weatherForecast.dataSources = result.dataSources;
-        weatherForecast.dataQuality = {
+        weatherForecast.last_updated = new Date(result.lastUpdated);
+        weatherForecast.data_sources = result.dataSources;
+        weatherForecast.data_quality = {
           reliability: 'high',
           sourcesUsed: result.dataSources.length,
           score: 90,
@@ -104,13 +104,13 @@ export class WeatherForecastService {
         this.logger.log('Chưa có bản ghi, tạo mới dữ liệu...');
         weatherForecast = new WeatherForecast();
         weatherForecast.summary = result.summary;
-        weatherForecast.hydrologyInfo = result.hydrologyInfo;
-        weatherForecast.waterLevelInfo = result.waterLevelInfo;
-        weatherForecast.stormsAndTropicalDepressionsInfo =
+        weatherForecast.hydrology_info = result.hydrologyInfo;
+        weatherForecast.water_level_info = result.waterLevelInfo;
+        weatherForecast.storms_and_tropical_depressions_info =
           result.stormsAndTropicalDepressionsInfo;
-        weatherForecast.lastUpdated = new Date(result.lastUpdated);
-        weatherForecast.dataSources = result.dataSources;
-        weatherForecast.dataQuality = {
+        weatherForecast.last_updated = new Date(result.lastUpdated);
+        weatherForecast.data_sources = result.dataSources;
+        weatherForecast.data_quality = {
           reliability: 'high',
           sourcesUsed: result.dataSources.length,
           score: 90,
@@ -137,7 +137,7 @@ export class WeatherForecastService {
     try {
       const latestForecast = await this.weatherForecastRepository
         .createQueryBuilder('forecast')
-        .orderBy('forecast.createdAt', 'DESC')
+        .orderBy('forecast.created_at', 'DESC')
         .limit(1)
         .getOne();
 

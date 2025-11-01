@@ -62,7 +62,12 @@ export class SalesController {
     searchDto.page = Number(page);
     searchDto.limit = Number(limit);
     searchDto.filters = [];
-    searchDto.nestedFilters = [];
+    searchDto.nested_filters = [];
+
+    // Đảm bảo nested_filters luôn là mảng
+    if (!searchDto.nested_filters) {
+      searchDto.nested_filters = [];
+    }
 
     // Thêm điều kiện lọc status nếu có
     if (status) {
@@ -73,17 +78,17 @@ export class SalesController {
       });
     }
 
-    // Thêm điều kiện lọc deletedAt nếu có
+    // Thêm điều kiện lọc deleted_at nếu có
     if (deleted !== undefined) {
       if (deleted) {
         searchDto.filters.push({
-          field: 'deletedAt',
+          field: 'deleted_at',
           operator: 'isnotnull',
           value: null,
         });
       } else {
         searchDto.filters.push({
-          field: 'deletedAt',
+          field: 'deleted_at',
           operator: 'isnull',
           value: null,
         });

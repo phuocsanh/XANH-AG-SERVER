@@ -19,34 +19,34 @@ export class ProductSubtypeRelation {
 
   /** ID của sản phẩm */
   @Column({ name: 'product_id' })
-  productId!: number;
+  product_id!: number;
 
   /** ID của loại phụ sản phẩm */
   @Column({ name: 'subtype_id' })
-  subtypeId!: number;
+  subtype_id!: number;
 
   /** Xác định đây có phải là loại phụ sản phẩm chính không (true: chính, false: phụ) */
   @Column({ name: 'is_primary', default: false })
-  isPrimary!: boolean;
+  is_primary!: boolean;
 
   /** Trạng thái của mối quan hệ (active: hoạt động, inactive: tạm dừng, archived: lưu trữ) */
-  @Column({ 
-    name: 'status', 
-    type: 'enum', 
-    enum: ['active', 'inactive', 'archived'], 
-    default: 'active' 
+  @Column({
+    name: 'status',
+    type: 'enum',
+    enum: ['active', 'inactive', 'archived'],
+    default: 'active',
   })
   status!: 'active' | 'inactive' | 'archived';
 
   /** Thời gian tạo mối quan hệ */
   @CreateDateColumn({ name: 'created_at' })
-  createdAt!: Date;
+  created_at!: Date;
 
   /** Thời gian cập nhật gần nhất mối quan hệ */
   @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt!: Date;
+  updated_at!: Date;
 
   /** Thời gian xóa mềm (soft delete) - null nếu chưa bị xóa */
   @DeleteDateColumn({ name: 'deleted_at' })
-  deletedAt?: Date;
+  deleted_at?: Date;
 }

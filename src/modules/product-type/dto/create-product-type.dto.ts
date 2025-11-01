@@ -8,11 +8,11 @@ import { BaseStatus } from '../../../entities/base-status.enum';
 export class CreateProductTypeDto {
   /** Tên loại sản phẩm */
   @IsString()
-  typeName!: string;
+  name!: string;
 
   /** Mã loại sản phẩm (duy nhất) */
   @IsString()
-  typeCode!: string;
+  code!: string;
 
   /** Mô tả loại sản phẩm */
   @IsOptional()
