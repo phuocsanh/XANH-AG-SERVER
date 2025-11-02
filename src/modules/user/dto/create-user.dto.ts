@@ -1,25 +1,15 @@
-import { IsString, IsOptional, IsEmail } from 'class-validator';
+import { IsNotEmpty, MinLength, MaxLength, IsString } from 'class-validator';
 
-/**
- * DTO (Data Transfer Object) dùng để tạo người dùng mới
- * Chứa các trường cần thiết để tạo một người dùng
- */
 export class CreateUserDto {
-  /** Tên tài khoản người dùng (bắt buộc) */
+  @IsNotEmpty()
   @IsString()
+  @MinLength(3)
+  @MaxLength(50)
   account!: string;
 
-  /** Mật khẩu người dùng (bắt buộc) */
+  @IsNotEmpty()
   @IsString()
+  @MinLength(6)
+  @MaxLength(50)
   password!: string;
-
-  /** Salt dùng để hash mật khẩu (tùy chọn - sẽ được tạo tự động) */
-  @IsOptional()
-  @IsString()
-  salt?: string;
-
-  /** Email người dùng (tùy chọn) */
-  @IsOptional()
-  @IsEmail()
-  email?: string;
 }

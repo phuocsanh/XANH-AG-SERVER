@@ -5,6 +5,7 @@ import { UserProfile } from '../../entities/user-profiles.entity';
 import { UserService } from './user.service';
 import { UserController } from './user.controller';
 import { FileTrackingModule } from '../file-tracking/file-tracking.module';
+import { UniqueAccountValidator } from './validators/unique-account.validator';
 
 /**
  * Module quản lý người dùng
@@ -18,7 +19,10 @@ import { FileTrackingModule } from '../file-tracking/file-tracking.module';
     FileTrackingModule,
   ],
   controllers: [UserController], // Controller xử lý các request liên quan đến người dùng
-  providers: [UserService], // Service xử lý logic nghiệp vụ người dùng
+  providers: [
+    UserService,
+    UniqueAccountValidator, // Add validator to providers
+  ], // Service xử lý logic nghiệp vụ người dùng
   exports: [UserService], // Xuất UserService để các module khác có thể sử dụng
 })
 export class UserModule {}

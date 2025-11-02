@@ -1,15 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Product } from '../../entities/products.entity';
-import { BaseStatus } from '../../entities/base-status.enum';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { ErrorHandler } from '../../common/helpers/error-handler.helper';
+import { BaseStatus } from '../../entities/base-status.enum';
 import { ProductFactoryRegistry } from './factories/product-factory.registry';
 import { FileTrackingService } from '../file-tracking/file-tracking.service';
 import { SearchProductDto } from './dto/search-product.dto';
-import { FilterConditionDto } from './dto/filter-condition.dto';
-import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 import { BaseSearchService } from '../../common/services/base-search.service';
 
 /**

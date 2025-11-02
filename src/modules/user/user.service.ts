@@ -37,6 +37,12 @@ export class UserService {
    */
   async create(createUserDto: CreateUserDto): Promise<User> {
     try {
+      // Kiểm tra xem account đã tồn tại chưa
+      const existingUser = await this.findByAccount(createUserDto.account);
+      if (existingUser) {
+        throw new Error('Account already exists');
+      }
+
       // Tạo salt và hash password
       const salt = await bcrypt.genSalt();
       const hashedPassword = await bcrypt.hash(createUserDto.password, salt);
@@ -91,6 +97,9 @@ export class UserService {
       where: {
         account,
         deleted_at: IsNull(),
+      },
+      order: {
+        id: 'DESC', // Get the latest user with this account
       },
     });
   }
@@ -271,22 +280,35 @@ export class UserService {
   }
 
   /**
-   * Xóa vĩnh viễn người dùng
-   * @param id - ID của người dùng cần xóa vĩnh viễn
+   * Xóa tất cả người dùng (chỉ dùng cho mục đích debug)
    */
-  async remove(userId: number): Promise<void> {
-    await this.userRepository.delete(userId);
+  async clearAllUsers(): Promise<void> {
+    await this.userRepository.clear();
   }
 
   /**
-   * Tìm kiếm nâng cao người dùng
+   * Xóa người dùng theo ID (soft delete)
+   * @param id - ID của người dùng cần xóa
+   */
+  async remove(id: number): Promise<void> {
+    await this.userRepository.softDelete(id);
+  }
+
+  /**
+   * Tìm kiếm nâng cao người dùng với cấu trúc filter lồng nhau
    * @param searchDto - Điều kiện tìm kiếm
    * @returns Danh sách người dùng phù hợp với thông tin phân trang
    */
-  async searchUsers(
-    searchDto: SearchUserDto,
-  ): Promise<{ data: User[]; total: number; page: number; limit: number }> {
+  async searchUsers(searchDto: SearchUserDto): Promise<{
+    data: User[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
     const queryBuilder = this.userRepository.createQueryBuilder('user');
+
+    // Thêm điều kiện mặc định
+    queryBuilder.where('user.deleted_at IS NULL');
 
     // Xây dựng điều kiện tìm kiếm
     this.buildSearchConditions(queryBuilder, searchDto, 'user');
@@ -395,31 +417,22 @@ export class UserService {
       case 'gt':
         parameters[paramName] = filter.value;
         return `${field} > :${paramName}`;
-      case 'lt':
-        parameters[paramName] = filter.value;
-        return `${field} < :${paramName}`;
       case 'gte':
         parameters[paramName] = filter.value;
         return `${field} >= :${paramName}`;
+      case 'lt':
+        parameters[paramName] = filter.value;
+        return `${field} < :${paramName}`;
       case 'lte':
         parameters[paramName] = filter.value;
         return `${field} <= :${paramName}`;
       case 'like':
         parameters[paramName] = `%${filter.value}%`;
-        return `${field} LIKE :${paramName}`;
-      case 'ilike':
-        parameters[paramName] = `%${filter.value}%`;
-        return `LOWER(${field}) LIKE LOWER(:${paramName})`;
+        return `${field} ILIKE :${paramName}`;
       case 'in':
         if (Array.isArray(filter.value)) {
           parameters[paramName] = filter.value;
           return `${field} IN (:...${paramName})`;
-        }
-        return null;
-      case 'notin':
-        if (Array.isArray(filter.value)) {
-          parameters[paramName] = filter.value;
-          return `${field} NOT IN (:...${paramName})`;
         }
         return null;
       case 'isnull':
