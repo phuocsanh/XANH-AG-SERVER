@@ -10,6 +10,8 @@ import { ProductFactoryRegistry } from './factories/product-factory.registry';
 import { FileTrackingService } from '../file-tracking/file-tracking.service';
 import { SearchProductDto } from './dto/search-product.dto';
 import { BaseSearchService } from '../../common/services/base-search.service';
+import { PricingCalculatorUtil } from './utils/pricing-calculator.util';
+import { OperatingCostService } from '../operating-cost/operating-cost.service';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến sản phẩm
@@ -22,12 +24,14 @@ export class ProductService extends BaseSearchService<Product> {
    * @param productRepository - Repository để thao tác với entity Product
    * @param productFactoryRegistry - Registry quản lý các factory tạo sản phẩm
    * @param fileTrackingService - Service quản lý theo dõi file
+   * @param operatingCostService - Service quản lý chi phí vận hành
    */
   constructor(
     @InjectRepository(Product)
     private productRepository: Repository<Product>,
     private productFactoryRegistry: ProductFactoryRegistry,
     private fileTrackingService: FileTrackingService,
+    private operatingCostService: OperatingCostService,
   ) {
     super();
   }
@@ -54,6 +58,54 @@ export class ProductService extends BaseSearchService<Product> {
         product.status = createProductDto.status || BaseStatus.ACTIVE;
         return this.productRepository.save(product);
       }
+    } catch (error) {
+      ErrorHandler.handleCreateError(error, 'sản phẩm');
+    }
+  }
+
+  /**
+   * Tạo sản phẩm mới với giá bán đề xuất
+   * @param createProductDto - Dữ liệu tạo sản phẩm mới
+   * @returns Thông tin sản phẩm đã tạo
+   */
+  async createWithSuggestedPrice(
+    createProductDto: CreateProductDto,
+  ): Promise<Product> {
+    try {
+      // Tạo sản phẩm
+      const product = new Product();
+      Object.assign(product, createProductDto);
+      product.status = createProductDto.status || BaseStatus.ACTIVE;
+
+      // Nếu không có giá bán đề xuất, tính toán dựa trên giá vốn trung bình
+      if (!product.suggested_price) {
+        const averageCostPrice = parseFloat(product.average_cost_price || '0');
+        if (averageCostPrice > 0) {
+          // Tính giá bán đề xuất
+          const suggestedPrice =
+            await this.calculateSuggestedPriceForNewProduct(
+              averageCostPrice,
+              parseFloat(product.profit_margin_percent || '10'),
+            );
+          product.suggested_price = suggestedPrice.toFixed(2);
+
+          // Đặt giá bán bằng giá bán đề xuất
+          product.price = product.suggested_price;
+        }
+      } else {
+        // Nếu có giá bán đề xuất, đặt giá bán bằng giá bán đề xuất
+        product.price = product.suggested_price;
+      }
+
+      // Lưu sản phẩm
+      const savedProduct = await this.productRepository.save(product);
+
+      // Cập nhật lại giá bán đề xuất sau khi lưu
+      if (!savedProduct.suggested_price) {
+        await this.updateSuggestedPrice(savedProduct.id);
+      }
+
+      return savedProduct;
     } catch (error) {
       ErrorHandler.handleCreateError(error, 'sản phẩm');
     }
@@ -347,5 +399,154 @@ export class ProductService extends BaseSearchService<Product> {
 
     // Trả về thông tin sản phẩm đã cập nhật
     return this.findOne(productId);
+  }
+
+  /**
+   * Tính tổng giá trị hàng tồn kho
+   * @returns Tổng giá trị hàng tồn kho
+   */
+  async calculateTotalInventoryValue(): Promise<number> {
+    const products = await this.findAll();
+    let totalValue = 0;
+
+    for (const product of products) {
+      const quantity = product.quantity || 0;
+      const averageCostPrice = parseFloat(product.average_cost_price || '0');
+      totalValue += quantity * averageCostPrice;
+    }
+
+    return totalValue;
+  }
+
+  /**
+   * Tính tỷ lệ phân bổ chi phí gián tiếp
+   * @returns Tỷ lệ phân bổ chi phí gián tiếp
+   */
+  async calculateIndirectCostAllocationRate(): Promise<number> {
+    // Lấy tổng chi phí gián tiếp
+    const totalIndirectCosts = await this.operatingCostService.getTotalCost();
+
+    // Lấy tổng giá trị hàng tồn kho
+    const totalInventoryValue = await this.calculateTotalInventoryValue();
+
+    if (totalInventoryValue <= 0) {
+      return 0;
+    }
+
+    return totalIndirectCosts / totalInventoryValue;
+  }
+
+  /**
+   * Tính chi phí gián tiếp phân bổ cho một sản phẩm
+   * @param productId - ID của sản phẩm
+   * @returns Chi phí gián tiếp phân bổ cho sản phẩm
+   */
+  async calculateProductIndirectCost(productId: number): Promise<number> {
+    const product = await this.findOne(productId);
+    if (!product) {
+      throw new Error(`Không tìm thấy sản phẩm với ID: ${productId}`);
+    }
+
+    const quantity = product.quantity || 0;
+    const averageCostPrice = parseFloat(product.average_cost_price || '0');
+    const productValue = quantity * averageCostPrice;
+
+    const allocationRate = await this.calculateIndirectCostAllocationRate();
+    return productValue * allocationRate;
+  }
+
+  /**
+   * Tính giá bán đề xuất cho sản phẩm
+   * @param productId - ID của sản phẩm
+   * @param desiredProfitMargin - Tỷ lệ lợi nhuận mong muốn (mặc định 10%)
+   * @param taxRate - Tỷ lệ thuế (mặc định 1.5%)
+   * @returns Giá bán đề xuất
+   */
+  async calculateSuggestedPrice(
+    productId: number,
+    desiredProfitMargin: number = 10,
+    taxRate: number = 1.5,
+  ): Promise<number> {
+    const product = await this.findOne(productId);
+    if (!product) {
+      throw new Error(`Không tìm thấy sản phẩm với ID: ${productId}`);
+    }
+
+    // Tính chi phí trực tiếp
+    const directCost = parseFloat(product.average_cost_price || '0');
+
+    // Tính chi phí gián tiếp phân bổ
+    const indirectCost = await this.calculateProductIndirectCost(productId);
+
+    // Tính tổng chi phí
+    const totalCost = directCost + indirectCost;
+
+    // Tính giá bán trước thuế
+    const priceBeforeTax = PricingCalculatorUtil.calculateSellingPrice(
+      totalCost,
+      desiredProfitMargin,
+    );
+
+    // Tính giá bán sau thuế
+    const suggestedPrice = PricingCalculatorUtil.calculatePriceWithTax(
+      priceBeforeTax,
+      taxRate,
+    );
+
+    return suggestedPrice;
+  }
+
+  /**
+   * Cập nhật giá bán đề xuất cho sản phẩm
+   * @param productId - ID của sản phẩm
+   * @returns Thông tin sản phẩm đã cập nhật
+   */
+  async updateSuggestedPrice(productId: number): Promise<Product | null> {
+    const suggestedPrice = await this.calculateSuggestedPrice(productId);
+
+    // Cập nhật giá bán đề xuất trong cơ sở dữ liệu
+    await this.productRepository.update(productId, {
+      suggested_price: suggestedPrice.toFixed(2),
+    });
+
+    return this.findOne(productId);
+  }
+
+  /**
+   * Cập nhật giá bán đề xuất cho tất cả sản phẩm
+   */
+  async updateAllSuggestedPrices(): Promise<void> {
+    const products = await this.findAll();
+
+    for (const product of products) {
+      try {
+        await this.updateSuggestedPrice(product.id);
+      } catch (error) {
+        console.error(
+          `Lỗi khi cập nhật giá bán đề xuất cho sản phẩm ID ${product.id}:`,
+          error,
+        );
+        // Tiếp tục với sản phẩm tiếp theo thay vì dừng toàn bộ quá trình
+      }
+    }
+  }
+
+  /**
+   * Tính giá bán đề xuất cho sản phẩm mới
+   * @param averageCostPrice - Giá vốn trung bình
+   * @param profitMarginPercent - Tỷ lệ lợi nhuận
+   * @returns Giá bán đề xuất
+   */
+  async calculateSuggestedPriceForNewProduct(
+    averageCostPrice: number,
+    profitMarginPercent: number,
+  ): Promise<number> {
+    // Tính giá bán trước thuế
+    const priceBeforeTax = averageCostPrice * (1 + profitMarginPercent / 100);
+
+    // Tính giá bán sau thuế 1.5%
+    const suggestedPrice = priceBeforeTax / (1 - 0.015);
+
+    return suggestedPrice;
   }
 }

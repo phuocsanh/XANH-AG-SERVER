@@ -57,7 +57,7 @@ async function bootstrap() {
       whitelist: true, // Loại bỏ các thuộc tính không có trong DTO
       forbidNonWhitelisted: false, // Allow properties not defined in DTO for testing
       transformOptions: {
-        enableImplicitConversion: true, // Tự động convert kiểu dữ liệu
+        enableImplicitConversion: false, // Tắt tự động convert kiểu dữ liệu
       },
       validationError: {
         target: false, // Không trả về target object trong error

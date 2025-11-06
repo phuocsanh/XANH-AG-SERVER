@@ -30,6 +30,10 @@ export class Product {
   @Column({ name: 'price' })
   price!: string;
 
+  /** Giá bán đề xuất - giá bán sau khi trừ tất cả chi phí vẫn đảm bảo phần trăm lợi nhuận mong muốn */
+  @Column({ name: 'suggested_price', nullable: true })
+  suggested_price?: string;
+
   /** Trạng thái sản phẩm sử dụng enum chung */
   @Column({
     name: 'status',

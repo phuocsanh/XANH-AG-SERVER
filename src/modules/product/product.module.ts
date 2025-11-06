@@ -10,6 +10,7 @@ import { FileTrackingModule } from '../file-tracking/file-tracking.module';
 import { InventoryModule } from '../inventory/inventory.module';
 import { UnitModule } from '../unit/unit.module';
 import { ProductTypeModule } from '../product-type/product-type.module';
+import { OperatingCostModule } from '../operating-cost/operating-cost.module';
 
 /**
  * Module quản lý sản phẩm
@@ -27,8 +28,12 @@ import { ProductTypeModule } from '../product-type/product-type.module';
     UnitModule,
     // Import ProductTypeModule để sử dụng ProductTypeService
     ProductTypeModule,
+    // Import OperatingCostModule để sử dụng OperatingCostService
+    OperatingCostModule,
   ],
-  controllers: [ProductController], // Controller xử lý các request liên quan đến sản phẩm
+  controllers: [
+    ProductController, // Controller xử lý các request liên quan đến sản phẩm
+  ],
   providers: [
     ProductService, // Service xử lý logic nghiệp vụ sản phẩm
     ProductFactoryRegistry, // Registry quản lý các factory tạo sản phẩm

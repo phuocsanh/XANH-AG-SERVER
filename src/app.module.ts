@@ -20,6 +20,7 @@ import typeOrmConfig from './config/typeorm.config';
 import { CompatibilityMixingPesticidesModule } from './modules/ai-compatibility-mixing-pesticides/compatibility-mixing-pesticides.module';
 import { UnitModule } from './modules/unit/unit.module';
 import { SymbolModule } from './modules/symbol/symbol.module';
+import { OperatingCostModule } from './modules/operating-cost/operating-cost.module';
 
 /**
  * Module chính của ứng dụng NestJS
@@ -78,6 +79,7 @@ import { SymbolModule } from './modules/symbol/symbol.module';
     UnitModule, // Module quản lý đơn vị tính
     SymbolModule, // Module quản lý ký hiệu sản phẩm
     SupplierModule, // Module quản lý nhà cung cấp
+    OperatingCostModule, // Module quản lý chi phí vận hành
   ],
   controllers: [], // Các controller global (nếu có)
   providers: [
