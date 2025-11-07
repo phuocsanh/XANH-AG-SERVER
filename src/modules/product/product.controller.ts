@@ -210,13 +210,18 @@ export class ProductController {
   /**
    * Cập nhật giá bán đề xuất cho sản phẩm
    * @param productId - ID của sản phẩm
+   * @param desiredProfitMargin - Tỷ lệ lợi nhuận mong muốn (tùy chọn)
    * @returns Thông tin sản phẩm đã cập nhật
    */
   @Put(':id/suggested-price')
   async updateSuggestedPrice(
     @Param('id', ParseIntPipe) productId: number,
+    @Query('desiredProfitMargin') desiredProfitMargin?: number,
   ): Promise<Product> {
-    const product = await this.productService.updateSuggestedPrice(productId);
+    const product = await this.productService.updateSuggestedPrice(
+      productId,
+      desiredProfitMargin,
+    );
     if (!product) {
       throw new NotFoundException(
         `Không tìm thấy sản phẩm với ID ${productId}`,
@@ -227,11 +232,14 @@ export class ProductController {
 
   /**
    * Cập nhật giá bán đề xuất cho tất cả sản phẩm
+   * @param desiredProfitMargin - Tỷ lệ lợi nhuận mong muốn (tùy chọn)
    * @returns Thông báo thành công
    */
   @Put('update-all-suggested-prices')
-  async updateAllSuggestedPrices(): Promise<{ message: string }> {
-    await this.productService.updateAllSuggestedPrices();
+  async updateAllSuggestedPrices(
+    @Query('desiredProfitMargin') desiredProfitMargin?: number,
+  ): Promise<{ message: string }> {
+    await this.productService.updateAllSuggestedPrices(desiredProfitMargin);
     return { message: 'Đã cập nhật giá bán đề xuất cho tất cả sản phẩm' };
   }
 

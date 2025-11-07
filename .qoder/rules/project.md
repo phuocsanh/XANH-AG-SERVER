@@ -3,6 +3,8 @@ trigger: always_on
 alwaysApply: true
 ---
 
+- Không tự ý sửa file .env muốn sửa phải hỏi tôi.
+- Dự án phải kết nối database supabase có cấu hình trong file .env
 - Test API nhớ xem log của docker để biết lỗi mà sửa.
 - Chạy dự án bằng npm run docker:dev , không dùng npm run start:dev
 - Không tạo mock data trả về cho font-end

@@ -458,19 +458,25 @@ export class ProductService extends BaseSearchService<Product> {
   /**
    * Tính giá bán đề xuất cho sản phẩm
    * @param productId - ID của sản phẩm
-   * @param desiredProfitMargin - Tỷ lệ lợi nhuận mong muốn (mặc định 10%)
+   * @param desiredProfitMargin - Tỷ lệ lợi nhuận mong muốn (mặc định lấy từ sản phẩm, nếu không có thì 10%)
    * @param taxRate - Tỷ lệ thuế (mặc định 1.5%)
    * @returns Giá bán đề xuất
    */
   async calculateSuggestedPrice(
     productId: number,
-    desiredProfitMargin: number = 10,
+    desiredProfitMargin?: number,
     taxRate: number = 1.5,
   ): Promise<number> {
     const product = await this.findOne(productId);
     if (!product) {
       throw new Error(`Không tìm thấy sản phẩm với ID: ${productId}`);
     }
+
+    // Nếu không có tham số desiredProfitMargin, lấy từ sản phẩm (mặc định 10% nếu không có)
+    const profitMargin =
+      desiredProfitMargin !== undefined
+        ? desiredProfitMargin
+        : parseFloat(product.profit_margin_percent?.toString() || '10');
 
     // Tính chi phí trực tiếp
     const directCost = parseFloat(product.average_cost_price || '0');
@@ -484,7 +490,7 @@ export class ProductService extends BaseSearchService<Product> {
     // Tính giá bán trước thuế
     const priceBeforeTax = PricingCalculatorUtil.calculateSellingPrice(
       totalCost,
-      desiredProfitMargin,
+      profitMargin,
     );
 
     // Tính giá bán sau thuế
@@ -499,10 +505,17 @@ export class ProductService extends BaseSearchService<Product> {
   /**
    * Cập nhật giá bán đề xuất cho sản phẩm
    * @param productId - ID của sản phẩm
+   * @param desiredProfitMargin - Tỷ lệ lợi nhuận mong muốn (tùy chọn)
    * @returns Thông tin sản phẩm đã cập nhật
    */
-  async updateSuggestedPrice(productId: number): Promise<Product | null> {
-    const suggestedPrice = await this.calculateSuggestedPrice(productId);
+  async updateSuggestedPrice(
+    productId: number,
+    desiredProfitMargin?: number,
+  ): Promise<Product | null> {
+    const suggestedPrice = await this.calculateSuggestedPrice(
+      productId,
+      desiredProfitMargin,
+    );
 
     // Cập nhật giá bán đề xuất trong cơ sở dữ liệu
     await this.productRepository.update(productId, {
@@ -514,13 +527,14 @@ export class ProductService extends BaseSearchService<Product> {
 
   /**
    * Cập nhật giá bán đề xuất cho tất cả sản phẩm
+   * @param desiredProfitMargin - Tỷ lệ lợi nhuận mong muốn (tùy chọn)
    */
-  async updateAllSuggestedPrices(): Promise<void> {
+  async updateAllSuggestedPrices(desiredProfitMargin?: number): Promise<void> {
     const products = await this.findAll();
 
     for (const product of products) {
       try {
-        await this.updateSuggestedPrice(product.id);
+        await this.updateSuggestedPrice(product.id, desiredProfitMargin);
       } catch (error) {
         console.error(
           `Lỗi khi cập nhật giá bán đề xuất cho sản phẩm ID ${product.id}:`,

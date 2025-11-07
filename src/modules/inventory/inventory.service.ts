@@ -283,9 +283,32 @@ export class InventoryService {
   async createTransaction(
     createInventoryTransactionDto: CreateInventoryTransactionDto,
   ) {
-    const transaction = this.inventoryTransactionRepository.create(
-      createInventoryTransactionDto,
-    );
+    // Map DTO fields to entity fields
+    const transactionData: any = {
+      product_id: createInventoryTransactionDto.product_id,
+      type: createInventoryTransactionDto.transaction_type,
+      quantity: createInventoryTransactionDto.quantity,
+      unit_cost_price: createInventoryTransactionDto.unit_cost_price,
+      total_value: createInventoryTransactionDto.total_cost_value,
+      remaining_quantity: createInventoryTransactionDto.remaining_quantity,
+      new_average_cost: createInventoryTransactionDto.new_average_cost,
+      created_by: createInventoryTransactionDto.created_by_user_id,
+      ...(createInventoryTransactionDto.receipt_item_id && {
+        receipt_item_id: createInventoryTransactionDto.receipt_item_id,
+      }),
+      ...(createInventoryTransactionDto.reference_type && {
+        reference_type: createInventoryTransactionDto.reference_type,
+      }),
+      ...(createInventoryTransactionDto.reference_id && {
+        reference_id: createInventoryTransactionDto.reference_id,
+      }),
+      ...(createInventoryTransactionDto.notes && {
+        notes: createInventoryTransactionDto.notes,
+      }),
+    };
+
+    const transaction =
+      this.inventoryTransactionRepository.create(transactionData);
     return this.inventoryTransactionRepository.save(transaction);
   }
 
@@ -1044,7 +1067,7 @@ export class InventoryService {
       throw new Error('Failed to save receipt');
     }
 
-    // Tạo các item trong phiếu
+    // Tạo các item trong phiếu và xử lý nhập kho cho từng sản phẩm
     const savedItems: any[] = [];
     for (const item of createInventoryReceiptDto.items) {
       const itemData: any = {
@@ -1064,6 +1087,34 @@ export class InventoryService {
       const savedItem =
         await this.inventoryReceiptItemRepository.save(itemEntity);
       savedItems.push(savedItem);
+
+      // Xử lý nhập kho cho sản phẩm và cập nhật giá vốn trung bình và giá bán
+      try {
+        // Xử lý trường hợp savedItem là mảng hoặc đối tượng đơn lẻ
+        let itemId: number | undefined;
+        if (Array.isArray(savedItem)) {
+          itemId = savedItem[0]?.id;
+        } else if (savedItem && typeof savedItem === 'object') {
+          itemId = (savedItem as any).id;
+        }
+
+        // Chỉ xử lý nếu có itemId hợp lệ
+        if (itemId) {
+          await this.processStockIn(
+            item.product_id,
+            item.quantity,
+            item.unit_cost,
+            itemId,
+            `RECEIPT_${receiptEntity.id}_ITEM_${itemId}`,
+          );
+        }
+      } catch (error) {
+        console.error(
+          `Lỗi khi xử lý nhập kho cho sản phẩm ${item.product_id}:`,
+          error,
+        );
+        // Không throw error để không làm gián đoạn quá trình tạo phiếu nhập kho
+      }
     }
 
     // Trả về phiếu nhập kho với thông tin nhà cung cấp
