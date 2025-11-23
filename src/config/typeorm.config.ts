@@ -23,6 +23,14 @@ const typeOrmConfig: TypeOrmModuleOptions = {
         password: process.env.DB_PASSWORD || 'postgres', // Mật khẩu để kết nối database
         database: process.env.DB_NAME || 'gn_argi', // Tên database
       }),
+  ssl: !!process.env.DATABASE_URL, // Bật SSL nếu dùng connection string (thường là cloud DB như Supabase)
+  extra: process.env.DATABASE_URL
+    ? {
+        ssl: {
+          rejectUnauthorized: false, // Chấp nhận self-signed cert (cần thiết cho một số cloud provider)
+        },
+      }
+    : undefined,
   entities: [path.join(__dirname, '../entities/*.entity{.ts,.js}')], // Đường dẫn đến các entity
   migrations: [path.join(__dirname, '../database/migrations/*{.ts,.js}')], // Đường dẫn đến các migration
   synchronize: true, // Tự động đồng bộ schema cho development

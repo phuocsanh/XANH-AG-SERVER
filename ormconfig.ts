@@ -15,6 +15,14 @@ export default new DataSource({
         password: process.env.DB_PASSWORD || 'postgres',
         database: process.env.DB_NAME || 'GO_GN_FARM',
       }),
+  ssl: !!process.env.DATABASE_URL,
+  extra: process.env.DATABASE_URL
+    ? {
+        ssl: {
+          rejectUnauthorized: false,
+        },
+      }
+    : undefined,
   entities: [__dirname + '/src/entities/*.entity{.ts,.js}'],
   migrations: [__dirname + '/src/database/migrations/*{.ts,.js}'],
   synchronize: true, // Enable schema synchronization for development
