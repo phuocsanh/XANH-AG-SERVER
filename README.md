@@ -1,182 +1,343 @@
-# GN Farm - Agriculture Management System
+# 🌾 XANH-AG-SERVER
 
-## Description
+Backend API server cho hệ thống quản lý nông nghiệp thông minh.
 
-GN Farm is a comprehensive agriculture management system designed to help farmers and agricultural businesses manage their operations efficiently. The system provides features for inventory management, product tracking, sales management, and user authentication.
+## 📋 Mục lục
 
-## Features
+- [Yêu cầu hệ thống](#yêu-cầu-hệ-thống)
+- [Cài đặt](#cài-đặt)
+- [Cấu hình môi trường](#cấu-hình-môi-trường)
+- [Chạy ứng dụng](#chạy-ứng-dụng)
+- [Docker](#docker)
+- [Deploy lên Production](#deploy-lên-production)
+- [API Documentation](#api-documentation)
 
-- User authentication with JWT (including refresh token functionality)
-- Product management (fertilizers, pesticides, seeds, etc.)
-- Inventory tracking with batch management
-- Sales invoice management
-- File upload and tracking
-- Role-based access control
+## 🔧 Yêu cầu hệ thống
 
-## Technology Stack
+- **Node.js**: >= 20.x
+- **npm**: >= 10.x
+- **PostgreSQL**: >= 14.x (hoặc Supabase)
+- **Docker** (tùy chọn): >= 24.x
 
-- Backend: NestJS (TypeScript)
-- Database: Supabase (PostgreSQL) with TypeORM
-- Authentication: JWT with refresh tokens
-- File Storage: Cloudinary
-- Containerization: Docker
-
-## Prerequisites
-
-- Node.js (v14 or higher)
-- npm or yarn
-- Docker (for containerized deployment)
-- Supabase account and project
-
-## Environment Variables
-
-Create a `.env` file in the root directory with the following variables:
-
-```env
-# Supabase Database Configuration
-DB_HOST=aws-1-ap-southeast-1.pooler.supabase.com
-DB_PORT=6543
-DB_USERNAME=postgres.your_project_id
-DB_PASSWORD=your_supabase_password
-DB_NAME=postgres
-
-# JWT Configuration
-JWT_SECRET=your_secret_key
-JWT_REFRESH_SECRET=your_refresh_secret_key
-
-# Application Configuration
-PORT=8080
-```
-
-**Note:** Replace `your_project_id` and `your_supabase_password` with your actual Supabase project credentials.
-
-## Installation
-
-1. Clone the repository:
-
-   ```bash
-   git clone <repository-url>
-   cd GN-ARGI
-   ```
-
-2. Install dependencies:
-
-   ```bash
-   npm install
-   ```
-
-3. Set up the database:
-   - Create a Supabase project at https://supabase.com
-   - Get your database connection details from the Supabase dashboard
-   - Update the `.env` file with your Supabase credentials
-
-4. Run database migrations:
-   ```bash
-   npm run migration:run
-   ```
-
-## Running the Application
-
-### Development Mode
+## 📦 Cài đặt
 
 ```bash
+# Clone repository
+git clone <repository-url>
+cd XANH-AG-SERVER
+
+# Cài đặt dependencies
+npm install
+
+# Setup môi trường development
+npm run env:dev
+```
+
+## ⚙️ Cấu hình môi trường
+
+### Cách 1: Sử dụng script tự động (Khuyến nghị)
+
+```bash
+npm run env:setup
+```
+
+Script sẽ hỏi bạn muốn setup môi trường nào (dev/prod) và tự động copy file tương ứng.
+
+### Cách 2: Manual
+
+#### Development
+
+```bash
+# Copy file môi trường development
+cp .env.development .env
+
+# Hoặc dùng npm script
+npm run env:dev
+```
+
+#### Production
+
+```bash
+# Copy file môi trường production
+cp .env.production .env
+
+# Hoặc dùng npm script
+npm run env:prod
+```
+
+### Biến môi trường quan trọng
+
+Xem file `.env.example` để biết danh sách đầy đủ các biến môi trường.
+
+**Bắt buộc:**
+- `DATABASE_URL`: Connection string đến PostgreSQL/Supabase
+- `JWT_SECRET`: Secret key cho JWT authentication
+- `JWT_REFRESH_SECRET`: Secret key cho refresh token
+
+**Tùy chọn:**
+- `CLOUDINARY_*`: Credentials cho upload file
+- `GOOGLE_AI_API_KEY`: API key cho Google AI
+- `CORS_ORIGIN`: Danh sách domain được phép truy cập
+
+## 🚀 Chạy ứng dụng
+
+### Development (Local)
+
+```bash
+# Chạy với hot-reload
 npm run start:dev
+
+# Chạy với debugger
+npm run start:debug
 ```
 
-### Production Mode
+Server sẽ chạy tại: `http://localhost:3003`
+
+### Production (Local)
 
 ```bash
+# Build application
 npm run build
-npm run start
+
+# Start production server
+npm run start:prod
 ```
 
-### Using Docker
+## 🐳 Docker
 
-1. Build and run with Docker Compose:
-   ```bash
-   # For development
-   docker-compose -f docker-compose.dev.yml up --build
-   
-   # For production
-   docker-compose up --build
-   ```
-
-**Note:** The application now uses Supabase as the database, so Docker only runs the application container.
-
-## API Endpoints
-
-### Authentication
-
-- `POST /auth/login` - User login (returns access and refresh tokens)
-- `POST /auth/refresh` - Refresh access token using refresh token
-- `POST /auth/register` - User registration
-- `PUT /auth/change-password` - Change user password (requires authentication)
-
-### Product Management
-
-- `GET /products` - Get all products
-- `GET /products/:id` - Get a specific product
-- `POST /products` - Create a new product
-- `PUT /products/:id` - Update a product
-- `DELETE /products/:id` - Delete a product
-
-### Inventory Management
-
-- `GET /inventory` - Get all inventory items
-- `GET /inventory/:id` - Get a specific inventory item
-- `POST /inventory/receipts` - Create a new inventory receipt
-- `POST /inventory/transactions` - Create a new inventory transaction
-
-### Sales Management
-
-- `GET /sales/invoices` - Get all sales invoices
-- `GET /sales/invoices/:id` - Get a specific sales invoice
-- `POST /sales/invoices` - Create a new sales invoice
-- `PUT /sales/invoices/:id` - Update a sales invoice
-
-### File Tracking
-
-- `POST /upload` - Upload a file
-- `GET /files` - Get all uploaded files
-- `GET /files/:id` - Get a specific file
-
-## Authentication with Refresh Tokens
-
-The application implements JWT-based authentication with refresh token functionality:
-
-1. Login with valid credentials to receive an access token (1 hour expiry) and a refresh token (7 days expiry)
-2. Use the access token in the Authorization header for authenticated requests
-3. When the access token expires, use the refresh token to obtain new tokens via the `/auth/refresh` endpoint
-4. Store refresh tokens securely on the client side
-
-## Development
-
-### Code Structure
-
-- `src/common` - Common utilities, filters, interceptors, and middleware
-- `src/config` - Configuration files
-- `src/database` - Database migrations
-- `src/entities` - TypeORM entities
-- `src/modules` - Feature modules (auth, product, inventory, sales, user, upload, file-tracking)
-
-### Code Quality
-
-- ESLint for code linting
-- Prettier for code formatting
-- TypeScript for type safety
-
-## Testing
-
-Run tests with:
+### Development với Docker
 
 ```bash
-npm run test
+# Chạy development container
+npm run docker:dev
+
+# Hoặc rebuild từ đầu
+npm run docker:dev:build
+
+# Xem logs
+npm run docker:logs
+
+# Dừng container
+npm run docker:down-dev
 ```
 
-## Deployment
+### Production với Docker
 
-The application can be deployed using Docker. Refer to the `docker-compose.yml` file for configuration details.
+```bash
+# Build và chạy production container
+npm run docker:prod:build
 
-## License
+# Hoặc chỉ chạy (nếu đã build)
+npm run docker:prod
 
-This project is licensed under the MIT License.
+# Xem logs
+npm run docker:logs
+
+# Dừng container
+npm run docker:down
+```
+
+### Debug trong Docker
+
+Container development đã expose port `9229` cho Node.js debugger. Bạn có thể attach debugger từ VS Code hoặc Chrome DevTools.
+
+## 🌐 Deploy lên Production
+
+### Render.com (Khuyến nghị cho Free Tier)
+
+Xem hướng dẫn chi tiết tại: [RENDER_DEPLOYMENT.md](./RENDER_DEPLOYMENT.md)
+
+Hoặc chạy:
+```bash
+npm run deploy:render
+```
+
+**Tóm tắt các bước:**
+
+1. Tạo Web Service trên Render
+2. Set environment variables từ `.env.production`
+3. Build command: `npm install && npm run build`
+4. Start command: `node dist/main.js`
+5. Deploy!
+
+### Các platform khác
+
+- **Vercel**: Không khuyến nghị (không hỗ trợ long-running processes)
+- **Railway**: Tương tự Render, dễ setup
+- **AWS/GCP/Azure**: Cần cấu hình phức tạp hơn
+
+## 📚 API Documentation
+
+Sau khi chạy server, truy cập Swagger UI tại:
+
+```
+http://localhost:3003/api
+```
+
+Swagger UI cung cấp:
+- Danh sách tất cả endpoints
+- Request/Response schemas
+- Try-it-out functionality
+- Authentication testing
+
+## 🗄️ Database
+
+### Migrations
+
+```bash
+# Tạo migration mới
+npm run migration:create -- src/database/migrations/MigrationName
+
+# Generate migration từ entity changes
+npm run migration:generate -- src/database/migrations/MigrationName
+
+# Chạy migrations
+npm run migration:run
+
+# Revert migration gần nhất
+npm run migration:revert
+```
+
+### Seeding
+
+```bash
+# Seed units data
+npm run seed:units
+```
+
+## 🧪 Testing
+
+```bash
+# Unit tests
+npm run test
+
+# E2E tests
+npm run test:e2e
+
+# Test coverage
+npm run test:cov
+
+# Watch mode
+npm run test:watch
+```
+
+## 🔒 Bảo mật
+
+### Best Practices đã áp dụng:
+
+✅ **Environment Variables**: Tách biệt dev/prod, không commit vào Git  
+✅ **SSL/TLS**: Tự động bật cho cloud database  
+✅ **CORS**: Giới hạn theo domain trong production  
+✅ **JWT**: Strong secret keys, expiration time  
+✅ **Docker**: Non-root user, multi-stage build  
+✅ **Database**: Tắt synchronize trong production  
+✅ **Logging**: Giảm logging level trong production  
+
+### Generate Strong Secrets
+
+```bash
+# Generate JWT secret
+openssl rand -base64 64
+
+# Hoặc dùng Node.js
+node -e "console.log(require('crypto').randomBytes(64).toString('base64'))"
+```
+
+## 📁 Cấu trúc thư mục
+
+```
+XANH-AG-SERVER/
+├── src/
+│   ├── common/          # Shared utilities, filters, interceptors
+│   ├── config/          # Configuration files
+│   ├── database/        # Migrations, seeds
+│   ├── entities/        # TypeORM entities
+│   ├── modules/         # Feature modules
+│   │   ├── auth/
+│   │   ├── user/
+│   │   ├── product/
+│   │   └── ...
+│   ├── app.module.ts
+│   └── main.ts
+├── uploads/             # Temporary file uploads (gitignored)
+├── .env                 # Current environment (gitignored)
+├── .env.development     # Dev config (gitignored)
+├── .env.production      # Prod config (gitignored)
+├── .env.example         # Template
+├── Dockerfile           # Production Docker image
+├── Dockerfile.dev       # Development Docker image
+├── docker-compose.yml   # Production compose
+└── docker-compose.dev.yml # Development compose
+```
+
+## 🛠️ Scripts hữu ích
+
+```bash
+# Environment management
+npm run env:setup        # Interactive setup
+npm run env:dev          # Switch to development
+npm run env:prod         # Switch to production
+
+# Docker operations
+npm run docker:dev       # Start dev container
+npm run docker:prod      # Start prod container
+npm run docker:logs      # View logs
+
+# Database
+npm run migration:run    # Run migrations
+npm run seed:units       # Seed data
+
+# Code quality
+npm run lint             # Lint code
+npm run format           # Format code
+```
+
+## 🐛 Troubleshooting
+
+### Lỗi kết nối database
+
+```bash
+# Kiểm tra DATABASE_URL
+echo $DATABASE_URL
+
+# Test connection
+npm run typeorm -- query "SELECT 1"
+```
+
+### Port đã được sử dụng
+
+```bash
+# Tìm process đang dùng port 3003
+lsof -ti:3003
+
+# Kill process
+kill -9 $(lsof -ti:3003)
+```
+
+### Docker issues
+
+```bash
+# Clean up containers
+docker-compose down -v
+
+# Rebuild from scratch
+docker-compose build --no-cache
+
+# View detailed logs
+docker-compose logs -f app
+```
+
+## 📞 Hỗ trợ
+
+Nếu gặp vấn đề, vui lòng:
+1. Kiểm tra [Issues](link-to-issues) đã có
+2. Xem [Documentation](link-to-docs)
+3. Tạo issue mới với đầy đủ thông tin
+
+## 📄 License
+
+[Thêm license của bạn ở đây]
+
+---
+
+Made with ❤️ by XANH-AG Team

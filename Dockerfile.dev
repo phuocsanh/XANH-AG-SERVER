@@ -1,23 +1,36 @@
-# Use Node.js 20 as base image
-FROM node:20
+# ==========================================
+# DEVELOPMENT DOCKERFILE
+# ==========================================
+# Optimized for hot-reload and debugging
+
+FROM node:20-alpine
+
+# Install dumb-init for proper signal handling
+RUN apk add --no-cache dumb-init
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy package files first for better caching
 COPY package*.json ./
 
-# Install all dependencies (including dev dependencies for development mode)
+# Install all dependencies (including dev dependencies)
 RUN npm install
 
-# Copy source code
+# Copy source code (will be overridden by volume mount in docker-compose)
 COPY . .
 
-# Expose port 3003 (default port for the application)
+# Create uploads directory
+RUN mkdir -p uploads
+
+# Expose port 3003 (application)
 EXPOSE 3003
 
-# Expose port 9229 for debugging
+# Expose port 9229 (Node.js debugger)
 EXPOSE 9229
 
-# Start the application in development mode
+# Use dumb-init to handle signals properly
+ENTRYPOINT ["dumb-init", "--"]
+
+# Start the application in development mode with watch
 CMD ["npm", "run", "start:dev"]

@@ -7,9 +7,13 @@ config();
 // Load environment variables from .env.local file (has higher priority)
 config({ path: '.env.local' });
 
+// Determine if we're in production
+const isProduction = process.env.NODE_ENV === 'production';
+
 /**
  * Cấu hình kết nối cơ sở dữ liệu TypeORM
  * Chứa các thông số kết nối đến PostgreSQL database
+ * Tự động điều chỉnh theo môi trường (development/production)
  */
 const typeOrmConfig: TypeOrmModuleOptions = {
   type: 'postgres', // Loại cơ sở dữ liệu
@@ -33,8 +37,20 @@ const typeOrmConfig: TypeOrmModuleOptions = {
     : undefined,
   entities: [path.join(__dirname, '../entities/*.entity{.ts,.js}')], // Đường dẫn đến các entity
   migrations: [path.join(__dirname, '../database/migrations/*{.ts,.js}')], // Đường dẫn đến các migration
-  synchronize: true, // Tự động đồng bộ schema cho development
-  logging: true, // Bật logging các câu query
+  
+  // QUAN TRỌNG: Tắt synchronize trong production để tránh mất dữ liệu
+  // Trong production, dùng migrations để quản lý schema
+  synchronize: !isProduction, // Chỉ tự động đồng bộ schema trong development
+  
+  // Logging: chi tiết trong dev, chỉ errors trong prod
+  logging: isProduction ? ['error', 'warn'] : true,
+  
+  // Connection pool settings
+  poolSize: isProduction ? 10 : 5,
+  
+  // Retry connection
+  retryAttempts: isProduction ? 10 : 3,
+  retryDelay: 3000,
 };
 
 export default typeOrmConfig;

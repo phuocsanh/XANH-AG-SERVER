@@ -1,17 +1,44 @@
+version: '3.8'
+
+# ==========================================
+# DEVELOPMENT DOCKER COMPOSE
+# ==========================================
+# Sử dụng: npm run docker:dev
+# hoặc: docker-compose -f docker-compose.dev.yml up
+
 services:
   app:
+    container_name: xanh-ag-server-dev
     build:
       context: .
       dockerfile: Dockerfile.dev
     ports:
-      - '${PORT}:${PORT}'
-      - '9229:9229' # Node.js inspector port for debugging
+      - '${PORT:-3003}:3003'
+      - '9229:9229' # Node.js debugger
     env_file:
       - .env
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true # For file watching in Docker
     volumes:
+      # Mount source code for hot-reload
       - ./src:/app/src
       - ./package.json:/app/package.json
       - ./package-lock.json:/app/package-lock.json
       - ./tsconfig.json:/app/tsconfig.json
+      - ./tsconfig.build.json:/app/tsconfig.build.json
       - ./nest-cli.json:/app/nest-cli.json
+      - ./ormconfig.ts:/app/ormconfig.ts
+      # Prevent overwriting node_modules
       - /app/node_modules
+      # Persist uploads directory
+      - ./uploads:/app/uploads
+    networks:
+      - dev-network
+    stdin_open: true # Keep stdin open for interactive debugging
+    tty: true # Allocate a pseudo-TTY
+    restart: unless-stopped
+
+networks:
+  dev-network:
+    driver: bridge

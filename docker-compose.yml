@@ -1,12 +1,38 @@
 version: '3.8'
 
+# ==========================================
+# PRODUCTION DOCKER COMPOSE
+# ==========================================
+# Sử dụng: docker-compose up -d
+
 services:
   app:
-    build: .
+    container_name: xanh-ag-server-prod
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
     ports:
-      - '${PORT}:${PORT}'
+      - '${PORT:-3003}:3003'
     env_file:
       - .env
-    # Thêm depends_on nếu bạn có database service
-    # depends_on:
-    #   - db
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3003/api', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  app-network:
+    driver: bridge
