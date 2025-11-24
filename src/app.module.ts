@@ -21,6 +21,12 @@ import { CompatibilityMixingPesticidesModule } from './modules/ai-compatibility-
 import { UnitModule } from './modules/unit/unit.module';
 import { SymbolModule } from './modules/symbol/symbol.module';
 import { OperatingCostModule } from './modules/operating-cost/operating-cost.module';
+import { SeasonModule } from './modules/season/season.module';
+import { CustomerModule } from './modules/customer/customer.module';
+import { PaymentModule } from './modules/payment/payment.module';
+import { PaymentAllocationModule } from './modules/payment-allocation/payment-allocation.module';
+import { DebtNoteModule } from './modules/debt-note/debt-note.module';
+import { SalesReturnModule } from './modules/sales-return/sales-return.module';
 
 /**
  * Module chính của ứng dụng NestJS
@@ -73,13 +79,19 @@ import { OperatingCostModule } from './modules/operating-cost/operating-cost.mod
     FileTrackingModule,
     SalesModule,
     UploadModule,
-    AiAnalysisModule, // Module phân tích AI thị trường lúa gạo
-    WeatherForecastModule, // Module dự báo thời tiết
-    CompatibilityMixingPesticidesModule, // Module AI đọc tài liệu và trả lời câu hỏi
-    UnitModule, // Module quản lý đơn vị tính
-    SymbolModule, // Module quản lý ký hiệu sản phẩm
-    SupplierModule, // Module quản lý nhà cung cấp
-    OperatingCostModule, // Module quản lý chi phí vận hành
+    AiAnalysisModule,
+    WeatherForecastModule,
+    CompatibilityMixingPesticidesModule,
+    UnitModule,
+    SymbolModule,
+    SupplierModule,
+    OperatingCostModule,
+    SeasonModule,
+    CustomerModule,
+    PaymentModule,
+    PaymentAllocationModule,
+    DebtNoteModule,
+    SalesReturnModule,
   ],
   controllers: [], // Các controller global (nếu có)
   providers: [

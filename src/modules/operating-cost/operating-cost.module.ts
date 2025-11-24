@@ -5,7 +5,13 @@ import { OperatingCostService } from './operating-cost.service';
 import { OperatingCostController } from './operating-cost.controller';
 
 /**
- * Module quản lý chi phí vận hành
+ * OperatingCostModule - Module quản lý chi phí vận hành
+ * 
+ * Module này cung cấp các chức năng:
+ * - Quản lý các khoản chi phí vận hành của doanh nghiệp
+ * - Ghi nhận và phân loại chi phí theo từng mục
+ * - Báo cáo và thống kê chi phí theo thời gian
+ * - Hỗ trợ tính toán lợi nhuận và hiệu quả kinh doanh
  */
 @Module({
   imports: [

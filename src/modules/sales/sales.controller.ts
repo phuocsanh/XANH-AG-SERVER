@@ -236,6 +236,21 @@ export class SalesController {
   }
 
   /**
+   * Thanh toán thêm cho hóa đơn (bán thiếu)
+   * @param id - ID của hóa đơn bán hàng
+   * @param amount - Số tiền thanh toán thêm
+   * @returns Thông tin hóa đơn bán hàng đã cập nhật
+   */
+  @Patch('invoice/:id/add-payment')
+  addPartialPayment(
+    @Param('id') id: string,
+    @Body('amount') amount: number,
+  ) {
+    return this.salesService.addPartialPayment(+id, amount);
+  }
+
+
+  /**
    * Lấy danh sách chi tiết hóa đơn bán hàng
    * @param id - ID của hóa đơn bán hàng
    * @returns Danh sách chi tiết hóa đơn bán hàng

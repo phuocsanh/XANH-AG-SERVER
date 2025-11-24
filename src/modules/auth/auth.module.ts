@@ -9,8 +9,14 @@ import { LocalStrategy } from './local.strategy';
 import { RefreshJwtStrategy } from './refresh-jwt.strategy';
 
 /**
- * Module xử lý xác thực và ủy quyền người dùng
- * Cung cấp các tính năng đăng nhập, đăng xuất và bảo vệ route
+ * AuthModule - Module xử lý xác thực và ủy quyền
+ * 
+ * Module này cung cấp các chức năng:
+ * - Đăng nhập và đăng xuất người dùng
+ * - Tạo và xác thực JWT access token
+ * - Tạo và xác thực JWT refresh token
+ * - Bảo vệ các route với JWT Guard
+ * - Xác thực người dùng với Local Strategy và JWT Strategy
  */
 @Module({
   imports: [

@@ -39,27 +39,47 @@ export class SalesService {
     createSalesInvoiceDto: CreateSalesInvoiceDto,
   ): Promise<SalesInvoice> {
     try {
+      // Tính toán số tiền còn nợ
+      const partialPayment = createSalesInvoiceDto.partial_payment_amount || 0;
+      const remainingAmount = createSalesInvoiceDto.final_amount - partialPayment;
+
       // Tạo phiếu bán hàng với trạng thái mặc định là DRAFT
-      const invoice = this.salesInvoiceRepository.create({
-        ...createSalesInvoiceDto,
+      const invoiceData: any = {
+        code: createSalesInvoiceDto.invoice_code,
+        customer_name: createSalesInvoiceDto.customer_name,
+        customer_phone: createSalesInvoiceDto.customer_phone,
+        customer_email: createSalesInvoiceDto.customer_email,
+        customer_address: createSalesInvoiceDto.customer_address,
+        total_amount: createSalesInvoiceDto.total_amount,
+        discount_amount: createSalesInvoiceDto.discount_amount || 0,
+        final_amount: createSalesInvoiceDto.final_amount,
+        payment_method: createSalesInvoiceDto.payment_method,
+        notes: createSalesInvoiceDto.notes,
+        warning: createSalesInvoiceDto.warning,
         created_by: 1, // TODO: Lấy user ID từ context
         status: SalesInvoiceStatus.DRAFT, // Trạng thái mặc định
-      });
-      const savedInvoice = await this.salesInvoiceRepository.save(invoice);
+        partial_payment_amount: partialPayment,
+        remaining_amount: remainingAmount,
+      };
+      
+      // Save invoice directly
+      const savedInvoice = await this.salesInvoiceRepository.save(invoiceData);
 
       // Tạo các item trong phiếu với tính toán totalPrice
-      const items = createSalesInvoiceDto.items.map((item) => {
-        // Tính tổng giá tiền = (giá đơn vị * số lượng) - số tiền giảm giá
-        const totalPrice =
-          item.unit_price * item.quantity - (item.discount_amount || 0);
+      if (createSalesInvoiceDto.items && Array.isArray(createSalesInvoiceDto.items) && createSalesInvoiceDto.items.length > 0) {
+        const items = createSalesInvoiceDto.items.map((item) => {
+          // Tính tổng giá tiền = (giá đơn vị * số lượng) - số tiền giảm giá
+          const totalPrice =
+            item.unit_price * item.quantity - (item.discount_amount || 0);
 
-        return this.salesInvoiceItemRepository.create({
-          ...item,
-          invoice_id: savedInvoice.id,
-          total_price: totalPrice,
+          return this.salesInvoiceItemRepository.create({
+            ...item,
+            invoice_id: savedInvoice.id,
+            total_price: totalPrice,
+          });
         });
-      });
-      await this.salesInvoiceItemRepository.save(items);
+        await this.salesInvoiceItemRepository.save(items);
+      }
 
       return savedInvoice;
     } catch (error) {
@@ -272,6 +292,45 @@ export class SalesService {
     invoice.payment_status = payment_status; // Cập nhật trạng thái thanh toán
     return this.salesInvoiceRepository.save(invoice);
   }
+
+  /**
+   * Thanh toán thêm cho hóa đơn (bán thiếu)
+   * @param id - ID của hóa đơn bán hàng
+   * @param amount - Số tiền thanh toán thêm
+   * @returns Thông tin hóa đơn bán hàng đã cập nhật
+   */
+  async addPartialPayment(
+    id: number,
+    amount: number,
+  ): Promise<SalesInvoice | null> {
+    const invoice = await this.findOne(id);
+    if (!invoice) {
+      return null;
+    }
+
+    // Cập nhật số tiền đã thanh toán và số tiền còn nợ
+    // Convert decimal strings to numbers for calculation
+    const currentPartialPayment = parseFloat(invoice.partial_payment_amount?.toString() || '0');
+    const finalAmount = parseFloat(invoice.final_amount?.toString() || '0');
+    
+    const newPartialPayment = currentPartialPayment + amount;
+    const newRemainingAmount = finalAmount - newPartialPayment;
+
+    // Nếu thanh toán đủ, cập nhật trạng thái
+    if (newRemainingAmount <= 0) {
+      invoice.status = SalesInvoiceStatus.PAID;
+      invoice.payment_status = 'paid';
+      invoice.partial_payment_amount = finalAmount;
+      invoice.remaining_amount = 0;
+    } else {
+      invoice.partial_payment_amount = newPartialPayment;
+      invoice.remaining_amount = newRemainingAmount;
+      invoice.payment_status = 'partial';
+    }
+
+    return this.salesInvoiceRepository.save(invoice);
+  }
+
 
   /**
    * Lấy danh sách các item trong hóa đơn bán hàng

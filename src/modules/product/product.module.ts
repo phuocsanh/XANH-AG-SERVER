@@ -13,8 +13,14 @@ import { ProductTypeModule } from '../product-type/product-type.module';
 import { OperatingCostModule } from '../operating-cost/operating-cost.module';
 
 /**
- * Module quản lý sản phẩm
- * Cung cấp các chức năng liên quan đến quản lý thông tin sản phẩm nông nghiệp
+ * ProductModule - Module quản lý sản phẩm
+ * 
+ * Module này cung cấp các chức năng:
+ * - Quản lý thông tin sản phẩm nông nghiệp (phân bón, thuốc trừ sâu, v.v.)
+ * - Tạo, cập nhật, xóa sản phẩm với Factory Pattern
+ * - Quản lý hình ảnh và file đính kèm sản phẩm
+ * - Tích hợp với tồn kho, đơn vị tính, loại sản phẩm
+ * - Tính toán giá bán dựa trên chi phí vận hành
  */
 @Module({
   imports: [

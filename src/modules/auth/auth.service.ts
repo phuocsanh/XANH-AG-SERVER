@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { UserService } from '../user/user.service';
 import { User } from '../../entities/users.entity';
 import { CreateUserDto } from '../user/dto/create-user.dto';
+import { BCRYPT_SALT_ROUNDS, JWT_REFRESH_TOKEN_EXPIRY } from '../../common/constants/app.constants';
 
 /**
  * Service xử lý logic xác thực và ủy quyền người dùng
@@ -11,6 +12,9 @@ import { CreateUserDto } from '../user/dto/create-user.dto';
  */
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+  private readonly refreshSecret: string;
+
   /**
    * Constructor injection các service cần thiết
    * @param userService - Service xử lý logic người dùng
@@ -19,7 +23,22 @@ export class AuthService {
   constructor(
     private userService: UserService,
     private jwtService: JwtService,
-  ) {}
+  ) {
+    // Validate JWT_REFRESH_SECRET trong production
+    this.refreshSecret = process.env.JWT_REFRESH_SECRET || '';
+    
+    if (!this.refreshSecret && process.env.NODE_ENV === 'production') {
+      throw new InternalServerErrorException(
+        'JWT_REFRESH_SECRET is required in production environment'
+      );
+    }
+    
+    // Warn nếu dùng default secret trong development
+    if (!this.refreshSecret) {
+      this.logger.warn('⚠️  Using default JWT_REFRESH_SECRET (development only)');
+      this.refreshSecret = 'dev-refresh-secret-key';
+    }
+  }
 
   /**
    * Xác thực thông tin đăng nhập của người dùng
@@ -58,8 +77,8 @@ export class AuthService {
     return {
       access_token: this.jwtService.sign(payload), // Token JWT để xác thực các request sau này
       refresh_token: this.jwtService.sign(payload, {
-        secret: process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key',
-        expiresIn: '7d', // Refresh token có thời gian dài hơn (7 ngày)
+        secret: this.refreshSecret,
+        expiresIn: JWT_REFRESH_TOKEN_EXPIRY, // Refresh token có thời gian dài hơn
       }),
       user: {
         userId: user.id,
@@ -75,8 +94,8 @@ export class AuthService {
    */
   async createRefreshToken(payload: any) {
     return this.jwtService.sign(payload, {
-      secret: process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key',
-      expiresIn: '7d',
+      secret: this.refreshSecret,
+      expiresIn: JWT_REFRESH_TOKEN_EXPIRY,
     });
   }
 
@@ -88,10 +107,11 @@ export class AuthService {
   async validateRefreshToken(refreshToken: string) {
     try {
       const payload = this.jwtService.verify(refreshToken, {
-        secret: process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key',
+        secret: this.refreshSecret,
       });
       return payload;
     } catch (error) {
+      this.logger.debug('Invalid refresh token');
       return null;
     }
   }
@@ -135,26 +155,11 @@ export class AuthService {
   }
 
   /**
-   * Hash mật khẩu sử dụng bcrypt và trả về cả mật khẩu đã hash và salt
-   * @param password - Mật khẩu cần hash
-   * @returns Mật khẩu đã hash và salt
-   */
-  async hashPasswordWithSalt(
-    password: string,
-  ): Promise<{ hashedPassword: string; salt: string }> {
-    const saltRounds = 10;
-    const salt = await bcrypt.genSalt(saltRounds);
-    const hashedPassword = await bcrypt.hash(password, salt);
-    return { hashedPassword, salt };
-  }
-
-  /**
    * Hash mật khẩu sử dụng bcrypt
    * @param password - Mật khẩu cần hash
    * @returns Mật khẩu đã hash
    */
   async hashPassword(password: string): Promise<string> {
-    const saltRounds = 10; // Số vòng salt để tăng độ bảo mật
-    return await bcrypt.hash(password, saltRounds);
+    return await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
   }
 }

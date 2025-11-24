@@ -6,8 +6,13 @@ import { ProductTypeController } from './product-type.controller';
 import { FileTrackingModule } from '../file-tracking/file-tracking.module';
 
 /**
- * Module quản lý loại sản phẩm
- * Cung cấp các chức năng liên quan đến quản lý loại sản phẩm nông nghiệp
+ * ProductTypeModule - Module quản lý loại sản phẩm
+ * 
+ * Module này cung cấp các chức năng:
+ * - Quản lý các loại sản phẩm nông nghiệp (phân bón, thuốc trừ sâu, v.v.)
+ * - Tạo, cập nhật, xóa loại sản phẩm
+ * - Quản lý hình ảnh và mô tả cho từng loại sản phẩm
+ * - Phân loại sản phẩm theo nhóm để dễ dàng quản lý
  */
 @Module({
   imports: [

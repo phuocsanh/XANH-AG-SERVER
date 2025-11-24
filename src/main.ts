@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { loggingMiddleware } from './common/middleware/logging.middleware';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -12,21 +12,27 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
  * Cấu hình các thành phần cần thiết và khởi động server
  */
 async function bootstrap() {
+  const logger = new Logger('Bootstrap');
+  
   // Tạo ứng dụng NestJS từ AppModule
   const app = await NestFactory.create(AppModule);
 
-  // Cấu hình Helmet để bảo mật HTTP headers
-  // app.use(helmet({
-  //   contentSecurityPolicy: {
-  //     directives: {
-  //       defaultSrc: [`'self'`],
-  //       styleSrc: [`'self'`, `'unsafe-inline'`],
-  //       scriptSrc: [`'self'`],
-  //       imgSrc: [`'self'`, 'data:', 'https:'],
-  //     },
-  //   },
-  //   crossOriginEmbedderPolicy: false, // Tắt để tương thích với Swagger
-  // }));
+  // Cấu hình Helmet để bảo mật HTTP headers (chỉ trong production)
+  if (process.env.NODE_ENV === 'production') {
+    const helmet = await import('helmet');
+    app.use(helmet.default({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: [`'self'`],
+          styleSrc: [`'self'`, `'unsafe-inline'`],
+          scriptSrc: [`'self'`],
+          imgSrc: [`'self'`, 'data:', 'https:'],
+        },
+      },
+      crossOriginEmbedderPolicy: false, // Tắt để tương thích với Swagger
+    }));
+    logger.log('✅ Helmet security headers enabled');
+  }
 
   // Cấu hình CORS nghiêm ngặt hơn
   const corsOrigin = process.env.CORS_ORIGIN || '*';
@@ -43,11 +49,13 @@ async function bootstrap() {
       ...corsOptions,
       origin: true, // Cho phép tất cả các nguồn
     });
+    logger.warn('⚠️  CORS: Allowing all origins (development mode)');
   } else {
     app.enableCors({
       ...corsOptions,
       origin: corsOrigin.split(','), // Hỗ trợ nhiều domain cụ thể
     });
+    logger.log(`✅ CORS: Restricted to ${corsOrigin}`);
   }
 
   // Đăng ký global validation pipe để tự động xác thực dữ liệu đầu vào
@@ -97,7 +105,11 @@ async function bootstrap() {
 
   // Khởi động server và lắng nghe trên port đã cấu hình
   await app.listen(port, '0.0.0.0');
-  console.log(`Application is running on: ${await app.getUrl()}`);
+  
+  const url = await app.getUrl();
+  logger.log(`🚀 Application is running on: ${url}`);
+  logger.log(`📚 API Documentation: ${url}/api`);
+  logger.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
 }
 
 // Gọi hàm bootstrap để khởi động ứng dụng

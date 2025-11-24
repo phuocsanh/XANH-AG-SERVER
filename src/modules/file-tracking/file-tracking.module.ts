@@ -6,8 +6,13 @@ import { FileTrackingService } from './file-tracking.service';
 import { FileTrackingController } from './file-tracking.controller';
 
 /**
- * Module quản lý theo dõi file
- * Cung cấp các chức năng liên quan đến quản lý file upload
+ * FileTrackingModule - Module quản lý theo dõi file
+ * 
+ * Module này cung cấp các chức năng:
+ * - Theo dõi các file đã upload lên hệ thống
+ * - Quản lý tham chiếu file với các entity khác
+ * - Xóa file khi entity liên quan bị xóa
+ * - Lưu trữ metadata của file (tên, kích thước, loại, URL)
  */
 @Module({
   imports: [

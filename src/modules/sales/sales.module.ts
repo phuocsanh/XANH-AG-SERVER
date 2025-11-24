@@ -6,8 +6,14 @@ import { SalesService } from './sales.service';
 import { SalesController } from './sales.controller';
 
 /**
- * Module quản lý bán hàng
- * Cung cấp các chức năng liên quan đến quản lý hóa đơn bán hàng và chi tiết hóa đơn
+ * SalesModule - Module quản lý bán hàng
+ * 
+ * Module này cung cấp các chức năng:
+ * - Tạo và quản lý hóa đơn bán hàng
+ * - Quản lý chi tiết sản phẩm trong hóa đơn
+ * - Tính toán tổng tiền, thuế, chiết khấu
+ * - Hỗ trợ thanh toán một phần và theo dõi công nợ
+ * - Liên kết với khách hàng, mùa vụ và sản phẩm
  */
 @Module({
   imports: [

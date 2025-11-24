@@ -2,46 +2,44 @@ import {
   Injectable,
   BadRequestException,
   InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
 import { v2 as cloudinary } from 'cloudinary';
 import { FileTrackingService } from '../file-tracking/file-tracking.service';
 import { UploadResponseDto } from './dto/upload-response.dto';
-import * as fs from 'fs';
+import { promises as fsPromises } from 'fs';
+import { ALLOWED_IMAGE_TYPES, CLOUDINARY_FOLDER } from '../../common/constants/app.constants';
 
 @Injectable()
 export class UploadService {
-  constructor(private readonly fileTrackingService: FileTrackingService) {
-    // Service khởi tạo với FileTrackingService
-  }
+  private readonly logger = new Logger(UploadService.name);
 
-  async uploadImage(file: any): Promise<UploadResponseDto> {
+  constructor(private readonly fileTrackingService: FileTrackingService) {}
+
+  async uploadImage(file: Express.Multer.File): Promise<UploadResponseDto> {
     try {
       if (!file) {
         throw new BadRequestException('No file provided');
       }
 
-      // Validate file type
-      const allowedTypes = [
-        'image/jpeg',
-        'image/png',
-        'image/gif',
-        'image/webp',
-      ];
-      if (!allowedTypes.includes(file.mimetype)) {
+      // Validate file type using constants
+      if (!ALLOWED_IMAGE_TYPES.includes(file.mimetype)) {
         throw new BadRequestException(
-          'Invalid file type. Only images are allowed.',
+          `Invalid file type. Only ${ALLOWED_IMAGE_TYPES.join(', ')} are allowed.`,
         );
       }
 
       // Upload to Cloudinary
       const result = await cloudinary.uploader.upload(file.path, {
-        folder: 'gn-farm',
+        folder: CLOUDINARY_FOLDER,
         resource_type: 'image',
       });
 
-      // Clean up temporary file
-      if (fs.existsSync(file.path)) {
-        fs.unlinkSync(file.path);
+      // Clean up temporary file (async)
+      try {
+        await fsPromises.unlink(file.path);
+      } catch (unlinkError) {
+        this.logger.warn(`Failed to delete temp file: ${file.path}`);
       }
 
       // Save to database via file-tracking service
@@ -64,9 +62,13 @@ export class UploadService {
         updated_at: fileUpload.updated_at,
       };
     } catch (error) {
-      // Clean up temporary file in case of error
-      if (file?.path && fs.existsSync(file.path)) {
-        fs.unlinkSync(file.path);
+      // Clean up temporary file in case of error (async)
+      if (file?.path) {
+        try {
+          await fsPromises.unlink(file.path);
+        } catch (unlinkError) {
+          // Ignore cleanup errors
+        }
       }
 
       if (error instanceof BadRequestException) {
@@ -75,11 +77,12 @@ export class UploadService {
 
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Upload image failed: ${errorMessage}`, (error as Error).stack);
       throw new InternalServerErrorException(`Upload failed: ${errorMessage}`);
     }
   }
 
-  async uploadFile(file: any): Promise<UploadResponseDto> {
+  async uploadFile(file: Express.Multer.File): Promise<UploadResponseDto> {
     try {
       if (!file) {
         throw new BadRequestException('No file provided');
@@ -87,13 +90,15 @@ export class UploadService {
 
       // Upload to Cloudinary
       const result = await cloudinary.uploader.upload(file.path, {
-        folder: 'gn-farm',
+        folder: CLOUDINARY_FOLDER,
         resource_type: 'auto',
       });
 
-      // Clean up temporary file
-      if (fs.existsSync(file.path)) {
-        fs.unlinkSync(file.path);
+      // Clean up temporary file (async)
+      try {
+        await fsPromises.unlink(file.path);
+      } catch (unlinkError) {
+        this.logger.warn(`Failed to delete temp file: ${file.path}`);
       }
 
       // Save to database via file-tracking service
@@ -116,9 +121,13 @@ export class UploadService {
         updated_at: fileUpload.updated_at,
       };
     } catch (error) {
-      // Clean up temporary file in case of error
-      if (file?.path && fs.existsSync(file.path)) {
-        fs.unlinkSync(file.path);
+      // Clean up temporary file in case of error (async)
+      if (file?.path) {
+        try {
+          await fsPromises.unlink(file.path);
+        } catch (unlinkError) {
+          // Ignore cleanup errors
+        }
       }
 
       if (error instanceof BadRequestException) {
@@ -127,6 +136,7 @@ export class UploadService {
 
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Upload file failed: ${errorMessage}`, (error as Error).stack);
       throw new InternalServerErrorException(`Upload failed: ${errorMessage}`);
     }
   }
@@ -178,6 +188,7 @@ export class UploadService {
 
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Delete file failed: ${errorMessage}`, (error as Error).stack);
       throw new InternalServerErrorException(`Delete failed: ${errorMessage}`);
     }
   }
@@ -198,6 +209,7 @@ export class UploadService {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Mark file as used failed: ${errorMessage}`, (error as Error).stack);
       throw new InternalServerErrorException(
         `Mark as used failed: ${errorMessage}`,
       );
@@ -224,12 +236,14 @@ export class UploadService {
 
           deletedCount++;
         } catch (error) {
-          console.error(
-            `Failed to delete orphaned file ${file.public_id}:`,
-            error,
+          this.logger.error(
+            `Failed to delete orphaned file ${file.public_id}`,
+            (error as Error).stack,
           );
         }
       }
+
+      this.logger.log(`Cleaned up ${deletedCount} orphaned files`);
 
       return {
         success: true,
@@ -238,6 +252,7 @@ export class UploadService {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Cleanup failed: ${errorMessage}`, (error as Error).stack);
       throw new InternalServerErrorException(`Cleanup failed: ${errorMessage}`);
     }
   }

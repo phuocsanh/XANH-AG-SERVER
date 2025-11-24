@@ -6,8 +6,13 @@ import { ProductSubtypeController } from './product-subtype.controller';
 import { FileTrackingModule } from '../file-tracking/file-tracking.module';
 
 /**
- * Module quản lý loại phụ sản phẩm
- * Cung cấp các chức năng liên quan đến quản lý thông tin loại phụ sản phẩm
+ * ProductSubtypeModule - Module quản lý loại phụ sản phẩm
+ * 
+ * Module này cung cấp các chức năng:
+ * - Quản lý các loại phụ của sản phẩm (phân loại chi tiết hơn)
+ * - Tạo, cập nhật, xóa loại phụ sản phẩm
+ * - Liên kết loại phụ với loại sản phẩm chính
+ * - Quản lý hình ảnh và thuộc tính riêng cho từng loại phụ
  */
 @Module({
   imports: [

@@ -9,8 +9,14 @@ import { InventoryController } from './inventory.controller';
 import { ProductModule } from '../product/product.module';
 
 /**
- * Module quản lý kho hàng
- * Cung cấp các chức năng liên quan đến quản lý tồn kho, giao dịch kho và phiếu nhập kho
+ * InventoryModule - Module quản lý kho hàng
+ * 
+ * Module này cung cấp các chức năng:
+ * - Quản lý tồn kho theo lô hàng (batch)
+ * - Ghi nhận giao dịch nhập/xuất kho
+ * - Quản lý phiếu nhập kho và chi tiết phiếu nhập
+ * - Tự động cập nhật số lượng tồn kho
+ * - Theo dõi lịch sử biến động kho
  */
 @Module({
   imports: [

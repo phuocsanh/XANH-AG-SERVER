@@ -8,8 +8,14 @@ import { FileTrackingModule } from '../file-tracking/file-tracking.module';
 import { UniqueAccountValidator } from './validators/unique-account.validator';
 
 /**
- * Module quản lý người dùng
- * Cung cấp các chức năng liên quan đến quản lý thông tin người dùng
+ * UserModule - Module quản lý người dùng
+ * 
+ * Module này cung cấp các chức năng:
+ * - Quản lý thông tin người dùng và hồ sơ cá nhân
+ * - Tạo, cập nhật, xóa tài khoản người dùng
+ * - Quản lý avatar và thông tin liên hệ
+ * - Validate tính duy nhất của tài khoản
+ * - Phân quyền và quản lý vai trò người dùng
  */
 @Module({
   imports: [

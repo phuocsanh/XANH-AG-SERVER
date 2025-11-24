@@ -14,6 +14,7 @@ import { UploadService } from './upload.service';
 import { UploadResponseDto, MarkFileUsedDto } from './dto/upload-response.dto';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
+import { MAX_IMAGE_SIZE, MAX_FILE_SIZE } from '../../common/constants/app.constants';
 
 @Controller('upload')
 export class UploadController {
@@ -42,11 +43,11 @@ export class UploadController {
         cb(null, true);
       },
       limits: {
-        fileSize: 10 * 1024 * 1024, // 10MB
+        fileSize: MAX_IMAGE_SIZE,
       },
     }),
   )
-  async uploadImage(@UploadedFile() file: any): Promise<UploadResponseDto> {
+  async uploadImage(@UploadedFile() file: Express.Multer.File): Promise<UploadResponseDto> {
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
@@ -67,11 +68,11 @@ export class UploadController {
         },
       }),
       limits: {
-        fileSize: 50 * 1024 * 1024, // 50MB
+        fileSize: MAX_FILE_SIZE,
       },
     }),
   )
-  async uploadFile(@UploadedFile() file: any): Promise<UploadResponseDto> {
+  async uploadFile(@UploadedFile() file: Express.Multer.File): Promise<UploadResponseDto> {
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }

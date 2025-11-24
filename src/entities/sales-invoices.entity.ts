@@ -6,8 +6,12 @@ import {
   UpdateDateColumn,
   DeleteDateColumn,
   OneToMany,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { SalesInvoiceItem } from './sales-invoice-items.entity';
+import { Season } from './season.entity';
+import { Customer } from './customer.entity';
 
 /**
  * Enum định nghĩa các trạng thái của hóa đơn bán hàng
@@ -34,7 +38,16 @@ export class SalesInvoice {
   @Column({ name: 'code', unique: true })
   code!: string;
 
-  /** Tên khách hàng */
+  /** ID khách hàng (nullable - cho phép khách vãng lai) */
+  @Column({ name: 'customer_id', nullable: true })
+  customer_id?: number;
+
+  /** Thông tin khách hàng (nếu có trong hệ thống) */
+  @ManyToOne(() => Customer, (customer) => customer.invoices)
+  @JoinColumn({ name: 'customer_id' })
+  customer?: Customer;
+
+  /** Tên khách hàng (bắt buộc - dùng cho cả khách vãng lai và snapshot) */
   @Column({ name: 'customer_name' })
   customer_name!: string;
 
@@ -71,8 +84,29 @@ export class SalesInvoice {
   payment_status!: string;
 
   /** Ghi chú */
-  @Column({ name: 'notes', nullable: true })
+  @Column({ name: 'notes', nullable: true, type: 'text' })
   notes?: string;
+
+  /** Lưu ý quan trọng (warning/alert) */
+  @Column({ name: 'warning', nullable: true, type: 'text' })
+  warning?: string;
+
+  /** Số tiền đã thanh toán (cho trường hợp bán thiếu) */
+  @Column({ name: 'partial_payment_amount', type: 'decimal', precision: 10, scale: 2, default: 0 })
+  partial_payment_amount!: number;
+
+  /** Số tiền còn nợ */
+  @Column({ name: 'remaining_amount', type: 'decimal', precision: 10, scale: 2, default: 0 })
+  remaining_amount!: number;
+
+  /** ID mùa vụ */
+  @Column({ name: 'season_id', nullable: true })
+  season_id?: number;
+
+  /** Thông tin mùa vụ */
+  @ManyToOne(() => Season, (season) => season.invoices)
+  @JoinColumn({ name: 'season_id' })
+  season?: Season;
 
   /** ID người tạo hóa đơn */
   @Column({ name: 'created_by' })

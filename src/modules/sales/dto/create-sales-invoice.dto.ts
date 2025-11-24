@@ -1,4 +1,4 @@
-import { IsNumber, IsString, IsOptional } from 'class-validator';
+import { IsNumber, IsString, IsOptional, IsArray, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 /**
@@ -79,7 +79,19 @@ export class CreateSalesInvoiceDto {
   @IsOptional()
   notes?: string;
 
+  /** Lưu ý quan trọng về hóa đơn (tùy chọn) */
+  @IsString()
+  @IsOptional()
+  warning?: string;
+
+  /** Số tiền đã thanh toán (cho trường hợp bán thiếu, tùy chọn) */
+  @IsNumber()
+  @IsOptional()
+  partial_payment_amount?: number;
+
   /** Các chi tiết hóa đơn (bắt buộc) */
+  @IsArray()
+  @ValidateNested({ each: true })
   @Type(() => CreateSalesInvoiceItemDto)
   items!: CreateSalesInvoiceItemDto[];
 }
