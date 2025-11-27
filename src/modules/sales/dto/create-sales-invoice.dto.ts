@@ -34,9 +34,15 @@ export class CreateSalesInvoiceItemDto {
  * Chứa các trường cần thiết để tạo một hóa đơn bán hàng cùng với các chi tiết
  */
 export class CreateSalesInvoiceDto {
-  /** Mã hóa đơn bán hàng (bắt buộc) */
+  /** Mã hóa đơn bán hàng (tùy chọn - nếu không có sẽ tự sinh) */
   @IsString()
-  invoice_code!: string;
+  @IsOptional()
+  invoice_code?: string;
+
+  /** ID khách hàng trong hệ thống (tùy chọn - dùng cho khách hàng đã đăng ký) */
+  @IsNumber()
+  @IsOptional()
+  customer_id?: number;
 
   /** Tên khách hàng (bắt buộc) */
   @IsString()

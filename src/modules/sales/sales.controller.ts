@@ -138,6 +138,16 @@ export class SalesController {
   }
 
   /**
+   * Lấy hóa đơn bán hàng gần nhất của một khách hàng
+   * @param customerId - ID của khách hàng cần lấy đơn hàng gần nhất
+   * @returns Thông tin hóa đơn bán hàng gần nhất của khách hàng
+   */
+  @Get('invoice/customer/:customerId/latest')
+  findLatestByCustomer(@Param('customerId') customerId: string) {
+    return this.salesService.findLatestByCustomer(+customerId);
+  }
+
+  /**
    * Cập nhật thông tin hóa đơn bán hàng
    * @param id - ID của hóa đơn bán hàng cần cập nhật
    * @param updateSalesInvoiceDto - Dữ liệu cập nhật hóa đơn bán hàng

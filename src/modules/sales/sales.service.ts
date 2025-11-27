@@ -43,9 +43,13 @@ export class SalesService {
       const partialPayment = createSalesInvoiceDto.partial_payment_amount || 0;
       const remainingAmount = createSalesInvoiceDto.final_amount - partialPayment;
 
+      // Tự động sinh mã hóa đơn nếu không có
+      const invoiceCode = createSalesInvoiceDto.invoice_code || this.generateInvoiceCode();
+
       // Tạo phiếu bán hàng với trạng thái mặc định là DRAFT
       const invoiceData: any = {
-        code: createSalesInvoiceDto.invoice_code,
+        code: invoiceCode,
+        customer_id: createSalesInvoiceDto.customer_id, // ID khách hàng nếu có
         customer_name: createSalesInvoiceDto.customer_name,
         customer_phone: createSalesInvoiceDto.customer_phone,
         customer_email: createSalesInvoiceDto.customer_email,
@@ -148,6 +152,50 @@ export class SalesService {
       where: { code, deleted_at: IsNull() },
       relations: ['items'], // Bao gồm cả các item trong hóa đơn
     });
+  }
+
+  /**
+   * Tìm hóa đơn bán hàng gần nhất của một khách hàng
+   * @param customer_id - ID của khách hàng cần tìm đơn hàng gần nhất
+   * @returns Thông tin hóa đơn bán hàng gần nhất của khách hàng
+   */
+  async findLatestByCustomer(customer_id: number): Promise<SalesInvoice | null> {
+    console.log(`[findLatestByCustomer] Searching for customer_id: ${customer_id}`);
+    
+    // Tìm tất cả hóa đơn của khách hàng để debug
+    const allInvoices = await this.salesInvoiceRepository.find({
+      where: { 
+        customer_id, 
+        deleted_at: IsNull() 
+      },
+      order: { created_at: 'DESC' },
+      take: 5,
+    });
+    
+    console.log(`[findLatestByCustomer] Found ${allInvoices.length} invoices for customer_id ${customer_id}`);
+    if (allInvoices.length > 0) {
+      console.log('[findLatestByCustomer] Sample invoice:', {
+        id: allInvoices[0]?.id,
+        code: allInvoices[0]?.code,
+        customer_id: allInvoices[0]?.customer_id,
+        customer_name: allInvoices[0]?.customer_name,
+        created_at: allInvoices[0]?.created_at,
+      });
+    }
+    
+    // Trả về hóa đơn gần nhất với đầy đủ relations
+    const latestInvoice = await this.salesInvoiceRepository.findOne({
+      where: { 
+        customer_id, 
+        deleted_at: IsNull() 
+      },
+      relations: ['items', 'customer', 'season'], // Bao gồm cả các item, thông tin khách hàng và mùa vụ
+      order: { created_at: 'DESC' }, // Sắp xếp theo thời gian tạo giảm dần để lấy đơn gần nhất
+    });
+    
+    console.log('[findLatestByCustomer] Latest invoice with relations:', latestInvoice ? 'Found' : 'Not found');
+    
+    return latestInvoice;
   }
 
   /**
@@ -385,6 +433,9 @@ export class SalesService {
     // Xây dựng điều kiện tìm kiếm
     this.buildSearchConditions(queryBuilder, searchDto, 'invoice');
 
+    // Sắp xếp theo thời gian tạo giảm dần (mới nhất lên đầu)
+    queryBuilder.orderBy('invoice.created_at', 'DESC');
+
     // Xử lý phân trang
     const page = searchDto.page || 1;
     const limit = searchDto.limit || 20;
@@ -523,5 +574,23 @@ export class SalesService {
       default:
         return null;
     }
+  }
+
+  /**
+   * Sinh mã hóa đơn tự động dựa trên thời gian hiện tại
+   * Định dạng: HD{YYYYMMDD}{HHMMSS}{RANDOM}
+   * Ví dụ: HD20231127103045123
+   */
+  private generateInvoiceCode(): string {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    
+    return `HD${year}${month}${day}${hours}${minutes}${seconds}${random}`;
   }
 }
