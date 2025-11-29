@@ -16,6 +16,8 @@ import { CreateInventoryBatchDto } from './dto/create-inventory-batch.dto';
 import { CreateInventoryTransactionDto } from './dto/create-inventory-transaction.dto';
 import { CreateInventoryReceiptDto } from './dto/create-inventory-receipt.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { InventoryReceiptItem } from '../../entities/inventory-receipt-items.entity';
 import {
   ProductGroup,
@@ -28,7 +30,7 @@ import { SearchInventoryDto } from './dto/search-inventory.dto';
  * Bao gồm quản lý lô hàng, giao dịch kho, phiếu nhập kho và các chức năng liên quan
  */
 @Controller('inventory')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class InventoryController {
   /**
    * Constructor injection InventoryService
@@ -42,6 +44,7 @@ export class InventoryController {
    * @returns Thông tin lô hàng tồn kho đã tạo
    */
   @Post('batches')
+  @RequirePermissions('INVENTORY_MANAGE')
   createBatch(@Body() createInventoryBatchDto: CreateInventoryBatchDto) {
     return this.inventoryService.createBatch(createInventoryBatchDto);
   }
@@ -53,6 +56,7 @@ export class InventoryController {
    * @returns Danh sách lô hàng tồn kho với thông tin phân trang
    */
   @Get('batches')
+  @RequirePermissions('INVENTORY_VIEW')
   async findAllBatches(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 20,
@@ -197,6 +201,7 @@ export class InventoryController {
    * @returns Kết quả xử lý nhập kho
    */
   @Post('stock-in')
+  @RequirePermissions('INVENTORY_MANAGE')
   processStockIn(
     @Body()
     stockInData: {
@@ -344,6 +349,7 @@ export class InventoryController {
    * @returns Thông tin phiếu nhập kho đã tạo
    */
   @Post('receipt')
+  @RequirePermissions('INVENTORY_MANAGE')
   createReceipt(@Body() createInventoryReceiptDto: CreateInventoryReceiptDto) {
     return this.inventoryService.createReceipt(createInventoryReceiptDto);
   }

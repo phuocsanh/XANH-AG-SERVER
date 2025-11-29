@@ -5,5 +5,6 @@
 export enum BaseStatus {
   ACTIVE = 'active', // Đang hoạt động
   INACTIVE = 'inactive', // Tạm ngưng
+  PENDING = 'pending', // Chờ duyệt
   ARCHIVED = 'archived', // Đã lưu trữ
 }

@@ -5,8 +5,11 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   DeleteDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { BaseStatus } from './base-status.enum';
+import { Role } from './role.entity';
 
 /**
  * Entity biểu diễn thông tin người dùng trong hệ thống
@@ -66,4 +69,13 @@ export class User {
   /** Thời gian xóa mềm (soft delete) */
   @DeleteDateColumn({ name: 'deleted_at' })
   deleted_at?: Date;
+
+  /** ID của role */
+  @Column({ name: 'role_id', nullable: true })
+  role_id?: number;
+
+  /** Role của user */
+  @ManyToOne(() => Role, (role) => role.users)
+  @JoinColumn({ name: 'role_id' })
+  role?: Role;
 }

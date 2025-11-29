@@ -9,7 +9,11 @@ import {
   HttpException,
   HttpStatus,
   Query,
+  UseGuards,
 } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { UnitService } from './unit.service';
 import { CreateUnitDto } from './dto/create-unit.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
@@ -21,6 +25,7 @@ import { SearchUnitDto } from './dto/search-unit.dto';
  * Bao gồm quản lý đơn vị tính, Status Management và Soft Delete
  */
 @Controller('units')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class UnitController {
   /**
    * Constructor injection UnitService
@@ -34,6 +39,7 @@ export class UnitController {
    * @returns Thông tin đơn vị tính đã tạo
    */
   @Post()
+  @RequirePermissions('PRODUCT_MANAGE')
   create(@Body() createUnitDto: CreateUnitDto) {
     return this.unitService.create(createUnitDto);
   }
@@ -47,6 +53,7 @@ export class UnitController {
    * @returns Danh sách đơn vị tính với thông tin phân trang
    */
   @Get()
+  @RequirePermissions('PRODUCT_VIEW')
   async findAll(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 20,
@@ -95,6 +102,7 @@ export class UnitController {
    * @returns Danh sách đơn vị tính theo trạng thái
    */
   @Get('by-status/:status')
+  @RequirePermissions('PRODUCT_VIEW')
   findByStatus(@Param('status') status: BaseStatus) {
     return this.unitService.findByStatus(status);
   }
@@ -105,6 +113,7 @@ export class UnitController {
    * @returns Thông tin đơn vị tính
    */
   @Get(':id')
+  @RequirePermissions('PRODUCT_VIEW')
   findOne(@Param('id') id: string) {
     return this.unitService.findOne(+id);
   }
@@ -116,6 +125,7 @@ export class UnitController {
    * @returns Thông tin đơn vị tính đã cập nhật
    */
   @Patch(':id')
+  @RequirePermissions('PRODUCT_MANAGE')
   update(@Param('id') id: string, @Body() updateUnitDto: UpdateUnitDto) {
     return this.unitService.update(+id, updateUnitDto);
   }
@@ -126,6 +136,7 @@ export class UnitController {
    * @returns Thông tin đơn vị tính đã kích hoạt
    */
   @Patch(':id/activate')
+  @RequirePermissions('PRODUCT_MANAGE')
   activate(@Param('id') id: string) {
     return this.unitService.activate(+id);
   }
@@ -136,6 +147,7 @@ export class UnitController {
    * @returns Thông tin đơn vị tính đã vô hiệu hóa
    */
   @Patch(':id/deactivate')
+  @RequirePermissions('PRODUCT_MANAGE')
   deactivate(@Param('id') id: string) {
     return this.unitService.deactivate(+id);
   }
@@ -146,6 +158,7 @@ export class UnitController {
    * @returns Thông tin đơn vị tính đã lưu trữ
    */
   @Patch(':id/archive')
+  @RequirePermissions('PRODUCT_MANAGE')
   archive(@Param('id') id: string) {
     return this.unitService.archive(+id);
   }
@@ -155,6 +168,7 @@ export class UnitController {
    * @param id - ID của đơn vị tính cần soft delete
    */
   @Delete(':id/soft')
+  @RequirePermissions('PRODUCT_MANAGE')
   softDelete(@Param('id') id: string) {
     return this.unitService.softDelete(+id);
   }
@@ -165,6 +179,7 @@ export class UnitController {
    * @returns Thông tin đơn vị tính đã khôi phục
    */
   @Patch(':id/restore')
+  @RequirePermissions('PRODUCT_MANAGE')
   restore(@Param('id') id: string) {
     return this.unitService.restore(+id);
   }
@@ -175,6 +190,7 @@ export class UnitController {
    * @returns Kết quả xóa đơn vị tính
    */
   @Delete(':id')
+  @RequirePermissions('PRODUCT_MANAGE')
   remove(@Param('id') id: string) {
     return this.unitService.remove(+id);
   }

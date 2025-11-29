@@ -8,7 +8,11 @@ import {
   UploadedFile,
   BadRequestException,
   Param,
+  UseGuards,
 } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadService } from './upload.service';
 import { UploadResponseDto, MarkFileUsedDto } from './dto/upload-response.dto';
@@ -17,6 +21,7 @@ import { extname } from 'path';
 import { MAX_IMAGE_SIZE, MAX_FILE_SIZE } from '../../common/constants/app.constants';
 
 @Controller('upload')
+@UseGuards(JwtAuthGuard)
 export class UploadController {
   constructor(private readonly uploadService: UploadService) {}
 
@@ -80,6 +85,8 @@ export class UploadController {
   }
 
   @Delete(':folder/:filename')
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions('PRODUCT_MANAGE')
   async deleteFile(
     @Param('folder') folder: string,
     @Param('filename') filename: string,
@@ -102,6 +109,8 @@ export class UploadController {
   }
 
   @Post('cleanup')
+  @UseGuards(PermissionsGuard)
+  @RequirePermissions('PRODUCT_MANAGE')
   async cleanupUnusedFiles() {
     return this.uploadService.cleanupUnusedFiles();
   }

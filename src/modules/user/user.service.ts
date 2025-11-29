@@ -47,11 +47,18 @@ export class UserService {
       const salt = await bcrypt.genSalt();
       const hashedPassword = await bcrypt.hash(createUserDto.password, salt);
 
-      // Tạo user entity
+      // Tìm role USER mặc định
+      const userRole = await this.userRepository.manager.getRepository('Role').findOne({
+        where: { code: 'USER' }
+      });
+
+      // Tạo user entity với status PENDING và role USER
       const user = this.userRepository.create({
         account: createUserDto.account,
         password: hashedPassword,
         salt: salt,
+        status: BaseStatus.PENDING, // Chờ duyệt
+        role_id: userRole?.id,
       });
 
       // Lưu user
@@ -101,6 +108,19 @@ export class UserService {
       order: {
         id: 'DESC', // Get the latest user with this account
       },
+    });
+  }
+
+  /**
+   * Tìm người dùng theo ID kèm theo role và permissions
+   * Dùng cho JWT strategy để load đầy đủ thông tin phân quyền
+   * @param id - ID của người dùng cần tìm
+   * @returns Thông tin người dùng với role và permissions
+   */
+  async findOneWithPermissions(id: number): Promise<User | null> {
+    return this.userRepository.findOne({
+      where: { id, deleted_at: IsNull() },
+      relations: ['role', 'role.permissions'],
     });
   }
 
@@ -277,6 +297,128 @@ export class UserService {
   async restore(userId: number): Promise<User | null> {
     await this.userRepository.restore(userId);
     return this.userRepository.findOne({ where: { id: userId } });
+  }
+
+  /**
+   * Tạo tài khoản bởi Admin/Super Admin
+   * @param createUserByAdminDto - Dữ liệu tạo người dùng bởi admin
+   * @param creatorRoleCode - Role code của người tạo (SUPER_ADMIN hoặc ADMIN)
+   * @returns Thông tin người dùng đã tạo
+   */
+  async createByAdmin(
+    createUserByAdminDto: any,
+    creatorRoleCode: string,
+  ): Promise<User> {
+    try {
+      // Kiểm tra xem account đã tồn tại chưa
+      const existingUser = await this.findByAccount(createUserByAdminDto.account);
+      if (existingUser) {
+        throw new Error('Account already exists');
+      }
+
+      // Lấy thông tin role được gán
+      const targetRole = await this.userRepository.manager.getRepository('Role').findOne({
+        where: { id: createUserByAdminDto.role_id },
+        select: ['id', 'code', 'name'],
+      });
+
+      if (!targetRole) {
+        throw new Error('Role not found');
+      }
+
+      // Kiểm tra quyền tạo role
+      // SUPER_ADMIN có thể tạo tất cả (ADMIN, STAFF, USER)
+      // ADMIN chỉ có thể tạo STAFF và USER
+      if (creatorRoleCode === 'ADMIN' && targetRole.code === 'ADMIN') {
+        throw new Error('Admin cannot create another Admin account');
+      }
+
+      if (creatorRoleCode === 'ADMIN' && targetRole.code === 'SUPER_ADMIN') {
+        throw new Error('Admin cannot create Super Admin account');
+      }
+
+      // Tạo salt và hash password
+      const salt = await bcrypt.genSalt();
+      const hashedPassword = await bcrypt.hash(createUserByAdminDto.password, salt);
+
+      // Tạo user entity với status PENDING
+      const user = this.userRepository.create({
+        account: createUserByAdminDto.account,
+        password: hashedPassword,
+        salt: salt,
+        status: BaseStatus.PENDING, // Admin tạo cũng cần duyệt
+        role_id: createUserByAdminDto.role_id,
+      });
+
+      // Lưu user
+      const savedUser = await this.userRepository.save(user);
+
+      // Tạo user profile
+      const userProfile = this.userProfileRepository.create({
+        user_id: savedUser.id,
+        account: savedUser.account,
+        nickname: createUserByAdminDto.nickname,
+        email: createUserByAdminDto.email,
+        mobile: createUserByAdminDto.mobile,
+      });
+      await this.userProfileRepository.save(userProfile);
+
+      return savedUser;
+    } catch (error) {
+      ErrorHandler.handleCreateError(error, 'người dùng');
+    }
+  }
+
+  /**
+   * Duyệt tài khoản người dùng
+   * @param userId - ID của người dùng cần duyệt
+   * @param approverRoleCode - Role code của người duyệt
+   * @returns Thông tin người dùng đã duyệt
+   */
+  async approveUser(userId: number, approverRoleCode: string): Promise<User | null> {
+    try {
+      // Lấy thông tin user cần duyệt
+      const user = await this.userRepository.findOne({
+        where: { id: userId },
+        relations: ['role'],
+      });
+
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      if (user.status !== BaseStatus.PENDING) {
+        throw new Error('User is not in pending status');
+      }
+
+      // Kiểm tra quyền duyệt
+      const userRoleCode = (user.role as any)?.code;
+
+      // SUPER_ADMIN có thể duyệt tất cả
+      // ADMIN chỉ có thể duyệt USER và STAFF
+      if (approverRoleCode === 'ADMIN' && userRoleCode === 'ADMIN') {
+        throw new Error('Admin cannot approve another Admin account');
+      }
+
+      // Chuyển status sang ACTIVE
+      await this.userRepository.update(userId, { status: BaseStatus.ACTIVE });
+
+      return this.findOne(userId);
+    } catch (error) {
+      ErrorHandler.handleUpdateError(error, 'duyệt người dùng');
+    }
+  }
+
+  /**
+   * Lấy danh sách người dùng chờ duyệt
+   * @returns Danh sách người dùng có status PENDING
+   */
+  async getPendingUsers(): Promise<User[]> {
+    return this.userRepository.find({
+      where: { status: BaseStatus.PENDING },
+      relations: ['role'],
+      order: { created_at: 'DESC' },
+    });
   }
 
   /**

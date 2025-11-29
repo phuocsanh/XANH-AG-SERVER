@@ -9,12 +9,16 @@ import {
   Delete,
   Query,
   NotFoundException,
+  UseGuards,
 } from '@nestjs/common';
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { SearchProductDto } from './dto/search-product.dto';
 import { Product } from '../../entities/products.entity';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 /**
  * Controller xử lý các yêu cầu liên quan đến sản phẩm
@@ -30,6 +34,8 @@ export class ProductController {
    * @returns Thông tin sản phẩm đã tạo
    */
   @Post()
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('PRODUCT_MANAGE')
   async create(@Body() createProductDto: CreateProductDto): Promise<Product> {
     return this.productService.create(createProductDto);
   }
@@ -51,6 +57,8 @@ export class ProductController {
    * @returns Danh sách sản phẩm
    */
   @Get()
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('PRODUCT_VIEW')
   async findAll(): Promise<Product[]> {
     return this.productService.findAll();
   }
@@ -76,6 +84,8 @@ export class ProductController {
    * @returns Thông tin sản phẩm đã cập nhật
    */
   @Put(':id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('PRODUCT_MANAGE')
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateProductDto: UpdateProductDto,
@@ -92,6 +102,8 @@ export class ProductController {
    * @param id - ID của sản phẩm cần xóa
    */
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('PRODUCT_MANAGE')
   async remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
     return this.productService.softDelete(id);
   }

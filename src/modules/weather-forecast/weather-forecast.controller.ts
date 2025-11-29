@@ -6,7 +6,11 @@ import {
   HttpStatus,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { WeatherForecastService } from './weather-forecast.service';
 import { WeatherResponseDto } from './dto/weather-response.dto';
@@ -22,6 +26,7 @@ import { WeatherForecast } from '../../entities/weather-forecast.entity';
  */
 @ApiTags('Weather Forecast')
 @Controller('weather-forecast')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class WeatherForecastController {
   private readonly logger = new Logger(WeatherForecastController.name);
 
@@ -34,6 +39,7 @@ export class WeatherForecastController {
    * Phân tích mưa bão, mực nước ĐBSCL, và dự báo 10 ngày
    */
   @Get('full-forecast')
+  @RequirePermissions('RICE_BLAST_VIEW')
   @ApiOperation({
     summary: 'Dự báo thời tiết tổng hợp',
     description:
@@ -231,6 +237,7 @@ export class WeatherForecastController {
    * Dùng để kiểm tra chức năng lưu dữ liệu vào database
    */
   @Post('trigger-cron')
+  @RequirePermissions('RICE_BLAST_MANAGE')
   @ApiOperation({
     summary: 'Kích hoạt cron job thủ công',
     description:

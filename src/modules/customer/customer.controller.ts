@@ -1,18 +1,24 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards } from '@nestjs/common';
 import { CustomerService } from './customer.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @Controller('customers')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class CustomerController {
   constructor(private readonly customerService: CustomerService) {}
 
   @Post()
+  @RequirePermissions('SALES_MANAGE')
   create(@Body() createCustomerDto: CreateCustomerDto) {
     return this.customerService.create(createCustomerDto);
   }
 
   @Get()
+  @RequirePermissions('SALES_VIEW')
   findAll(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 20,

@@ -17,11 +17,14 @@ import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { SearchSupplierDto } from './dto/search-supplier.dto';
 import { SupplierService } from './supplier.service';
 
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+
 /**
  * Controller xử lý các request liên quan đến nhà cung cấp
  */
 @Controller('suppliers')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class SupplierController {
   constructor(private readonly supplierService: SupplierService) {}
 
@@ -31,6 +34,7 @@ export class SupplierController {
    * @returns Thông tin nhà cung cấp đã tạo
    */
   @Post()
+  @RequirePermissions('INVENTORY_MANAGE')
   create(@Body() createSupplierDto: CreateSupplierDto) {
     return this.supplierService.create(createSupplierDto);
   }
@@ -44,6 +48,7 @@ export class SupplierController {
    * @returns Danh sách nhà cung cấp với thông tin phân trang
    */
   @Get()
+  @RequirePermissions('INVENTORY_VIEW')
   async findAll(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 20,
@@ -125,6 +130,7 @@ export class SupplierController {
    * @returns Thông tin nhà cung cấp đã cập nhật
    */
   @Patch(':id')
+  @RequirePermissions('INVENTORY_MANAGE')
   update(
     @Param('id') id: string,
     @Body() updateSupplierDto: UpdateSupplierDto,
@@ -138,6 +144,7 @@ export class SupplierController {
    * @returns Kết quả xóa nhà cung cấp
    */
   @Delete(':id')
+  @RequirePermissions('INVENTORY_MANAGE')
   remove(@Param('id') id: string) {
     return this.supplierService.remove(+id);
   }

@@ -6,7 +6,7 @@ import {
   Patch,
   Param,
   Delete,
-  // UseGuards,
+  UseGuards,
   HttpException,
   HttpStatus,
   Query,
@@ -14,7 +14,9 @@ import {
 import { SalesService } from './sales.service';
 import { CreateSalesInvoiceDto } from './dto/create-sales-invoice.dto';
 import { UpdateSalesInvoiceDto } from './dto/update-sales-invoice.dto';
-// import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
 import { SalesInvoiceStatus } from '../../entities/sales-invoices.entity';
 import { SearchSalesDto } from './dto/search-sales.dto';
@@ -24,7 +26,6 @@ import { SearchSalesDto } from './dto/search-sales.dto';
  * Bao gồm quản lý hóa đơn bán hàng và chi tiết hóa đơn
  */
 @Controller('sales')
-// @UseGuards(JwtAuthGuard) // Tạm thời bỏ guard để kiểm thử
 export class SalesController {
   /**
    * Constructor injection SalesService
@@ -38,6 +39,8 @@ export class SalesController {
    * @returns Thông tin hóa đơn bán hàng đã tạo
    */
   @Post('invoice')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('SALES_CREATE')
   create(@Body() createSalesInvoiceDto: CreateSalesInvoiceDto) {
     return this.salesService.create(createSalesInvoiceDto);
   }
@@ -51,6 +54,8 @@ export class SalesController {
    * @returns Danh sách hóa đơn bán hàng với thông tin phân trang
    */
   @Get('invoices')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('SALES_VIEW')
   async findAll(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 20,
@@ -154,6 +159,8 @@ export class SalesController {
    * @returns Thông tin hóa đơn bán hàng đã cập nhật
    */
   @Patch('invoice/:id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('SALES_MANAGE')
   update(
     @Param('id') id: string,
     @Body() updateSalesInvoiceDto: UpdateSalesInvoiceDto,
@@ -227,6 +234,8 @@ export class SalesController {
    * @returns Kết quả xóa hóa đơn bán hàng
    */
   @Delete('invoice/:id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('SALES_MANAGE')
   remove(@Param('id') id: string) {
     return this.salesService.remove(+id);
   }
