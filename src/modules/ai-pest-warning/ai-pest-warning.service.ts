@@ -236,7 +236,8 @@ export class AiPestWarningService {
     if (analysis.stemBorerLevel === 'CAO') {
       msg += `🐛 SÂU ĐỤC THÂN: NGUY CƠ CAO\n`;
       msg += `⚠️ Thời tiết ấm ẩm, thuận lợi bướm đẻ trứng.\n`;
-      msg += `👉 Khuyến cáo: Thăm đồng, kiểm tra mật độ bướm. Phun thuốc nếu bướm rộ.\n\n`;
+      msg += `👉 Khuyến cáo: Thăm đồng, kiểm tra mật độ bướm. Phun thuốc nếu bướm rộ.\n`;
+      msg += `⏰ Thời điểm phun: Chiều tối 17:00-19:00 hoặc Sáng sớm 5:00-7:00 (khi bướm hoạt động)\n\n`;
     } else if (analysis.stemBorerLevel === 'TRUNG BÌNH') {
       msg += `🐛 Sâu đục thân: Nguy cơ Trung bình\n`;
       msg += `⚠️ Cần theo dõi thêm.\n\n`;
@@ -249,17 +250,19 @@ export class AiPestWarningService {
       msg += `🦟 MUỖI HÀNH: NGUY CƠ CAO\n`;
       msg += `⚠️ Độ ẩm cao, trời âm u sương mù.\n`;
       msg += `👉 Khuyến cáo: Phun phòng ngay bằng thuốc lưu dẫn nếu lúa đang đẻ nhánh.\n`;
+      msg += `⏰ Thời điểm phun: Chiều mát 16:00-18:00 (trước khi muỗi hoạt động vào đêm)`;
     } else if (analysis.gallMidgeLevel === 'TRUNG BÌNH') {
       msg += `🦟 Muỗi hành: Nguy cơ Trung bình\n`;
-      msg += `⚠️ Chú ý nếu trời tiếp tục âm u.\n`;
+      msg += `⚠️ Chú ý nếu trời tiếp tục âm u.`;
     } else {
       msg += `✅ Muỗi hành: An toàn`;
     }
+
+    // Lưu ý chung nếu có ít nhất 1 loại nguy cơ cao
     if (analysis.stemBorerLevel === 'CAO' || analysis.gallMidgeLevel === 'CAO') {
-      msg += `\n\n⏰ THỜI ĐIỂM PHUN TỐT NHẤT CHO SÂU HẠI:
-• Chiều tối: 17:00 – 19:00 (Khi sâu/bướm hoạt động mạnh)
-• Sáng sớm: 5:00 – 7:00
-🚫 Hạn chế phun buổi trưa nắng gắt`;
+      msg += `\n\n🚫 LƯU Ý CHUNG:\n`;
+      msg += `• Tránh phun buổi trưa nắng gắt (thuốc bay hơi nhanh)\n`;
+      msg += `• Không phun khi trời sắp mưa (thuốc bị rửa trôi)`;
     }
 
     return msg;
