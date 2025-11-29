@@ -398,7 +398,10 @@ export class AiRiceBlastService {
 • Isoprothiolane
 • Propineb + Kasugamycin
 
-⏰ Phun vào sáng sớm (5–7h) hoặc chiều mát (16–18h)
+⏰ THỜI ĐIỂM PHUN TỐT NHẤT:
+• Sáng sớm: 8:00 – 10:00 (Sau khi tan sương)
+• Chiều mát: 16:00 – 18:00
+🚫 TRÁNH phun khi trời đang có sương mù hoặc sắp mưa
 💧 Dùng đủ nước (400–500 lít/ha) để thuốc phủ đều`;
     }
 

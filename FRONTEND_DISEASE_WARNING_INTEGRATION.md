@@ -203,67 +203,97 @@ Authorization: Bearer <JWT_TOKEN>
 
 ---
 
+### 4. 🐛 **Pest Warning** (Sâu hại - MỚI)
+
+#### GET `/ai-pest-warning/warning`
+**Mục đích**: Lấy cảnh báo sâu hại (Sâu đục thân, Muỗi hành) mới nhất
+
+**Headers**:
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Response**:
+```json
+{
+  "id": 1,
+  "generated_at": "2025-11-29T14:00:00.000Z",
+  "stem_borer_risk": "CAO",
+  "gall_midge_risk": "TRUNG BÌNH",
+  "message": "📍 Ruộng nhà ông Tư\n\n🐛 SÂU ĐỤC THÂN: NGUY CƠ CAO\n⚠️ Thời tiết ấm ẩm...",
+  "daily_data": [
+    {
+      "date": "29/11",
+      "dayOfWeek": "T6",
+      "tempMin": 24.5,
+      "tempMax": 30.2,
+      "tempAvg": 27.5,
+      "humidityAvg": 82.0,
+      "rainTotal": 5.5,
+      "sunHours": 4.5,
+      "stemBorerScore": 85,
+      "gallMidgeScore": 45,
+      "stemBorerLevel": "CAO",
+      "gallMidgeLevel": "TRUNG BÌNH"
+    }
+    // ... 6 ngày tiếp theo
+  ],
+  "updated_at": "2025-11-29T14:00:00.000Z"
+}
+```
+
+**Permissions**: `RICE_BLAST_VIEW`
+
+---
+
+#### POST `/ai-pest-warning/run-now`
+**Mục đích**: Chạy phân tích sâu hại ngay lập tức
+
+**Headers**:
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Response**: Giống GET `/ai-pest-warning/warning`
+
+**Permissions**: `RICE_BLAST_MANAGE`
+
+---
+
 ## 🔑 Permissions cần thiết
 
 | Permission | Mô tả |
 |------------|-------|
-| `RICE_BLAST_VIEW` | Xem cảnh báo bệnh và vị trí |
+| `RICE_BLAST_VIEW` | Xem cảnh báo bệnh/sâu và vị trí |
 | `RICE_BLAST_MANAGE` | Cập nhật vị trí và chạy phân tích thủ công |
 
 ---
 
-## 📊 So sánh dữ liệu 2 bệnh
+## 📊 So sánh dữ liệu 3 loại cảnh báo
 
-### Bệnh Đạo Ôn (Rice Blast)
-```typescript
-interface RiceBlastDailyData {
-  date: string;           // "29/11"
-  dayOfWeek: string;      // "T6"
-  tempMin: number;
-  tempMax: number;
-  tempAvg: number;
-  humidityAvg: number;
-  lwdHours: number;       // ⭐ Số giờ lá ướt (quan trọng)
-  rainTotal: number;
-  rainHours: number;
-  fogHours: number;       // ⭐ Số giờ có sương mù
-  cloudCoverAvg: number;
-  visibilityAvg: number;
-  riskScore: number;      // 0-135
-  riskLevel: string;
-  breakdown: {
-    tempScore: number;    // 0-30
-    lwdScore: number;     // 0-50 ⭐
-    humidityScore: number;// 0-15
-    rainScore: number;    // 0-15
-    fogScore: number;     // 0-25
-  };
-}
-```
+### 1. Bệnh Đạo Ôn (Rice Blast)
+- **Key metrics**: `lwdHours` (giờ lá ướt), `fogHours` (giờ sương mù).
+- **Risk Score**: 0-135.
 
-### Bệnh Cháy Bìa Lá (Bacterial Blight)
+### 2. Bệnh Cháy Bìa Lá (Bacterial Blight)
+- **Key metrics**: `rainTotal` (mưa), `windSpeedMax` (gió), `rain3Days` (ngập).
+- **Risk Score**: 0-135.
+
+### 3. Sâu Hại (Pest Warning)
 ```typescript
-interface BacterialBlightDailyData {
+interface PestDailyData {
   date: string;
   dayOfWeek: string;
-  tempMin: number;
-  tempMax: number;
-  tempAvg: number;
-  humidityAvg: number;
+  tempAvg: number;        // Quan trọng cho Sâu đục thân (25-30°C)
+  humidityAvg: number;    // Quan trọng cho cả 2 (>80-90%)
   rainTotal: number;
-  rainHours: number;
-  windSpeedMax: number;   // ⭐ Tốc độ gió max (quan trọng)
-  windSpeedAvg: number;   // ⭐ Tốc độ gió TB
-  rain3Days: number;      // ⭐ Tổng mưa 3 ngày (nguy cơ ngập)
-  riskScore: number;      // 0-135
-  riskLevel: string;
-  breakdown: {
-    tempScore: number;    // 0-30
-    rainScore: number;    // 0-40 ⭐
-    windScore: number;    // 0-25 ⭐
-    humidityScore: number;// 0-20
-    floodScore: number;   // 0-20 ⭐
-  };
+  sunHours: number;       // Quan trọng (Muỗi hành sợ nắng, Sâu đục thân thích nắng ấm)
+  
+  stemBorerScore: number; // 0-100
+  gallMidgeScore: number; // 0-100
+  
+  stemBorerLevel: string; // THẤP, TRUNG BÌNH, CAO
+  gallMidgeLevel: string; // THẤP, TRUNG BÌNH, CAO
 }
 ```
 
@@ -271,51 +301,7 @@ interface BacterialBlightDailyData {
 
 ## 🎨 Gợi ý UI/UX
 
-### 1. Trang Quản lý Vị trí
-```tsx
-// Component: LocationManagement.tsx
-import { useState, useEffect } from 'react';
-
-function LocationManagement() {
-  const [location, setLocation] = useState(null);
-  const [isEditing, setIsEditing] = useState(false);
-
-  useEffect(() => {
-    fetchLocation();
-  }, []);
-
-  const fetchLocation = async () => {
-    const response = await fetch('/location', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    const data = await response.json();
-    setLocation(data);
-  };
-
-  const updateLocation = async (formData) => {
-    await fetch('/location', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(formData)
-    });
-    // Sau khi update, cả 2 bệnh sẽ tự động phân tích lại
-    fetchLocation();
-  };
-
-  return (
-    <div>
-      <h2>📍 Vị trí ruộng lúa</h2>
-      {/* Form cập nhật vị trí */}
-      {/* Map hiển thị vị trí */}
-    </div>
-  );
-}
-```
-
-### 2. Dashboard Cảnh báo Bệnh
+### 1. Dashboard Cảnh báo (Cập nhật)
 ```tsx
 // Component: DiseaseWarningDashboard.tsx
 import { Tabs } from 'antd';
@@ -329,9 +315,116 @@ function DiseaseWarningDashboard() {
       <Tabs.TabPane tab="🍃 Bệnh Cháy Bìa Lá" key="bacterial-blight">
         <BacterialBlightWarning />
       </Tabs.TabPane>
+      <Tabs.TabPane tab="🐛 Cảnh Báo Sâu Hại" key="pest-warning">
+        <PestWarning />
+      </Tabs.TabPane>
     </Tabs>
   );
 }
+```
+
+### 2. Component Hiển thị Sâu hại
+```tsx
+// Component: PestWarningCard.tsx
+function PestWarningCard({ warning }) {
+  return (
+    <Card>
+      <Row gutter={16}>
+        <Col span={12}>
+          <Statistic 
+            title="Sâu Đục Thân" 
+            value={warning.stem_borer_risk} 
+            valueStyle={{ color: getRiskColor(warning.stem_borer_risk) }} 
+          />
+        </Col>
+        <Col span={12}>
+          <Statistic 
+            title="Muỗi Hành" 
+            value={warning.gall_midge_risk} 
+            valueStyle={{ color: getRiskColor(warning.gall_midge_risk) }} 
+          />
+        </Col>
+      </Row>
+      
+      <Divider />
+      
+      <pre style={{ whiteSpace: 'pre-wrap' }}>
+        {warning.message}
+      </pre>
+
+      {/* Biểu đồ so sánh 2 loại sâu */}
+      <PestRiskChart data={warning.daily_data} />
+    </Card>
+  );
+}
+```
+
+### 3. Biểu đồ Sâu hại (Dual Line Chart)
+```tsx
+// Component: PestRiskChart.tsx
+import { DualAxes } from '@ant-design/charts';
+
+function PestRiskChart({ data }) {
+  const config = {
+    data: [data, data],
+    xField: 'date',
+    yField: ['stemBorerScore', 'gallMidgeScore'],
+    geometryOptions: [
+      { geometry: 'line', color: '#fa8c16' }, // Sâu đục thân (Cam)
+      { geometry: 'line', color: '#722ed1' }, // Muỗi hành (Tím)
+    ],
+    legend: {
+      custom: true,
+      items: [
+        { name: 'Sâu đục thân', value: 'stemBorerScore', marker: { style: { fill: '#fa8c16' } } },
+        { name: 'Muỗi hành', value: 'gallMidgeScore', marker: { style: { fill: '#722ed1' } } },
+      ],
+    },
+  };
+
+  return <DualAxes {...config} />;
+}
+```
+
+---
+
+## 🚀 Ví dụ React Query Hooks (Thêm mới)
+
+```typescript
+// hooks/usePestWarning.ts
+export const usePestWarning = () => {
+  return useQuery(
+    ['pest-warning'],
+    async () => {
+      const res = await fetch('/ai-pest-warning/warning', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      return res.json();
+    },
+    {
+      refetchInterval: 5 * 60 * 1000,
+    }
+  );
+};
+
+export const useRunPestAnalysis = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation(
+    async () => {
+      const res = await fetch('/ai-pest-warning/run-now', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      return res.json();
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(['pest-warning']);
+      }
+    }
+  );
+};
 ```
 
 ### 3. Component Hiển thị Cảnh báo

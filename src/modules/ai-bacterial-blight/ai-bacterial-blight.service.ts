@@ -367,9 +367,11 @@ export class AiBacterialBlightService {
 • Validamycin + Kasugamycin
 • Bismerthiazol
 
-⏰ Phun vào sáng sớm (5–7h) hoặc chiều mát (16–18h)
-💧 Dùng đủ nước (400–500 lít/ha) để thuốc phủ đều
-⚠️ TRÁNH phun khi có mưa hoặc gió mạnh`;
+⏰ THỜI ĐIỂM PHUN TỐT NHẤT:
+• Chiều mát: 16:00 – 18:00 (Hiệu quả nhất)
+• Sáng sớm: 7:00 – 9:00 (Khi lá đã khô sương)
+🚫 TUYỆT ĐỐI KHÔNG phun khi lá còn ướt hoặc trời sắp mưa
+💧 Dùng đủ nước (400–500 lít/ha) để thuốc phủ đều`;
     }
 
     if (riskLevel === 'CAO') {
