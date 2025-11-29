@@ -392,12 +392,6 @@ export class AiRiceBlastService {
 
 💊 KHUYẾN CÁO: Phun NGAY hôm nay hoặc ngày mai (${todayStr}–${tomorrowStr}) khi trời còn khô ráo
 
-🧪 Hoạt chất khuyên dùng:
-• Tricyclazole
-• Tebuconazole + Trifloxystrobin
-• Isoprothiolane
-• Propineb + Kasugamycin
-
 ⏰ THỜI ĐIỂM PHUN TỐT NHẤT:
 • Sáng sớm: 8:00 – 10:00 (Sau khi tan sương)
 • Chiều mát: 16:00 – 18:00

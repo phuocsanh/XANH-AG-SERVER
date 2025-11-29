@@ -237,7 +237,6 @@ export class AiPestWarningService {
     } else {
       msg += `✅ Muỗi hành: An toàn`;
     }
-
     if (analysis.stemBorerLevel === 'CAO' || analysis.gallMidgeLevel === 'CAO') {
       msg += `\n\n⏰ THỜI ĐIỂM PHUN TỐT NHẤT CHO SÂU HẠI:
 • Chiều tối: 17:00 – 19:00 (Khi sâu/bướm hoạt động mạnh)
