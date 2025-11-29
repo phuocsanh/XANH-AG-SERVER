@@ -23,30 +23,50 @@ Khi đăng nhập thành công, API sẽ trả về thông tin user kèm theo **
 **Response:**
 ```json
 {
-  "access_token": "eyJhbGciOiJIUz...",
-  "refresh_token": "...",
-  "user": {
-    "id": 1,
-    "account": "admin",
-    "nickname": "Administrator",
-    "role": {
-      "id": 1,
-      "code": "SUPER_ADMIN",
-      "name": "Super Admin",
-      "permissions": [
-        { "code": "USER_VIEW" },
-        { "code": "USER_CREATE" },
-        { "code": "PRODUCT_MANAGE" },
-        // ... danh sách các quyền khác
-      ]
+  "success": true,
+  "data": {
+    "access_token": "eyJhbGciOiJIUz...",
+    "refresh_token": "...",
+    "user": {
+      "id": 3,
+      "account": "admin",
+      "status": "active",
+      "role": {
+        "id": 1,
+        "code": "SUPER_ADMIN",
+        "name": "Super Admin",
+        "description": "Chủ hệ thống - Toàn quyền",
+        "permissions": [
+          {
+            "id": 1,
+            "code": "USER_VIEW",
+            "name": "Xem người dùng",
+            "description": "Xem danh sách và thông tin người dùng",
+            "group": "User Management"
+          },
+          {
+            "id": 2,
+            "code": "USER_CREATE",
+            "name": "Tạo người dùng",
+            "description": "Tạo tài khoản người dùng mới",
+            "group": "User Management"
+          }
+          // ... 15 permissions khác
+        ]
+      }
     }
+  },
+  "meta": {
+    "timestamp": "2025-11-29T14:04:20.905Z",
+    "path": "/auth/login",
+    "method": "POST"
   }
 }
 ```
 
 👉 **Frontend Action:**
-1.  Lưu `access_token` vào LocalStorage/Cookie.
-2.  Lưu object `user` (bao gồm role và permissions) vào Global State (Redux/Zustand/Context).
+1.  Lưu `data.access_token` vào LocalStorage/Cookie.
+2.  Lưu object `data.user` (bao gồm role và permissions) vào Global State (Redux/Zustand/Context).
 3.  **Quan trọng:** Helper function để check quyền:
 
 ```javascript

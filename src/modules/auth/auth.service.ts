@@ -64,14 +64,21 @@ export class AuthService {
   /**
    * Tạo token JWT cho người dùng đã xác thực
    * @param user - Thông tin người dùng đã xác thực
-   * @returns Token JWT và thông tin người dùng
+   * @returns Token JWT và thông tin người dùng (bao gồm role và permissions)
    */
   async login(user: User) {
+    // Load đầy đủ thông tin user với role và permissions
+    const fullUser = await this.userService.findOneWithPermissions(user.id);
+    
+    if (!fullUser) {
+      throw new Error('User not found');
+    }
+
     // Tạo payload cho token JWT
     const payload = {
-      userAccount: user.account,
-      sub: user.id,
-      userId: user.id,
+      userAccount: fullUser.account,
+      sub: fullUser.id,
+      userId: fullUser.id,
     };
 
     return {
@@ -81,8 +88,10 @@ export class AuthService {
         expiresIn: JWT_REFRESH_TOKEN_EXPIRY, // Refresh token có thời gian dài hơn
       }),
       user: {
-        userId: user.id,
-        userAccount: user.account,
+        id: fullUser.id,
+        account: fullUser.account,
+        status: fullUser.status,
+        role: fullUser.role, // Bao gồm role với permissions
       },
     };
   }
