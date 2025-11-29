@@ -27,7 +27,7 @@ import { PaymentModule } from './modules/payment/payment.module';
 import { PaymentAllocationModule } from './modules/payment-allocation/payment-allocation.module';
 import { DebtNoteModule } from './modules/debt-note/debt-note.module';
 import { SalesReturnModule } from './modules/sales-return/sales-return.module';
-import { RiceBlastModule } from './modules/rice-blast/rice-blast.module';
+import { AiRiceBlastModule } from './modules/ai-rice-blast/ai-rice-blast.module';
 
 /**
  * Module chính của ứng dụng NestJS
@@ -93,7 +93,7 @@ import { RiceBlastModule } from './modules/rice-blast/rice-blast.module';
     PaymentAllocationModule,
     DebtNoteModule,
     SalesReturnModule,
-    RiceBlastModule,
+    AiRiceBlastModule,
   ],
   controllers: [], // Các controller global (nếu có)
   providers: [

@@ -27,8 +27,8 @@ interface WeatherData {
  * Service xử lý logic cảnh báo bệnh đạo ôn lúa
  */
 @Injectable()
-export class RiceBlastService {
-  private readonly logger = new Logger(RiceBlastService.name);
+export class AiRiceBlastService {
+  private readonly logger = new Logger(AiRiceBlastService.name);
 
   constructor(
     @InjectRepository(Location)
@@ -439,11 +439,11 @@ export class RiceBlastService {
 
 💊 KHUYẾN CÁO: Phun NGAY hôm nay hoặc ngày mai (${todayStr}–${tomorrowStr}) khi trời còn khô ráo
 
-🧪 Thuốc tốt nhất:
-• Tricyclazole 75WP (Beam, Fuji-One)
-• Tebuconazole + Trifloxystrobin (Nativo)
-• Isoprothiolane (Fuji-One)
-• Antracol + Kasumin (phối hợp)
+🧪 Hoạt chất khuyên dùng:
+• Tricyclazole
+• Tebuconazole + Trifloxystrobin
+• Isoprothiolane
+• Propineb + Kasugamycin
 
 ⏰ Phun vào sáng sớm (5–7h) hoặc chiều mát (16–18h)
 💧 Dùng đủ nước (400–500 lít/ha) để thuốc phủ đều`;
@@ -459,11 +459,7 @@ export class RiceBlastService {
 
 💊 KHUYẾN CÁO: Chuẩn bị thuốc và theo dõi thêm 1–2 ngày
 Nếu thấy vết bệnh → phun NGAY
-
-🧪 Thuốc nên dùng:
-• Tricyclazole 75WP
-• Tebuconazole + Trifloxystrobin
-• Isoprothiolane`;
+`;
     }
 
     if (riskLevel === 'TRUNG BÌNH') {

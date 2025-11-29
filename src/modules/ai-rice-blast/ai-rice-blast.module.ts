@@ -2,8 +2,8 @@ import { Module, OnModuleInit, Logger } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { Cron } from '@nestjs/schedule';
-import { RiceBlastController } from './rice-blast.controller';
-import { RiceBlastService } from './rice-blast.service';
+import { AiRiceBlastController } from './ai-rice-blast.controller';
+import { AiRiceBlastService } from './ai-rice-blast.service';
 import { Location } from '../../entities/location.entity';
 import { RiceBlastWarning } from '../../entities/rice-blast-warning.entity';
 
@@ -16,14 +16,14 @@ import { RiceBlastWarning } from '../../entities/rice-blast-warning.entity';
     TypeOrmModule.forFeature([Location, RiceBlastWarning]),
     ScheduleModule.forRoot(),
   ],
-  controllers: [RiceBlastController],
-  providers: [RiceBlastService],
-  exports: [RiceBlastService],
+  controllers: [AiRiceBlastController],
+  providers: [AiRiceBlastService],
+  exports: [AiRiceBlastService],
 })
-export class RiceBlastModule implements OnModuleInit {
-  private readonly logger = new Logger(RiceBlastModule.name);
+export class AiRiceBlastModule implements OnModuleInit {
+  private readonly logger = new Logger(AiRiceBlastModule.name);
 
-  constructor(private readonly riceBlastService: RiceBlastService) {}
+  constructor(private readonly aiRiceBlastService: AiRiceBlastService) {}
 
   /**
    * Khi module khởi động, chạy phân tích 1 lần
@@ -35,7 +35,7 @@ export class RiceBlastModule implements OnModuleInit {
     // Chạy phân tích ngay khi server khởi động
     try {
       this.logger.log('🚀 Running initial analysis on startup...');
-      await this.riceBlastService.runAnalysis();
+      await this.aiRiceBlastService.runAnalysis();
     } catch (error) {
       const err = error as Error;
       this.logger.error(`❌ Initial analysis failed: ${err.message}`);
@@ -53,7 +53,7 @@ export class RiceBlastModule implements OnModuleInit {
   async handleDailyAnalysis() {
     this.logger.log('⏰ Cron job triggered: Running daily rice blast analysis...');
     try {
-      await this.riceBlastService.runAnalysis();
+      await this.aiRiceBlastService.runAnalysis();
       this.logger.log('✅ Daily analysis completed successfully');
     } catch (error) {
       const err = error as Error;

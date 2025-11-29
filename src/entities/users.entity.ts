@@ -10,6 +10,8 @@ import {
 } from 'typeorm';
 import { BaseStatus } from './base-status.enum';
 import { Role } from './role.entity';
+import { UserProfile } from './user-profiles.entity';
+import { OneToOne } from 'typeorm';
 
 /**
  * Entity biểu diễn thông tin người dùng trong hệ thống
@@ -78,4 +80,8 @@ export class User {
   @ManyToOne(() => Role, (role) => role.users)
   @JoinColumn({ name: 'role_id' })
   role?: Role;
+
+  /** Thông tin profile của user */
+  @OneToOne(() => UserProfile, (profile) => profile.user)
+  profile?: UserProfile;
 }

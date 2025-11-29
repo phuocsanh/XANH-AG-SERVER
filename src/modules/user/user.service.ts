@@ -82,7 +82,35 @@ export class UserService {
    * @returns Danh sách người dùng
    */
   async findAll(): Promise<User[]> {
-    return this.userRepository.find();
+    return this.userRepository.find({
+      relations: ['profile'],
+      select: {
+        id: true,
+        account: true,
+        login_time: true,
+        logout_time: true,
+        login_ip: true,
+        status: true,
+        created_at: true,
+        updated_at: true,
+        is_two_factor_enabled: true,
+        role_id: true,
+        profile: {
+          user_id: true,
+          account: true,
+          nickname: true,
+          avatar: true,
+          status: true,
+          mobile: true,
+          gender: true,
+          birthday: true,
+          email: true,
+          is_authentication: true,
+          created_at: true,
+          updated_at: true,
+        },
+      },
+    });
   }
 
   /**

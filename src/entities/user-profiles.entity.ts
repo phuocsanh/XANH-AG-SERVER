@@ -5,8 +5,11 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   DeleteDateColumn,
+  OneToOne,
+  JoinColumn,
 } from 'typeorm';
 import { BaseStatus } from './base-status.enum';
+import { User } from './users.entity';
 
 /**
  * Entity biểu diễn thông tin profile người dùng
@@ -70,4 +73,9 @@ export class UserProfile {
   /** Thời gian xóa mềm (soft delete) */
   @DeleteDateColumn({ name: 'deleted_at' })
   deleted_at?: Date;
+
+  /** User sở hữu profile này */
+  @OneToOne(() => User, (user) => user.profile)
+  @JoinColumn({ name: 'user_id' })
+  user?: User;
 }

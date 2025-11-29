@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Logger, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { RiceBlastService } from './rice-blast.service';
+import { AiRiceBlastService } from './ai-rice-blast.service';
 import { UpdateLocationDto } from './dto/update-location.dto';
 import { Location } from '../../entities/location.entity';
 import { RiceBlastWarning } from '../../entities/rice-blast-warning.entity';
@@ -12,11 +12,11 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
  * Controller xử lý các API endpoint cho cảnh báo bệnh đạo ôn
  */
 @ApiTags('Rice Blast Warning')
-@Controller('api')
-export class RiceBlastController {
-  private readonly logger = new Logger(RiceBlastController.name);
+@Controller('ai-rice-blast')
+export class AiRiceBlastController {
+  private readonly logger = new Logger(AiRiceBlastController.name);
 
-  constructor(private readonly riceBlastService: RiceBlastService) {}
+  constructor(private readonly aiRiceBlastService: AiRiceBlastService) {}
 
   /**
    * GET /api/location
@@ -34,7 +34,7 @@ export class RiceBlastController {
   })
   async getLocation(): Promise<Location> {
     this.logger.log('GET /api/location');
-    return this.riceBlastService.getLocation();
+    return this.aiRiceBlastService.getLocation();
   }
 
   /**
@@ -53,7 +53,7 @@ export class RiceBlastController {
   })
   async updateLocation(@Body() dto: UpdateLocationDto): Promise<Location> {
     this.logger.log(`POST /api/location - ${dto.name}`);
-    return this.riceBlastService.updateLocation(dto);
+    return this.aiRiceBlastService.updateLocation(dto);
   }
 
   /**
@@ -72,7 +72,7 @@ export class RiceBlastController {
   })
   async getWarning(): Promise<RiceBlastWarning> {
     this.logger.log('GET /api/warning');
-    return this.riceBlastService.getWarning();
+    return this.aiRiceBlastService.getWarning();
   }
 
   /**
@@ -91,6 +91,6 @@ export class RiceBlastController {
   })
   async runAnalysisNow(): Promise<RiceBlastWarning> {
     this.logger.log('POST /api/run-now - Manual trigger');
-    return this.riceBlastService.runAnalysis();
+    return this.aiRiceBlastService.runAnalysis();
   }
 }
