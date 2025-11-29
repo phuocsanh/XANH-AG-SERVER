@@ -221,20 +221,56 @@ export class UserService {
 
   /**
    * Kích hoạt người dùng
-   * @param id - ID của người dùng cần kích hoạt
+   * @param userId - ID của người dùng cần kích hoạt
+   * @param operatorRoleCode - Role code của người thực hiện (SUPER_ADMIN hoặc ADMIN)
    * @returns Thông tin người dùng đã kích hoạt
    */
-  async activate(userId: number): Promise<User | null> {
+  async activate(userId: number, operatorRoleCode: string): Promise<User | null> {
+    // Lấy thông tin user cần kích hoạt
+    const targetUser = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['role'],
+    });
+
+    if (!targetUser) {
+      throw new Error('User not found');
+    }
+
+    const targetRoleCode = (targetUser.role as any)?.code;
+
+    // Kiểm tra quyền: ADMIN không được kích hoạt SUPER_ADMIN hoặc ADMIN khác
+    if (operatorRoleCode === 'ADMIN' && ['SUPER_ADMIN', 'ADMIN'].includes(targetRoleCode)) {
+      throw new Error('Admin cannot activate Super Admin or other Admin accounts');
+    }
+
     await this.userRepository.update(userId, { status: BaseStatus.ACTIVE });
     return this.findOne(userId);
   }
 
   /**
    * Vô hiệu hóa người dùng
-   * @param id - ID của người dùng cần vô hiệu hóa
+   * @param userId - ID của người dùng cần vô hiệu hóa
+   * @param operatorRoleCode - Role code của người thực hiện (SUPER_ADMIN hoặc ADMIN)
    * @returns Thông tin người dùng đã vô hiệu hóa
    */
-  async deactivate(userId: number): Promise<User | null> {
+  async deactivate(userId: number, operatorRoleCode: string): Promise<User | null> {
+    // Lấy thông tin user cần vô hiệu hóa
+    const targetUser = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['role'],
+    });
+
+    if (!targetUser) {
+      throw new Error('User not found');
+    }
+
+    const targetRoleCode = (targetUser.role as any)?.code;
+
+    // Kiểm tra quyền: ADMIN không được vô hiệu hóa SUPER_ADMIN hoặc ADMIN khác
+    if (operatorRoleCode === 'ADMIN' && ['SUPER_ADMIN', 'ADMIN'].includes(targetRoleCode)) {
+      throw new Error('Admin cannot deactivate Super Admin or other Admin accounts');
+    }
+
     await this.userRepository.update(userId, { status: BaseStatus.INACTIVE });
     return this.findOne(userId);
   }
@@ -430,10 +466,28 @@ export class UserService {
 
   /**
    * Xóa người dùng theo ID (soft delete)
-   * @param id - ID của người dùng cần xóa
+   * @param userId - ID của người dùng cần xóa
+   * @param operatorRoleCode - Role code của người thực hiện (SUPER_ADMIN hoặc ADMIN)
    */
-  async remove(id: number): Promise<void> {
-    await this.userRepository.softDelete(id);
+  async remove(userId: number, operatorRoleCode: string): Promise<void> {
+    // Lấy thông tin user cần xóa
+    const targetUser = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['role'],
+    });
+
+    if (!targetUser) {
+      throw new Error('User not found');
+    }
+
+    const targetRoleCode = (targetUser.role as any)?.code;
+
+    // Kiểm tra quyền: ADMIN không được xóa SUPER_ADMIN hoặc ADMIN khác
+    if (operatorRoleCode === 'ADMIN' && ['SUPER_ADMIN', 'ADMIN'].includes(targetRoleCode)) {
+      throw new Error('Admin cannot delete Super Admin or other Admin accounts');
+    }
+
+    await this.userRepository.softDelete(userId);
   }
 
   /**

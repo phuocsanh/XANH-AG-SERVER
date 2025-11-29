@@ -85,13 +85,15 @@ export class UserController {
   /**
    * Endpoint xóa người dùng
    * @param id - ID của người dùng cần xóa
+   * @param req - Request object chứa thông tin user đang đăng nhập
    * @returns Kết quả xóa người dùng
    */
   @Delete(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('USER_DELETE')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.userService.remove(id);
+  remove(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    const operatorRoleCode = req.user.role.code;
+    return this.userService.remove(id, operatorRoleCode);
   }
 
   /**
@@ -143,5 +145,33 @@ export class UserController {
   @RequirePermissions('USER_VIEW')
   async getPendingUsers() {
     return this.userService.getPendingUsers();
+  }
+
+  /**
+   * Endpoint kích hoạt tài khoản người dùng
+   * @param id - ID của người dùng cần kích hoạt
+   * @param req - Request object chứa thông tin user đang đăng nhập
+   * @returns Thông tin người dùng đã kích hoạt
+   */
+  @Post(':id/activate')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('USER_UPDATE')
+  async activateUser(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    const operatorRoleCode = req.user.role.code;
+    return this.userService.activate(id, operatorRoleCode);
+  }
+
+  /**
+   * Endpoint vô hiệu hóa tài khoản người dùng
+   * @param id - ID của người dùng cần vô hiệu hóa
+   * @param req - Request object chứa thông tin user đang đăng nhập
+   * @returns Thông tin người dùng đã vô hiệu hóa
+   */
+  @Post(':id/deactivate')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('USER_UPDATE')
+  async deactivateUser(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    const operatorRoleCode = req.user.role.code;
+    return this.userService.deactivate(id, operatorRoleCode);
   }
 }

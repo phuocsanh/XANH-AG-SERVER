@@ -96,6 +96,61 @@ Admin có thể tạo trực tiếp tài khoản cho nhân viên (bỏ qua bư�
 *   **Permission:** `USER_CREATE`
 *   **Form fields:** Account, Password, Nickname, Role (Dropdown chọn ADMIN/STAFF/USER).
 
+### C. Quản Lý Trạng Thái Tài Khoản
+
+#### Kích Hoạt (Activate)
+*   **API:** `POST /users/:id/activate`
+*   **Permission:** `USER_UPDATE`
+*   **Lưu ý:** ADMIN không thể kích hoạt tài khoản SUPER_ADMIN hoặc ADMIN khác.
+
+#### Vô Hiệu Hóa (Deactivate)
+*   **API:** `POST /users/:id/deactivate`
+*   **Permission:** `USER_UPDATE`
+*   **Lưu ý:** ADMIN không thể vô hiệu hóa tài khoản SUPER_ADMIN hoặc ADMIN khác.
+
+#### Xóa Tài Khoản (Soft Delete)
+*   **API:** `DELETE /users/:id`
+*   **Permission:** `USER_DELETE`
+*   **Lưu ý:** ADMIN không thể xóa tài khoản SUPER_ADMIN hoặc ADMIN khác.
+
+### D. Quy Tắc Phân Quyền Quan Trọng
+
+| Hành Động | SUPER_ADMIN | ADMIN |
+|:---|:---|:---|
+| Tạo/Sửa/Xóa SUPER_ADMIN | ✅ | ❌ |
+| Tạo/Sửa/Xóa ADMIN | ✅ | ❌ |
+| Tạo/Sửa/Xóa STAFF | ✅ | ✅ |
+| Tạo/Sửa/Xóa USER | ✅ | ✅ |
+
+**Frontend cần xử lý:**
+- Ẩn nút "Sửa", "Xóa", "Kích hoạt", "Vô hiệu hóa" nếu:
+  - User đang đăng nhập là ADMIN
+  - User đang xem là SUPER_ADMIN hoặc ADMIN khác
+
+```javascript
+// Example: Ẩn nút xóa nếu không có quyền
+const canManageUser = (currentUser, targetUser) => {
+  // Super Admin có thể quản lý tất cả
+  if (currentUser.role.code === 'SUPER_ADMIN') return true;
+  
+  // Admin không thể quản lý Super Admin hoặc Admin khác
+  if (currentUser.role.code === 'ADMIN') {
+    return !['SUPER_ADMIN', 'ADMIN'].includes(targetUser.role.code);
+  }
+  
+  return false;
+};
+
+// Trong component
+{canManageUser(currentUser, record) && (
+  <>
+    <Button onClick={() => handleActivate(record)}>Kích hoạt</Button>
+    <Button onClick={() => handleDeactivate(record)}>Vô hiệu hóa</Button>
+    <Button onClick={() => handleDelete(record)}>Xóa</Button>
+  </>
+)}
+```
+
 ---
 
 ## 4. Bảo Vệ Route & UI (Authorization)
@@ -154,6 +209,8 @@ Dưới đây là bảng tra cứu nhanh để Frontend gắn quyền cho đúng
 | **User** | Xem danh sách | `/users` | GET | `USER_VIEW` |
 | | Tạo user (Admin) | `/users/admin/create` | POST | `USER_CREATE` |
 | | Duyệt user | `/users/admin/approve` | POST | `USER_APPROVE` |
+| | Kích hoạt user | `/users/:id/activate` | POST | `USER_UPDATE` |
+| | Vô hiệu hóa user | `/users/:id/deactivate` | POST | `USER_UPDATE` |
 | | Xóa user | `/users/:id` | DELETE | `USER_DELETE` |
 | **Sản Phẩm** | Xem danh sách | `/products` | GET | `PRODUCT_VIEW` |
 | | Thêm/Sửa/Xóa | `/products/*` | POST/PUT/DEL | `PRODUCT_MANAGE` |
