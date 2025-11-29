@@ -1,8 +1,6 @@
-import { Controller, Get, Post, Body, Logger, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Logger, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AiRiceBlastService } from './ai-rice-blast.service';
-import { UpdateLocationDto } from './dto/update-location.dto';
-import { Location } from '../../entities/location.entity';
 import { RiceBlastWarning } from '../../entities/rice-blast-warning.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -19,47 +17,8 @@ export class AiRiceBlastController {
   constructor(private readonly aiRiceBlastService: AiRiceBlastService) {}
 
   /**
-   * GET /api/location
-   * Lấy vị trí ruộng lúa hiện tại
-   * Public - Mọi user đã đăng nhập đều xem được
-   */
-  @Get('location')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('RICE_BLAST_VIEW')
-  @ApiOperation({ summary: 'Lấy vị trí ruộng lúa hiện tại' })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Thành công', 
-    type: Location 
-  })
-  async getLocation(): Promise<Location> {
-    this.logger.log('GET /api/location');
-    return this.aiRiceBlastService.getLocation();
-  }
-
-  /**
-   * POST /api/location
-   * Cập nhật vị trí ruộng lúa (UPSERT id = 1)
-   * Chỉ Admin/Super Admin
-   */
-  @Post('location')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('RICE_BLAST_MANAGE')
-  @ApiOperation({ summary: 'Cập nhật vị trí ruộng lúa' })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Cập nhật thành công', 
-    type: Location 
-  })
-  async updateLocation(@Body() dto: UpdateLocationDto): Promise<Location> {
-    this.logger.log(`POST /api/location - ${dto.name}`);
-    return this.aiRiceBlastService.updateLocation(dto);
-  }
-
-  /**
-   * GET /api/warning
+   * GET /ai-rice-blast/warning
    * Lấy cảnh báo bệnh đạo ôn mới nhất
-   * Public - Mọi user đã đăng nhập đều xem được
    */
   @Get('warning')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -71,14 +30,13 @@ export class AiRiceBlastController {
     type: RiceBlastWarning 
   })
   async getWarning(): Promise<RiceBlastWarning> {
-    this.logger.log('GET /api/warning');
+    this.logger.log('GET /ai-rice-blast/warning');
     return this.aiRiceBlastService.getWarning();
   }
 
   /**
-   * POST /api/run-now
-   * Chạy phân tích bệnh đạo ôn ngay lập tức (manual trigger)
-   * Chỉ Admin/Super Admin
+   * POST /ai-rice-blast/run-now
+   * Chạy phân tích bệnh đạo ôn ngay lập tức
    */
   @Post('run-now')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -90,7 +48,7 @@ export class AiRiceBlastController {
     type: RiceBlastWarning 
   })
   async runAnalysisNow(): Promise<RiceBlastWarning> {
-    this.logger.log('POST /api/run-now - Manual trigger');
+    this.logger.log('POST /ai-rice-blast/run-now - Manual trigger');
     return this.aiRiceBlastService.runAnalysis();
   }
 }

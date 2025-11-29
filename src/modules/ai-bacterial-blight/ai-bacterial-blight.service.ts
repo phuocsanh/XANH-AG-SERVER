@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { RiceBlastWarning, DailyRiskData } from '../../entities/rice-blast-warning.entity';
+import { BacterialBlightWarning, BacterialBlightDailyRiskData } from '../../entities/bacterial-blight-warning.entity';
 import { LocationService } from '../location/location.service';
 import axios from 'axios';
 import * as https from 'https';
@@ -14,31 +14,28 @@ interface WeatherData {
     time: string[];
     temperature_2m: number[];
     relative_humidity_2m: number[];
-    dew_point_2m: number[];
     precipitation: number[];
-    cloud_cover_low: number[];
-    visibility: number[];
-    weather_code: number[];
+    wind_speed_10m: number[];
   };
 }
 
 /**
- * Service xử lý logic cảnh báo bệnh đạo ôn lúa
+ * Service xử lý logic cảnh báo bệnh cháy bìa lá do vi khuẩn
  */
 @Injectable()
-export class AiRiceBlastService {
-  private readonly logger = new Logger(AiRiceBlastService.name);
+export class AiBacterialBlightService {
+  private readonly logger = new Logger(AiBacterialBlightService.name);
 
   constructor(
-    @InjectRepository(RiceBlastWarning)
-    private warningRepository: Repository<RiceBlastWarning>,
+    @InjectRepository(BacterialBlightWarning)
+    private warningRepository: Repository<BacterialBlightWarning>,
     private locationService: LocationService,
   ) {}
 
   /**
    * Lấy cảnh báo mới nhất (id = 1)
    */
-  async getWarning(): Promise<RiceBlastWarning> {
+  async getWarning(): Promise<BacterialBlightWarning> {
     const warning = await this.warningRepository.findOne({ where: { id: 1 } });
     if (!warning) {
       // Tạo cảnh báo mặc định nếu chưa có
@@ -56,10 +53,10 @@ export class AiRiceBlastService {
   }
 
   /**
-   * Chạy phân tích bệnh đạo ôn (được gọi bởi cron hoặc manual)
+   * Chạy phân tích bệnh cháy bìa lá (được gọi bởi cron hoặc manual)
    */
-  async runAnalysis(): Promise<RiceBlastWarning> {
-    this.logger.log('🔬 Bắt đầu phân tích bệnh đạo ôn...');
+  async runAnalysis(): Promise<BacterialBlightWarning> {
+    this.logger.log('🔬 Bắt đầu phân tích bệnh cháy bìa lá...');
 
     try {
       // 1. Lấy vị trí hiện tại từ LocationService
@@ -78,7 +75,6 @@ export class AiRiceBlastService {
       // 5. Tạo tin nhắn cảnh báo
       const message = this.generateWarningMessage(analysis, location.name);
 
-      // 6. Lưu kết quả vào database (UPSERT id = 1)
       // 6. Lưu kết quả vào database (UPSERT id = 1)
       const warningData = {
         generated_at: new Date(),
@@ -126,11 +122,8 @@ export class AiRiceBlastService {
       hourly: [
         'temperature_2m',
         'relative_humidity_2m',
-        'dew_point_2m',
         'precipitation',
-        'cloud_cover_low',
-        'visibility',
-        'weather_code',
+        'wind_speed_10m',
       ].join(','),
       forecast_days: 7,
       timezone: 'Asia/Ho_Chi_Minh',
@@ -138,11 +131,10 @@ export class AiRiceBlastService {
 
     this.logger.log(`🌤️  Đang lấy dữ liệu thời tiết từ Open-Meteo...`);
     try {
-      // Force IPv4 to avoid Docker IPv6 resolution issues
       const agent = new https.Agent({ family: 4 });
       const response = await axios.get(url, { 
         params, 
-        timeout: 10000, // Tăng timeout lên 10s
+        timeout: 10000,
         httpsAgent: agent
       });
       return response.data;
@@ -155,9 +147,9 @@ export class AiRiceBlastService {
   /**
    * Tính toán nguy cơ bệnh từng ngày (168 giờ → 7 ngày)
    */
-  private calculateDailyRisk(weatherData: WeatherData): DailyRiskData[] {
+  private calculateDailyRisk(weatherData: WeatherData): BacterialBlightDailyRiskData[] {
     const hourly = weatherData.hourly;
-    const dailyData: DailyRiskData[] = [];
+    const dailyData: BacterialBlightDailyRiskData[] = [];
 
     // Chia 168 giờ thành 7 ngày (mỗi ngày 24 giờ)
     for (let day = 0; day < 7; day++) {
@@ -167,39 +159,39 @@ export class AiRiceBlastService {
       // Lấy dữ liệu 24 giờ của ngày này
       const temps = hourly.temperature_2m.slice(startIdx, endIdx);
       const humidities = hourly.relative_humidity_2m.slice(startIdx, endIdx);
-      const dewPoints = hourly.dew_point_2m.slice(startIdx, endIdx);
       const rains = hourly.precipitation.slice(startIdx, endIdx);
-      const clouds = hourly.cloud_cover_low.slice(startIdx, endIdx);
-      const visibilities = hourly.visibility.slice(startIdx, endIdx);
-      const weatherCodes = hourly.weather_code.slice(startIdx, endIdx);
+      const winds = hourly.wind_speed_10m.slice(startIdx, endIdx);
 
-      // Tính các chỉ số trung bình
+      // Tính các chỉ số
       const tempAvg = this.average(temps);
       const tempMin = Math.min(...temps);
       const tempMax = Math.max(...temps);
       const humidityAvg = this.average(humidities);
       const rainTotal = this.sum(rains);
-      const cloudCoverAvg = this.average(clouds);
-      const visibilityAvg = this.average(visibilities);
-
-      // Tính số giờ lá ướt (LWD) - YẾU TỐ QUAN TRỌNG NHẤT
-      const lwdHours = this.calculateLWD(temps, humidities, dewPoints);
-
-      // Tính số giờ có mưa
       const rainHours = rains.filter(r => r > 0).length;
+      const windSpeedMax = Math.max(...winds);
+      const windSpeedAvg = this.average(winds);
 
-      // Tính số giờ có sương mù (weather_code = 45 hoặc 48)
-      const fogHours = weatherCodes.filter(code => code === 45 || code === 48).length;
+      // Tính tổng mưa 3 ngày (nguy cơ ngập)
+      let rain3Days = rainTotal;
+      if (day >= 1) {
+        const prevDayRains = hourly.precipitation.slice((day - 1) * 24, day * 24);
+        rain3Days += this.sum(prevDayRains);
+      }
+      if (day >= 2) {
+        const prevPrevDayRains = hourly.precipitation.slice((day - 2) * 24, (day - 1) * 24);
+        rain3Days += this.sum(prevPrevDayRains);
+      }
 
       // Tính điểm nguy cơ từng yếu tố
       const tempScore = this.calculateTempScore(tempAvg);
-      const lwdScore = this.calculateLWDScore(lwdHours);
-      const humidityScore = humidityAvg >= 92 ? 15 : 0;
       const rainScore = this.calculateRainScore(rainTotal, rainHours);
-      const fogScore = this.calculateFogScore(cloudCoverAvg, visibilityAvg, fogHours);
+      const windScore = this.calculateWindScore(windSpeedMax, windSpeedAvg);
+      const humidityScore = humidityAvg >= 85 ? 20 : (humidityAvg >= 80 ? 10 : 0);
+      const floodScore = this.calculateFloodScore(rain3Days);
 
       // Tổng điểm nguy cơ (tối đa 135)
-      const riskScore = tempScore + lwdScore + humidityScore + rainScore + fogScore;
+      const riskScore = tempScore + rainScore + windScore + humidityScore + floodScore;
 
       // Xác định mức độ nguy cơ
       let riskLevel = 'AN TOÀN';
@@ -210,7 +202,7 @@ export class AiRiceBlastService {
       else if (riskScore >= 30) riskLevel = 'THẤP';
 
       // Lấy ngày tháng
-      const dateStr = hourly.time[startIdx]?.split('T')[0] || ''; // YYYY-MM-DD
+      const dateStr = hourly.time[startIdx]?.split('T')[0] || '';
       const date = new Date(dateStr);
       const formattedDate = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}`;
       const dayOfWeek = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][date.getDay()] || 'CN';
@@ -222,20 +214,19 @@ export class AiRiceBlastService {
         tempMax,
         tempAvg,
         humidityAvg,
-        lwdHours,
         rainTotal,
         rainHours,
-        fogHours,
-        cloudCoverAvg,
-        visibilityAvg,
+        windSpeedMax,
+        windSpeedAvg,
+        rain3Days,
         riskScore,
         riskLevel,
         breakdown: {
           tempScore,
-          lwdScore,
-          humidityScore,
           rainScore,
-          fogScore,
+          windScore,
+          humidityScore,
+          floodScore,
         },
       });
     }
@@ -244,97 +235,75 @@ export class AiRiceBlastService {
   }
 
   /**
-   * Tính số giờ lá ướt (Leaf Wetness Duration)
-   * Điều kiện: RH >= 90% VÀ Temp <= DewPoint + 1.0°C
-   */
-  private calculateLWD(temps: number[], humidities: number[], dewPoints: number[]): number {
-    let lwdHours = 0;
-    for (let i = 0; i < temps.length; i++) {
-      if ((humidities[i] ?? 0) >= 90 && (temps[i] ?? 0) <= (dewPoints[i] ?? 0) + 1.0) {
-        lwdHours++;
-      }
-    }
-    return lwdHours;
-  }
-
-  /**
-   * Tính điểm nhiệt độ (0-30 điểm)
+   * Tính điểm nhiệt độ (0-30 điểm) - Cao hơn đạo ôn
    */
   private calculateTempScore(tempAvg: number): number {
-    if (tempAvg >= 20 && tempAvg <= 30) return 30;
-    if ((tempAvg >= 18 && tempAvg < 20) || (tempAvg > 30 && tempAvg <= 32)) return 15;
+    if (tempAvg >= 25 && tempAvg <= 34) return 30;
+    if ((tempAvg >= 22 && tempAvg < 25) || (tempAvg > 34 && tempAvg <= 36)) return 15;
     return 0;
   }
 
   /**
-   * Tính điểm lá ướt (0-50 điểm)
-   */
-  private calculateLWDScore(lwdHours: number): number {
-    if (lwdHours >= 14) return 50;
-    if (lwdHours >= 10) return 40;
-    if (lwdHours >= 7) return 20;
-    return 0;
-  }
-
-  /**
-   * Tính điểm mưa (0-15 điểm)
+   * Tính điểm mưa (0-40 điểm) - Quan trọng hơn đạo ôn
    */
   private calculateRainScore(rainTotal: number, rainHours: number): number {
-    if (rainTotal >= 5) return 15;
+    if (rainTotal >= 50) return 40;
+    if (rainTotal >= 30) return 30;
+    if (rainTotal >= 15) return 20;
     if (rainHours >= 6) return 10;
     return 0;
   }
 
   /**
-   * Tính điểm sương mù / trời âm u (0-25 điểm)
+   * Tính điểm gió (0-25 điểm) - Yếu tố mới so với đạo ôn
    */
-  private calculateFogScore(cloudCoverAvg: number, visibilityAvg: number, fogHours: number): number {
-    if (cloudCoverAvg >= 70) return 25;
-    if (visibilityAvg < 2000) return 25;
-    if (fogHours >= 4) return 25;
+  private calculateWindScore(windMax: number, windAvg: number): number {
+    if (windMax >= 20) return 25;
+    if (windMax >= 15 || windAvg >= 12) return 15;
+    if (windAvg >= 8) return 10;
+    return 0;
+  }
+
+  /**
+   * Tính điểm ngập úng (0-20 điểm) - Yếu tố mới
+   */
+  private calculateFloodScore(rain3Days: number): number {
+    if (rain3Days >= 100) return 20;
+    if (rain3Days >= 70) return 15;
+    if (rain3Days >= 50) return 10;
     return 0;
   }
 
   /**
    * Phân tích mức độ cảnh báo dựa trên dữ liệu 7 ngày
    */
-  private analyzeRiskLevel(dailyData: DailyRiskData[]): {
+  private analyzeRiskLevel(dailyData: BacterialBlightDailyRiskData[]): {
     riskLevel: string;
     probability: number;
     peakDays: string;
-    highRiskDays: DailyRiskData[];
+    highRiskDays: BacterialBlightDailyRiskData[];
   } {
-    // Tìm ngày có điểm cao nhất
     const maxScore = Math.max(...dailyData.map(d => d.riskScore));
     const highRiskDays = dailyData.filter(d => d.riskScore >= 70).sort((a, b) => b.riskScore - a.riskScore);
 
-    // Tính xác suất nhiễm bệnh
     const probability = Math.min(100, Math.round(maxScore * 0.9 + 15));
 
-    // Xác định mức độ cảnh báo
     let riskLevel = 'AN TOÀN';
     let peakDays = '';
 
-    // Quy tắc A: Có ít nhất 1 ngày >= 100 điểm → CẢNH BÁO ĐỎ
     if (dailyData.some(d => d.riskScore >= 100)) {
       riskLevel = 'RẤT CAO';
       const redDays = dailyData.filter(d => d.riskScore >= 100);
       peakDays = this.formatPeakDays(redDays);
-    }
-    // Quy tắc B: Có ít nhất 2 ngày liên tiếp >= 80 điểm → CẢNH BÁO SỚM
-    else if (this.hasConsecutiveDays(dailyData, 80, 2)) {
+    } else if (this.hasConsecutiveDays(dailyData, 80, 2)) {
       riskLevel = 'CAO';
       const orangeDays = dailyData.filter(d => d.riskScore >= 80);
       peakDays = this.formatPeakDays(orangeDays);
-    }
-    // Quy tắc C: Có ít nhất 3 ngày liên tiếp >= 70 điểm → CẢNH BÁO VÀNG
-    else if (this.hasConsecutiveDays(dailyData, 70, 3)) {
+    } else if (this.hasConsecutiveDays(dailyData, 70, 3)) {
       riskLevel = 'TRUNG BÌNH';
       const yellowDays = dailyData.filter(d => d.riskScore >= 70);
       peakDays = this.formatPeakDays(yellowDays);
-    }
-    // Nguy cơ thấp
-    else if (maxScore >= 50) {
+    } else if (maxScore >= 50) {
       riskLevel = 'THẤP';
     }
 
@@ -344,7 +313,7 @@ export class AiRiceBlastService {
   /**
    * Kiểm tra có N ngày liên tiếp >= threshold không
    */
-  private hasConsecutiveDays(dailyData: DailyRiskData[], threshold: number, count: number): boolean {
+  private hasConsecutiveDays(dailyData: BacterialBlightDailyRiskData[], threshold: number, count: number): boolean {
     let consecutive = 0;
     for (const day of dailyData) {
       if (day.riskScore >= threshold) {
@@ -358,24 +327,23 @@ export class AiRiceBlastService {
   }
 
   /**
-   * Format ngày cao điểm (VD: "30/11 – 02/12")
+   * Format ngày cao điểm
    */
-  private formatPeakDays(days: DailyRiskData[]): string {
+  private formatPeakDays(days: BacterialBlightDailyRiskData[]): string {
     if (days.length === 0) return '';
     if (days.length === 1) return days[0]?.date || '';
     return `${days[0]?.date || ''} – ${days[days.length - 1]?.date || ''}`;
   }
 
   /**
-   * Tạo tin nhắn cảnh báo tiếng Việt đẹp
+   * Tạo tin nhắn cảnh báo tiếng Việt
    */
   private generateWarningMessage(
-    analysis: { riskLevel: string; probability: number; peakDays: string; highRiskDays: DailyRiskData[] },
+    analysis: { riskLevel: string; probability: number; peakDays: string; highRiskDays: BacterialBlightDailyRiskData[] },
     locationName: string,
   ): string {
     const { riskLevel, peakDays, highRiskDays } = analysis;
 
-    // Lấy ngày hôm nay và ngày mai
     const today = new Date();
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -383,36 +351,42 @@ export class AiRiceBlastService {
     const tomorrowStr = `${tomorrow.getDate()}/${tomorrow.getMonth() + 1}`;
 
     if (riskLevel === 'RẤT CAO') {
-      const maxLWD = Math.max(...highRiskDays.map(d => d.lwdHours));
-      return `🔴 CẢNH BÁO ĐỎ BỆNH ĐẠO ÔN
+      const maxRain = Math.max(...highRiskDays.map(d => d.rainTotal));
+      const maxWind = Math.max(...highRiskDays.map(d => d.windSpeedMax));
+      return `🔴 CẢNH BÁO ĐỎ BỆNH CHÁY BÌA LÁ
 
 📍 ${locationName}
 ⚠️ Nguy cơ bùng phát TRONG 2–4 NGÀY TỚI (${peakDays})
-🌫️ Sương mù dày + lá ướt ${maxLWD} giờ → CỰC KỲ THUẬN LỢI cho nấm!
+🌧️ Mưa lớn ${maxRain.toFixed(1)}mm + gió mạnh ${maxWind.toFixed(1)} km/h → VI KHUẨN LÂY LAN NHANH!
 
-💊 KHUYẾN CÁO: Phun NGAY hôm nay hoặc ngày mai (${todayStr}–${tomorrowStr}) khi trời còn khô ráo
+💊 KHUYẾN CÁO: Phun NGAY hôm nay hoặc ngày mai (${todayStr}–${tomorrowStr}) trước khi mưa
 
 🧪 Hoạt chất khuyên dùng:
-• Tricyclazole
-• Tebuconazole + Trifloxystrobin
-• Isoprothiolane
-• Propineb + Kasugamycin
+• Streptomycin sulfate
+• Copper hydroxide (Đồng)
+• Validamycin + Kasugamycin
+• Bismerthiazol
 
 ⏰ Phun vào sáng sớm (5–7h) hoặc chiều mát (16–18h)
-💧 Dùng đủ nước (400–500 lít/ha) để thuốc phủ đều`;
+💧 Dùng đủ nước (400–500 lít/ha) để thuốc phủ đều
+⚠️ TRÁNH phun khi có mưa hoặc gió mạnh`;
     }
 
     if (riskLevel === 'CAO') {
-      const avgLWD = Math.round(this.average(highRiskDays.map(d => d.lwdHours)));
+      const avgRain = Math.round(this.average(highRiskDays.map(d => d.rainTotal)));
       return `🟠 CẢNH BÁO SỚM – Nguy cơ đang tăng cao
 
 📍 ${locationName}
 ⚠️ Dự báo 3–5 ngày tới có điều kiện thuận lợi (${peakDays})
-🌧️ Lá ướt ${avgLWD} giờ + độ ẩm cao → nguy cơ lây nhiễm
+🌧️ Mưa ${avgRain}mm + độ ẩm cao → nguy cơ lây nhiễm
 
 💊 KHUYẾN CÁO: Chuẩn bị thuốc và theo dõi thêm 1–2 ngày
 Nếu thấy vết bệnh → phun NGAY
-`;
+
+🧪 Hoạt chất khuyên dùng:
+• Streptomycin sulfate
+• Copper hydroxide
+• Validamycin + Kasugamycin`;
     }
 
     if (riskLevel === 'TRUNG BÌNH') {
@@ -437,7 +411,7 @@ Kiểm tra lá lúa mỗi ngày, nếu thấy vết bệnh → phun ngay`;
     return `✅ HIỆN TẠI AN TOÀN
 
 📍 ${locationName}
-✅ Chưa có dấu hiệu nguy cơ bệnh đạo ôn
+✅ Chưa có dấu hiệu nguy cơ bệnh cháy bìa lá
 🔍 Hệ thống sẽ tiếp tục theo dõi và cảnh báo khi cần`;
   }
 

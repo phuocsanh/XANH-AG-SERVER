@@ -28,6 +28,8 @@ import { PaymentAllocationModule } from './modules/payment-allocation/payment-al
 import { DebtNoteModule } from './modules/debt-note/debt-note.module';
 import { SalesReturnModule } from './modules/sales-return/sales-return.module';
 import { AiRiceBlastModule } from './modules/ai-rice-blast/ai-rice-blast.module';
+import { LocationModule } from './modules/location/location.module';
+import { AiBacterialBlightModule } from './modules/ai-bacterial-blight/ai-bacterial-blight.module';
 
 /**
  * Module chính của ứng dụng NestJS
@@ -93,7 +95,9 @@ import { AiRiceBlastModule } from './modules/ai-rice-blast/ai-rice-blast.module'
     PaymentAllocationModule,
     DebtNoteModule,
     SalesReturnModule,
-    AiRiceBlastModule,
+    LocationModule, // Module quản lý vị trí ruộng lúa (shared)
+    AiRiceBlastModule, // Module cảnh báo bệnh đạo ôn
+    AiBacterialBlightModule, // Module cảnh báo bệnh cháy bìa lá
   ],
   controllers: [], // Các controller global (nếu có)
   providers: [
