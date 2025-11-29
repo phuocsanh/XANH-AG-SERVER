@@ -69,17 +69,34 @@ export class AiRiceBlastService {
       // 2. Gọi API Open-Meteo để lấy dữ liệu thời tiết 7 ngày
       const weatherData = await this.fetchWeatherData(location.lat, location.lon);
 
-      // 3. Tính toán nguy cơ bệnh từng ngày
+      // 3. Chạy phân tích với dữ liệu thời tiết
+      return this.runAnalysisWithWeatherData(weatherData);
+
+    } catch (error) {
+      const err = error as Error;
+      this.logger.error(`❌ Lỗi khi phân tích: ${err.message}`, err.stack);
+      throw error;
+    }
+  }
+
+  /**
+   * Chạy phân tích với dữ liệu thời tiết đã có sẵn
+   * Method này được gọi khi LocationService trigger phân tích cho nhiều module
+   */
+  async runAnalysisWithWeatherData(weatherData: any): Promise<RiceBlastWarning> {
+    try {
+      const location = await this.locationService.getLocation();
+
+      // Tính toán nguy cơ bệnh từng ngày
       const dailyData = this.calculateDailyRisk(weatherData);
 
-      // 4. Phân tích mức độ cảnh báo
+      // Phân tích mức độ cảnh báo
       const analysis = this.analyzeRiskLevel(dailyData);
 
-      // 5. Tạo tin nhắn cảnh báo
+      // Tạo tin nhắn cảnh báo
       const message = this.generateWarningMessage(analysis, location.name);
 
-      // 6. Lưu kết quả vào database (UPSERT id = 1)
-      // 6. Lưu kết quả vào database (UPSERT id = 1)
+      // Lưu kết quả vào database (UPSERT id = 1)
       const warningData = {
         generated_at: new Date(),
         risk_level: analysis.riskLevel,

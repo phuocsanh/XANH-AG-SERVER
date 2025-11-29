@@ -47,6 +47,24 @@ export class AiPestWarningService {
     try {
       const location = await this.locationService.getLocation();
       const weatherData = await this.fetchWeatherData(location.lat, location.lon);
+      
+      return this.runAnalysisWithWeatherData(weatherData);
+
+    } catch (error) {
+      const err = error as Error;
+      this.logger.error(`❌ Lỗi khi phân tích sâu hại: ${err.message}`, err.stack);
+      throw error;
+    }
+  }
+
+  /**
+   * Chạy phân tích với dữ liệu thời tiết đã có sẵn
+   * Method này được gọi khi LocationService trigger phân tích cho nhiều module
+   */
+  async runAnalysisWithWeatherData(weatherData: any): Promise<PestWarning> {
+    try {
+      const location = await this.locationService.getLocation();
+      
       const dailyData = this.calculateDailyRisk(weatherData);
       const analysis = this.analyzeRiskLevel(dailyData);
       const message = this.generateWarningMessage(analysis, location.name);

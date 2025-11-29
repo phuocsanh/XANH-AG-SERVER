@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { LocationController } from './location.controller';
 import { LocationService } from './location.service';
+import { WeatherService } from './weather.service';
 import { Location } from '../../entities/location.entity';
 
 /**
@@ -13,7 +14,7 @@ import { Location } from '../../entities/location.entity';
     TypeOrmModule.forFeature([Location]),
   ],
   controllers: [LocationController],
-  providers: [LocationService],
-  exports: [LocationService], // Export để các module khác sử dụng
+  providers: [LocationService, WeatherService],
+  exports: [LocationService, WeatherService], // Export cả WeatherService
 })
 export class LocationModule {}
