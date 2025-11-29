@@ -19,6 +19,7 @@ export class AiPestWarningController {
   @ApiOperation({ summary: 'Lấy cảnh báo sâu hại mới nhất' })
   @ApiResponse({ status: 200, type: PestWarning })
   async getWarning(): Promise<PestWarning> {
+    this.logger.log('GET /ai-pest-warning/warning');
     return this.aiPestWarningService.getWarning();
   }
 
@@ -28,6 +29,7 @@ export class AiPestWarningController {
   @ApiOperation({ summary: 'Chạy phân tích sâu hại ngay lập tức' })
   @ApiResponse({ status: 200, type: PestWarning })
   async runAnalysisNow(): Promise<PestWarning> {
+    this.logger.log('POST /ai-pest-warning/run-now - Manual trigger');
     return this.aiPestWarningService.runAnalysis();
   }
 }
