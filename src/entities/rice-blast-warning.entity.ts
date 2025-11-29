@@ -35,7 +35,7 @@ export interface DailyRiskData {
 @Entity('rice_blast_warnings')
 export class RiceBlastWarning {
   @ApiProperty({ description: 'ID cố định = 1', example: 1 })
-  @PrimaryColumn({ type: 'bigint', default: 1 })
+  @PrimaryColumn({ type: 'int', default: 1 })
   id!: number;
 
   @ApiProperty({ description: 'Thời điểm tạo cảnh báo' })

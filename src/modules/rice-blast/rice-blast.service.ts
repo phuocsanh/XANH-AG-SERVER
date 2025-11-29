@@ -5,6 +5,7 @@ import { Location } from '../../entities/location.entity';
 import { RiceBlastWarning, DailyRiskData } from '../../entities/rice-blast-warning.entity';
 import { UpdateLocationDto } from './dto/update-location.dto';
 import axios from 'axios';
+import * as https from 'https';
 
 /**
  * Interface cho dữ liệu thời tiết từ Open-Meteo API
@@ -59,10 +60,21 @@ export class RiceBlastService {
   async updateLocation(dto: UpdateLocationDto): Promise<Location> {
     this.logger.log(`Cập nhật vị trí: ${dto.name} (${dto.lat}, ${dto.lon})`);
     
-    const location = await this.locationRepository.save({
-      id: 1,
-      ...dto,
-    });
+    let location = await this.locationRepository.findOne({ where: { id: 1 } });
+
+    if (location) {
+      await this.locationRepository.update(1, dto);
+      location = await this.locationRepository.findOne({ where: { id: 1 } });
+    } else {
+      location = await this.locationRepository.save({
+        id: 1,
+        ...dto,
+      });
+    }
+
+    if (!location) {
+      throw new Error('Failed to update location');
+    }
 
     // Sau khi cập nhật vị trí, chạy phân tích ngay
     await this.runAnalysis();
@@ -114,15 +126,31 @@ export class RiceBlastService {
       const message = this.generateWarningMessage(analysis, location.name);
 
       // 6. Lưu kết quả vào database (UPSERT id = 1)
-      const warning = await this.warningRepository.save({
-        id: 1,
+      // 6. Lưu kết quả vào database (UPSERT id = 1)
+      const warningData = {
         generated_at: new Date(),
         risk_level: analysis.riskLevel,
         probability: analysis.probability,
         message: message,
         peak_days: analysis.peakDays,
         daily_data: dailyData,
-      });
+      };
+
+      let warning = await this.warningRepository.findOne({ where: { id: 1 } });
+      
+      if (warning) {
+        await this.warningRepository.update(1, warningData);
+        warning = await this.warningRepository.findOne({ where: { id: 1 } });
+      } else {
+        warning = await this.warningRepository.save({
+          id: 1,
+          ...warningData,
+        });
+      }
+
+      if (!warning) {
+        throw new Error('Failed to save warning');
+      }
 
       this.logger.log(`✅ Phân tích hoàn tất: ${analysis.riskLevel} (${analysis.probability}%)`);
       return warning;
@@ -156,8 +184,19 @@ export class RiceBlastService {
     };
 
     this.logger.log(`🌤️  Đang lấy dữ liệu thời tiết từ Open-Meteo...`);
-    const response = await axios.get(url, { params });
-    return response.data;
+    try {
+      // Force IPv4 to avoid Docker IPv6 resolution issues
+      const agent = new https.Agent({ family: 4 });
+      const response = await axios.get(url, { 
+        params, 
+        timeout: 10000, // Tăng timeout lên 10s
+        httpsAgent: agent
+      });
+      return response.data;
+    } catch (error) {
+      this.logger.error(`❌ Không thể kết nối đến Open-Meteo API: ${error}`);
+      throw new Error('Lỗi kết nối mạng hoặc API thời tiết không phản hồi. Vui lòng kiểm tra kết nối internet.');
+    }
   }
 
   /**

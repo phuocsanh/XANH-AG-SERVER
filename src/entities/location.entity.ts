@@ -8,7 +8,7 @@ import { ApiProperty } from '@nestjs/swagger';
 @Entity('locations')
 export class Location {
   @ApiProperty({ description: 'ID cố định = 1', example: 1 })
-  @PrimaryColumn({ type: 'bigint', default: 1 })
+  @PrimaryColumn({ type: 'int', default: 1 })
   id!: number;
 
   @ApiProperty({ 
