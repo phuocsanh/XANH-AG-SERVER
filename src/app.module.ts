@@ -30,7 +30,11 @@ import { SalesReturnModule } from './modules/sales-return/sales-return.module';
 import { AiRiceBlastModule } from './modules/ai-rice-blast/ai-rice-blast.module';
 import { LocationModule } from './modules/location/location.module';
 import { AiBacterialBlightModule } from './modules/ai-bacterial-blight/ai-bacterial-blight.module';
-import { AiPestWarningModule } from './modules/ai-pest-warning/ai-pest-warning.module';
+import { AiStemBorerModule } from './modules/ai-stem-borer/ai-stem-borer.module';
+import { AiGallMidgeModule } from './modules/ai-gall-midge/ai-gall-midge.module';
+import { AiBrownPlantHopperModule } from './modules/ai-brown-plant-hopper/ai-brown-plant-hopper.module';
+import { AiSheathBlightModule } from './modules/ai-sheath-blight/ai-sheath-blight.module';
+import { AiGrainDiscolorationModule } from './modules/ai-grain-discoloration/ai-grain-discoloration.module';
 
 /**
  * Module chính của ứng dụng NestJS
@@ -99,7 +103,11 @@ import { AiPestWarningModule } from './modules/ai-pest-warning/ai-pest-warning.m
     LocationModule, // Module quản lý vị trí ruộng lúa (shared)
     AiRiceBlastModule, // Module cảnh báo bệnh đạo ôn
     AiBacterialBlightModule, // Module cảnh báo bệnh cháy bìa lá
-    AiPestWarningModule, // Module cảnh báo sâu hại (Sâu đục thân, Muỗi hành)
+    AiStemBorerModule, // Module cảnh báo Sâu Đục Thân
+    AiGallMidgeModule, // Module cảnh báo Muỗi Hành
+    AiBrownPlantHopperModule, // Module cảnh báo Rầy Nâu
+    AiSheathBlightModule, // Module cảnh báo Bệnh Khô Vằn
+    AiGrainDiscolorationModule, // Module cảnh báo Bệnh Lem Lép Hạt
   ],
   controllers: [], // Các controller global (nếu có)
   providers: [
