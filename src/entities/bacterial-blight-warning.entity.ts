@@ -41,9 +41,6 @@ export class BacterialBlightWarning {
   @Column({ name: 'risk_level', type: 'varchar', length: 50 })
   risk_level!: string;
 
-  @Column({ name: 'probability', type: 'int' })
-  probability!: number; // 0-100%
-
   @Column({ name: 'message', type: 'text' })
   message!: string;
 

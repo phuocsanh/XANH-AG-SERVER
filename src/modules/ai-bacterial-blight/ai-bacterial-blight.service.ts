@@ -43,7 +43,6 @@ export class AiBacterialBlightService {
         id: 1,
         generated_at: new Date(),
         risk_level: 'ĐANG CHỜ CẬP NHẬT',
-        probability: 0,
         message: 'Hệ thống đang khởi động. Vui lòng chờ phân tích tự động hoặc bấm "Chạy ngay".',
         peak_days: null,
         daily_data: [],
@@ -97,7 +96,6 @@ export class AiBacterialBlightService {
       const warningData = {
         generated_at: new Date(),
         risk_level: analysis.riskLevel,
-        probability: analysis.probability,
         message: message,
         peak_days: analysis.peakDays,
         daily_data: dailyData,
@@ -119,7 +117,7 @@ export class AiBacterialBlightService {
         throw new Error('Failed to save warning');
       }
 
-      this.logger.log(`✅ Phân tích hoàn tất: ${analysis.riskLevel} (${analysis.probability}%)`);
+      this.logger.log(`✅ Phân tích hoàn tất: ${analysis.riskLevel}`);
       return warning;
 
     } catch (error) {
@@ -322,7 +320,6 @@ export class AiBacterialBlightService {
    */
   private analyzeRiskLevel(dailyData: BacterialBlightDailyRiskData[]): {
     riskLevel: string;
-    probability: number;
     peakDays: string;
     highRiskDays: BacterialBlightDailyRiskData[];
   } {
@@ -332,33 +329,6 @@ export class AiBacterialBlightService {
     // ✨ KIỂM TRA WEATHER PATTERN
     const rainyDays = this.countRainyDays(dailyData);
     const cumulative = this.calculateCumulativeRisk(dailyData);
-
-    // Tính xác suất theo ngưỡng (threshold-based)
-    let probability: number;
-    if (maxScore >= 100) {
-      probability = 80 + Math.min(20, Math.round((maxScore - 100) * 0.5));
-    } else if (maxScore >= 80) {
-      probability = 65 + Math.round((maxScore - 80) * 0.75);
-    } else if (maxScore >= 70) {
-      probability = 50 + Math.round((maxScore - 70) * 1.5);
-    } else if (maxScore >= 50) {
-      probability = 30 + Math.round((maxScore - 50));
-    } else if (maxScore >= 30) {
-      probability = 15 + Math.round((maxScore - 30) * 0.75);
-    } else {
-      probability = Math.round(maxScore * 0.5);
-    }
-
-    // ✨ ĐIỀU CHỈNH PROBABILITY DỰA TRÊN PATTERN
-    // Bệnh cháy bìa lá cần mưa nhiều ngày liên tiếp
-    if (rainyDays < 3) {
-      // Ít ngày mưa → Giảm 40%
-      probability = Math.round(probability * 0.6);
-    } else if (rainyDays < 5) {
-      // Mưa vừa phải → Giảm 20%
-      probability = Math.round(probability * 0.8);
-    }
-    probability = Math.min(100, Math.max(10, probability));
 
     // ✨ XÁC ĐỊNH RISK_LEVEL VỚI LOGIC PATTERN
     let riskLevel = 'AN TOÀN';
@@ -399,7 +369,7 @@ export class AiBacterialBlightService {
       riskLevel = 'THẤP';
     }
 
-    return { riskLevel, probability, peakDays, highRiskDays };
+    return { riskLevel, peakDays, highRiskDays };
   }
 
   /**
@@ -431,7 +401,7 @@ export class AiBacterialBlightService {
    * Tạo tin nhắn cảnh báo tiếng Việt
    */
   private generateWarningMessage(
-    analysis: { riskLevel: string; probability: number; peakDays: string; highRiskDays: BacterialBlightDailyRiskData[] },
+    analysis: { riskLevel: string; peakDays: string; highRiskDays: BacterialBlightDailyRiskData[] },
     locationName: string,
   ): string {
     const { riskLevel, peakDays, highRiskDays } = analysis;
