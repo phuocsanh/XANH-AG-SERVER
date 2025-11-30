@@ -24,6 +24,7 @@ export class AiGallMidgeService {
         generated_at: new Date(),
         risk_level: 'ĐANG CHỜ CẬP NHẬT',
         message: 'Hệ thống đang khởi động...',
+        peak_days: null,
         daily_data: [],
       });
     }
@@ -54,6 +55,7 @@ export class AiGallMidgeService {
         generated_at: new Date(),
         risk_level: analysis.riskLevel,
         message: message,
+        peak_days: analysis.peakDays,
         daily_data: dailyData,
       };
 
@@ -131,14 +133,21 @@ export class AiGallMidgeService {
     return dailyData;
   }
 
-  private analyzeRiskLevel(dailyData: GallMidgeDailyRiskData[]): { riskLevel: string; highRiskDays: string[] } {
+  private analyzeRiskLevel(dailyData: GallMidgeDailyRiskData[]): { riskLevel: string; peakDays: string; highRiskDays: string[] } {
     const maxScore = Math.max(...dailyData.map(d => d.riskScore));
     let riskLevel = 'THẤP';
     if (maxScore >= 80) riskLevel = 'CAO';
     else if (maxScore >= 50) riskLevel = 'TRUNG BÌNH';
 
     const highRiskDays = dailyData.filter(d => d.riskScore >= 50).map(d => d.date);
-    return { riskLevel, highRiskDays };
+    const peakDays = this.formatPeakDays(highRiskDays);
+    return { riskLevel, peakDays, highRiskDays };
+  }
+
+  private formatPeakDays(days: string[]): string {
+    if (days.length === 0) return '';
+    if (days.length === 1) return days[0] || '';
+    return `${days[0] || ''} – ${days[days.length - 1] || ''}`;
   }
 
   private generateWarningMessage(

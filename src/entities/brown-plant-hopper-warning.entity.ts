@@ -36,6 +36,10 @@ export class BrownPlantHopperWarning {
   @Column({ type: 'text' })
   message!: string;
 
+  @ApiProperty({ description: 'Ngày cao điểm', example: '30/11 – 02/12', nullable: true })
+  @Column({ type: 'text', nullable: true })
+  peak_days!: string | null;
+
   @ApiProperty({ description: 'Dữ liệu chi tiết từng ngày' })
   @Column({ type: 'jsonb' })
   daily_data!: BPHDailyRiskData[];

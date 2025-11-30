@@ -46,7 +46,6 @@ export class AiRiceBlastService {
         id: 1,
         generated_at: new Date(),
         risk_level: 'ĐANG CHỜ CẬP NHẬT',
-        probability: 0,
         message: 'Hệ thống đang khởi động. Vui lòng chờ phân tích tự động hoặc bấm "Chạy ngay".',
         peak_days: null,
         daily_data: [],
@@ -100,7 +99,6 @@ export class AiRiceBlastService {
       const warningData = {
         generated_at: new Date(),
         risk_level: analysis.riskLevel,
-        probability: analysis.probability,
         message: message,
         peak_days: analysis.peakDays,
         daily_data: dailyData,
@@ -122,7 +120,7 @@ export class AiRiceBlastService {
         throw new Error('Failed to save warning');
       }
 
-      this.logger.log(`✅ Phân tích hoàn tất: ${analysis.riskLevel} (${analysis.probability}%)`);
+      this.logger.log(`✅ Phân tích hoàn tất: ${analysis.riskLevel}`);
       return warning;
 
     } catch (error) {
@@ -388,7 +386,6 @@ export class AiRiceBlastService {
    */
   private analyzeRiskLevel(dailyData: DailyRiskData[]): {
     riskLevel: string;
-    probability: number;
     peakDays: string;
     highRiskDays: DailyRiskData[];
   } {
@@ -401,43 +398,6 @@ export class AiRiceBlastService {
     const hasInfection = this.hasInfectionPattern(dailyData);      // Điều kiện nhiễm bệnh
     const rainyDays = this.countRainyDays(dailyData);              // Số ngày mưa
     const cumulative = this.calculateCumulativeRisk(dailyData);    // Điểm tích lũy
-
-    // Tính xác suất nhiễm bệnh theo ngưỡng (threshold-based)
-    let probability: number;
-    if (maxScore >= 100) {
-      probability = 80 + Math.min(20, Math.round((maxScore - 100) * 0.5));
-    } else if (maxScore >= 80) {
-      probability = 65 + Math.round((maxScore - 80) * 0.75);
-    } else if (maxScore >= 70) {
-      probability = 50 + Math.round((maxScore - 70) * 1.5);
-    } else if (maxScore >= 50) {
-      probability = 30 + Math.round((maxScore - 50));
-    } else if (maxScore >= 30) {
-      probability = 15 + Math.round((maxScore - 30) * 0.75);
-    } else {
-      probability = Math.round(maxScore * 0.5);
-    }
-
-    // ✨ ĐIỀU CHỈNH PROBABILITY DỰA TRÊN PATTERN
-    // Kiểm tra có ngày liên tiếp riskScore cao không (≥ 80)
-    const hasConsecutiveHighRisk = this.hasConsecutiveDays(dailyData, 80, 2);
-    
-    // Nếu thiếu pattern thuận lợi → Giảm probability
-    // NHƯNG nếu có nhiều ngày liên tiếp riskScore cao → Chỉ giảm nhẹ
-    if (!hasSporulation && !hasInfection && rainyDays < 5) {
-      // Thiếu cả 3 điều kiện → Giảm 40%
-      probability = Math.round(probability * 0.6);
-    } else if (!hasSporulation && !hasInfection && !hasConsecutiveHighRisk) {
-      // Thiếu 2 pattern VÀ không có ngày liên tiếp cao → Giảm 30%
-      probability = Math.round(probability * 0.7);
-    } else if (!hasSporulation && !hasInfection && hasConsecutiveHighRisk) {
-      // Thiếu 2 pattern NHƯNG có ngày liên tiếp cao → Chỉ giảm 10%
-      probability = Math.round(probability * 0.9);
-    } else if (!hasSporulation || !hasInfection) {
-      // Thiếu 1 điều kiện → Giảm 15%
-      probability = Math.round(probability * 0.85);
-    }
-    probability = Math.min(100, Math.max(10, probability)); // Giới hạn 10-100%
 
     // ✨ XÁC ĐỊNH RISK_LEVEL VỚI LOGIC PATTERN
     let riskLevel = 'AN TOÀN';
@@ -478,23 +438,7 @@ export class AiRiceBlastService {
       riskLevel = 'THẤP';
     }
 
-    return { riskLevel, probability, peakDays, highRiskDays };
-  }
-
-  /**
-   * Kiểm tra có N ngày liên tiếp >= threshold không
-   */
-  private hasConsecutiveDays(dailyData: DailyRiskData[], threshold: number, count: number): boolean {
-    let consecutive = 0;
-    for (const day of dailyData) {
-      if (day.riskScore >= threshold) {
-        consecutive++;
-        if (consecutive >= count) return true;
-      } else {
-        consecutive = 0;
-      }
-    }
-    return false;
+    return { riskLevel, peakDays, highRiskDays };
   }
 
   /**
@@ -510,7 +454,7 @@ export class AiRiceBlastService {
    * Tạo tin nhắn cảnh báo tiếng Việt đẹp
    */
   private generateWarningMessage(
-    analysis: { riskLevel: string; probability: number; peakDays: string; highRiskDays: DailyRiskData[] },
+    analysis: { riskLevel: string; peakDays: string; highRiskDays: DailyRiskData[] },
     locationName: string,
   ): string {
     const { riskLevel, peakDays, highRiskDays } = analysis;

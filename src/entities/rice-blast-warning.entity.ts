@@ -50,10 +50,6 @@ export class RiceBlastWarning {
   @Column({ type: 'text' })
   risk_level!: string;
 
-  @ApiProperty({ description: 'Xác suất nhiễm bệnh (%)', example: 95 })
-  @Column({ type: 'int' })
-  probability!: number;
-
   @ApiProperty({ 
     description: 'Tin nhắn cảnh báo chi tiết', 
     example: 'CẢNH BÁO ĐỎ – Sương mù dày + lá ướt 16 giờ!\nPhun NGAY hôm nay...' 
