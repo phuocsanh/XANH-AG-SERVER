@@ -39,8 +39,7 @@ export class AiRiceBlastController {
    * Chạy phân tích bệnh đạo ôn ngay lập tức
    */
   @Post('run-now')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('RICE_BLAST_MANAGE')
+
   @ApiOperation({ summary: 'Chạy phân tích bệnh đạo ôn ngay lập tức' })
   @ApiResponse({ 
     status: 200, 

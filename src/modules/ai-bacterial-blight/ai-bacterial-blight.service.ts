@@ -293,7 +293,32 @@ export class AiBacterialBlightService {
   }
 
   /**
+   * Đếm số ngày có mưa trong 7 ngày
+   */
+  private countRainyDays(dailyData: BacterialBlightDailyRiskData[]): number {
+    return dailyData.filter(d => d.rainTotal > 0).length;
+  }
+
+  /**
+   * Tính điểm nguy cơ tích lũy (Cumulative Risk Score)
+   */
+  private calculateCumulativeRisk(dailyData: BacterialBlightDailyRiskData[]): {
+    totalScore: number;
+    avgScore: number;
+    daysAbove70: number;
+    daysAbove50: number;
+  } {
+    const totalScore = dailyData.reduce((sum, day) => sum + day.riskScore, 0);
+    const avgScore = totalScore / dailyData.length;
+    const daysAbove70 = dailyData.filter(d => d.riskScore >= 70).length;
+    const daysAbove50 = dailyData.filter(d => d.riskScore >= 50).length;
+    
+    return { totalScore, avgScore, daysAbove70, daysAbove50 };
+  }
+
+  /**
    * Phân tích mức độ cảnh báo dựa trên dữ liệu 7 ngày
+   * Áp dụng logic Weather Pattern tương tự rice-blast
    */
   private analyzeRiskLevel(dailyData: BacterialBlightDailyRiskData[]): {
     riskLevel: string;
@@ -304,24 +329,73 @@ export class AiBacterialBlightService {
     const maxScore = Math.max(...dailyData.map(d => d.riskScore));
     const highRiskDays = dailyData.filter(d => d.riskScore >= 70).sort((a, b) => b.riskScore - a.riskScore);
 
-    const probability = Math.min(100, Math.round(maxScore * 0.9 + 15));
+    // ✨ KIỂM TRA WEATHER PATTERN
+    const rainyDays = this.countRainyDays(dailyData);
+    const cumulative = this.calculateCumulativeRisk(dailyData);
 
+    // Tính xác suất theo ngưỡng (threshold-based)
+    let probability: number;
+    if (maxScore >= 100) {
+      probability = 80 + Math.min(20, Math.round((maxScore - 100) * 0.5));
+    } else if (maxScore >= 80) {
+      probability = 65 + Math.round((maxScore - 80) * 0.75);
+    } else if (maxScore >= 70) {
+      probability = 50 + Math.round((maxScore - 70) * 1.5);
+    } else if (maxScore >= 50) {
+      probability = 30 + Math.round((maxScore - 50));
+    } else if (maxScore >= 30) {
+      probability = 15 + Math.round((maxScore - 30) * 0.75);
+    } else {
+      probability = Math.round(maxScore * 0.5);
+    }
+
+    // ✨ ĐIỀU CHỈNH PROBABILITY DỰA TRÊN PATTERN
+    // Bệnh cháy bìa lá cần mưa nhiều ngày liên tiếp
+    if (rainyDays < 3) {
+      // Ít ngày mưa → Giảm 40%
+      probability = Math.round(probability * 0.6);
+    } else if (rainyDays < 5) {
+      // Mưa vừa phải → Giảm 20%
+      probability = Math.round(probability * 0.8);
+    }
+    probability = Math.min(100, Math.max(10, probability));
+
+    // ✨ XÁC ĐỊNH RISK_LEVEL VỚI LOGIC PATTERN
     let riskLevel = 'AN TOÀN';
     let peakDays = '';
 
-    if (dailyData.some(d => d.riskScore >= 100)) {
+    // Quy tắc A: maxScore >= 100 VÀ có nhiều ngày mưa
+    if (maxScore >= 100 && rainyDays >= 3) {
       riskLevel = 'RẤT CAO';
       const redDays = dailyData.filter(d => d.riskScore >= 100);
       peakDays = this.formatPeakDays(redDays);
-    } else if (this.hasConsecutiveDays(dailyData, 80, 2)) {
+    }
+    // Quy tắc B: maxScore >= 80 VÀ có pattern mạnh
+    else if (maxScore >= 80 && (this.hasConsecutiveDays(dailyData, 80, 2) || rainyDays >= 5)) {
       riskLevel = 'CAO';
       const orangeDays = dailyData.filter(d => d.riskScore >= 80);
       peakDays = this.formatPeakDays(orangeDays);
-    } else if (this.hasConsecutiveDays(dailyData, 70, 3)) {
+    }
+    // Quy tắc B2: maxScore >= 80 VÀ có ít nhất 1 pattern
+    else if (maxScore >= 80 && rainyDays >= 3) {
+      riskLevel = 'CAO';
+      const orangeDays = dailyData.filter(d => d.riskScore >= 80);
+      peakDays = this.formatPeakDays(orangeDays);
+    }
+    // Quy tắc C: maxScore >= 70 VÀ cumulative score cao
+    else if (maxScore >= 70 && cumulative.avgScore >= 50) {
       riskLevel = 'TRUNG BÌNH';
       const yellowDays = dailyData.filter(d => d.riskScore >= 70);
       peakDays = this.formatPeakDays(yellowDays);
-    } else if (maxScore >= 50) {
+    }
+    // Quy tắc C2: maxScore >= 70 NHƯNG cumulative thấp
+    else if (maxScore >= 70) {
+      riskLevel = 'THẤP';
+      const yellowDays = dailyData.filter(d => d.riskScore >= 70);
+      peakDays = this.formatPeakDays(yellowDays);
+    }
+    // Quy tắc D: maxScore >= 50
+    else if (maxScore >= 50) {
       riskLevel = 'THẤP';
     }
 

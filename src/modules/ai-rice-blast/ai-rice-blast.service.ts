@@ -200,7 +200,8 @@ export class AiRiceBlastService {
       const visibilityAvg = this.average(visibilities);
 
       // Tính số giờ lá ướt (LWD) - YẾU TỐ QUAN TRỌNG NHẤT
-      const lwdHours = this.calculateLWD(temps, humidities, dewPoints);
+      // Bao gồm cả thời gian có mưa
+      const lwdHours = this.calculateLWD(temps, humidities, dewPoints, rains);
 
       // Tính số giờ có mưa
       const rainHours = rains.filter(r => r > 0).length;
@@ -232,7 +233,9 @@ export class AiRiceBlastService {
       const formattedDate = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}`;
       const dayOfWeek = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][date.getDay()] || 'CN';
 
+
       dailyData.push({
+
         date: formattedDate,
         dayOfWeek,
         tempMin,
@@ -262,12 +265,15 @@ export class AiRiceBlastService {
 
   /**
    * Tính số giờ lá ướt (Leaf Wetness Duration)
-   * Điều kiện: RH >= 90% VÀ Temp <= DewPoint + 1.0°C
+   * Điều kiện: (RH >= 90% VÀ Temp <= DewPoint + 1.0°C) HOẶC (Có mưa > 0mm)
    */
-  private calculateLWD(temps: number[], humidities: number[], dewPoints: number[]): number {
+  private calculateLWD(temps: number[], humidities: number[], dewPoints: number[], rains: number[]): number {
     let lwdHours = 0;
     for (let i = 0; i < temps.length; i++) {
-      if ((humidities[i] ?? 0) >= 90 && (temps[i] ?? 0) <= (dewPoints[i] ?? 0) + 1.0) {
+      const isWetByDew = (humidities[i] ?? 0) >= 90 && (temps[i] ?? 0) <= (dewPoints[i] ?? 0) + 1.0;
+      const isWetByRain = (rains[i] ?? 0) > 0;
+      
+      if (isWetByDew || isWetByRain) {
         lwdHours++;
       }
     }
@@ -313,7 +319,72 @@ export class AiRiceBlastService {
   }
 
   /**
+   * Kiểm tra có chuỗi ngày thuận lợi SẢN XUẤT bào tử không
+   * Điều kiện: RH ≥ 93%, Temp 20-27°C, ít nhất 3 ngày liên tiếp
+   */
+  private hasSporulationPattern(dailyData: DailyRiskData[]): boolean {
+    let consecutiveDays = 0;
+    
+    for (const day of dailyData) {
+      // Điều kiện sản xuất bào tử theo nghiên cứu khoa học
+      if (day.humidityAvg >= 93 && day.tempAvg >= 20 && day.tempAvg <= 27) {
+        consecutiveDays++;
+        if (consecutiveDays >= 3) return true; // 3+ ngày liên tiếp
+      } else {
+        consecutiveDays = 0; // Reset nếu gián đoạn
+      }
+    }
+    
+    return false;
+  }
+
+  /**
+   * Kiểm tra có chuỗi ngày thuận lợi NHIỄM BỆNH không
+   * Điều kiện: LWD ≥ 10h, RH ≥ 90%, ít nhất 2 ngày liên tiếp
+   */
+  private hasInfectionPattern(dailyData: DailyRiskData[]): boolean {
+    let consecutiveDays = 0;
+    
+    for (const day of dailyData) {
+      // Điều kiện nhiễm bệnh: lá ướt lâu + độ ẩm cao
+      if (day.lwdHours >= 10 && day.humidityAvg >= 90) {
+        consecutiveDays++;
+        if (consecutiveDays >= 2) return true; // 2+ ngày liên tiếp
+      } else {
+        consecutiveDays = 0;
+      }
+    }
+    
+    return false;
+  }
+
+  /**
+   * Đếm số ngày có mưa trong 7 ngày
+   */
+  private countRainyDays(dailyData: DailyRiskData[]): number {
+    return dailyData.filter(d => d.rainTotal > 0).length;
+  }
+
+  /**
+   * Tính điểm nguy cơ tích lũy (Cumulative Risk Score - theo EPIRICE)
+   */
+  private calculateCumulativeRisk(dailyData: DailyRiskData[]): {
+    totalScore: number;
+    avgScore: number;
+    daysAbove70: number;
+    daysAbove50: number;
+  } {
+    const totalScore = dailyData.reduce((sum, day) => sum + day.riskScore, 0);
+    const avgScore = totalScore / dailyData.length;
+    const daysAbove70 = dailyData.filter(d => d.riskScore >= 70).length;
+    const daysAbove50 = dailyData.filter(d => d.riskScore >= 50).length;
+    
+    return { totalScore, avgScore, daysAbove70, daysAbove50 };
+  }
+
+  /**
    * Phân tích mức độ cảnh báo dựa trên dữ liệu 7 ngày
+   * Áp dụng logic Weather Pattern theo chuẩn EPIRICE và nghiên cứu khoa học
    */
   private analyzeRiskLevel(dailyData: DailyRiskData[]): {
     riskLevel: string;
@@ -325,32 +396,84 @@ export class AiRiceBlastService {
     const maxScore = Math.max(...dailyData.map(d => d.riskScore));
     const highRiskDays = dailyData.filter(d => d.riskScore >= 70).sort((a, b) => b.riskScore - a.riskScore);
 
-    // Tính xác suất nhiễm bệnh
-    const probability = Math.min(100, Math.round(maxScore * 0.9 + 15));
+    // ✨ KIỂM TRA WEATHER PATTERN (Chuỗi mẫu thời tiết)
+    const hasSporulation = this.hasSporulationPattern(dailyData);  // Điều kiện sản xuất bào tử
+    const hasInfection = this.hasInfectionPattern(dailyData);      // Điều kiện nhiễm bệnh
+    const rainyDays = this.countRainyDays(dailyData);              // Số ngày mưa
+    const cumulative = this.calculateCumulativeRisk(dailyData);    // Điểm tích lũy
 
-    // Xác định mức độ cảnh báo
+    // Tính xác suất nhiễm bệnh theo ngưỡng (threshold-based)
+    let probability: number;
+    if (maxScore >= 100) {
+      probability = 80 + Math.min(20, Math.round((maxScore - 100) * 0.5));
+    } else if (maxScore >= 80) {
+      probability = 65 + Math.round((maxScore - 80) * 0.75);
+    } else if (maxScore >= 70) {
+      probability = 50 + Math.round((maxScore - 70) * 1.5);
+    } else if (maxScore >= 50) {
+      probability = 30 + Math.round((maxScore - 50));
+    } else if (maxScore >= 30) {
+      probability = 15 + Math.round((maxScore - 30) * 0.75);
+    } else {
+      probability = Math.round(maxScore * 0.5);
+    }
+
+    // ✨ ĐIỀU CHỈNH PROBABILITY DỰA TRÊN PATTERN
+    // Kiểm tra có ngày liên tiếp riskScore cao không (≥ 80)
+    const hasConsecutiveHighRisk = this.hasConsecutiveDays(dailyData, 80, 2);
+    
+    // Nếu thiếu pattern thuận lợi → Giảm probability
+    // NHƯNG nếu có nhiều ngày liên tiếp riskScore cao → Chỉ giảm nhẹ
+    if (!hasSporulation && !hasInfection && rainyDays < 5) {
+      // Thiếu cả 3 điều kiện → Giảm 40%
+      probability = Math.round(probability * 0.6);
+    } else if (!hasSporulation && !hasInfection && !hasConsecutiveHighRisk) {
+      // Thiếu 2 pattern VÀ không có ngày liên tiếp cao → Giảm 30%
+      probability = Math.round(probability * 0.7);
+    } else if (!hasSporulation && !hasInfection && hasConsecutiveHighRisk) {
+      // Thiếu 2 pattern NHƯNG có ngày liên tiếp cao → Chỉ giảm 10%
+      probability = Math.round(probability * 0.9);
+    } else if (!hasSporulation || !hasInfection) {
+      // Thiếu 1 điều kiện → Giảm 15%
+      probability = Math.round(probability * 0.85);
+    }
+    probability = Math.min(100, Math.max(10, probability)); // Giới hạn 10-100%
+
+    // ✨ XÁC ĐỊNH RISK_LEVEL VỚI LOGIC PATTERN
     let riskLevel = 'AN TOÀN';
     let peakDays = '';
 
-    // Quy tắc A: Có ít nhất 1 ngày >= 100 điểm → CẢNH BÁO ĐỎ
-    if (dailyData.some(d => d.riskScore >= 100)) {
+    // Quy tắc A: maxScore >= 100 VÀ có pattern mạnh
+    if (maxScore >= 100 && (hasSporulation || hasInfection)) {
       riskLevel = 'RẤT CAO';
       const redDays = dailyData.filter(d => d.riskScore >= 100);
       peakDays = this.formatPeakDays(redDays);
     }
-    // Quy tắc B: Có ít nhất 2 ngày liên tiếp >= 80 điểm → CẢNH BÁO SỚM
-    else if (this.hasConsecutiveDays(dailyData, 80, 2)) {
+    // Quy tắc B: maxScore >= 80 VÀ có CẢ 2 pattern (sản xuất bào tử + nhiễm bệnh)
+    else if (maxScore >= 80 && hasSporulation && hasInfection) {
       riskLevel = 'CAO';
       const orangeDays = dailyData.filter(d => d.riskScore >= 80);
       peakDays = this.formatPeakDays(orangeDays);
     }
-    // Quy tắc C: Có ít nhất 3 ngày liên tiếp >= 70 điểm → CẢNH BÁO VÀNG
-    else if (this.hasConsecutiveDays(dailyData, 70, 3)) {
+    // Quy tắc B2: maxScore >= 80 VÀ có ít nhất 1 pattern HOẶC nhiều ngày mưa
+    else if (maxScore >= 80 && (hasSporulation || hasInfection || rainyDays >= 5)) {
+      riskLevel = 'CAO';
+      const orangeDays = dailyData.filter(d => d.riskScore >= 80);
+      peakDays = this.formatPeakDays(orangeDays);
+    }
+    // Quy tắc C: maxScore >= 70 VÀ cumulative score cao
+    else if (maxScore >= 70 && cumulative.avgScore >= 50) {
       riskLevel = 'TRUNG BÌNH';
       const yellowDays = dailyData.filter(d => d.riskScore >= 70);
       peakDays = this.formatPeakDays(yellowDays);
     }
-    // Nguy cơ thấp
+    // Quy tắc C2: maxScore >= 70 NHƯNG cumulative thấp → Hạ xuống THẤP
+    else if (maxScore >= 70) {
+      riskLevel = 'THẤP';
+      const yellowDays = dailyData.filter(d => d.riskScore >= 70);
+      peakDays = this.formatPeakDays(yellowDays);
+    }
+    // Quy tắc D: maxScore >= 50
     else if (maxScore >= 50) {
       riskLevel = 'THẤP';
     }
@@ -417,12 +540,12 @@ export class AiRiceBlastService {
     }
 
     if (riskLevel === 'CAO') {
-      const avgLWD = Math.round(this.average(highRiskDays.map(d => d.lwdHours)));
+      const maxLWD = Math.max(...highRiskDays.map(d => d.lwdHours));
       return `🟠 CẢNH BÁO SỚM – Nguy cơ đang tăng cao
 
 📍 ${locationName}
 ⚠️ Dự báo 3–5 ngày tới có điều kiện thuận lợi (${peakDays})
-🌧️ Lá ướt ${avgLWD} giờ + độ ẩm cao → nguy cơ lây nhiễm
+🌧️ Lá ướt lên tới ${maxLWD} giờ/ngày + độ ẩm cao → nguy cơ lây nhiễm
 
 💊 KHUYẾN CÁO: Chuẩn bị thuốc và theo dõi thêm 1–2 ngày
 Nếu thấy vết bệnh → phun NGAY
