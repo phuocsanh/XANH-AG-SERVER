@@ -82,17 +82,29 @@ export class LocationService {
       // Dynamically get services to avoid circular dependency
       const { AiRiceBlastService } = await import('../ai-rice-blast/ai-rice-blast.service');
       const { AiBacterialBlightService } = await import('../ai-bacterial-blight/ai-bacterial-blight.service');
-      const { AiPestWarningService } = await import('../ai-pest-warning/ai-pest-warning.service');
+      const { AiStemBorerService } = await import('../ai-stem-borer/ai-stem-borer.service');
+      const { AiGallMidgeService } = await import('../ai-gall-midge/ai-gall-midge.service');
+      const { AiBrownPlantHopperService } = await import('../ai-brown-plant-hopper/ai-brown-plant-hopper.service');
+      const { AiSheathBlightService } = await import('../ai-sheath-blight/ai-sheath-blight.service');
+      const { AiGrainDiscolorationService } = await import('../ai-grain-discoloration/ai-grain-discoloration.service');
 
       const riceBlastService = this.moduleRef.get(AiRiceBlastService, { strict: false });
       const bacterialBlightService = this.moduleRef.get(AiBacterialBlightService, { strict: false });
-      const pestWarningService = this.moduleRef.get(AiPestWarningService, { strict: false });
+      const stemBorerService = this.moduleRef.get(AiStemBorerService, { strict: false });
+      const gallMidgeService = this.moduleRef.get(AiGallMidgeService, { strict: false });
+      const brownPlantHopperService = this.moduleRef.get(AiBrownPlantHopperService, { strict: false });
+      const sheathBlightService = this.moduleRef.get(AiSheathBlightService, { strict: false });
+      const grainDiscolorationService = this.moduleRef.get(AiGrainDiscolorationService, { strict: false });
 
-      // Trigger analysis for all 3 modules in parallel
+      // Trigger analysis for all modules in parallel
       await Promise.all([
         riceBlastService.runAnalysisWithWeatherData(weatherData),
         bacterialBlightService.runAnalysisWithWeatherData(weatherData),
-        pestWarningService.runAnalysisWithWeatherData(weatherData),
+        stemBorerService.runAnalysisWithWeatherData(weatherData),
+        gallMidgeService.runAnalysisWithWeatherData(weatherData),
+        brownPlantHopperService.runAnalysisWithWeatherData(weatherData),
+        sheathBlightService.runAnalysisWithWeatherData(weatherData),
+        grainDiscolorationService.runAnalysisWithWeatherData(weatherData),
       ]);
 
       this.logger.log(`✅ All analyses completed successfully`);
