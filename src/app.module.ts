@@ -35,6 +35,13 @@ import { AiGallMidgeModule } from './modules/ai-gall-midge/ai-gall-midge.module'
 import { AiBrownPlantHopperModule } from './modules/ai-brown-plant-hopper/ai-brown-plant-hopper.module';
 import { AiSheathBlightModule } from './modules/ai-sheath-blight/ai-sheath-blight.module';
 import { AiGrainDiscolorationModule } from './modules/ai-grain-discoloration/ai-grain-discoloration.module';
+import { RiceCropModule } from './modules/rice-crop/rice-crop.module';
+import { CostItemModule } from './modules/cost-item/cost-item.module';
+import { HarvestRecordModule } from './modules/harvest-record/harvest-record.module';
+import { FarmingScheduleModule } from './modules/farming-schedule/farming-schedule.module';
+import { ApplicationRecordModule } from './modules/application-record/application-record.module';
+import { GrowthTrackingModule } from './modules/growth-tracking/growth-tracking.module';
+import { ProfitReportModule } from './modules/profit-report/profit-report.module';
 
 /**
  * Module chính của ứng dụng NestJS
@@ -108,6 +115,13 @@ import { AiGrainDiscolorationModule } from './modules/ai-grain-discoloration/ai-
     AiBrownPlantHopperModule, // Module cảnh báo Rầy Nâu
     AiSheathBlightModule, // Module cảnh báo Bệnh Khô Vằn
     AiGrainDiscolorationModule, // Module cảnh báo Bệnh Lem Lép Hạt
+    RiceCropModule, // Module quản lý vụ lúa của nông dân
+    CostItemModule, // Module quản lý chi phí đầu vào
+    HarvestRecordModule, // Module ghi nhận thu hoạch & doanh thu
+    FarmingScheduleModule, // Module lịch canh tác
+    ApplicationRecordModule, // Module nhật ký phun thuốc/bón phân
+    GrowthTrackingModule, // Module theo dõi sinh trưởng
+    ProfitReportModule, // Module báo cáo lợi nhuận
   ],
   controllers: [], // Các controller global (nếu có)
   providers: [

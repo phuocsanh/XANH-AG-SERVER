@@ -49,6 +49,42 @@ export async function seedRBAC(dataSource: DataSource) {
     // Report
     { code: 'REPORT_VIEW', name: 'Xem báo cáo', group: 'Report', description: 'Xem các báo cáo thống kê' },
     { code: 'REPORT_EXPORT', name: 'Xuất báo cáo', group: 'Report', description: 'Xuất báo cáo ra file' },
+    
+    // Rice Crop Management
+    { code: 'rice_crop:read', name: 'Xem vụ lúa', group: 'Rice Crop Management', description: 'Xem danh sách và chi tiết vụ lúa' },
+    { code: 'rice_crop:create', name: 'Tạo vụ lúa', group: 'Rice Crop Management', description: 'Tạo vụ lúa mới' },
+    { code: 'rice_crop:update', name: 'Cập nhật vụ lúa', group: 'Rice Crop Management', description: 'Cập nhật thông tin vụ lúa' },
+    { code: 'rice_crop:delete', name: 'Xóa vụ lúa', group: 'Rice Crop Management', description: 'Xóa vụ lúa' },
+    
+    // Cost Item Management
+    { code: 'cost_item:read', name: 'Xem chi phí', group: 'Cost Item Management', description: 'Xem danh sách chi phí' },
+    { code: 'cost_item:create', name: 'Thêm chi phí', group: 'Cost Item Management', description: 'Thêm chi phí mới' },
+    { code: 'cost_item:update', name: 'Cập nhật chi phí', group: 'Cost Item Management', description: 'Cập nhật chi phí' },
+    { code: 'cost_item:delete', name: 'Xóa chi phí', group: 'Cost Item Management', description: 'Xóa chi phí' },
+    
+    // Harvest Record Management
+    { code: 'harvest:read', name: 'Xem thu hoạch', group: 'Harvest Management', description: 'Xem thông tin thu hoạch' },
+    { code: 'harvest:create', name: 'Ghi nhận thu hoạch', group: 'Harvest Management', description: 'Ghi nhận thu hoạch mới' },
+    { code: 'harvest:update', name: 'Cập nhật thu hoạch', group: 'Harvest Management', description: 'Cập nhật thông tin thu hoạch' },
+    { code: 'harvest:delete', name: 'Xóa thu hoạch', group: 'Harvest Management', description: 'Xóa thông tin thu hoạch' },
+    
+    // Farming Schedule Management
+    { code: 'schedule:read', name: 'Xem lịch canh tác', group: 'Schedule Management', description: 'Xem lịch canh tác' },
+    { code: 'schedule:create', name: 'Tạo lịch canh tác', group: 'Schedule Management', description: 'Tạo lịch canh tác mới' },
+    { code: 'schedule:update', name: 'Cập nhật lịch', group: 'Schedule Management', description: 'Cập nhật lịch canh tác' },
+    { code: 'schedule:delete', name: 'Xóa lịch', group: 'Schedule Management', description: 'Xóa lịch canh tác' },
+    
+    // Application Record Management
+    { code: 'application:read', name: 'Xem nhật ký', group: 'Application Management', description: 'Xem nhật ký phun thuốc/bón phân' },
+    { code: 'application:create', name: 'Ghi nhật ký', group: 'Application Management', description: 'Ghi nhật ký mới' },
+    { code: 'application:update', name: 'Cập nhật nhật ký', group: 'Application Management', description: 'Cập nhật nhật ký' },
+    { code: 'application:delete', name: 'Xóa nhật ký', group: 'Application Management', description: 'Xóa nhật ký' },
+    
+    // Growth Tracking Management
+    { code: 'growth:read', name: 'Xem theo dõi', group: 'Growth Tracking', description: 'Xem theo dõi sinh trưởng' },
+    { code: 'growth:create', name: 'Ghi nhận quan sát', group: 'Growth Tracking', description: 'Ghi nhận quan sát mới' },
+    { code: 'growth:update', name: 'Cập nhật quan sát', group: 'Growth Tracking', description: 'Cập nhật quan sát' },
+    { code: 'growth:delete', name: 'Xóa quan sát', group: 'Growth Tracking', description: 'Xóa quan sát' },
   ];
 
   const createdPermissions: Permission[] = [];
@@ -81,6 +117,12 @@ export async function seedRBAC(dataSource: DataSource) {
         'SALES_VIEW', 'SALES_CREATE', 'SALES_MANAGE',
         'INVENTORY_VIEW', 'INVENTORY_MANAGE',
         'REPORT_VIEW', 'REPORT_EXPORT',
+        'rice_crop:read', 'rice_crop:create', 'rice_crop:update', 'rice_crop:delete',
+        'cost_item:read', 'cost_item:create', 'cost_item:update', 'cost_item:delete',
+        'harvest:read', 'harvest:create', 'harvest:update', 'harvest:delete',
+        'schedule:read', 'schedule:create', 'schedule:update', 'schedule:delete',
+        'application:read', 'application:create', 'application:update', 'application:delete',
+        'growth:read', 'growth:create', 'growth:update', 'growth:delete',
       ],
     },
     {
@@ -94,6 +136,12 @@ export async function seedRBAC(dataSource: DataSource) {
         'SALES_VIEW', 'SALES_CREATE',
         'INVENTORY_VIEW',
         'REPORT_VIEW',
+        'rice_crop:read', 'rice_crop:create', 'rice_crop:update',
+        'cost_item:read', 'cost_item:create', 'cost_item:update',
+        'harvest:read', 'harvest:create', 'harvest:update',
+        'schedule:read', 'schedule:create', 'schedule:update',
+        'application:read', 'application:create', 'application:update',
+        'growth:read', 'growth:create', 'growth:update',
       ],
     },
     {
@@ -104,6 +152,12 @@ export async function seedRBAC(dataSource: DataSource) {
         'RICE_BLAST_VIEW',
         'PRODUCT_VIEW',
         'SALES_VIEW',
+        'rice_crop:read', 'rice_crop:create', 'rice_crop:update',
+        'cost_item:read', 'cost_item:create', 'cost_item:update',
+        'harvest:read', 'harvest:create', 'harvest:update',
+        'schedule:read', 'schedule:create', 'schedule:update',
+        'application:read', 'application:create', 'application:update',
+        'growth:read', 'growth:create', 'growth:update',
       ],
     },
   ];
