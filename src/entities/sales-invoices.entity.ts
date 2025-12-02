@@ -12,6 +12,7 @@ import {
 import { SalesInvoiceItem } from './sales-invoice-items.entity';
 import { Season } from './season.entity';
 import { Customer } from './customer.entity';
+import { RiceCrop } from './rice-crop.entity';
 
 /**
  * Enum định nghĩa các trạng thái của hóa đơn bán hàng
@@ -107,6 +108,15 @@ export class SalesInvoice {
   @ManyToOne(() => Season, (season) => season.invoices)
   @JoinColumn({ name: 'season_id' })
   season?: Season;
+
+  /** ID vụ lúa (nullable - để biết chi phí cho ruộng nào) */
+  @Column({ name: 'rice_crop_id', nullable: true })
+  rice_crop_id?: number;
+
+  /** Thông tin vụ lúa */
+  @ManyToOne(() => RiceCrop)
+  @JoinColumn({ name: 'rice_crop_id' })
+  rice_crop?: RiceCrop;
 
   /** ID người tạo hóa đơn */
   @Column({ name: 'created_by' })

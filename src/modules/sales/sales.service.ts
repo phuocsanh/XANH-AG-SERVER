@@ -64,6 +64,8 @@ export class SalesService {
         status: SalesInvoiceStatus.DRAFT, // Trạng thái mặc định
         partial_payment_amount: partialPayment,
         remaining_amount: remainingAmount,
+        rice_crop_id: createSalesInvoiceDto.rice_crop_id,
+        season_id: createSalesInvoiceDto.season_id,
       };
       
       // Save invoice directly

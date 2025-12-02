@@ -44,6 +44,16 @@ export class CreateSalesInvoiceDto {
   @IsOptional()
   customer_id?: number;
 
+  /** ID mùa vụ (bắt buộc nếu quản lý theo mùa) */
+  @IsNumber()
+  @IsOptional()
+  season_id?: number;
+
+  /** ID vụ lúa (tùy chọn) */
+  @IsNumber()
+  @IsOptional()
+  rice_crop_id?: number;
+
   /** Tên khách hàng (bắt buộc) */
   @IsString()
   customer_name!: string;
