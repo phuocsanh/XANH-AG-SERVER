@@ -18,7 +18,7 @@ export const ALLOWED_IMAGE_TYPES = [
 ];
 
 // JWT
-export const JWT_REFRESH_TOKEN_EXPIRY = '7d';
+export const JWT_REFRESH_TOKEN_EXPIRY = '90d'; // 3 tháng - cho ứng dụng cần đăng nhập lâu dài
 export const JWT_ACCESS_TOKEN_EXPIRY = '1d';
 
 // Cloudinary
