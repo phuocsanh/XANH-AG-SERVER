@@ -85,10 +85,12 @@ export class AiGrainDiscolorationService {
       const startIdx = day * 24;
       const endIdx = startIdx + 24;
 
+      const temps = hourly.temperature_2m.slice(startIdx, endIdx);
       const humidities = hourly.relative_humidity_2m.slice(startIdx, endIdx);
       const rains = hourly.precipitation.slice(startIdx, endIdx);
       const winds = hourly.wind_speed_10m.slice(startIdx, endIdx);
 
+      const tempAvg = this.average(temps);
       const humidityAvg = this.average(humidities);
       const rainTotal = this.sum(rains);
       const windSpeedAvg = this.average(winds);
@@ -124,6 +126,7 @@ export class AiGrainDiscolorationService {
       dailyData.push({
         date: formattedDate,
         dayOfWeek,
+        tempAvg,
         humidityAvg,
         rainTotal,
         windSpeedAvg,

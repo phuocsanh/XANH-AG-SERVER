@@ -4,6 +4,7 @@ import { ApiProperty } from '@nestjs/swagger';
 export interface GrainDiscolorationDailyRiskData {
   date: string;
   dayOfWeek: string;
+  tempAvg: number; // Nhiệt độ trung bình (°C)
   humidityAvg: number;
   rainTotal: number;
   windSpeedAvg: number;
