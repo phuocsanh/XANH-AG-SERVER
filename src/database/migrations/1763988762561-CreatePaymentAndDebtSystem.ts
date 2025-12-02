@@ -216,48 +216,82 @@ export class CreatePaymentAndDebtSystem1763988762561 implements MigrationInterfa
             ]
         }), true);
 
-        // 4. Tạo foreign keys
-        await queryRunner.createForeignKey('payments', new TableForeignKey({
-            columnNames: ['customer_id'],
-            referencedTableName: 'customers',
-            referencedColumnNames: ['id'],
-            onDelete: 'CASCADE'
-        }));
+        // 4. Tạo foreign keys (kiểm tra trước khi tạo)
+        
+        // FK payments -> customers
+        const paymentsTable = await queryRunner.getTable('payments');
+        if (paymentsTable) {
+            const fkExists = paymentsTable.foreignKeys.find(fk => fk.columnNames.indexOf('customer_id') !== -1);
+            if (!fkExists) {
+                await queryRunner.createForeignKey('payments', new TableForeignKey({
+                    columnNames: ['customer_id'],
+                    referencedTableName: 'customers',
+                    referencedColumnNames: ['id'],
+                    onDelete: 'CASCADE'
+                }));
+            }
+        }
 
-        await queryRunner.createForeignKey('debt_notes', new TableForeignKey({
-            columnNames: ['customer_id'],
-            referencedTableName: 'customers',
-            referencedColumnNames: ['id'],
-            onDelete: 'CASCADE'
-        }));
+        // FK debt_notes -> customers
+        const debtNotesTable = await queryRunner.getTable('debt_notes');
+        if (debtNotesTable) {
+            const fkCustomerExists = debtNotesTable.foreignKeys.find(fk => fk.columnNames.indexOf('customer_id') !== -1);
+            if (!fkCustomerExists) {
+                await queryRunner.createForeignKey('debt_notes', new TableForeignKey({
+                    columnNames: ['customer_id'],
+                    referencedTableName: 'customers',
+                    referencedColumnNames: ['id'],
+                    onDelete: 'CASCADE'
+                }));
+            }
 
-        await queryRunner.createForeignKey('debt_notes', new TableForeignKey({
-            columnNames: ['season_id'],
-            referencedTableName: 'seasons',
-            referencedColumnNames: ['id'],
-            onDelete: 'SET NULL'
-        }));
+            // FK debt_notes -> seasons
+            const fkSeasonExists = debtNotesTable.foreignKeys.find(fk => fk.columnNames.indexOf('season_id') !== -1);
+            if (!fkSeasonExists) {
+                await queryRunner.createForeignKey('debt_notes', new TableForeignKey({
+                    columnNames: ['season_id'],
+                    referencedTableName: 'seasons',
+                    referencedColumnNames: ['id'],
+                    onDelete: 'SET NULL'
+                }));
+            }
+        }
 
-        await queryRunner.createForeignKey('payment_allocations', new TableForeignKey({
-            columnNames: ['payment_id'],
-            referencedTableName: 'payments',
-            referencedColumnNames: ['id'],
-            onDelete: 'CASCADE'
-        }));
+        // FK payment_allocations -> payments
+        const paymentAllocationsTable = await queryRunner.getTable('payment_allocations');
+        if (paymentAllocationsTable) {
+            const fkPaymentExists = paymentAllocationsTable.foreignKeys.find(fk => fk.columnNames.indexOf('payment_id') !== -1);
+            if (!fkPaymentExists) {
+                await queryRunner.createForeignKey('payment_allocations', new TableForeignKey({
+                    columnNames: ['payment_id'],
+                    referencedTableName: 'payments',
+                    referencedColumnNames: ['id'],
+                    onDelete: 'CASCADE'
+                }));
+            }
 
-        await queryRunner.createForeignKey('payment_allocations', new TableForeignKey({
-            columnNames: ['invoice_id'],
-            referencedTableName: 'sales_invoices',
-            referencedColumnNames: ['id'],
-            onDelete: 'SET NULL'
-        }));
+            // FK payment_allocations -> sales_invoices
+            const fkInvoiceExists = paymentAllocationsTable.foreignKeys.find(fk => fk.columnNames.indexOf('invoice_id') !== -1);
+            if (!fkInvoiceExists) {
+                await queryRunner.createForeignKey('payment_allocations', new TableForeignKey({
+                    columnNames: ['invoice_id'],
+                    referencedTableName: 'sales_invoices',
+                    referencedColumnNames: ['id'],
+                    onDelete: 'SET NULL'
+                }));
+            }
 
-        await queryRunner.createForeignKey('payment_allocations', new TableForeignKey({
-            columnNames: ['debt_note_id'],
-            referencedTableName: 'debt_notes',
-            referencedColumnNames: ['id'],
-            onDelete: 'SET NULL'
-        }));
+            // FK payment_allocations -> debt_notes
+            const fkDebtNoteExists = paymentAllocationsTable.foreignKeys.find(fk => fk.columnNames.indexOf('debt_note_id') !== -1);
+            if (!fkDebtNoteExists) {
+                await queryRunner.createForeignKey('payment_allocations', new TableForeignKey({
+                    columnNames: ['debt_note_id'],
+                    referencedTableName: 'debt_notes',
+                    referencedColumnNames: ['id'],
+                    onDelete: 'SET NULL'
+                }));
+            }
+        }
     }
 
     public async down(queryRunner: QueryRunner): Promise<void> {

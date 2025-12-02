@@ -110,29 +110,33 @@ export class CreateCustomerTable1763987882027 implements MigrationInterface {
             ]
         }), true);
 
-        // Thêm cột customer_id vào bảng sales_invoices
-        await queryRunner.addColumn('sales_invoices', new TableColumn({
-            name: 'customer_id',
-            type: 'int',
-            isNullable: true,
-            comment: 'ID khách hàng (nullable cho khách vãng lai)'
-        }));
+        // Kiểm tra và thêm cột customer_id vào bảng sales_invoices nếu chưa tồn tại
+        const salesInvoicesTable = await queryRunner.getTable('sales_invoices');
+        if (salesInvoicesTable && !salesInvoicesTable.findColumnByName('customer_id')) {
+            await queryRunner.addColumn('sales_invoices', new TableColumn({
+                name: 'customer_id',
+                type: 'int',
+                isNullable: true,
+                comment: 'ID khách hàng (nullable cho khách vãng lai)'
+            }));
 
-        // Tạo foreign key từ sales_invoices.customer_id → customers.id
-        await queryRunner.createForeignKey('sales_invoices', new TableForeignKey({
-            columnNames: ['customer_id'],
-            referencedTableName: 'customers',
-            referencedColumnNames: ['id'],
-            onDelete: 'SET NULL',  // Nếu xóa khách hàng, set NULL (giữ lại hóa đơn)
-            onUpdate: 'CASCADE'
-        }));
+            // Tạo foreign key từ sales_invoices.customer_id → customers.id
+            await queryRunner.createForeignKey('sales_invoices', new TableForeignKey({
+                columnNames: ['customer_id'],
+                referencedTableName: 'customers',
+                referencedColumnNames: ['id'],
+                onDelete: 'SET NULL',  // Nếu xóa khách hàng, set NULL (giữ lại hóa đơn)
+                onUpdate: 'CASCADE'
+            }));
+        }
 
-        // Insert một số khách hàng mẫu
+        // Insert một số khách hàng mẫu (bỏ qua nếu đã tồn tại)
         await queryRunner.query(`
             INSERT INTO customers (code, name, phone, email, address, type, total_purchases, total_spent) VALUES
             ('KH001', 'Nguyễn Văn A', '0123456789', 'nguyenvana@gmail.com', '123 Đường ABC, TP.HCM', 'vip', 15, 50000000),
             ('KH002', 'Trần Thị B', '0987654321', 'tranthib@gmail.com', '456 Đường XYZ, Hà Nội', 'regular', 5, 10000000),
             ('KH003', 'Nông Trại C', '0369852147', 'nongtrai@gmail.com', '789 Đường DEF, Đồng Nai', 'wholesale', 20, 100000000)
+            ON CONFLICT (code) DO NOTHING
         `);
     }
 

@@ -41,6 +41,13 @@ export class CreateRiceCropDto {
   @Type(() => Number)
   field_area!: number;
 
+  @ApiProperty({ description: 'Số công lớn (diện tích tính theo công)', example: 10 })
+  @IsNotEmpty({ message: 'Số công lớn không được để trống' })
+  @IsNumber({}, { message: 'Số công lớn phải là số' })
+  @Min(0, { message: 'Số công lớn phải lớn hơn hoặc bằng 0' })
+  @Type(() => Number)
+  large_labor_days!: number;
+
   @ApiPropertyOptional({ description: 'Vị trí địa lý', example: 'Xã Tân Hiệp, An Giang' })
   @IsOptional()
   @IsString({ message: 'Vị trí phải là chuỗi' })
@@ -95,6 +102,13 @@ export class UpdateRiceCropDto {
   @Min(0, { message: 'Diện tích phải lớn hơn 0' })
   @Type(() => Number)
   field_area?: number;
+
+  @ApiPropertyOptional({ description: 'Số công lớn (diện tích tính theo công)', example: 10 })
+  @IsOptional()
+  @IsNumber({}, { message: 'Số công lớn phải là số' })
+  @Min(0, { message: 'Số công lớn phải lớn hơn hoặc bằng 0' })
+  @Type(() => Number)
+  large_labor_days?: number;
 
   @ApiPropertyOptional({ description: 'Vị trí địa lý', example: 'Xã Tân Hiệp, An Giang' })
   @IsOptional()

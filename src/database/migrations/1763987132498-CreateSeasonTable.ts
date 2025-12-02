@@ -76,29 +76,33 @@ export class CreateSeasonTable1763987132498 implements MigrationInterface {
             ]
         }), true);
 
-        // Thêm cột season_id vào bảng sales_invoices
-        await queryRunner.addColumn('sales_invoices', new TableColumn({
-            name: 'season_id',
-            type: 'int',
-            isNullable: true,
-            comment: 'ID mùa vụ'
-        }));
+        // Kiểm tra và thêm cột season_id vào bảng sales_invoices nếu chưa tồn tại
+        const salesInvoicesTable = await queryRunner.getTable('sales_invoices');
+        if (salesInvoicesTable && !salesInvoicesTable.findColumnByName('season_id')) {
+            await queryRunner.addColumn('sales_invoices', new TableColumn({
+                name: 'season_id',
+                type: 'int',
+                isNullable: true,
+                comment: 'ID mùa vụ'
+            }));
 
-        // Tạo foreign key từ sales_invoices.season_id → seasons.id
-        await queryRunner.createForeignKey('sales_invoices', new TableForeignKey({
-            columnNames: ['season_id'],
-            referencedTableName: 'seasons',
-            referencedColumnNames: ['id'],
-            onDelete: 'SET NULL',
-            onUpdate: 'CASCADE'
-        }));
+            // Tạo foreign key từ sales_invoices.season_id → seasons.id
+            await queryRunner.createForeignKey('sales_invoices', new TableForeignKey({
+                columnNames: ['season_id'],
+                referencedTableName: 'seasons',
+                referencedColumnNames: ['id'],
+                onDelete: 'SET NULL',
+                onUpdate: 'CASCADE'
+            }));
+        }
 
-        // Insert một số mùa vụ mẫu
+        // Insert một số mùa vụ mẫu (bỏ qua nếu đã tồn tại)
         await queryRunner.query(`
             INSERT INTO seasons (name, code, year, start_date, end_date, description, is_active) VALUES
             ('Đông Xuân 2024', 'DX2024', 2024, '2024-01-01', '2024-05-31', 'Mùa vụ Đông Xuân năm 2024', true),
             ('Hè Thu 2024', 'HT2024', 2024, '2024-06-01', '2024-10-31', 'Mùa vụ Hè Thu năm 2024', true),
             ('Mùa 2024-2025', 'M2024-2025', 2024, '2024-11-01', '2025-04-30', 'Mùa vụ 2024-2025', true)
+            ON CONFLICT (code) DO NOTHING
         `);
     }
 

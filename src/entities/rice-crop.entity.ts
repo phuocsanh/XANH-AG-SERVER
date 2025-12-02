@@ -6,7 +6,6 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
-  OneToMany,
 } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 import { Customer } from './customer.entity';
@@ -73,6 +72,11 @@ export class RiceCrop {
   @ApiProperty({ description: 'Diện tích ruộng (m²)', example: 5000 })
   @Column({ name: 'field_area', type: 'decimal', precision: 10, scale: 2 })
   field_area!: number;
+
+  /** Số công lớn (diện tích tính theo công) */
+  @ApiProperty({ description: 'Số công lớn (diện tích tính theo công)', example: 10 })
+  @Column({ name: 'large_labor_days', type: 'decimal', precision: 10, scale: 2 })
+  large_labor_days!: number;
 
   /** Vị trí địa lý (tọa độ hoặc mô tả) */
   @ApiProperty({ description: 'Vị trí địa lý', example: 'Xã Tân Hiệp, An Giang', required: false })
