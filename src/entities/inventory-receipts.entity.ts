@@ -83,6 +83,14 @@ export class InventoryReceipt {
   @Column({ name: 'cancelled_reason', nullable: true })
   cancelled_reason?: string;
 
+  /** Phí vận chuyển chung cho toàn bộ phiếu nhập (tùy chọn) */
+  @Column({ name: 'shared_shipping_cost', type: 'decimal', precision: 15, scale: 2, default: 0 })
+  shared_shipping_cost?: number;
+
+  /** Phương thức phân bổ phí vận chuyển chung (by_value hoặc by_quantity) */
+  @Column({ name: 'shipping_allocation_method', length: 20, default: 'by_value' })
+  shipping_allocation_method?: string;
+
   /** Thời gian xóa phiếu nhập kho (soft delete) */
   @DeleteDateColumn({ name: 'deleted_at' })
   deleted_at?: Date;

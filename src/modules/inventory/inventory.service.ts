@@ -1054,6 +1054,16 @@ export class InventoryService {
       receiptData.notes = createInventoryReceiptDto.notes;
     }
 
+    // Thêm phí vận chuyển chung nếu có
+    if (createInventoryReceiptDto.shared_shipping_cost !== undefined) {
+      receiptData.shared_shipping_cost = createInventoryReceiptDto.shared_shipping_cost;
+    }
+
+    // Thêm phương thức phân bổ phí vận chuyển
+    if (createInventoryReceiptDto.shipping_allocation_method !== undefined) {
+      receiptData.shipping_allocation_method = createInventoryReceiptDto.shipping_allocation_method;
+    }
+
     const receipt = this.inventoryReceiptRepository.create(receiptData);
     const savedReceipt = await this.inventoryReceiptRepository.save(receipt);
 
@@ -1067,15 +1077,62 @@ export class InventoryService {
       throw new Error('Failed to save receipt');
     }
 
+    // ===== TÍNH TOÁN PHÍ VẬN CHUYỂN =====
+    const sharedShippingCost = createInventoryReceiptDto.shared_shipping_cost || 0;
+    const allocationMethod = createInventoryReceiptDto.shipping_allocation_method || 'by_value';
+    
+    // Tính tổng giá trị và số lượng để phân bổ phí chung
+    let totalValue = 0;
+    let totalQuantity = 0;
+    
+    for (const item of createInventoryReceiptDto.items) {
+      totalValue += item.quantity * item.unit_cost;
+      totalQuantity += item.quantity;
+    }
+
+    // Tính phí vận chuyển cho từng item
+    const itemsWithShipping = createInventoryReceiptDto.items.map((item) => {
+      let allocatedShipping = 0;
+      
+      // Phân bổ phí chung nếu có
+      if (sharedShippingCost > 0) {
+        if (allocationMethod === 'by_value') {
+          // Chia theo tỷ lệ giá trị
+          const itemValue = item.quantity * item.unit_cost;
+          allocatedShipping = (itemValue / totalValue) * sharedShippingCost;
+        } else {
+          // Chia đều theo số lượng
+          allocatedShipping = (item.quantity / totalQuantity) * sharedShippingCost;
+        }
+      }
+      
+      // Tính tổng phí vận chuyển cho item
+      const individualShipping = item.individual_shipping_cost || 0;
+      const totalShippingForItem = individualShipping + allocatedShipping;
+      
+      // Tính giá vốn cuối cùng trên đơn vị
+      const shippingPerUnit = totalShippingForItem / item.quantity;
+      const finalUnitCost = item.unit_cost + shippingPerUnit;
+      
+      return {
+        ...item,
+        allocated_shipping_cost: Math.round(allocatedShipping * 100) / 100,
+        final_unit_cost: Math.round(finalUnitCost * 100) / 100,
+      };
+    });
+
     // Tạo các item trong phiếu và xử lý nhập kho cho từng sản phẩm
     const savedItems: any[] = [];
-    for (const item of createInventoryReceiptDto.items) {
+    for (const item of itemsWithShipping) {
       const itemData: any = {
         receipt_id: receiptEntity.id,
         product_id: item.product_id,
         quantity: item.quantity,
         unit_cost: item.unit_cost,
         total_price: item.total_price,
+        individual_shipping_cost: item.individual_shipping_cost || 0,
+        allocated_shipping_cost: item.allocated_shipping_cost,
+        final_unit_cost: item.final_unit_cost,
       };
 
       // Only add notes if it's not undefined
@@ -1100,10 +1157,11 @@ export class InventoryService {
 
         // Chỉ xử lý nếu có itemId hợp lệ
         if (itemId) {
+          // SỬ DỤNG final_unit_cost thay vì unit_cost
           await this.processStockIn(
             item.product_id,
             item.quantity,
-            item.unit_cost,
+            item.final_unit_cost, // ← Sử dụng giá đã bao gồm phí vận chuyển
             itemId,
             `RECEIPT_${receiptEntity.id}_ITEM_${itemId}`,
           );

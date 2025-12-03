@@ -32,6 +32,11 @@ export class CreateInventoryReceiptItemDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  /** Phí vận chuyển riêng cho sản phẩm này (tùy chọn) */
+  @IsOptional()
+  @IsNumber()
+  individual_shipping_cost?: number;
 }
 
 /**
@@ -63,6 +68,16 @@ export class CreateInventoryReceiptDto {
   /** ID của người tạo phiếu nhập kho (bắt buộc) */
   @IsNumber()
   created_by!: number;
+
+  /** Phí vận chuyển chung cho toàn bộ phiếu nhập (tùy chọn) */
+  @IsOptional()
+  @IsNumber()
+  shared_shipping_cost?: number;
+
+  /** Phương thức phân bổ phí vận chuyển chung (by_value hoặc by_quantity) (tùy chọn) */
+  @IsOptional()
+  @IsString()
+  shipping_allocation_method?: 'by_value' | 'by_quantity';
 
   /** Các chi tiết sản phẩm trong phiếu nhập kho (bắt buộc) */
   @ValidateNested({ each: true })
