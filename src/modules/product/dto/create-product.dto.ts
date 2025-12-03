@@ -16,9 +16,14 @@ export class CreateProductDto {
   @IsString()
   name!: string;
 
-  /** Giá sản phẩm (bắt buộc) */
+  /** Giá sản phẩm (Giá tiền mặt) (bắt buộc) */
   @IsString()
   price!: string;
+
+  /** Giá bán nợ (tùy chọn) */
+  @IsOptional()
+  @IsString()
+  credit_price?: string;
 
   /** Trạng thái sản phẩm mới sử dụng enum (tùy chọn) */
   @IsOptional()
