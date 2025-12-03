@@ -16,9 +16,10 @@ export class CreateProductDto {
   @IsString()
   name!: string;
 
-  /** Giá sản phẩm (Giá tiền mặt) (bắt buộc) */
+  /** Giá sản phẩm (Giá tiền mặt) (tùy chọn) */
+  @IsOptional()
   @IsString()
-  price!: string;
+  price?: string;
 
   /** Giá bán nợ (tùy chọn) */
   @IsOptional()

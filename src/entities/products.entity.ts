@@ -27,8 +27,8 @@ export class Product {
   name!: string;
 
   /** Giá sản phẩm (Giá tiền mặt) */
-  @Column({ name: 'price' })
-  price!: string;
+  @Column({ name: 'price', nullable: true })
+  price?: string;
 
   /** Giá bán nợ */
   @Column({ name: 'credit_price', nullable: true })

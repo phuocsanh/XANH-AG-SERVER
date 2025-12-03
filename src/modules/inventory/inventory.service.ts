@@ -591,6 +591,20 @@ export class InventoryService {
     const newAverageCost =
       newTotalQuantity > 0 ? newTotalValue / newTotalQuantity : unitCostPrice;
 
+    // DEBUG: Log chi tiết quá trình tính giá vốn trung bình
+    console.log('=== TÍNH GIÁ VỐN TRUNG BÌNH ===');
+    console.log('Product ID:', productId);
+    console.log('Tồn kho cũ:', currentQuantity);
+    console.log('Giá vốn TB cũ:', currentAverageCost);
+    console.log('Tổng giá trị cũ:', currentTotalValue);
+    console.log('Số lượng nhập mới:', quantity);
+    console.log('Giá nhập mới (đã bao gồm phí VC):', unitCostPrice);
+    console.log('Tổng giá trị mới:', quantity * unitCostPrice);
+    console.log('Tổng giá trị sau nhập:', newTotalValue);
+    console.log('Tổng số lượng sau nhập:', newTotalQuantity);
+    console.log('Giá vốn TB MỚI:', newAverageCost);
+    console.log('================================');
+
     // Tạo lô hàng mới
     const batchData: CreateInventoryBatchDto = {
       product_id: productId,
@@ -635,9 +649,15 @@ export class InventoryService {
         newAverageCost,
       );
 
-      // Cập nhật giá nhập mới nhất cho sản phẩm
+      // Cập nhật giá nhập mới nhất và tồn kho cho sản phẩm
       await this.productService.update(productId, {
         latest_purchase_price: unitCostPrice,
+        quantity: newTotalQuantity, // Cập nhật tồn kho hiển thị
+      });
+
+      console.log('✅ Đã cập nhật tồn kho sản phẩm:', {
+        productId,
+        newQuantity: newTotalQuantity,
       });
     } catch (error) {
       const errorMessage =
@@ -743,6 +763,25 @@ export class InventoryService {
     };
 
     const transaction = await this.createTransaction(transactionData);
+
+    // Cập nhật tồn kho hiển thị cho sản phẩm
+    try {
+      await this.productService.update(productId, {
+        quantity: newTotalQuantity,
+      });
+
+      console.log('✅ Đã cập nhật tồn kho sản phẩm sau xuất kho:', {
+        productId,
+        newQuantity: newTotalQuantity,
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      console.warn(
+        `Không thể cập nhật tồn kho sản phẩm ${productId}:`,
+        errorMessage,
+      );
+    }
 
     return {
       transaction,
@@ -1114,6 +1153,18 @@ export class InventoryService {
       const shippingPerUnit = totalShippingForItem / item.quantity;
       const finalUnitCost = item.unit_cost + shippingPerUnit;
       
+      // DEBUG: Log để kiểm tra
+      console.log('=== TÍNH PHÍ VẬN CHUYỂN ===');
+      console.log('Product ID:', item.product_id);
+      console.log('Unit Cost:', item.unit_cost);
+      console.log('Quantity:', item.quantity);
+      console.log('Individual Shipping:', individualShipping);
+      console.log('Allocated Shipping:', allocatedShipping);
+      console.log('Total Shipping for Item:', totalShippingForItem);
+      console.log('Shipping Per Unit:', shippingPerUnit);
+      console.log('Final Unit Cost:', finalUnitCost);
+      console.log('===========================');
+      
       return {
         ...item,
         allocated_shipping_cost: Math.round(allocatedShipping * 100) / 100,
@@ -1353,7 +1404,7 @@ export class InventoryService {
 
     return {
       latestPurchasePrice,
-      averageCostPrice: product ? parseFloat(product.average_cost_price) : 0,
+      averageCostPrice: product ? parseFloat(product.average_cost_price ?? '0') : 0,
     };
   }
 
