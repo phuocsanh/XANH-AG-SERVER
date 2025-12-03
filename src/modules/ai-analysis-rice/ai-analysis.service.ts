@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { GoogleGenAI } from '@google/genai';
 import { McpServerService } from './mcp-server.service';
 import { RiceAnalysisResult } from './interfaces/rice-analysis.interface';
@@ -7,6 +6,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { RiceMarketData } from '../../entities/rice-market.entity';
 import { Cron } from '@nestjs/schedule';
+import { FirebaseService } from '../firebase/firebase.service';
 
 /**
  * Service phân tích thị trường lúa gạo sử dụng Google Generative AI
@@ -15,20 +15,13 @@ import { Cron } from '@nestjs/schedule';
 @Injectable()
 export class AiAnalysisService {
   private readonly logger = new Logger(AiAnalysisService.name);
-  private readonly genAI: GoogleGenAI;
 
   constructor(
-    private readonly configService: ConfigService,
+    private readonly firebaseService: FirebaseService,
     private readonly mcpServerService: McpServerService,
     @InjectRepository(RiceMarketData)
     private readonly riceMarketRepository: Repository<RiceMarketData>,
   ) {
-    // Khởi tạo Google Generative AI với API key từ environment
-    const apiKey = this.configService.get<string>('GOOGLE_AI_API_KEY');
-    if (!apiKey) {
-      throw new Error('GOOGLE_AI_API_KEY không được cấu hình');
-    }
-    this.genAI = new GoogleGenAI({ apiKey });
     this.logger.log(
       'AiAnalysisService đã được khởi tạo với MCP Server integration',
     );
@@ -206,8 +199,8 @@ export class AiAnalysisService {
         );
       }
 
-      // Sử dụng model Gemini 2.0 flash - model ổn định nhất hiện tại
-      const selectedModel = 'gemini-2.0-flash-001';
+      // Sử dụng model Gemini 2.5 flash - model ổn định nhất hiện tại
+      const selectedModel = 'gemini-2.5-flash';
 
       // Tạo prompt chi tiết với yêu cầu trích dẫn nguồn và tránh hallucination
       const prompt = `
@@ -275,8 +268,12 @@ export class AiAnalysisService {
         }
       `;
 
+      // Lấy API Key từ Firebase Remote Config (dùng key #1)
+      const apiKey = await this.firebaseService.getGeminiApiKeyByIndex(1);
+      const genAI = new GoogleGenAI({ apiKey });
+
       // Gọi API AI
-      const result = await this.genAI.models.generateContent({
+      const result = await genAI.models.generateContent({
         model: selectedModel,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: {
@@ -341,7 +338,7 @@ export class AiAnalysisService {
         Trả về phân tích bổ sung với format: "Nội dung phân tích (Nguồn: tên nguồn)"
       `;
 
-      const followUpResult = await this.genAI.models.generateContent({
+      const followUpResult = await genAI.models.generateContent({
         model: selectedModel,
         contents: [{ role: 'user', parts: [{ text: followUpPrompt }] }],
         config: {
@@ -435,8 +432,13 @@ Hãy trả lời câu hỏi một cách chính xác và có trích dẫn nguồn
 
       // Bước 3: Gọi AI để tạo câu trả lời
       this.logger.log('Gọi AI để tạo câu trả lời...');
-      const result = await this.genAI.models.generateContent({
-        model: 'gemini-2.0-flash-001',
+      
+      // Lấy API Key từ Firebase Remote Config (dùng key #1)
+      const apiKey = await this.firebaseService.getGeminiApiKeyByIndex(1);
+      const genAI = new GoogleGenAI({ apiKey });
+      
+      const result = await genAI.models.generateContent({
+        model: 'gemini-2.5-flash',
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: {
           maxOutputTokens: 1024,

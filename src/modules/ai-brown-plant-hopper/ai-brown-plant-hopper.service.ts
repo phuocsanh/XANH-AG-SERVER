@@ -55,7 +55,8 @@ export class AiBrownPlantHopperService {
         'Rầy Nâu (Brown Plant Hopper)',
         location.name,
         weatherData,
-        'Rầy nâu phát triển mạnh ở nhiệt độ 25-30°C và độ ẩm cao >80%. Gió mạnh giúp rầy di trú từ nơi khác đến. Mưa nhỏ xen kẽ nắng nóng cũng thuận lợi, nhưng mưa quá to sẽ rửa trôi rầy.'
+        'Rầy nâu phát triển mạnh ở nhiệt độ 25-30°C và độ ẩm cao >80%. Gió mạnh giúp rầy di trú từ nơi khác đến. Mưa nhỏ xen kẽ nắng nóng cũng thuận lợi, nhưng mưa quá to sẽ rửa trôi rầy.',
+        3 // Key index
       );
 
       // 2. Tính toán thống kê cơ bản
@@ -167,14 +168,25 @@ ${aiResult.recommendations}
       const humidities = hourly.relative_humidity_2m.slice(startIdx, endIdx);
       const rains = hourly.precipitation.slice(startIdx, endIdx);
       const rainProbs = hourly.precipitation_probability.slice(startIdx, endIdx);
+      const dewPoints = hourly.dew_point_2m.slice(startIdx, endIdx);
       const winds = hourly.wind_speed_10m.slice(startIdx, endIdx);
 
       // Logic mưa thông minh
       let rainTotal = 0;
+      let rainHours = 0;
       for (let i = 0; i < 24; i++) {
         if ((rainProbs[i] ?? 0) >= 50 && (rains[i] ?? 0) > 0.1) {
           rainTotal += rains[i] ?? 0;
+          rainHours++;
         }
+      }
+
+      // LWD (Leaf Wetness Duration) - Thời gian lá ướt
+      let lwdHours = 0;
+      for (let i = 0; i < 24; i++) {
+        const isWetByDew = (humidities[i] ?? 0) >= 90 && (temps[i] ?? 0) <= (dewPoints[i] ?? 0) + 1.0;
+        const isWetByRain = (rainProbs[i] ?? 0) >= 50 && (rains[i] ?? 0) > 0.1;
+        if (isWetByDew || isWetByRain) lwdHours++;
       }
 
       const dateStr = hourly.time[startIdx]?.split('T')[0] || '';
@@ -189,6 +201,8 @@ ${aiResult.recommendations}
         tempAvg: this.average(temps),
         humidityAvg: this.average(humidities),
         rainTotal: Math.round(rainTotal * 10) / 10,
+        rainHours,
+        lwdHours,
         windSpeedAvg: this.average(winds),
       });
     }

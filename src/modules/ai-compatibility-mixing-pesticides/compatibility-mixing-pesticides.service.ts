@@ -4,20 +4,13 @@ import {
   PESTICIDE_MIXING_DOCUMENT_TEXT,
   PESTICIDE_MIXING_REFERENCE_LINKS,
 } from './data/pesticide-mixing.data';
-import { ConfigService } from '@nestjs/config';
+import { FirebaseService } from '../firebase/firebase.service';
 
 @Injectable()
 export class CompatibilityMixingPesticidesService {
-  private ai: GoogleGenAI;
   private readonly model = 'gemini-2.5-flash';
 
-  constructor(private configService: ConfigService) {
-    const apiKey = this.configService.get<string>('GOOGLE_AI_API_KEY');
-    if (!apiKey) {
-      throw new Error('GOOGLE_AI_API_KEY not found in environment variables.');
-    }
-    this.ai = new GoogleGenAI({ apiKey });
-  }
+  constructor(private firebaseService: FirebaseService) {}
 
   /**
    * Thực hiện truy vấn AI, kết hợp RAG (tài liệu nội bộ) và trả lời câu hỏi.
@@ -48,8 +41,12 @@ export class CompatibilityMixingPesticidesService {
     try {
       console.log('🚀 Starting AI processing with Google Search tool...');
 
+      // Lấy API Key từ Firebase Remote Config (dùng key #1)
+      const apiKey = await this.firebaseService.getGeminiApiKeyByIndex(1);
+      const ai = new GoogleGenAI({ apiKey });
+
       // 2. Gửi yêu cầu API với công cụ tìm kiếm Google
-      const response = await this.ai.models.generateContent({
+      const response = await ai.models.generateContent({
         model: this.model,
         contents: [{ role: 'user', parts: [{ text: finalPrompt }] }],
         config: {
@@ -121,8 +118,12 @@ export class CompatibilityMixingPesticidesService {
     try {
       console.log('🚀 Starting AI processing with Google Search tool...');
 
+      // Lấy API Key từ Firebase Remote Config (dùng key #1)
+      const apiKey = await this.firebaseService.getGeminiApiKeyByIndex(1);
+      const ai = new GoogleGenAI({ apiKey });
+
       // 2. Gửi yêu cầu API với công cụ tìm kiếm Google
-      const response = await this.ai.models.generateContent({
+      const response = await ai.models.generateContent({
         model: this.model,
         contents: [{ role: 'user', parts: [{ text: finalPrompt }] }],
         config: {

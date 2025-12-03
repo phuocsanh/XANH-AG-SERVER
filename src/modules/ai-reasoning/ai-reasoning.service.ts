@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { GoogleGenAI } from '@google/genai';
+import { FirebaseService } from '../firebase/firebase.service';
 
 export interface WeatherData {
   hourly: {
@@ -43,87 +43,136 @@ export interface AiAnalysisResult {
 @Injectable()
 export class AiReasoningService {
   private readonly logger = new Logger(AiReasoningService.name);
-  private readonly genAI: GoogleGenAI;
 
-  constructor(private readonly configService: ConfigService) {
-    const apiKey = this.configService.get<string>('GOOGLE_AI_API_KEY');
-    if (!apiKey) {
-      throw new Error('GOOGLE_AI_API_KEY is not defined');
-    }
-    this.genAI = new GoogleGenAI({ apiKey });
-  }
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly firebaseService: FirebaseService,
+  ) {}
 
   /**
    * Phân tích nguy cơ sâu bệnh dựa trên dữ liệu thời tiết
+   * @param keyIndex Index của API key (1-7) để tránh rate limit
    */
   async analyzeDiseaseRisk(
     diseaseName: string,
     locationName: string,
     weatherData: WeatherData,
     additionalContext?: string,
+    keyIndex: number = 1,
   ): Promise<AiAnalysisResult> {
-    this.logger.log(`🤖 Đang phân tích AI cho bệnh: ${diseaseName} tại ${locationName}`);
+    this.logger.log(`🤖 Đang phân tích AI cho bệnh: ${diseaseName} tại ${locationName} (Key #${keyIndex})`);
 
     // Chuẩn bị dữ liệu thời tiết gọn nhẹ hơn để gửi cho AI (giảm token)
     const simplifiedWeather = this.simplifyWeatherData(weatherData);
 
     const prompt = `
-Bạn là một chuyên gia nông nghiệp hàng đầu về lúa và bệnh học cây trồng.
-Nhiệm vụ: Phân tích nguy cơ bùng phát **${diseaseName}** tại **${locationName}** trong 7 ngày tới.
+Bạn là chuyên gia nông nghiệp AI. Hãy phân tích nguy cơ ${diseaseName} tại ${locationName} dựa trên dự báo thời tiết 7 ngày tới.
 
-DỮ LIỆU THỜI TIẾT DỰ BÁO (7 NGÀY TỚI):
+THÔNG TIN BỆNH:
+${additionalContext}
+
+DỮ LIỆU THỜI TIẾT (Đã tổng hợp):
 ${JSON.stringify(simplifiedWeather, null, 2)}
 
-${additionalContext ? `THÔNG TIN BỔ SUNG:\n${additionalContext}\n` : ''}
+        YÊU CẦU:
+        1. Đánh giá mức độ nguy cơ (THẤP, TRUNG BÌNH, CAO, RẤT CAO) dựa trên điều kiện thời tiết và đặc điểm bệnh.
+        2. Xác định những ngày có nguy cơ cao nhất (peak_days).
+        3. Đưa ra phân tích chi tiết nhưng NGẮN GỌN, SÚC TÍCH (không quá 500 từ).
+        4. Đưa ra khuyến nghị cụ thể cho nông dân.
+        5. Trả về kết quả dưới dạng JSON hợp lệ theo schema.
+      `;
 
-YÊU CẦU PHÂN TÍCH:
-1. Hãy suy luận dựa trên sự kết hợp của các yếu tố: Nhiệt độ, Độ ẩm, Lượng mưa, Xác suất mưa, Gió, Sương mù (dựa vào weather_code).
-2. LƯU Ý QUAN TRỌNG: Chỉ tính là có mưa khi xác suất mưa (precipitation_probability) >= 50% và lượng mưa > 0.1mm. Đừng bị lừa bởi các cơn mưa xác suất thấp.
-3. Đánh giá rủi ro tổng thể và rủi ro từng ngày.
-
-HÃY TRẢ VỀ KẾT QUẢ DƯỚI DẠNG JSON (Không Markdown, chỉ JSON thuần túy) theo cấu trúc sau:
-{
-  "risk_level": "THẤP" | "TRUNG BÌNH" | "CAO" | "RẤT CAO",
-  "risk_score": number (0-100),
-  "peak_days": "string (VD: 05/12 - 07/12)",
-  "summary": "string (Tóm tắt ngắn gọn tình hình)",
-  "detailed_analysis": "string (Phân tích chi tiết logic suy luận của bạn)",
-  "recommendations": "string (Khuyến nghị cụ thể cho nông dân: thăm đồng, phun thuốc, loại thuốc gợi ý...)",
-  "daily_risks": [
-    {
-      "date": "YYYY-MM-DD",
-      "risk_score": number (0-100),
-      "risk_level": "string",
-      "main_factors": ["string"]
-    }
-  ]
-}
-`;
-
+    let apiKey = '';
     try {
-      const model = this.configService.get<string>('GOOGLE_AI_MODEL') || 'gemini-1.5-flash';
+      // Lấy API Key từ Firebase Remote Config hoặc .env (theo keyIndex)
+      apiKey = await this.firebaseService.getGeminiApiKeyByIndex(keyIndex);
       
-      const result = await this.genAI.models.generateContent({
-        model: model,
-        contents: prompt,
-        config: {
-          temperature: 0.7,
-          maxOutputTokens: 4000,
-        }
+      const modelName = this.configService.get<string>('GOOGLE_AI_MODEL') || 'gemini-2.5-flash';
+      
+      // Gọi Gemini API trực tiếp qua REST
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 8192,
+            responseMimeType: "application/json", // Bắt buộc trả về JSON
+            responseSchema: {
+              type: "object",
+              properties: {
+                risk_level: { type: "string", enum: ["THẤP", "TRUNG BÌNH", "CAO", "RẤT CAO"] },
+                risk_score: { type: "number", minimum: 0, maximum: 100 },
+                peak_days: { type: "string" },
+                summary: { type: "string" },
+                detailed_analysis: { type: "string" },
+                recommendations: { type: "string" },
+                daily_risks: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      date: { type: "string" },
+                      risk_score: { type: "number" },
+                      risk_level: { type: "string" },
+                      main_factors: { type: "array", items: { type: "string" } }
+                    },
+                    required: ["date", "risk_score", "risk_level", "main_factors"]
+                  }
+                }
+              },
+              required: ["risk_level", "risk_score", "peak_days", "summary", "detailed_analysis", "recommendations", "daily_risks"]
+            }
+          },
+          // Tắt bộ lọc an toàn để tránh block nhầm
+          safetySettings: [
+            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+          ]
+        })
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Gemini API error: ${JSON.stringify(errorData)}`);
+      }
+
+      const data = await response.json();
       
-      const responseText = result.text || '';
+      // DEBUG: Log full response data nếu không tìm thấy text
+      if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
+         this.logger.warn(`⚠️ Gemini Response Structure (Key #${keyIndex}): ${JSON.stringify(data)}`);
+      }
+
+      const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
       
+      // DEBUG: Log raw response
+      this.logger.log(`📝 Raw AI Response (Key #${keyIndex}): ${responseText.substring(0, 200)}...`);
+
       // Clean up JSON string (remove markdown code blocks if any)
       const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
       
+      if (!cleanJson) {
+        throw new Error('AI returned empty response');
+      }
+
       const analysis: AiAnalysisResult = JSON.parse(cleanJson);
+      
+      // DEBUG: Log structure của AI result
+      this.logger.log(`📊 AI Result Keys: ${Object.keys(analysis).join(', ')}`);
+      this.logger.log(`📊 Daily Risks Count: ${analysis.daily_risks?.length || 0}`);
       
       this.logger.log(`✅ Phân tích AI hoàn tất: ${analysis.risk_level} (${analysis.risk_score}/100)`);
       return analysis;
 
     } catch (error) {
-      this.logger.error(`❌ Lỗi khi gọi Gemini AI: ${error}`);
+      this.logger.error(`❌ Lỗi khi gọi Gemini AI (Key #${keyIndex}): ${error}`);
+      this.logger.error(`🔑 Key đang dùng: ${apiKey}`); // Log key để kiểm tra
       // Fallback an toàn nếu AI lỗi
       return this.getFallbackResult(diseaseName);
     }

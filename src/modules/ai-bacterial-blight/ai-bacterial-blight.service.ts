@@ -55,7 +55,8 @@ export class AiBacterialBlightService {
         'Bệnh Cháy Bìa Lá (Bacterial Blight)',
         location.name,
         weatherData,
-        'Bệnh phát triển mạnh khi có mưa to kèm gió lớn (làm rách lá tạo vết thương cho vi khuẩn xâm nhập). Nhiệt độ 26-30 độ C và độ ẩm cao là điều kiện thuận lợi.'
+        'Bệnh phát triển mạnh khi mưa nhiều, gió mạnh làm lá bị rách, nhiệt độ 25-30°C, độ ẩm cao >80%. Ngập úng kéo dài làm bệnh bùng phát nhanh.',
+        2 // Key index
       );
 
       // 2. Tính toán số liệu thống kê cơ bản
@@ -175,6 +176,7 @@ ${aiResult.recommendations}
       const humidities = hourly.relative_humidity_2m.slice(startIdx, endIdx);
       const rains = hourly.precipitation.slice(startIdx, endIdx);
       const rainProbs = hourly.precipitation_probability.slice(startIdx, endIdx);
+      const dewPoints = hourly.dew_point_2m.slice(startIdx, endIdx);
       const winds = hourly.wind_speed_10m.slice(startIdx, endIdx);
 
       // Logic mưa thông minh
@@ -185,6 +187,14 @@ ${aiResult.recommendations}
           rainTotal += rains[i] ?? 0;
           rainHours++;
         }
+      }
+
+      // LWD (Leaf Wetness Duration) - Thời gian lá ướt
+      let lwdHours = 0;
+      for (let i = 0; i < 24; i++) {
+        const isWetByDew = (humidities[i] ?? 0) >= 90 && (temps[i] ?? 0) <= (dewPoints[i] ?? 0) + 1.0;
+        const isWetByRain = (rainProbs[i] ?? 0) >= 50 && (rains[i] ?? 0) > 0.1;
+        if (isWetByDew || isWetByRain) lwdHours++;
       }
 
       // Tính mưa 3 ngày (để tính ngập úng)
@@ -209,6 +219,7 @@ ${aiResult.recommendations}
         humidityAvg: this.average(humidities),
         rainTotal: Math.round(rainTotal * 10) / 10,
         rainHours,
+        lwdHours, // Thêm LWD
         windSpeedMax: Math.max(...winds),
         windSpeedAvg: this.average(winds),
         rain3Days: Math.round(rain3Days * 10) / 10,

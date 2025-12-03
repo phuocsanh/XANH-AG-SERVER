@@ -43,6 +43,8 @@ import { ApplicationRecordModule } from './modules/application-record/applicatio
 import { GrowthTrackingModule } from './modules/growth-tracking/growth-tracking.module';
 import { ProfitReportModule } from './modules/profit-report/profit-report.module';
 import { StoreProfitReportModule } from './modules/store-profit-report/store-profit-report.module';
+import { FirebaseModule } from './modules/firebase/firebase.module';
+
 
 /**
  * Module chính của ứng dụng NestJS
@@ -108,6 +110,7 @@ import { StoreProfitReportModule } from './modules/store-profit-report/store-pro
     PaymentAllocationModule,
     DebtNoteModule,
     SalesReturnModule,
+    FirebaseModule, // Module kết nối Firebase Remote Config
     LocationModule, // Module quản lý vị trí ruộng lúa (shared)
     AiRiceBlastModule, // Module cảnh báo bệnh đạo ôn
     AiBacterialBlightModule, // Module cảnh báo bệnh cháy bìa lá

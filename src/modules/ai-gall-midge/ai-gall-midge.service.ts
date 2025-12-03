@@ -54,7 +54,8 @@ export class AiGallMidgeService {
         'Muỗi Hành (Gall Midge)',
         location.name,
         weatherData,
-        'Muỗi hành hoạt động mạnh khi độ ẩm rất cao (>85%), trời âm u ít nắng, nhiệt độ mát mẻ 23-28°C. Giai đoạn nguy hiểm nhất là lúa đẻ nhánh.'
+        'Muỗi hành hoạt động mạnh khi độ ẩm rất cao (>85%), trời âm u ít nắng, nhiệt độ mát mẻ 23-28°C. Giai đoạn nguy hiểm nhất là lúa đẻ nhánh.',
+        4 // Key index
       );
 
       const basicStats = this.calculateBasicStats(weatherData);
@@ -158,7 +159,28 @@ ${aiResult.recommendations}
       
       const temps = hourly.temperature_2m.slice(startIdx, startIdx + 24);
       const humidities = hourly.relative_humidity_2m.slice(startIdx, startIdx + 24);
+      const rains = hourly.precipitation.slice(startIdx, startIdx + 24);
+      const rainProbs = hourly.precipitation_probability.slice(startIdx, startIdx + 24);
+      const dewPoints = hourly.dew_point_2m.slice(startIdx, startIdx + 24);
       const clouds = hourly.cloud_cover.slice(startIdx, startIdx + 24);
+
+      // Logic mưa thông minh
+      let rainTotal = 0;
+      let rainHours = 0;
+      for (let i = 0; i < 24; i++) {
+        if ((rainProbs[i] ?? 0) >= 50 && (rains[i] ?? 0) > 0.1) {
+          rainTotal += rains[i] ?? 0;
+          rainHours++;
+        }
+      }
+
+      // LWD (Leaf Wetness Duration) - Thời gian lá ướt
+      let lwdHours = 0;
+      for (let i = 0; i < 24; i++) {
+        const isWetByDew = (humidities[i] ?? 0) >= 90 && (temps[i] ?? 0) <= (dewPoints[i] ?? 0) + 1.0;
+        const isWetByRain = (rainProbs[i] ?? 0) >= 50 && (rains[i] ?? 0) > 0.1;
+        if (isWetByDew || isWetByRain) lwdHours++;
+      }
 
       const dateStr = hourly.time[startIdx]?.split('T')[0] || '';
       const date = new Date(dateStr);
@@ -171,6 +193,9 @@ ${aiResult.recommendations}
         dayOfWeek,
         tempAvg: this.average(temps),
         humidityAvg: this.average(humidities),
+        rainTotal: Math.round(rainTotal * 10) / 10,
+        rainHours,
+        lwdHours,
         cloudAvg: this.average(clouds),
       });
     }

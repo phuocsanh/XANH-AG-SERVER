@@ -34,14 +34,14 @@ export class AiGrainDiscolorationService {
   }
 
   async runAnalysis(): Promise<GrainDiscolorationWarning> {
-    this.logger.log('🌾 Bắt đầu phân tích Bệnh Đốm Hạt (AI Powered)...');
+    this.logger.log('🌾 Bắt đầu phân tích Bệnh Lem Lép Hạt (AI Powered)...');
     try {
       const location = await this.locationService.getLocation();
       const weatherData = await this.fetchWeatherData(location.lat, location.lon);
       return this.runAnalysisWithWeatherData(weatherData);
     } catch (error) {
       const err = error as Error;
-      this.logger.error(`❌ Lỗi phân tích Bệnh Đốm Hạt: ${err.message}`, err.stack);
+      this.logger.error(`❌ Lỗi phân tích Bệnh Lem Lép Hạt: ${err.message}`, err.stack);
       throw error;
     }
   }
@@ -51,10 +51,11 @@ export class AiGrainDiscolorationService {
       const location = await this.locationService.getLocation();
 
       const aiResult = await this.aiReasoningService.analyzeDiseaseRisk(
-        'Bệnh Đốm Hạt (Grain Discoloration)',
+        'Bệnh Lem Lép Hạt (Grain Discoloration)',
         location.name,
         weatherData,
-        'Bệnh đốm hạt phát triển mạnh khi trời mưa nhiều trong giai đoạn trỗ bông - chín. Nhiệt độ 25-30°C, độ ẩm cao >85% rất thuận lợi. Mưa kéo dài làm hạt bị nhiễm nấm, giảm chất lượng gạo.'
+        'Bệnh lem lép hạt phát triển mạnh khi trời mưa nhiều trong giai đoạn trỗ bông - chín. Nhiệt độ 25-30°C, độ ẩm cao >85% rất thuận lợi. Mưa kéo dài làm hạt bị nhiễm nấm, giảm chất lượng gạo.',
+        7 // Key index
       );
 
       const basicStats = this.calculateBasicStats(weatherData);
@@ -110,7 +111,7 @@ ${aiResult.recommendations}
         warning = await this.warningRepository.save({ id: 1, ...warningData });
       }
 
-      this.logger.log(`✅ Phân tích Bệnh Đốm Hạt hoàn tất: ${aiResult.risk_level}`);
+      this.logger.log(`✅ Phân tích Bệnh Lem Lép Hạt hoàn tất: ${aiResult.risk_level}`);
       return warning!;
     } catch (error) {
       const err = error as Error;
@@ -162,6 +163,7 @@ ${aiResult.recommendations}
       const humidities = hourly.relative_humidity_2m.slice(startIdx, startIdx + 24);
       const rains = hourly.precipitation.slice(startIdx, startIdx + 24);
       const rainProbs = hourly.precipitation_probability.slice(startIdx, startIdx + 24);
+      const dewPoints = hourly.dew_point_2m.slice(startIdx, startIdx + 24);
 
       let rainTotal = 0;
       let rainHours = 0;
@@ -170,6 +172,14 @@ ${aiResult.recommendations}
           rainTotal += rains[i] ?? 0;
           rainHours++;
         }
+      }
+
+      // LWD (Leaf Wetness Duration) - Thời gian lá ướt
+      let lwdHours = 0;
+      for (let i = 0; i < 24; i++) {
+        const isWetByDew = (humidities[i] ?? 0) >= 90 && (temps[i] ?? 0) <= (dewPoints[i] ?? 0) + 1.0;
+        const isWetByRain = (rainProbs[i] ?? 0) >= 50 && (rains[i] ?? 0) > 0.1;
+        if (isWetByDew || isWetByRain) lwdHours++;
       }
 
       const dateStr = hourly.time[startIdx]?.split('T')[0] || '';
@@ -185,6 +195,7 @@ ${aiResult.recommendations}
         humidityAvg: this.average(humidities),
         rainTotal: Math.round(rainTotal * 10) / 10,
         rainHours,
+        lwdHours,
       });
     }
     return stats;

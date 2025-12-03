@@ -54,7 +54,8 @@ export class AiSheathBlightService {
         'Bệnh Đốm Vằn Lá (Sheath Blight)',
         location.name,
         weatherData,
-        'Bệnh đốm vằn lá phát triển mạnh ở nhiệt độ cao 28-32°C, độ ẩm rất cao >85%, mưa nhiều. Bệnh lây lan nhanh khi lúa sum suê, tán lá che kín. Giai đoạn nguy hiểm: làm đòng - trỗ bông.'
+        'Bệnh đốm vằn lá phát triển mạnh ở nhiệt độ cao 28-32°C, độ ẩm rất cao >85%, mưa nhiều. Bệnh lây lan nhanh khi lúa sum suê, tán lá che kín. Giai đoạn nguy hiểm: làm đòng - trỗ bông.',
+        6 // Key index
       );
 
       const basicStats = this.calculateBasicStats(weatherData);
@@ -160,12 +161,23 @@ ${aiResult.recommendations}
       const humidities = hourly.relative_humidity_2m.slice(startIdx, startIdx + 24);
       const rains = hourly.precipitation.slice(startIdx, startIdx + 24);
       const rainProbs = hourly.precipitation_probability.slice(startIdx, startIdx + 24);
+      const dewPoints = hourly.dew_point_2m.slice(startIdx, startIdx + 24);
 
       let rainTotal = 0;
+      let rainHours = 0;
       for (let i = 0; i < 24; i++) {
         if ((rainProbs[i] ?? 0) >= 50 && (rains[i] ?? 0) > 0.1) {
           rainTotal += rains[i] ?? 0;
+          rainHours++;
         }
+      }
+
+      // LWD (Leaf Wetness Duration) - Thời gian lá ướt
+      let lwdHours = 0;
+      for (let i = 0; i < 24; i++) {
+        const isWetByDew = (humidities[i] ?? 0) >= 90 && (temps[i] ?? 0) <= (dewPoints[i] ?? 0) + 1.0;
+        const isWetByRain = (rainProbs[i] ?? 0) >= 50 && (rains[i] ?? 0) > 0.1;
+        if (isWetByDew || isWetByRain) lwdHours++;
       }
 
       const dateStr = hourly.time[startIdx]?.split('T')[0] || '';
@@ -180,6 +192,8 @@ ${aiResult.recommendations}
         tempAvg: this.average(temps),
         humidityAvg: this.average(humidities),
         rainTotal: Math.round(rainTotal * 10) / 10,
+        rainHours,
+        lwdHours,
       });
     }
     return stats;

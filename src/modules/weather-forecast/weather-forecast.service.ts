@@ -12,6 +12,7 @@ import {
 import { WeatherForecast } from '../../entities/weather-forecast.entity';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import { FirebaseService } from '../firebase/firebase.service';
 
 /**
  * Service dự báo thời tiết sử dụng Google Generative AI và tìm kiếm web thời gian thực
@@ -20,21 +21,15 @@ import * as cheerio from 'cheerio';
 @Injectable()
 export class WeatherForecastService {
   private readonly logger = new Logger(WeatherForecastService.name);
-  private readonly genAI: GoogleGenAI;
   private readonly braveApiKey: string;
   private readonly braveApiUrl: string;
 
   constructor(
     private readonly configService: ConfigService,
+    private readonly firebaseService: FirebaseService,
     @InjectRepository(WeatherForecast)
     private readonly weatherForecastRepository: Repository<WeatherForecast>,
   ) {
-    // Khởi tạo Google Generative AI
-    const apiKey = this.configService.get<string>('GOOGLE_AI_API_KEY');
-    if (!apiKey) {
-      throw new Error('GOOGLE_AI_API_KEY không được cấu hình');
-    }
-    this.genAI = new GoogleGenAI({ apiKey });
 
     // Khởi tạo Brave Search API
     this.braveApiKey =
@@ -991,9 +986,13 @@ BẮT BUỘC: Trả về JSON theo format chính xác sau (không thêm text ngo
       // Lấy model từ config hoặc dùng model mặc định
       const selectedModel =
         this.configService.get<string>('GOOGLE_AI_MODEL') ||
-        'gemini-2.0-flash-exp';
+        'gemini-2.5-flash';
 
-      const result = await this.genAI.models.generateContent({
+      // Lấy API Key từ Firebase Remote Config (dùng key #1)
+      const apiKey = await this.firebaseService.getGeminiApiKeyByIndex(1);
+      const genAI = new GoogleGenAI({ apiKey });
+
+      const result = await genAI.models.generateContent({
         model: selectedModel!,
         contents: prompt,
         config: {
