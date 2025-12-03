@@ -181,7 +181,7 @@ ${aiResult.recommendations}
         'dew_point_2m',
         'precipitation',
         'precipitation_probability', // Thêm trường này
-        'cloud_cover_low',
+        'cloud_cover',
         'visibility',
         'weather_code',
         'rain',

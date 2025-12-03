@@ -13,6 +13,9 @@ export interface WeatherData {
     relative_humidity_2m: number[];
     dew_point_2m: number[];
     precipitation: number[];
+    precipitation_probability: number[];
+    rain: number[];
+    showers: number[];
     cloud_cover_low: number[];
     cloud_cover: number[];
     visibility: number[];
@@ -45,6 +48,9 @@ export class WeatherService {
         'relative_humidity_2m',
         'dew_point_2m',
         'precipitation',
+        'precipitation_probability',
+        'rain',
+        'showers',
         'cloud_cover_low',
         'cloud_cover',
         'visibility',
