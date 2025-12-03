@@ -42,6 +42,7 @@ import { FarmingScheduleModule } from './modules/farming-schedule/farming-schedu
 import { ApplicationRecordModule } from './modules/application-record/application-record.module';
 import { GrowthTrackingModule } from './modules/growth-tracking/growth-tracking.module';
 import { ProfitReportModule } from './modules/profit-report/profit-report.module';
+import { StoreProfitReportModule } from './modules/store-profit-report/store-profit-report.module';
 
 /**
  * Module chính của ứng dụng NestJS
@@ -121,7 +122,8 @@ import { ProfitReportModule } from './modules/profit-report/profit-report.module
     FarmingScheduleModule, // Module lịch canh tác
     ApplicationRecordModule, // Module nhật ký phun thuốc/bón phân
     GrowthTrackingModule, // Module theo dõi sinh trưởng
-    ProfitReportModule, // Module báo cáo lợi nhuận
+    ProfitReportModule, // Module báo cáo lợi nhuận (nông dân)
+    StoreProfitReportModule, // Module báo cáo lợi nhuận (cửa hàng)
   ],
   controllers: [], // Các controller global (nếu có)
   providers: [

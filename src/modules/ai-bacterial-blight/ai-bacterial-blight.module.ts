@@ -7,6 +7,8 @@ import { AiBacterialBlightService } from './ai-bacterial-blight.service';
 import { BacterialBlightWarning } from '../../entities/bacterial-blight-warning.entity';
 import { LocationModule } from '../location/location.module';
 
+import { AiReasoningModule } from '../ai-reasoning/ai-reasoning.module';
+
 /**
  * Module quản lý cảnh báo bệnh cháy bìa lá do vi khuẩn
  * Bao gồm cron job tự động chạy mỗi ngày lúc 6:00 sáng (giờ Việt Nam)
@@ -16,6 +18,7 @@ import { LocationModule } from '../location/location.module';
     TypeOrmModule.forFeature([BacterialBlightWarning]),
     ScheduleModule.forRoot(),
     LocationModule, // Import LocationModule để sử dụng LocationService
+    AiReasoningModule, // 🆕 Import module AI trung tâm
   ],
   controllers: [AiBacterialBlightController],
   providers: [AiBacterialBlightService],

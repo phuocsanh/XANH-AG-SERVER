@@ -131,6 +131,36 @@ export class SalesInvoice {
   })
   status!: SalesInvoiceStatus;
 
+  /** Tổng giá vốn hàng bán (Cost of Goods Sold) */
+  @Column({ 
+    name: 'cost_of_goods_sold', 
+    type: 'decimal', 
+    precision: 15, 
+    scale: 2, 
+    default: 0 
+  })
+  cost_of_goods_sold!: number;
+
+  /** Lợi nhuận gộp (Gross Profit) = final_amount - cost_of_goods_sold */
+  @Column({ 
+    name: 'gross_profit', 
+    type: 'decimal', 
+    precision: 15, 
+    scale: 2, 
+    default: 0 
+  })
+  gross_profit!: number;
+
+  /** Tỷ suất lợi nhuận gộp (%) */
+  @Column({ 
+    name: 'gross_profit_margin', 
+    type: 'decimal', 
+    precision: 5, 
+    scale: 2, 
+    default: 0 
+  })
+  gross_profit_margin!: number;
+
   /** Thời gian tạo */
   @CreateDateColumn({ name: 'created_at' })
   created_at!: Date;

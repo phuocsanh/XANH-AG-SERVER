@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SalesInvoice } from '../../entities/sales-invoices.entity';
 import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
+import { Product } from '../../entities/products.entity';
 import { SalesService } from './sales.service';
 import { SalesController } from './sales.controller';
 
@@ -14,13 +15,15 @@ import { SalesController } from './sales.controller';
  * - Tính toán tổng tiền, thuế, chiết khấu
  * - Hỗ trợ thanh toán một phần và theo dõi công nợ
  * - Liên kết với khách hàng, mùa vụ và sản phẩm
+ * - Tự động tính lợi nhuận mỗi đơn hàng
  */
 @Module({
   imports: [
-    // Import TypeORM feature module với các entity liên quan đến bán hàng
+    // Import TypeOrmModule feature module với các entity liên quan đến bán hàng
     TypeOrmModule.forFeature([
       SalesInvoice, // Entity quản lý hóa đơn bán hàng
       SalesInvoiceItem, // Entity quản lý chi tiết hóa đơn bán hàng
+      Product, // Entity sản phẩm (để tính giá vốn)
     ]),
   ],
   controllers: [SalesController], // Controller xử lý các request liên quan đến bán hàng

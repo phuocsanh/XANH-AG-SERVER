@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull, Not, SelectQueryBuilder } from 'typeorm';
 import {
@@ -6,6 +6,7 @@ import {
   SalesInvoiceStatus,
 } from '../../entities/sales-invoices.entity';
 import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
+import { Product } from '../../entities/products.entity';
 import { CreateSalesInvoiceDto } from './dto/create-sales-invoice.dto';
 import { UpdateSalesInvoiceDto } from './dto/update-sales-invoice.dto';
 import { SearchSalesDto } from './dto/search-sales.dto';
@@ -18,16 +19,21 @@ import { ErrorHandler } from '../../common/helpers/error-handler.helper';
  */
 @Injectable()
 export class SalesService {
+  private readonly logger = new Logger(SalesService.name);
+
   /**
    * Constructor injection các repository cần thiết
    * @param salesInvoiceRepository - Repository để thao tác với entity SalesInvoice
    * @param salesInvoiceItemRepository - Repository để thao tác với entity SalesInvoiceItem
+   * @param productRepository - Repository để lấy thông tin sản phẩm
    */
   constructor(
     @InjectRepository(SalesInvoice)
     private salesInvoiceRepository: Repository<SalesInvoice>,
     @InjectRepository(SalesInvoiceItem)
     private salesInvoiceItemRepository: Repository<SalesInvoiceItem>,
+    @InjectRepository(Product)
+    private productRepository: Repository<Product>,
   ) {}
 
   /**
@@ -85,12 +91,69 @@ export class SalesService {
           });
         });
         await this.salesInvoiceItemRepository.save(items);
+
+        // 🆕 Tự động tính lợi nhuận sau khi save items
+        try {
+          const profitData = await this.calculateInvoiceProfit(savedInvoice.id);
+          savedInvoice.cost_of_goods_sold = profitData.cogs;
+          savedInvoice.gross_profit = profitData.profit;
+          savedInvoice.gross_profit_margin = profitData.margin;
+          await this.salesInvoiceRepository.save(savedInvoice);
+          
+          this.logger.log(`✅ Đã tính lợi nhuận cho đơn #${savedInvoice.id}: ${profitData.profit.toLocaleString()} đ (${profitData.margin}%)`);
+        } catch (error) {
+          this.logger.warn(`⚠️  Không thể tính lợi nhuận cho đơn #${savedInvoice.id}:`, error);
+          // Không throw error để không làm gián đoạn luồng tạo đơn
+        }
       }
 
       return savedInvoice;
     } catch (error) {
       ErrorHandler.handleCreateError(error, 'hóa đơn bán hàng');
     }
+  }
+
+  /**
+   * Tính lợi nhuận cho hóa đơn
+   * @private
+   */
+  private async calculateInvoiceProfit(invoiceId: number): Promise<{
+    cogs: number;
+    profit: number;
+    margin: number;
+  }> {
+    const invoice = await this.salesInvoiceRepository.findOne({
+      where: { id: invoiceId },
+      relations: ['items'],
+    });
+
+    if (!invoice || !invoice.items) {
+      return { cogs: 0, profit: 0, margin: 0 };
+    }
+
+    let totalCOGS = 0;
+
+    for (const item of invoice.items) {
+      const product = await this.productRepository.findOne({
+        where: { id: item.product_id },
+      });
+      
+      if (product) {
+        const avgCost = Number(product.average_cost_price || 0);
+        totalCOGS += item.quantity * avgCost;
+      }
+    }
+
+    const grossProfit = invoice.final_amount - totalCOGS;
+    const margin = invoice.final_amount > 0 
+      ? Math.round((grossProfit / invoice.final_amount) * 10000) / 100
+      : 0;
+
+    return {
+      cogs: totalCOGS,
+      profit: grossProfit,
+      margin,
+    };
   }
 
   /**

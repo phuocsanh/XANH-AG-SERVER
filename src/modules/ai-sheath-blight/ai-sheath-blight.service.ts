@@ -3,7 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SheathBlightWarning, SheathBlightDailyRiskData } from '../../entities/sheath-blight-warning.entity';
 import { LocationService } from '../location/location.service';
-import { WeatherService, WeatherData } from '../location/weather.service';
+import { AiReasoningService, WeatherData } from '../ai-reasoning/ai-reasoning.service';
+import axios from 'axios';
+import * as https from 'https';
 
 @Injectable()
 export class AiSheathBlightService {
@@ -13,7 +15,7 @@ export class AiSheathBlightService {
     @InjectRepository(SheathBlightWarning)
     private warningRepository: Repository<SheathBlightWarning>,
     private locationService: LocationService,
-    private weatherService: WeatherService,
+    private aiReasoningService: AiReasoningService,
   ) {}
 
   async getWarning(): Promise<SheathBlightWarning> {
@@ -32,14 +34,14 @@ export class AiSheathBlightService {
   }
 
   async runAnalysis(): Promise<SheathBlightWarning> {
-    this.logger.log('🍄 Bắt đầu phân tích Bệnh Khô Vằn...');
+    this.logger.log('🍂 Bắt đầu phân tích Bệnh Đốm Vằn Lá (AI Powered)...');
     try {
       const location = await this.locationService.getLocation();
-      const weatherData = await this.weatherService.fetchWeatherData(location.lat, location.lon);
+      const weatherData = await this.fetchWeatherData(location.lat, location.lon);
       return this.runAnalysisWithWeatherData(weatherData);
     } catch (error) {
       const err = error as Error;
-      this.logger.error(`❌ Lỗi phân tích Khô Vằn: ${err.message}`, err.stack);
+      this.logger.error(`❌ Lỗi phân tích Bệnh Đốm Vằn Lá: ${err.message}`, err.stack);
       throw error;
     }
   }
@@ -47,15 +49,54 @@ export class AiSheathBlightService {
   async runAnalysisWithWeatherData(weatherData: WeatherData): Promise<SheathBlightWarning> {
     try {
       const location = await this.locationService.getLocation();
-      const dailyData = this.calculateDailyRisk(weatherData);
-      const analysis = this.analyzeRiskLevel(dailyData);
-      const message = this.generateWarningMessage(analysis, location.name);
+
+      const aiResult = await this.aiReasoningService.analyzeDiseaseRisk(
+        'Bệnh Đốm Vằn Lá (Sheath Blight)',
+        location.name,
+        weatherData,
+        'Bệnh đốm vằn lá phát triển mạnh ở nhiệt độ cao 28-32°C, độ ẩm rất cao >85%, mưa nhiều. Bệnh lây lan nhanh khi lúa sum suê, tán lá che kín. Giai đoạn nguy hiểm: làm đòng - trỗ bông.'
+      );
+
+      const basicStats = this.calculateBasicStats(weatherData);
+
+      const dailyData: SheathBlightDailyRiskData[] = basicStats.map(stat => {
+        const aiDay = aiResult.daily_risks.find(d => d.date === stat.dateIso);
+        return {
+          date: stat.date,
+          dayOfWeek: stat.dayOfWeek,
+          tempAvg: stat.tempAvg,
+          humidityAvg: stat.humidityAvg,
+          rainTotal: stat.rainTotal,
+          riskScore: aiDay ? aiDay.risk_score : 0,
+          riskLevel: aiDay ? aiDay.risk_level : 'THẤP',
+          breakdown: {
+            tempScore: 0,
+            humidityScore: 0,
+            rainScore: 0,
+          },
+        };
+      });
+
+      const message = `
+${this.getRiskEmoji(aiResult.risk_level)} CẢNH BÁO: ${aiResult.risk_level}
+📍 ${location.name}
+
+${aiResult.summary}
+
+⚠️ Thời gian nguy cơ cao: ${aiResult.peak_days}
+
+🔍 PHÂN TÍCH CHI TIẾT:
+${aiResult.detailed_analysis}
+
+💊 KHUYẾN NGHỊ:
+${aiResult.recommendations}
+      `.trim();
 
       const warningData = {
         generated_at: new Date(),
-        risk_level: analysis.riskLevel,
+        risk_level: aiResult.risk_level,
         message: message,
-        peak_days: analysis.peakDays,
+        peak_days: aiResult.peak_days,
         daily_data: dailyData,
       };
 
@@ -67,121 +108,93 @@ export class AiSheathBlightService {
         warning = await this.warningRepository.save({ id: 1, ...warningData });
       }
 
-      if (!warning) throw new Error('Failed to save warning');
-      this.logger.log(`✅ Phân tích Khô Vằn hoàn tất: ${analysis.riskLevel}`);
-      return warning;
+      this.logger.log(`✅ Phân tích Bệnh Đốm Vằn Lá hoàn tất: ${aiResult.risk_level}`);
+      return warning!;
     } catch (error) {
       const err = error as Error;
-      this.logger.error(`❌ Lỗi phân tích Khô Vằn: ${err.message}`, err.stack);
+      this.logger.error(`❌ Lỗi phân tích Bệnh Đốm Vằn Lá: ${err.message}`, err.stack);
       throw error;
     }
   }
 
-  private calculateDailyRisk(weatherData: WeatherData): SheathBlightDailyRiskData[] {
-    const hourly = weatherData.hourly;
-    const dailyData: SheathBlightDailyRiskData[] = [];
+  private async fetchWeatherData(lat: number, lon: number): Promise<WeatherData> {
+    const url = 'https://api.open-meteo.com/v1/forecast';
+    const params = {
+      latitude: lat,
+      longitude: lon,
+      hourly: [
+        'temperature_2m',
+        'relative_humidity_2m',
+        'precipitation',
+        'precipitation_probability',
+        'wind_speed_10m',
+        'weather_code',
+        'cloud_cover',
+        'visibility',
+        'rain',
+        'showers',
+        'dew_point_2m'
+      ].join(','),
+      forecast_days: 7,
+      timezone: 'Asia/Ho_Chi_Minh',
+    };
 
+    try {
+      const agent = new https.Agent({ family: 4 });
+      const response = await axios.get(url, { params, timeout: 10000, httpsAgent: agent });
+      return response.data;
+    } catch (error) {
+      this.logger.error(`❌ Lỗi kết nối Open-Meteo: ${error}`);
+      throw new Error('Lỗi kết nối API thời tiết.');
+    }
+  }
+
+  private calculateBasicStats(weatherData: WeatherData): any[] {
+    const hourly = weatherData.hourly;
+    const stats: any[] = [];
+    
     for (let day = 0; day < 7; day++) {
       const startIdx = day * 24;
-      const endIdx = startIdx + 24;
+      
+      const temps = hourly.temperature_2m.slice(startIdx, startIdx + 24);
+      const humidities = hourly.relative_humidity_2m.slice(startIdx, startIdx + 24);
+      const rains = hourly.precipitation.slice(startIdx, startIdx + 24);
+      const rainProbs = hourly.precipitation_probability.slice(startIdx, startIdx + 24);
 
-      const temps = hourly.temperature_2m.slice(startIdx, endIdx);
-      const humidities = hourly.relative_humidity_2m.slice(startIdx, endIdx);
-      const rains = hourly.precipitation.slice(startIdx, endIdx);
-
-      const tempAvg = this.average(temps);
-      const humidityAvg = this.average(humidities);
-      const rainTotal = this.sum(rains);
-
-      // --- LOGIC TÍNH ĐIỂM KHÔ VẰN ---
-      // 1. Nhiệt độ: 28-32°C (Cao hơn đạo ôn) (30đ)
-      let tempScore = 0;
-      if (tempAvg >= 28 && tempAvg <= 32) tempScore = 30;
-      else if (tempAvg >= 25 && tempAvg < 28) tempScore = 15;
-
-      // 2. Độ ẩm: > 90% (Rất quan trọng) (40đ)
-      let humidityScore = 0;
-      if (humidityAvg >= 90) humidityScore = 40;
-      else if (humidityAvg >= 85) humidityScore = 20;
-
-      // 3. Mưa: Mưa nhiều làm tăng độ ẩm gốc lúa (30đ)
-      let rainScore = 0;
-      if (rainTotal >= 10) rainScore = 30;
-      else if (rainTotal >= 5) rainScore = 15;
-
-      const riskScore = tempScore + humidityScore + rainScore;
-
-      let riskLevel = 'THẤP';
-      if (riskScore >= 70) riskLevel = 'CAO';
-      else if (riskScore >= 40) riskLevel = 'TRUNG BÌNH';
+      let rainTotal = 0;
+      for (let i = 0; i < 24; i++) {
+        if ((rainProbs[i] ?? 0) >= 50 && (rains[i] ?? 0) > 0.1) {
+          rainTotal += rains[i] ?? 0;
+        }
+      }
 
       const dateStr = hourly.time[startIdx]?.split('T')[0] || '';
       const date = new Date(dateStr);
       const formattedDate = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}`;
       const dayOfWeek = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][date.getDay()] || 'CN';
 
-      dailyData.push({
+      stats.push({
+        dateIso: dateStr,
         date: formattedDate,
         dayOfWeek,
-        tempAvg,
-        humidityAvg,
-        rainTotal,
-        riskScore,
-        riskLevel,
-        breakdown: { tempScore, humidityScore, rainScore },
+        tempAvg: this.average(temps),
+        humidityAvg: this.average(humidities),
+        rainTotal: Math.round(rainTotal * 10) / 10,
       });
     }
-    return dailyData;
-  }
-
-  private analyzeRiskLevel(dailyData: SheathBlightDailyRiskData[]): { riskLevel: string; peakDays: string; highRiskDays: string[] } {
-    const maxScore = Math.max(...dailyData.map(d => d.riskScore));
-    let riskLevel = 'THẤP';
-    if (maxScore >= 70) riskLevel = 'CAO';
-    else if (maxScore >= 40) riskLevel = 'TRUNG BÌNH';
-
-    const highRiskDays = dailyData.filter(d => d.riskScore >= 40).map(d => d.date);
-    const peakDays = this.formatPeakDays(highRiskDays);
-    return { riskLevel, peakDays, highRiskDays };
-  }
-
-  private formatPeakDays(days: string[]): string {
-    if (days.length === 0) return '';
-    if (days.length === 1) return days[0] || '';
-    return `${days[0] || ''} – ${days[days.length - 1] || ''}`;
-  }
-
-  private generateWarningMessage(
-    analysis: { riskLevel: string; highRiskDays: string[] },
-    locationName: string,
-  ): string {
-    const { riskLevel, highRiskDays } = analysis;
-    let msg = `📍 ${locationName}\n\n`;
-
-    if (riskLevel === 'CAO') {
-      msg += `🍄 BỆNH KHÔ VẰN: NGUY CƠ CAO\n`;
-      msg += `⚠️ Các ngày nguy cơ cao: ${highRiskDays.join(', ')}\n`;
-      msg += `⚠️ Nóng ẩm + Mưa nhiều: Nấm Rhizoctonia solani phát triển cực mạnh.\n`;
-      msg += `👉 Đặc biệt nguy hiểm cho ruộng sạ dày, bón thừa đạm.\n`;
-      msg += `💊 KHUYẾN CÁO: Phun thuốc (Validacin, Anvil...) khi vết bệnh leo lên 20% chiều cao cây.\n`;
-      msg += `💧 Rút bớt nước ruộng nếu có thể để giảm độ ẩm gốc.`;
-    } else if (riskLevel === 'TRUNG BÌNH') {
-      msg += `🍄 Khô Vằn: Nguy cơ Trung bình\n`;
-      if (highRiskDays.length > 0) msg += `⚠️ Các ngày cần chú ý: ${highRiskDays.join(', ')}\n`;
-      msg += `⚠️ Thời tiết nóng ẩm, cần chú ý.\n`;
-      msg += `👉 Kiểm tra các bụi lúa rậm rạp, chỗ trũng nước.`;
-    } else {
-      msg += `✅ Khô Vằn: An toàn\n`;
-      msg += `Độ ẩm chưa đủ cao để bệnh phát triển mạnh.`;
-    }
-    return msg;
+    return stats;
   }
 
   private average(arr: number[]): number {
-    return arr.reduce((a, b) => a + b, 0) / arr.length;
+    return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
   }
 
-  private sum(arr: number[]): number {
-    return arr.reduce((a, b) => a + b, 0);
+  private getRiskEmoji(level: string): string {
+    switch (level) {
+      case 'RẤT CAO': return '🔴';
+      case 'CAO': return '🟠';
+      case 'TRUNG BÌNH': return '🟡';
+      default: return '🟢';
+    }
   }
 }
