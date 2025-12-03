@@ -110,8 +110,8 @@ export class Product {
   attributes?: any;
 
   /** Phần trăm lợi nhuận */
-  @Column({ name: 'profit_margin_percent' })
-  profit_margin_percent!: string;
+  @Column({ name: 'profit_margin_percent', nullable: true })
+  profit_margin_percent?: string;
 
   /** Thời gian tạo sản phẩm */
   @CreateDateColumn({ name: 'created_at' })
@@ -122,8 +122,8 @@ export class Product {
   updated_at!: Date;
 
   /** Giá vốn trung bình của sản phẩm */
-  @Column({ name: 'average_cost_price' })
-  average_cost_price!: string;
+  @Column({ name: 'average_cost_price', nullable: true })
+  average_cost_price?: string;
 
   /** Thời gian xóa mềm (null nếu chưa bị xóa) */
   @DeleteDateColumn({ name: 'deleted_at' })

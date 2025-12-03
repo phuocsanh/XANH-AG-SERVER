@@ -17,6 +17,7 @@ import { SymbolService } from './symbol.service';
 import { Symbol } from '../../entities/symbols.entity';
 import { SearchSymbolDto } from './dto/search-symbol.dto';
 import { BaseStatus } from '../../entities/base-status.enum';
+import { CreateSymbolDto } from './dto/create-symbol.dto';
 
 /**
  * Controller xử lý các yêu cầu HTTP liên quan đến ký hiệu sản phẩm
@@ -36,7 +37,7 @@ export class SymbolController {
    * @returns Thông tin ký hiệu đã tạo
    */
   @Post()
-  async create(@Body() symbolData: Partial<Symbol>): Promise<Symbol> {
+  async create(@Body() symbolData: CreateSymbolDto): Promise<Symbol> {
     return this.symbolService.create(symbolData);
   }
 

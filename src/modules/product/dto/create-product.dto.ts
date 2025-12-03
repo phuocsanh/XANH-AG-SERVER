@@ -84,13 +84,15 @@ export class CreateProductDto {
   @IsOptional()
   attributes?: any;
 
-  /** Giá vốn trung bình của sản phẩm (bắt buộc) */
+  /** Giá vốn trung bình của sản phẩm (tùy chọn) */
+  @IsOptional()
   @IsString()
-  average_cost_price!: string;
+  average_cost_price?: string;
 
-  /** Phần trăm lợi nhuận (bắt buộc) */
+  /** Phần trăm lợi nhuận (tùy chọn) */
+  @IsOptional()
   @IsString()
-  profit_margin_percent!: string;
+  profit_margin_percent?: string;
 
   /** Đơn vị tính của sản phẩm (tùy chọn) */
   @IsOptional()
