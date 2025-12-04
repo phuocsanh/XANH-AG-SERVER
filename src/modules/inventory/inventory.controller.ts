@@ -491,4 +491,202 @@ export class InventoryController {
   getLatestPurchasePrice(@Param('productId') productId: string) {
     return this.inventoryService.getLatestPurchasePrice(+productId);
   }
+
+  /**
+   * Upload hình ảnh hóa đơn cho phiếu nhập kho
+   * @param id - ID của phiếu nhập kho
+   * @param file - File hình ảnh
+   * @returns Thông tin file đã upload
+   */
+  @Post('receipt/:id/upload-image')
+  @RequirePermissions('INVENTORY_MANAGE')
+  uploadReceiptImage(
+    @Param('id') id: string,
+    @Body() body: { fileId: number; fieldName?: string },
+  ) {
+    return this.inventoryService.uploadReceiptImage(
+      +id,
+      body.fileId,
+      body.fieldName,
+    );
+  }
+
+  /**
+   * Lấy danh sách hình ảnh của phiếu nhập kho
+   * @param id - ID của phiếu nhập kho
+   * @returns Danh sách hình ảnh
+   */
+  @Get('receipt/:id/images')
+  getReceiptImages(@Param('id') id: string) {
+    return this.inventoryService.getReceiptImages(+id);
+  }
+
+  /**
+   * Xóa hình ảnh khỏi phiếu nhập kho
+   * @param id - ID của phiếu nhập kho
+   * @param fileId - ID của file cần xóa
+   * @returns Kết quả xóa
+   */
+  @Delete('receipt/:id/image/:fileId')
+  @RequirePermissions('INVENTORY_MANAGE')
+  deleteReceiptImage(
+    @Param('id') id: string,
+    @Param('fileId') fileId: string,
+  ) {
+    return this.inventoryService.deleteReceiptImage(+id, +fileId);
+  }
+
+  // ===== RETURN ENDPOINTS =====
+
+  /**
+   * Tạo phiếu xuất trả hàng mới
+   * @param createInventoryReturnDto - Dữ liệu tạo phiếu xuất trả hàng mới
+   * @returns Thông tin phiếu xuất trả hàng đã tạo
+   */
+  @Post('return')
+  @RequirePermissions('INVENTORY_MANAGE')
+  createReturn(@Body() createInventoryReturnDto: any) {
+    return this.inventoryService.createReturn(createInventoryReturnDto);
+  }
+
+  /**
+   * Lấy danh sách tất cả phiếu xuất trả hàng
+   * @returns Danh sách phiếu xuất trả hàng
+   */
+  @Get('returns')
+  findAllReturns() {
+    return this.inventoryService.findAllReturns();
+  }
+
+  /**
+   * Tìm phiếu xuất trả hàng theo ID
+   * @param id - ID của phiếu xuất trả hàng cần tìm
+   * @returns Thông tin phiếu xuất trả hàng
+   */
+  @Get('return/:id')
+  findReturnById(@Param('id') id: string) {
+    return this.inventoryService.findReturnById(+id);
+  }
+
+  /**
+   * Duyệt phiếu xuất trả hàng
+   * @param id - ID của phiếu xuất trả hàng cần duyệt
+   * @returns Kết quả duyệt phiếu xuất trả hàng
+   */
+  @Post('return/:id/approve')
+  @RequirePermissions('INVENTORY_MANAGE')
+  approveReturn(@Param('id') id: string) {
+    return this.inventoryService.approveReturn(+id);
+  }
+
+  /**
+   * Hoàn thành phiếu xuất trả hàng
+   * @param id - ID của phiếu xuất trả hàng cần hoàn thành
+   * @returns Kết quả hoàn thành phiếu xuất trả hàng
+   */
+  @Post('return/:id/complete')
+  @RequirePermissions('INVENTORY_MANAGE')
+  completeReturn(@Param('id') id: string) {
+    return this.inventoryService.completeReturn(+id);
+  }
+
+  /**
+   * Hủy phiếu xuất trả hàng
+   * @param id - ID của phiếu xuất trả hàng cần hủy
+   * @param reason - Lý do hủy phiếu xuất trả hàng
+   * @returns Kết quả hủy phiếu xuất trả hàng
+   */
+  @Post('return/:id/cancel')
+  @RequirePermissions('INVENTORY_MANAGE')
+  cancelReturn(@Param('id') id: string, @Body('reason') reason: string) {
+    return this.inventoryService.cancelReturn(+id, reason);
+  }
+
+  /**
+   * Xóa phiếu xuất trả hàng theo ID
+   * @param id - ID của phiếu xuất trả hàng cần xóa
+   * @returns Kết quả xóa phiếu xuất trả hàng
+   */
+  @Delete('return/:id')
+  @RequirePermissions('INVENTORY_MANAGE')
+  removeReturn(@Param('id') id: string) {
+    return this.inventoryService.removeReturn(+id);
+  }
+
+  // ===== ADJUSTMENT ENDPOINTS =====
+
+  /**
+   * Tạo phiếu điều chỉnh kho mới
+   * @param createInventoryAdjustmentDto - Dữ liệu tạo phiếu điều chỉnh kho mới
+   * @returns Thông tin phiếu điều chỉnh kho đã tạo
+   */
+  @Post('adjustment')
+  @RequirePermissions('INVENTORY_MANAGE')
+  createAdjustment(@Body() createInventoryAdjustmentDto: any) {
+    return this.inventoryService.createAdjustment(createInventoryAdjustmentDto);
+  }
+
+  /**
+   * Lấy danh sách tất cả phiếu điều chỉnh kho
+   * @returns Danh sách phiếu điều chỉnh kho
+   */
+  @Get('adjustments')
+  findAllAdjustments() {
+    return this.inventoryService.findAllAdjustments();
+  }
+
+  /**
+   * Tìm phiếu điều chỉnh kho theo ID
+   * @param id - ID của phiếu điều chỉnh kho cần tìm
+   * @returns Thông tin phiếu điều chỉnh kho
+   */
+  @Get('adjustment/:id')
+  findAdjustmentById(@Param('id') id: string) {
+    return this.inventoryService.findAdjustmentById(+id);
+  }
+
+  /**
+   * Duyệt phiếu điều chỉnh kho
+   * @param id - ID của phiếu điều chỉnh kho cần duyệt
+   * @returns Kết quả duyệt phiếu điều chỉnh kho
+   */
+  @Post('adjustment/:id/approve')
+  @RequirePermissions('INVENTORY_MANAGE')
+  approveAdjustment(@Param('id') id: string) {
+    return this.inventoryService.approveAdjustment(+id);
+  }
+
+  /**
+   * Hoàn thành phiếu điều chỉnh kho
+   * @param id - ID của phiếu điều chỉnh kho cần hoàn thành
+   * @returns Kết quả hoàn thành phiếu điều chỉnh kho
+   */
+  @Post('adjustment/:id/complete')
+  @RequirePermissions('INVENTORY_MANAGE')
+  completeAdjustment(@Param('id') id: string) {
+    return this.inventoryService.completeAdjustment(+id);
+  }
+
+  /**
+   * Hủy phiếu điều chỉnh kho
+   * @param id - ID của phiếu điều chỉnh kho cần hủy
+   * @param reason - Lý do hủy phiếu điều chỉnh kho
+   * @returns Kết quả hủy phiếu điều chỉnh kho
+   */
+  @Post('adjustment/:id/cancel')
+  @RequirePermissions('INVENTORY_MANAGE')
+  cancelAdjustment(@Param('id') id: string, @Body('reason') reason: string) {
+    return this.inventoryService.cancelAdjustment(+id, reason);
+  }
+
+  /**
+   * Xóa phiếu điều chỉnh kho theo ID
+   * @param id - ID của phiếu điều chỉnh kho cần xóa
+   * @returns Kết quả xóa phiếu điều chỉnh kho
+   */
+  @Delete('adjustment/:id')
+  @RequirePermissions('INVENTORY_MANAGE')
+  removeAdjustment(@Param('id') id: string) {
+    return this.inventoryService.removeAdjustment(+id);
+  }
 }

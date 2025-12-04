@@ -4,9 +4,14 @@ import { InventoryBatch } from '../../entities/inventories.entity';
 import { InventoryTransaction } from '../../entities/inventory-transactions.entity';
 import { InventoryReceipt } from '../../entities/inventory-receipts.entity';
 import { InventoryReceiptItem } from '../../entities/inventory-receipt-items.entity';
+import { InventoryReturn } from '../../entities/inventory-returns.entity';
+import { InventoryReturnItem } from '../../entities/inventory-return-items.entity';
+import { InventoryAdjustment } from '../../entities/inventory-adjustments.entity';
+import { InventoryAdjustmentItem } from '../../entities/inventory-adjustment-items.entity';
 import { InventoryService } from './inventory.service';
 import { InventoryController } from './inventory.controller';
 import { ProductModule } from '../product/product.module';
+import { FileTrackingModule } from '../file-tracking/file-tracking.module';
 
 /**
  * InventoryModule - Module quản lý kho hàng
@@ -26,9 +31,15 @@ import { ProductModule } from '../product/product.module';
       InventoryTransaction, // Entity quản lý giao dịch kho
       InventoryReceipt, // Entity quản lý phiếu nhập kho
       InventoryReceiptItem, // Entity quản lý chi tiết phiếu nhập kho
+      InventoryReturn, // Entity quản lý phiếu xuất trả hàng
+      InventoryReturnItem, // Entity quản lý chi tiết phiếu xuất trả hàng
+      InventoryAdjustment, // Entity quản lý phiếu điều chỉnh kho
+      InventoryAdjustmentItem, // Entity quản lý chi tiết phiếu điều chỉnh kho
     ]),
     // Import ProductModule với forwardRef để tránh circular dependency
     forwardRef(() => ProductModule),
+    // Import FileTrackingModule để quản lý file upload
+    FileTrackingModule,
   ],
   controllers: [InventoryController], // Controller xử lý các request liên quan đến kho hàng
   providers: [InventoryService], // Service xử lý logic nghiệp vụ kho hàng
