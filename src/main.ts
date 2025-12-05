@@ -51,11 +51,17 @@ async function bootstrap() {
     });
     logger.warn('⚠️  CORS: Allowing all origins (development mode)');
   } else {
+    // Xử lý danh sách origin: trim khoảng trắng và bỏ dấu / ở cuối nếu có
+    const origins = corsOrigin.split(',').map(origin => {
+      const trimmed = origin.trim();
+      return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
+    });
+
     app.enableCors({
       ...corsOptions,
-      origin: corsOrigin.split(','), // Hỗ trợ nhiều domain cụ thể
+      origin: origins,
     });
-    logger.log(`✅ CORS: Restricted to ${corsOrigin}`);
+    logger.log(`✅ CORS: Restricted to ${JSON.stringify(origins)}`);
   }
 
   // Đăng ký global validation pipe để tự động xác thực dữ liệu đầu vào
