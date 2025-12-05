@@ -45,6 +45,7 @@ import { GrowthTrackingModule } from './modules/growth-tracking/growth-tracking.
 import { ProfitReportModule } from './modules/profit-report/profit-report.module';
 import { StoreProfitReportModule } from './modules/store-profit-report/store-profit-report.module';
 import { FirebaseModule } from './modules/firebase/firebase.module';
+import { HealthModule } from './health/health.module';
 
 
 /**
@@ -126,6 +127,7 @@ import { FirebaseModule } from './modules/firebase/firebase.module';
     GrowthTrackingModule, // Module theo dõi sinh trưởng
     ProfitReportModule, // Module báo cáo lợi nhuận (nông dân)
     StoreProfitReportModule, // Module báo cáo lợi nhuận (cửa hàng)
+    HealthModule, // Module health check để tránh Render free tier sleep
   ],
   controllers: [], // Các controller global (nếu có)
   providers: [
