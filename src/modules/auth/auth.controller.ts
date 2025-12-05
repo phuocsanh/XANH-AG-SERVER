@@ -89,11 +89,11 @@ export class AuthController {
   @Put('change-password')
   @UseInterceptors(ClassSerializerInterceptor)
   async changePassword(
-    @Request() req: ExpressRequest & { user: { userId: number } },
+    @Request() req: ExpressRequest & { user: any },
     @Body() changePasswordDto: ChangePasswordDto,
   ) {
-    // Lấy ID người dùng từ token
-    const userId = req.user.userId;
+    // Lấy ID người dùng từ user object (JWT strategy trả về user đầy đủ)
+    const userId = req.user.id;
 
     // Gọi service để thay đổi mật khẩu
     const isPasswordChanged = await this.userService.changePassword(
