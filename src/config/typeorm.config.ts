@@ -38,11 +38,11 @@ const typeOrmConfig: TypeOrmModuleOptions = {
   entities: [path.join(__dirname, '../entities/*.entity{.ts,.js}')], // Đường dẫn đến các entity
   migrations: [path.join(__dirname, '../database/migrations/*{.ts,.js}')], // Đường dẫn đến các migration
   
-  // QUAN TRỌNG: Tắt synchronize trong production để tránh mất dữ liệu
-  // Trong production, dùng migrations để quản lý schema
-  synchronize: !isProduction, // Chỉ tự động đồng bộ schema trong development
+  // Tự động đồng bộ schema từ entities
+  // TypeORM sẽ tự tạo/update tables dựa trên entities
+  synchronize: true,
   
-  // Logging: chi tiết trong dev, chỉ errors trong prod
+  // Logging
   logging: isProduction ? ['error', 'warn'] : true,
   
   // Connection pool settings
