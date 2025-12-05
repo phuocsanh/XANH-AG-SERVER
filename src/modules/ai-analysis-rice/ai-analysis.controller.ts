@@ -71,54 +71,32 @@ export class AiAnalysisController {
         `Bước 2: Đã lấy được nội dung trang web, độ dài: ${realData.fullContent?.length || 0} ký tự`,
       );
 
-      // Debug: Log một phần nội dung để kiểm tra
-      if (realData.fullContent) {
-        const preview = realData.fullContent.substring(0, 1500); // Tăng từ 500 lên 1500 ký tự
-        this.logger.log(`Preview nội dung: ${preview}...`);
+      // Gọi service để thu thập, phân tích và LƯU vào database
+      this.logger.log('Đang thực hiện thu thập, phân tích và lưu dữ liệu...');
+      const savedData = await this.aiAnalysisService.fetchAndSaveRiceMarketData();
 
-        // Log thêm thông tin về cấu trúc dữ liệu
-        this.logger.log(
-          `Tiêu đề bài viết: ${realData.title || 'Không có tiêu đề'}`,
-        );
-        this.logger.log(`Ngày bài viết: ${realData.date || 'Không có ngày'}`);
-        this.logger.log(`URL nguồn: ${realData.url || 'Không có URL'}`);
-      }
-
-      // Bước 2: Gọi AI để phân tích dữ liệu từ link chi tiết
-      this.logger.log('Bước 3: Đưa dữ liệu cho AI phân tích');
+      // Log chi tiết kết quả
       this.logger.log(
-        `Bắt đầu gọi AI với dữ liệu có độ dài: ${realData.fullContent?.length || 0} ký tự`,
+        `Đã lưu dữ liệu vào bảng rice_market_data với ID: ${savedData.id}`,
       );
 
-      const result = await this.aiAnalysisService.analyzeRiceMarket(realData);
-
-      // Log chi tiết kết quả AI trả về
-      this.logger.log(
-        `AI đã phân tích xong. Số loại lúa tìm thấy: ${result.riceVarieties?.length || 0}`,
-      );
-      this.logger.log(
-        `Điểm chất lượng dữ liệu: ${result.dataQuality?.score || 0}`,
-      );
-      this.logger.log(
-        `Số bảng giá tìm thấy: ${result.dataQuality?.tablesFound || 0}`,
-      );
-      this.logger.log(
-        `Số giá trích xuất được: ${result.dataQuality?.pricesExtracted || 0}`,
-      );
-
-      if (result.riceVarieties && result.riceVarieties.length > 0) {
-        this.logger.log('Danh sách loại lúa tìm thấy:');
-        result.riceVarieties.forEach((rice, index) => {
-          // Log dữ liệu thực tế từ API response
-          const riceData = rice as any; // Cast để truy cập thuộc tính động
-          this.logger.log(
-            `  ${index + 1}. ${riceData.name || rice.variety || 'N/A'}: ${riceData.price || rice.currentPrice || 'N/A'} (${riceData.trend || rice.change || 'không đổi'}) - ${rice.province || 'N/A'}`,
-          );
-        });
-      }
-
-      this.logger.log('Trả về kết quả phân tích thành công cho frontend');
-      return result;
+      // Map dữ liệu từ Entity sang format response API
+      return {
+        summary: savedData.summary,
+        marketInsights: savedData.price_analysis
+          ? savedData.price_analysis.split('\n\n')
+          : [],
+        lastUpdated: savedData.last_updated.toISOString(),
+        dataQuality: {
+          ...savedData.data_quality,
+          tablesFound: 1,
+          pricesExtracted: savedData.data_quality.sourcesUsed,
+          hasDate: true,
+          completeness: savedData.data_quality.reliability,
+        } as any,
+        sourceUrl: 'congthuong.vn',
+        additionalSources: savedData.data_sources || [],
+      } as any;
     } catch (error: any) {
       this.logger.error(
         'Lỗi trong controller khi phân tích thị trường:',

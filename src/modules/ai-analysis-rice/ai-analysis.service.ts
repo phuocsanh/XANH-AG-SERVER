@@ -61,7 +61,7 @@ export class AiAnalysisService {
       // Kiểm tra xem đã có bản ghi nào chưa
       const existingData = await this.riceMarketRepository
         .createQueryBuilder('rice')
-        .orderBy('rice.createdAt', 'DESC')
+        .orderBy('rice.created_at', 'DESC')
         .getOne();
 
       let riceMarketData: RiceMarketData;
@@ -70,11 +70,19 @@ export class AiAnalysisService {
         // Nếu đã có bản ghi, cập nhật nó
         this.logger.log('Đã có bản ghi thị trường gạo, cập nhật dữ liệu...');
         riceMarketData = existingData;
+        // Gộp tất cả thông tin phân tích vào price_analysis
+        const riceVarietiesText = result.riceVarieties && result.riceVarieties.length > 0
+          ? '\n\n=== CHI TIẾT GIÁ CÁC LOẠI LÚA ===\n' + 
+            result.riceVarieties.map((rice: any, index) => 
+              `${index + 1}. ${rice.name || rice.variety}: ${rice.price || rice.currentPrice} - ${rice.trend || rice.change || 'Không đổi'} (Nguồn: ${rice.source || rice.province || 'N/A'})`
+            ).join('\n')
+          : '';
+        
+        riceMarketData.price_analysis = result.marketInsights.join('\n\n') + riceVarietiesText;
         riceMarketData.summary = result.summary;
-        riceMarketData.price_analysis = result.marketInsights.join('\n\n');
-        riceMarketData.supply_demand = ''; // Có thể cập nhật sau nếu cần
-        riceMarketData.export_import_info = ''; // Có thể cập nhật sau nếu cần
-        riceMarketData.related_news = []; // Có thể cập nhật sau nếu cần
+        riceMarketData.supply_demand = '';
+        riceMarketData.export_import_info = '';
+        riceMarketData.related_news = [];
         riceMarketData.last_updated = new Date(result.lastUpdated);
         riceMarketData.data_sources = result.additionalSources || [];
         riceMarketData.data_quality = {
@@ -86,11 +94,20 @@ export class AiAnalysisService {
         // Nếu chưa có bản ghi, tạo mới
         this.logger.log('Chưa có bản ghi thị trường gạo, tạo mới dữ liệu...');
         riceMarketData = new RiceMarketData();
+        
+        // Gộp tất cả thông tin phân tích vào price_analysis
+        const riceVarietiesText = result.riceVarieties && result.riceVarieties.length > 0
+          ? '\n\n=== CHI TIẾT GIÁ CÁC LOẠI LÚA ===\n' + 
+            result.riceVarieties.map((rice: any, index) => 
+              `${index + 1}. ${rice.name || rice.variety}: ${rice.price || rice.currentPrice} - ${rice.trend || rice.change || 'Không đổi'} (Nguồn: ${rice.source || rice.province || 'N/A'})`
+            ).join('\n')
+          : '';
+        
         riceMarketData.summary = result.summary;
-        riceMarketData.price_analysis = result.marketInsights.join('\n\n');
-        riceMarketData.supply_demand = ''; // Có thể cập nhật sau nếu cần
-        riceMarketData.export_import_info = ''; // Có thể cập nhật sau nếu cần
-        riceMarketData.related_news = []; // Có thể cập nhật sau nếu cần
+        riceMarketData.price_analysis = result.marketInsights.join('\n\n') + riceVarietiesText;
+        riceMarketData.supply_demand = '';
+        riceMarketData.export_import_info = '';
+        riceMarketData.related_news = [];
         riceMarketData.last_updated = new Date(result.lastUpdated);
         riceMarketData.data_sources = result.additionalSources || [];
         riceMarketData.data_quality = {
