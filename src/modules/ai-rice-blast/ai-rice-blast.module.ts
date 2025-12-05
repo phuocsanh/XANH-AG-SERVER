@@ -1,4 +1,4 @@
-import { Module, OnModuleInit, Logger } from '@nestjs/common';
+import { Module, Logger } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 import { Cron } from '@nestjs/schedule';
@@ -12,6 +12,7 @@ import { AiReasoningModule } from '../ai-reasoning/ai-reasoning.module';
 /**
  * Module quản lý cảnh báo bệnh đạo ôn lúa
  * Bao gồm cron job tự động chạy mỗi ngày lúc 6:00 sáng (giờ Việt Nam)
+ * Không tự động chạy khi khởi động server
  */
 @Module({
   imports: [
@@ -24,27 +25,10 @@ import { AiReasoningModule } from '../ai-reasoning/ai-reasoning.module';
   providers: [AiRiceBlastService],
   exports: [AiRiceBlastService],
 })
-export class AiRiceBlastModule implements OnModuleInit {
+export class AiRiceBlastModule {
   private readonly logger = new Logger(AiRiceBlastModule.name);
 
   constructor(private readonly aiRiceBlastService: AiRiceBlastService) {}
-
-  /**
-   * Khi module khởi động, chạy phân tích 1 lần
-   */
-  async onModuleInit() {
-    this.logger.log('🌾 Rice Blast Warning Module initialized');
-    this.logger.log('⏰ Cron job scheduled: 6:00 AM daily (Asia/Ho_Chi_Minh)');
-    
-    // Chạy phân tích ngay khi server khởi động
-    try {
-      this.logger.log('🚀 Running initial analysis on startup...');
-      await this.aiRiceBlastService.runAnalysis();
-    } catch (error) {
-      const err = error as Error;
-      this.logger.error(`❌ Initial analysis failed: ${err.message}`);
-    }
-  }
 
   /**
    * Cron job: Chạy tự động mỗi ngày lúc 6:00 sáng (giờ Việt Nam)

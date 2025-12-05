@@ -13,8 +13,7 @@ import { FileTrackingModule } from './modules/file-tracking/file-tracking.module
 import { SalesModule } from './modules/sales/sales.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { AiAnalysisModule } from './modules/ai-analysis-rice/ai-analysis.module';
-import { WeatherForecastModule } from './modules/weather-forecast/weather-forecast.module';
-import { WeatherForecast } from './entities/weather-forecast.entity';
+
 import { RiceMarketData } from './entities/rice-market.entity';
 import typeOrmConfig from './config/typeorm.config';
 import { CompatibilityMixingPesticidesModule } from './modules/ai-compatibility-mixing-pesticides/compatibility-mixing-pesticides.module';
@@ -60,7 +59,6 @@ import { FirebaseModule } from './modules/firebase/firebase.module';
       ...typeOrmConfig,
       entities: [
         __dirname + '/entities/*.entity{.ts,.js}',
-        WeatherForecast,
         RiceMarketData,
       ],
     }),
@@ -98,7 +96,6 @@ import { FirebaseModule } from './modules/firebase/firebase.module';
     SalesModule,
     UploadModule,
     AiAnalysisModule,
-    WeatherForecastModule,
     CompatibilityMixingPesticidesModule,
     UnitModule,
     SymbolModule,
