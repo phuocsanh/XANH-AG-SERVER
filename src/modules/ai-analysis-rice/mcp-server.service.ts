@@ -58,11 +58,6 @@ export class McpServerService {
         params: {
           q: query,
           count: 10,
-          offset: 0,
-          mkt: 'vi-VN',
-          safesearch: 'moderate',
-          textDecorations: false,
-          textFormat: 'Raw',
         },
         timeout: 10000,
         headers: {
@@ -167,11 +162,6 @@ export class McpServerService {
         params: {
           q: query,
           count: 20,
-          offset: 0,
-          mkt: 'vi-VN',
-          safesearch: 'moderate',
-          textDecorations: false,
-          textFormat: 'Raw',
         },
         timeout: 10000,
         headers: {
@@ -335,6 +325,10 @@ export class McpServerService {
         throw error; // Ném lại lỗi gốc để tránh lặp thông báo
       }
 
+      // Delay 1.5 giây để tuân thủ rate limit của Brave Search API (1 request/second)
+      this.logger.log('Đợi 1.5 giây để tuân thủ rate limit...');
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
       // Bước 2: Tìm kiếm tin tức
       let newsResults: any;
       try {
@@ -467,12 +461,22 @@ export class McpServerService {
 
     // Tìm nội dung chính
     const mainSelectors = [
+      '.detail-content', // congthuong.vn
+      '.article-content',
+      '.news-content',
+      '.article-body',
+      '.post-body',
+      '[itemprop="articleBody"]',
+      '.content-detail',
       '.entry-content',
       '.post-content',
       '.content',
       'article',
       '.main-content',
       '#content',
+      '.cms-body', // dantri
+      '.fck_detail', // vnexpress
+      '#main-detail-body', // tuoitre
     ];
 
     let mainContent = '';
@@ -495,7 +499,7 @@ export class McpServerService {
       .replace(/\n{3,}/g, '\n\n') // Loại bỏ line break thừa
       .trim();
 
-    return mainContent.substring(0, 2000); // Giới hạn 2000 ký tự cho main content
+    return mainContent.substring(0, 10000); // Tăng giới hạn lên 10000 ký tự
   }
 
   /**
@@ -666,28 +670,80 @@ export class McpServerService {
   }
 
   async getLatestRicePriceData(): Promise<any> {
-    // Sử dụng tổng hợp đa nguồn thay vì crawl một trang
-    const aggregatedData = await this.aggregateMultiSourceInfo(
-      'giá lúa gạo hôm nay',
-    );
+    try {
+      this.logger.log('Đang lấy bài viết mới nhất từ congthuong.vn...');
+      
+      // Bước 1: Lấy danh sách bài viết từ trang chủ đề
+      const topicUrl = 'https://congthuong.vn/chu-de/gia-lua-gao-hom-nay.topic';
+      const response = await fetch(topicUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+      });
 
-    return {
-      url: aggregatedData.sources.detailed[0]?.url || '',
-      title: aggregatedData.sources.detailed[0]?.title || 'Giá lúa gạo hôm nay',
-      date: new Date().toLocaleDateString('vi-VN'),
-      fullContent: aggregatedData.sources.detailed
-        .map((s) => s.content)
-        .join('\n\n'),
-      summary: {
-        contentLength: aggregatedData.summary.totalContent,
-        extractedAt: aggregatedData.searchTime,
-        hasTableData: aggregatedData.sources.detailed.some(
-          (s) => s.tables.length > 0,
-        ),
-        totalSources: aggregatedData.summary.totalSources,
-        citations: aggregatedData.citations,
-      },
-    };
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const html = await response.text();
+      const $ = cheerio.load(html);
+
+      // Bước 2: Tìm bài viết đầu tiên (mới nhất)
+      let latestArticleUrl = '';
+      let latestArticleTitle = '';
+
+      // Thử nhiều selector khác nhau để tìm bài viết
+      const articleSelectors = [
+        '.list-news .item-news a',
+        '.news-list .news-item a',
+        '.article-list article a',
+        'article a',
+        '.post-item a',
+        'a[href*="/gia-lua-gao"]',
+      ];
+
+      for (const selector of articleSelectors) {
+        const firstLink = $(selector).first();
+        if (firstLink.length > 0) {
+          const href = firstLink.attr('href');
+          if (href) {
+            latestArticleUrl = href.startsWith('http') ? href : `https://congthuong.vn${href}`;
+            latestArticleTitle = firstLink.text().trim() || firstLink.find('h3, h2, h4').text().trim();
+            this.logger.log(`Tìm thấy bài viết: ${latestArticleTitle}`);
+            this.logger.log(`URL: ${latestArticleUrl}`);
+            break;
+          }
+        }
+      }
+
+      if (!latestArticleUrl) {
+        throw new Error('Không tìm thấy bài viết nào từ congthuong.vn');
+      }
+
+      // Bước 3: Lấy nội dung chi tiết từ bài viết
+      this.logger.log(`Đang lấy nội dung từ: ${latestArticleUrl}`);
+      const articleContent = await this.fetchContentWithSource(latestArticleUrl);
+
+      return {
+        url: latestArticleUrl,
+        title: latestArticleTitle || articleContent.title || 'Giá lúa gạo hôm nay',
+        date: new Date().toLocaleDateString('vi-VN'),
+        fullContent: articleContent.content || '',
+        summary: {
+          contentLength: articleContent.wordCount || 0,
+          extractedAt: articleContent.extractedAt,
+          hasTableData: articleContent.tables?.length > 0,
+          totalSources: 1,
+          source: 'congthuong.vn',
+          tables: articleContent.tables || [],
+          priceInfo: articleContent.priceInfo || {},
+        },
+      };
+    } catch (error: any) {
+      this.logger.error('Lỗi khi lấy dữ liệu từ congthuong.vn:', error.message);
+      throw new Error(`Không thể lấy dữ liệu từ congthuong.vn: ${error.message}`);
+    }
   }
 
   /**

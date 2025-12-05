@@ -277,7 +277,7 @@ export class AiAnalysisService {
         model: selectedModel,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: {
-          maxOutputTokens: 2048,
+          maxOutputTokens: 8192,
           temperature: 0.7,
         },
       });
@@ -355,17 +355,17 @@ export class AiAnalysisService {
           parsedResult.marketOverview || 'Phân tích thị trường lúa từ AI',
         riceVarieties: parsedResult.riceVarieties || [], // Lấy danh sách loại lúa từ AI
         marketInsights: [
-          parsedResult.priceAnalysis || '',
-          parsedResult.trends || '',
-          parsedResult.forecast || '',
-          parsedResult.recommendations || '',
-          followUpAnalysis,
+          String(parsedResult.priceAnalysis || ''),
+          String(parsedResult.trends || ''),
+          String(parsedResult.forecast || ''),
+          String(parsedResult.recommendations || ''),
+          String(followUpAnalysis || ''),
           // Thêm thông tin về nguồn dữ liệu
           `Nguồn dữ liệu: ${[data.sourceUrl || 'congthuong.vn', ...webSources].join(', ')}`,
           parsedResult.dataLimitations
             ? `Hạn chế dữ liệu: ${parsedResult.dataLimitations}`
             : '',
-        ].filter((insight) => insight && insight.trim() !== ''),
+        ].filter((insight) => typeof insight === 'string' && insight.trim() !== ''),
         lastUpdated: new Date().toISOString(),
         dataQuality: {
           tablesFound: 1,

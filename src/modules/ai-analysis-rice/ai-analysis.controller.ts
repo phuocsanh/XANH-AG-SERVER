@@ -7,7 +7,6 @@ import {
   Query,
   Post,
   Body,
-  UseGuards,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -24,16 +23,13 @@ import {
 } from './interfaces/rice-analysis.interface';
 import { McpServerService } from './mcp-server.service';
 import { RiceMarketData } from '../../entities/rice-market.entity';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 /**
  * Controller xử lý các API endpoint liên quan đến phân tích AI thị trường lúa gạo
+ * Các API này là public, không yêu cầu authentication
  */
 @ApiTags('AI Analysis')
 @Controller('ai-analysis-rice')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class AiAnalysisController {
   private readonly logger = new Logger(AiAnalysisController.name);
 
@@ -48,7 +44,6 @@ export class AiAnalysisController {
    * @returns Promise<AnalysisResponseDto> - Dữ liệu phân tích thị trường lúa gạo
    */
   @Get('rice-market')
-  @RequirePermissions('RICE_BLAST_VIEW')
   @ApiOperation({
     summary: 'Phân tích thị trường lúa gạo',
     description:
