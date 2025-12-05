@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, SelectQueryBuilder } from 'typeorm';
 import { SalesReturn, SalesReturnStatus } from '../../entities/sales-return.entity';
@@ -11,6 +11,8 @@ import { InventoryBatch } from '../../entities/inventories.entity';
 
 @Injectable()
 export class SalesReturnService {
+  private readonly logger = new Logger(SalesReturnService.name);
+  
   constructor(
     @InjectRepository(SalesReturn)
     private salesReturnRepository: Repository<SalesReturn>,
@@ -110,7 +112,7 @@ export class SalesReturnService {
       
       // Log refund information
       if (refundToCustomer > 0) {
-        console.log(`[Sales Return ${createDto.code}] Customer needs refund: ${refundToCustomer} VND`);
+        this.logger.log(`[Sales Return ${createDto.code}] Customer needs refund: ${refundToCustomer} VND`);
         // TODO: Create a refund payment record or credit note for the customer
         // For now, this is just logged. In production, you should:
         // 1. Create a Payment with negative amount (refund)

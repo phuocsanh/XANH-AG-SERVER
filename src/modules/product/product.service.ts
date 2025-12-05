@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from '../../entities/products.entity';
@@ -19,6 +19,8 @@ import { OperatingCostService } from '../operating-cost/operating-cost.service';
  */
 @Injectable()
 export class ProductService extends BaseSearchService<Product> {
+  private readonly logger = new Logger(ProductService.name);
+  
   /**
    * Constructor injection các repository và service cần thiết
    * @param productRepository - Repository để thao tác với entity Product
@@ -536,7 +538,7 @@ export class ProductService extends BaseSearchService<Product> {
       try {
         await this.updateSuggestedPrice(product.id, desiredProfitMargin);
       } catch (error) {
-        console.error(
+        this.logger.error(
           `Lỗi khi cập nhật giá bán đề xuất cho sản phẩm ID ${product.id}:`,
           error,
         );

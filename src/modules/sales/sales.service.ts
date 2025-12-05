@@ -225,7 +225,7 @@ export class SalesService {
    * @returns Thông tin hóa đơn bán hàng gần nhất của khách hàng
    */
   async findLatestByCustomer(customer_id: number): Promise<SalesInvoice | null> {
-    console.log(`[findLatestByCustomer] Searching for customer_id: ${customer_id}`);
+    this.logger.log(`[findLatestByCustomer] Searching for customer_id: ${customer_id}`);
     
     // Tìm tất cả hóa đơn của khách hàng để debug
     const allInvoices = await this.salesInvoiceRepository.find({
@@ -237,9 +237,9 @@ export class SalesService {
       take: 5,
     });
     
-    console.log(`[findLatestByCustomer] Found ${allInvoices.length} invoices for customer_id ${customer_id}`);
+    this.logger.log(`[findLatestByCustomer] Found ${allInvoices.length} invoices for customer_id ${customer_id}`);
     if (allInvoices.length > 0) {
-      console.log('[findLatestByCustomer] Sample invoice:', {
+      this.logger.log('[findLatestByCustomer] Sample invoice:', {
         id: allInvoices[0]?.id,
         code: allInvoices[0]?.code,
         customer_id: allInvoices[0]?.customer_id,
@@ -258,7 +258,7 @@ export class SalesService {
       order: { created_at: 'DESC' }, // Sắp xếp theo thời gian tạo giảm dần để lấy đơn gần nhất
     });
     
-    console.log('[findLatestByCustomer] Latest invoice with relations:', latestInvoice ? 'Found' : 'Not found');
+    this.logger.log('[findLatestByCustomer] Latest invoice with relations:', latestInvoice ? 'Found' : 'Not found');
     
     return latestInvoice;
   }

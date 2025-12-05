@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ProductModule } from './modules/product/product.module';
 import { SupplierModule } from './modules/supplier/supplier.module';
 import { ProductTypeModule } from './modules/product-type/product-type.module';
@@ -66,24 +68,24 @@ import { FirebaseModule } from './modules/firebase/firebase.module';
     // Cấu hình ScheduleModule để chạy cron jobs
     ScheduleModule.forRoot(),
 
-    // Cấu hình rate limiting với nhiều mức độ khác nhau
-    // ThrottlerModule.forRoot([
-    //   {
-    //     name: 'short',
-    //     ttl: 1000, // 1 giây
-    //     limit: 3, // Tối đa 3 requests trong 1 giây
-    //   },
-    //   {
-    //     name: 'medium',
-    //     ttl: 10000, // 10 giây
-    //     limit: 20, // Tối đa 20 requests trong 10 giây
-    //   },
-    //   {
-    //     name: 'long',
-    //     ttl: 60000, // 1 phút
-    //     limit: 100, // Tối đa 100 requests trong 1 phút
-    //   },
-    // ]),
+    // Cấu hình rate limiting để bảo vệ API khỏi DDoS
+    ThrottlerModule.forRoot([
+      {
+        name: 'short',
+        ttl: 1000, // 1 giây
+        limit: 10, // Tối đa 10 requests trong 1 giây
+      },
+      {
+        name: 'medium',
+        ttl: 10000, // 10 giây
+        limit: 50, // Tối đa 50 requests trong 10 giây
+      },
+      {
+        name: 'long',
+        ttl: 60000, // 1 phút
+        limit: 200, // Tối đa 200 requests trong 1 phút
+      },
+    ]),
 
     // Import các module chức năng
     ProductModule,
@@ -127,11 +129,11 @@ import { FirebaseModule } from './modules/firebase/firebase.module';
   ],
   controllers: [], // Các controller global (nếu có)
   providers: [
-    // Đăng ký ThrottlerGuard như một global guard
-    // {
-    //   provide: APP_GUARD,
-    //   useClass: ThrottlerGuard,
-    // },
+    // Đăng ký ThrottlerGuard như một global guard để áp dụng rate limiting
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}

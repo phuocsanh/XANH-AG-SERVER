@@ -1,4 +1,4 @@
-import { Injectable, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, Inject, forwardRef, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan, In, SelectQueryBuilder } from 'typeorm';
 import { InventoryBatch } from '../../entities/inventories.entity';
@@ -34,6 +34,8 @@ import { ErrorHandler } from '../../common/helpers/error-handler.helper';
  */
 @Injectable()
 export class InventoryService {
+  private readonly logger = new Logger(InventoryService.name);
+  
   /**
    * Constructor injection các repository và service cần thiết
    * @param inventoryBatchRepository - Repository để thao tác với entity InventoryBatch
@@ -659,14 +661,14 @@ export class InventoryService {
         quantity: newTotalQuantity, // Cập nhật tồn kho hiển thị
       });
 
-      console.log('✅ Đã cập nhật tồn kho sản phẩm:', {
+      this.logger.log('✅ Đã cập nhật tồn kho sản phẩm:', {
         productId,
         newQuantity: newTotalQuantity,
       });
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
-      console.warn(
+      this.logger.warn(
         `Không thể cập nhật giá sản phẩm ${productId}:`,
         errorMessage,
       );
@@ -774,14 +776,14 @@ export class InventoryService {
         quantity: newTotalQuantity,
       });
 
-      console.log('✅ Đã cập nhật tồn kho sản phẩm sau xuất kho:', {
+      this.logger.log('✅ Đã cập nhật tồn kho sản phẩm sau xuất kho:', {
         productId,
         newQuantity: newTotalQuantity,
       });
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
-      console.warn(
+      this.logger.warn(
         `Không thể cập nhật tồn kho sản phẩm ${productId}:`,
         errorMessage,
       );
@@ -1158,16 +1160,16 @@ export class InventoryService {
       const finalUnitCost = item.unit_cost + shippingPerUnit;
       
       // DEBUG: Log để kiểm tra
-      console.log('=== TÍNH PHÍ VẬN CHUYỂN ===');
-      console.log('Product ID:', item.product_id);
-      console.log('Unit Cost:', item.unit_cost);
-      console.log('Quantity:', item.quantity);
-      console.log('Individual Shipping:', individualShipping);
-      console.log('Allocated Shipping:', allocatedShipping);
-      console.log('Total Shipping for Item:', totalShippingForItem);
-      console.log('Shipping Per Unit:', shippingPerUnit);
-      console.log('Final Unit Cost:', finalUnitCost);
-      console.log('===========================');
+      this.logger.log('=== TÍNH PHÍ VẬN CHUYỂN ===');
+      this.logger.log('Product ID:', item.product_id);
+      this.logger.log('Unit Cost:', item.unit_cost);
+      this.logger.log('Quantity:', item.quantity);
+      this.logger.log('Individual Shipping:', individualShipping);
+      this.logger.log('Allocated Shipping:', allocatedShipping);
+      this.logger.log('Total Shipping for Item:', totalShippingForItem);
+      this.logger.log('Shipping Per Unit:', shippingPerUnit);
+      this.logger.log('Final Unit Cost:', finalUnitCost);
+      this.logger.log('===========================');
       
       return {
         ...item,
@@ -1224,7 +1226,7 @@ export class InventoryService {
             );
           }
         } catch (error) {
-          console.error(
+          this.logger.error(
             `Lỗi khi xử lý nhập kho cho sản phẩm ${item.product_id}:`,
             error,
           );
@@ -1380,7 +1382,7 @@ export class InventoryService {
           `RECEIPT_${receipt.id}_ITEM_${item.id}`,
         );
       } catch (error) {
-        console.error(
+        this.logger.error(
           `Lỗi khi xử lý nhập kho cho sản phẩm ${item.product_id} trong phiếu ${id}:`,
           error,
         );
@@ -1713,7 +1715,7 @@ export class InventoryService {
           `Trả hàng cho nhà cung cấp - Phiếu ${returnDoc.code}`,
         );
       } catch (error) {
-        console.error(
+        this.logger.error(
           `Lỗi khi xử lý xuất kho cho sản phẩm ${item.product_id} trong phiếu trả hàng ${id}:`,
           error,
         );
@@ -1916,7 +1918,7 @@ export class InventoryService {
           );
         }
       } catch (error) {
-        console.error(
+        this.logger.error(
           `Lỗi khi xử lý điều chỉnh kho cho sản phẩm ${item.product_id} trong phiếu ${id}:`,
           error,
         );

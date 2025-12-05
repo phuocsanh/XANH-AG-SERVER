@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { GoogleGenAI } from '@google/genai';
 import {
   PESTICIDE_MIXING_DOCUMENT_TEXT,
@@ -8,6 +8,7 @@ import { FirebaseService } from '../firebase/firebase.service';
 
 @Injectable()
 export class CompatibilityMixingPesticidesService {
+  private readonly logger = new Logger(CompatibilityMixingPesticidesService.name);
   private readonly model = 'gemini-2.5-flash';
 
   constructor(private firebaseService: FirebaseService) {}
@@ -39,7 +40,7 @@ export class CompatibilityMixingPesticidesService {
     `;
 
     try {
-      console.log('🚀 Starting AI processing with Google Search tool...');
+      this.logger.log('🚀 Starting AI processing with Google Search tool...');
 
       // Lấy API Key từ Firebase Remote Config (dùng key #1)
       const apiKey = await this.firebaseService.getGeminiApiKeyByIndex(1);
@@ -55,7 +56,7 @@ export class CompatibilityMixingPesticidesService {
         },
       } as any);
 
-      console.log('✅ Received response from AI');
+      this.logger.log('✅ Received response from AI');
 
       // 3. Kiểm tra xem response có chứa groundingMetadata không
       if (
@@ -63,9 +64,9 @@ export class CompatibilityMixingPesticidesService {
         response.candidates[0] &&
         response.candidates[0].groundingMetadata
       ) {
-        console.log('✅ Google Search tool is ACTIVE');
+        this.logger.log('✅ Google Search tool is ACTIVE');
       } else {
-        console.log('⚠️  Google Search tool might not be active');
+        this.logger.warn('⚠️  Google Search tool might not be active');
       }
 
       // 4. Trả về văn bản kết quả
@@ -77,14 +78,14 @@ export class CompatibilityMixingPesticidesService {
         response.candidates[0].content.parts[0]
       ) {
         const answer = response.candidates[0].content.parts[0].text || '';
-        console.log('✅ Successfully extracted answer from response');
+        this.logger.log('✅ Successfully extracted answer from response');
         return answer;
       }
 
-      console.log('⚠️  No answer found in response');
+      this.logger.warn('⚠️  No answer found in response');
       return '';
     } catch (error) {
-      console.error('❌ Error calling Gemini API:', error);
+      this.logger.error('❌ Error calling Gemini API:', error);
       throw new Error('Lỗi khi gọi API AI để xử lý câu hỏi.');
     }
   }
@@ -116,7 +117,7 @@ export class CompatibilityMixingPesticidesService {
     `;
 
     try {
-      console.log('🚀 Starting AI processing with Google Search tool...');
+      this.logger.log('🚀 Starting AI processing with Google Search tool...');
 
       // Lấy API Key từ Firebase Remote Config (dùng key #1)
       const apiKey = await this.firebaseService.getGeminiApiKeyByIndex(1);
@@ -132,7 +133,7 @@ export class CompatibilityMixingPesticidesService {
         },
       } as any);
 
-      console.log('✅ Received response from AI');
+      this.logger.log('✅ Received response from AI');
 
       // 3. Kiểm tra xem response có chứa groundingMetadata không
       if (
@@ -140,9 +141,9 @@ export class CompatibilityMixingPesticidesService {
         response.candidates[0] &&
         response.candidates[0].groundingMetadata
       ) {
-        console.log('✅ Google Search tool is ACTIVE');
+        this.logger.log('✅ Google Search tool is ACTIVE');
       } else {
-        console.log('⚠️  Google Search tool might not be active');
+        this.logger.warn('⚠️  Google Search tool might not be active');
       }
 
       // 4. Trả về văn bản kết quả
@@ -154,14 +155,14 @@ export class CompatibilityMixingPesticidesService {
         response.candidates[0].content.parts[0]
       ) {
         const answer = response.candidates[0].content.parts[0].text || '';
-        console.log('✅ Successfully extracted answer from response');
+        this.logger.log('✅ Successfully extracted answer from response');
         return answer;
       }
 
-      console.log('⚠️  No answer found in response');
+      this.logger.warn('⚠️  No answer found in response');
       return '';
     } catch (error) {
-      console.error('❌ Error calling Gemini API:', error);
+      this.logger.error('❌ Error calling Gemini API:', error);
       throw new Error('Lỗi khi gọi API AI để xử lý câu hỏi.');
     }
   }
