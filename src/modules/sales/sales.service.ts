@@ -12,6 +12,7 @@ import { UpdateSalesInvoiceDto } from './dto/update-sales-invoice.dto';
 import { SearchSalesDto } from './dto/search-sales.dto';
 import { FilterConditionDto } from './dto/filter-condition.dto';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
+import { DebtNoteService } from '../debt-note/debt-note.service';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến quản lý bán hàng
@@ -34,7 +35,7 @@ export class SalesService {
     private salesInvoiceItemRepository: Repository<SalesInvoiceItem>,
     @InjectRepository(Product)
     private productRepository: Repository<Product>,
-    private debtNoteService: any, // DebtNoteService - Inject without @InjectRepository
+    private debtNoteService: DebtNoteService,
   ) {}
 
   /**

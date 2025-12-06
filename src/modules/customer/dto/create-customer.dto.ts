@@ -1,4 +1,4 @@
-import { IsBoolean, IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
 import { CustomerType } from '../../../entities/customer.entity';
 
 export class CreateCustomerDto {
@@ -15,6 +15,7 @@ export class CreateCustomerDto {
   phone!: string;
 
   @IsOptional()
+  @ValidateIf((o) => o.email !== '')
   @IsEmail()
   email?: string;
 
