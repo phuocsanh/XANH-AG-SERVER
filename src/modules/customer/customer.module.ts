@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { CustomerController } from './customer.controller';
 import { CustomerService } from './customer.service';
 import { Customer } from '../../entities/customer.entity';
+import { DebtNote } from '../../entities/debt-note.entity';
 
 /**
  * CustomerModule - Module quản lý khách hàng
@@ -14,7 +15,7 @@ import { Customer } from '../../entities/customer.entity';
  * - Theo dõi lịch sử mua hàng và công nợ
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([Customer])],
+  imports: [TypeOrmModule.forFeature([Customer, DebtNote])],
   controllers: [CustomerController],
   providers: [CustomerService],
   exports: [CustomerService],

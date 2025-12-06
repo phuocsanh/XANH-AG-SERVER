@@ -27,6 +27,16 @@ export class CustomerController {
     return this.customerService.findAll(+page, +limit, search);
   }
 
+  @Get('debtors')
+  @RequirePermissions('SALES_VIEW')
+  getDebtors(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20,
+    @Query('search') search?: string,
+  ) {
+    return this.customerService.getDebtors(+page, +limit, search);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.customerService.findOne(+id);
