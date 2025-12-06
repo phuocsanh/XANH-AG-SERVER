@@ -3,7 +3,7 @@ import { IsString, IsNumber, IsDateString, IsOptional, IsNotEmpty } from 'class-
 /**
  * DTO cho chức năng chốt sổ công nợ
  */
-export class SettleAndRolloverDto {
+export class SettleDebtDto {
   /** ID khách hàng */
   @IsNumber()
   @IsNotEmpty()

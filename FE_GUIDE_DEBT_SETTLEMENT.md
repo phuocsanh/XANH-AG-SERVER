@@ -52,9 +52,9 @@ Response:
 
 ---
 
-### 3. Chốt Sổ Công Nợ + Chuyển Nợ ⭐
+### 3. Chốt Sổ Công Nợ ⭐
 ```typescript
-POST /payments/settle-and-rollover
+POST /payments/settle-debt
 
 Request:
 {
@@ -63,7 +63,6 @@ Request:
   "amount": 7000000,           // Số tiền khách trả
   "payment_method": "cash",    // hoặc "transfer"
   "payment_date": "2025-12-06", // Optional
-  "rollover_to_season_id": 5,  // Optional - Mùa vụ mới
   "notes": "Chốt sổ cuối mùa"  // Optional
 }
 
@@ -76,18 +75,14 @@ Response:
     "payment_method": "cash"
   },
   "settled_invoices": [
-    { "id": 1, "remaining_amount": 0 },
-    { "id": 2, "remaining_amount": 0 }
+    { "id": 1, "remaining_amount": 0, "payment_status": "paid" },
+    { "id": 2, "remaining_amount": 0, "payment_status": "paid" }
   ],
   "old_debt_note": {
     "id": 10,
-    "status": "rolled_over",
+    "status": "settled",        // Đã chốt sổ (còn nợ 3tr)
+    "paid_amount": 7000000,
     "remaining_amount": 3000000
-  },
-  "new_debt_note": {
-    "id": 11,
-    "season_id": 5,
-    "amount": 3000000
   }
 }
 ```
@@ -209,8 +204,8 @@ export const useSettleDebt = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: (data: SettleAndRolloverDto) => 
-      api.post('/payments/settle-and-rollover', data),
+    mutationFn: (data: SettleDebtDto) => 
+      api.post('/payments/settle-debt', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['debt-notes'] });
       queryClient.invalidateQueries({ queryKey: ['debtors'] });

@@ -5,10 +5,9 @@ import { Payment } from '../../entities/payment.entity';
 import { PaymentAllocation } from '../../entities/payment-allocation.entity';
 import { DebtNote, DebtNoteStatus } from '../../entities/debt-note.entity';
 import { SalesInvoice } from '../../entities/sales-invoices.entity';
-import { CreatePaymentDto } from './dto/create-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { SearchPaymentDto } from './dto/search-payment.dto';
-import { SettleAndRolloverDto } from './dto/settle-and-rollover.dto';
+import { SettleDebtDto } from './dto/settle-debt.dto';
 import { FilterConditionDto } from './dto/filter-condition.dto';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 
@@ -27,17 +26,6 @@ export class PaymentService {
     private salesInvoiceRepository: Repository<SalesInvoice>,
   ) {}
 
-  async create(createPaymentDto: CreatePaymentDto): Promise<Payment> {
-    try {
-      const payment = this.paymentRepository.create({
-        ...createPaymentDto,
-        created_by: 1, // TODO: Get user ID from context
-      });
-      return await this.paymentRepository.save(payment);
-    } catch (error) {
-      ErrorHandler.handleCreateError(error, 'phiếu thu');
-    }
-  }
 
   async findAll(): Promise<Payment[]> {
     return this.paymentRepository.find({
@@ -188,13 +176,12 @@ export class PaymentService {
   }
 
   /**
-   * Chốt sổ công nợ và chuyển nợ sang mùa vụ mới
+   * Chốt sổ công nợ
    */
-  async settleAndRollover(dto: SettleAndRolloverDto): Promise<{
+  async settleDebt(dto: SettleDebtDto): Promise<{
     payment: Payment;
     settled_invoices: SalesInvoice[];
     old_debt_note: DebtNote;
-    new_debt_note: DebtNote | undefined;
   }> {
     try {
       // 1. Lấy tất cả hóa đơn nợ của khách trong mùa vụ
@@ -294,7 +281,6 @@ export class PaymentService {
         payment: savedPayment,
         settled_invoices: settledInvoices,
         old_debt_note: oldDebtNote,
-        new_debt_note: undefined,
       };
     } catch (error) {
       this.logger.error('Lỗi khi chốt sổ công nợ:', error);
