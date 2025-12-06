@@ -34,6 +34,7 @@ export class SalesService {
     private salesInvoiceItemRepository: Repository<SalesInvoiceItem>,
     @InjectRepository(Product)
     private productRepository: Repository<Product>,
+    private debtNoteService: any, // DebtNoteService - Inject without @InjectRepository
   ) {}
 
   /**
@@ -104,6 +105,34 @@ export class SalesService {
         } catch (error) {
           this.logger.warn(`⚠️  Không thể tính lợi nhuận cho đơn #${savedInvoice.id}:`, error);
           // Không throw error để không làm gián đoạn luồng tạo đơn
+        }
+      }
+
+      // 🆕 Tự động tạo/cập nhật phiếu công nợ nếu có remaining_amount > 0
+      if (savedInvoice.remaining_amount > 0 && savedInvoice.customer_id) {
+        try {
+          // Tìm hoặc tạo phiếu công nợ cho mùa vụ
+          const debtNote = await this.debtNoteService.findOrCreateForSeason(
+            savedInvoice.customer_id,
+            savedInvoice.season_id,
+            savedInvoice.created_by,
+          );
+
+          // Thêm hóa đơn vào phiếu công nợ
+          await this.debtNoteService.addInvoiceToDebtNote(
+            debtNote.id,
+            savedInvoice.id,
+            savedInvoice.remaining_amount,
+          );
+
+          this.logger.log(
+            `✅ Đã cập nhật phiếu công nợ #${debtNote.code} cho hóa đơn #${savedInvoice.code}`,
+          );
+        } catch (error) {
+          this.logger.warn(
+            `⚠️  Không thể cập nhật phiếu công nợ cho hóa đơn #${savedInvoice.code}:`,
+            error,
+          );
         }
       }
 

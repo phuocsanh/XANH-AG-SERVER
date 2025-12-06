@@ -3,6 +3,7 @@ import { PaymentService } from './payment.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { SearchPaymentDto } from './dto/search-payment.dto';
+import { SettleAndRolloverDto } from './dto/settle-and-rollover.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -16,6 +17,12 @@ export class PaymentController {
   @RequirePermissions('SALES_MANAGE')
   create(@Body() createPaymentDto: CreatePaymentDto) {
     return this.paymentService.create(createPaymentDto);
+  }
+
+  @Post('settle-and-rollover')
+  @RequirePermissions('SALES_MANAGE')
+  settleAndRollover(@Body() dto: SettleAndRolloverDto) {
+    return this.paymentService.settleAndRollover(dto);
   }
 
   @Get()

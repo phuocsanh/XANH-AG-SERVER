@@ -18,6 +18,8 @@ export enum DebtNoteStatus {
   PAID = 'paid',          // Đã trả hết
   OVERDUE = 'overdue',    // Quá hạn
   CANCELLED = 'cancelled', // Đã hủy
+  SETTLED = 'settled',    // Đã chốt sổ (chuyển sang mùa mới)
+  ROLLED_OVER = 'rolled_over', // Đã chuyển nợ sang mùa khác
 }
 
 /**
@@ -88,6 +90,24 @@ export class DebtNote {
   /** ID người tạo phiếu */
   @Column({ name: 'created_by', nullable: true })
   created_by?: number;
+
+  /** ID phiếu nợ mùa trước (được chuyển từ phiếu nào) */
+  @Column({ name: 'rolled_over_from_id', nullable: true })
+  rolled_over_from_id?: number;
+
+  /** Phiếu nợ mùa trước */
+  @ManyToOne(() => DebtNote, { nullable: true })
+  @JoinColumn({ name: 'rolled_over_from_id' })
+  rolled_over_from?: DebtNote;
+
+  /** ID phiếu nợ mùa sau (chuyển sang phiếu nào) */
+  @Column({ name: 'rolled_over_to_id', nullable: true })
+  rolled_over_to_id?: number;
+
+  /** Phiếu nợ mùa sau */
+  @ManyToOne(() => DebtNote, { nullable: true })
+  @JoinColumn({ name: 'rolled_over_to_id' })
+  rolled_over_to?: DebtNote;
 
   /** Ngày tạo */
   @CreateDateColumn({ name: 'created_at' })

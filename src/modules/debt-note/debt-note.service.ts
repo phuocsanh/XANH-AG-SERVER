@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder } from 'typeorm';
 import { DebtNote, DebtNoteStatus } from '../../entities/debt-note.entity';
@@ -10,6 +10,8 @@ import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 
 @Injectable()
 export class DebtNoteService {
+  private readonly logger = new Logger(DebtNoteService.name);
+
   constructor(
     @InjectRepository(DebtNote)
     private debtNoteRepository: Repository<DebtNote>,
@@ -154,5 +156,100 @@ export class DebtNoteService {
       case 'isnotnull': return `${field} IS NOT NULL`;
       default: return null;
     }
+  }
+
+  /**
+   * Tìm hoặc tạo phiếu công nợ cho khách hàng trong mùa vụ
+   * Nếu đã có phiếu nợ cho customer_id + season_id → Trả về phiếu đó
+   * Nếu chưa có → Tạo phiếu mới
+   */
+  async findOrCreateForSeason(
+    customer_id: number,
+    season_id: number | undefined,
+    created_by: number,
+  ): Promise<DebtNote> {
+    // Tìm phiếu nợ hiện có
+    const queryBuilder = this.debtNoteRepository
+      .createQueryBuilder('dn')
+      .where('dn.customer_id = :customer_id', { customer_id })
+      .andWhere('dn.status IN (:...statuses)', { statuses: ['active', 'overdue'] });
+
+    if (season_id) {
+      queryBuilder.andWhere('dn.season_id = :season_id', { season_id });
+    } else {
+      queryBuilder.andWhere('dn.season_id IS NULL');
+    }
+
+    let debtNote = await queryBuilder.getOne();
+
+    // Nếu chưa có, tạo mới
+    if (!debtNote) {
+      const code = this.generateDebtNoteCode();
+      debtNote = this.debtNoteRepository.create({
+        code,
+        customer_id,
+        ...(season_id && { season_id }),
+        amount: 0,
+        paid_amount: 0,
+        remaining_amount: 0,
+        status: DebtNoteStatus.ACTIVE,
+        source_invoices: [],
+        created_by,
+      });
+      debtNote = await this.debtNoteRepository.save(debtNote);
+      this.logger.log(`✅ Tạo phiếu công nợ mới: ${code} cho customer #${customer_id}`);
+    }
+
+    return debtNote;
+  }
+
+  /**
+   * Thêm hóa đơn vào phiếu công nợ
+   * Cập nhật amount và remaining_amount
+   */
+  async addInvoiceToDebtNote(
+    debtNoteId: number,
+    invoiceId: number,
+    invoiceAmount: number,
+  ): Promise<DebtNote> {
+    const debtNote = await this.debtNoteRepository.findOne({
+      where: { id: debtNoteId },
+    });
+
+    if (!debtNote) {
+      throw new Error(`DebtNote #${debtNoteId} not found`);
+    }
+
+    // Khởi tạo source_invoices nếu chưa có
+    if (!debtNote.source_invoices) {
+      debtNote.source_invoices = [];
+    }
+
+    // Thêm invoice_id vào source_invoices nếu chưa có
+    if (!debtNote.source_invoices.includes(invoiceId)) {
+      debtNote.source_invoices.push(invoiceId);
+    }
+
+    // Cập nhật số tiền
+    debtNote.amount = Number(debtNote.amount) + invoiceAmount;
+    debtNote.remaining_amount = Number(debtNote.remaining_amount) + invoiceAmount;
+
+    return await this.debtNoteRepository.save(debtNote);
+  }
+
+  /**
+   * Sinh mã phiếu công nợ tự động
+   */
+  private generateDebtNoteCode(): string {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    
+    return `DN${year}${month}${day}${hours}${minutes}${seconds}${random}`;
   }
 }
