@@ -16,7 +16,10 @@ export class UploadService {
 
   constructor(private readonly fileTrackingService: FileTrackingService) {}
 
-  async uploadImage(file: Express.Multer.File): Promise<UploadResponseDto> {
+  async uploadImage(
+    file: Express.Multer.File,
+    subFolder?: string,
+  ): Promise<UploadResponseDto> {
     try {
       if (!file) {
         throw new BadRequestException('No file provided');
@@ -29,10 +32,17 @@ export class UploadService {
         );
       }
 
-      // Upload to Cloudinary
+      const folderPath = subFolder
+        ? `${CLOUDINARY_FOLDER}/${subFolder}`
+        : CLOUDINARY_FOLDER;
+
+      // Upload to Cloudinary with compression and optimization
       const result = await cloudinary.uploader.upload(file.path, {
-        folder: CLOUDINARY_FOLDER,
+        folder: folderPath,
         resource_type: 'image',
+        transformation: [
+          { quality: 'auto', fetch_format: 'auto' }, // Tự động tối ưu chất lượng và định dạng
+        ],
       });
 
       // Clean up temporary file (async)
@@ -77,20 +87,30 @@ export class UploadService {
 
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Upload image failed: ${errorMessage}`, (error as Error).stack);
+      this.logger.error(
+        `Upload image failed: ${errorMessage}`,
+        (error as Error).stack,
+      );
       throw new InternalServerErrorException(`Upload failed: ${errorMessage}`);
     }
   }
 
-  async uploadFile(file: Express.Multer.File): Promise<UploadResponseDto> {
+  async uploadFile(
+    file: Express.Multer.File,
+    subFolder?: string,
+  ): Promise<UploadResponseDto> {
     try {
       if (!file) {
         throw new BadRequestException('No file provided');
       }
 
+      const folderPath = subFolder
+        ? `${CLOUDINARY_FOLDER}/${subFolder}`
+        : CLOUDINARY_FOLDER;
+
       // Upload to Cloudinary
       const result = await cloudinary.uploader.upload(file.path, {
-        folder: CLOUDINARY_FOLDER,
+        folder: folderPath,
         resource_type: 'auto',
       });
 
@@ -136,7 +156,10 @@ export class UploadService {
 
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
-      this.logger.error(`Upload file failed: ${errorMessage}`, (error as Error).stack);
+      this.logger.error(
+        `Upload file failed: ${errorMessage}`,
+        (error as Error).stack,
+      );
       throw new InternalServerErrorException(`Upload failed: ${errorMessage}`);
     }
   }

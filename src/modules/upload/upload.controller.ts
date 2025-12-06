@@ -7,8 +7,8 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
-  Param,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -18,7 +18,12 @@ import { UploadService } from './upload.service';
 import { UploadResponseDto, MarkFileUsedDto } from './dto/upload-response.dto';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
-import { MAX_IMAGE_SIZE, MAX_FILE_SIZE } from '../../common/constants/app.constants';
+import {
+  MAX_IMAGE_SIZE,
+  MAX_FILE_SIZE,
+  UploadType,
+  UPLOAD_FOLDER_MAP,
+} from '../../common/constants/app.constants';
 
 @Controller('upload')
 @UseGuards(JwtAuthGuard)
@@ -52,11 +57,16 @@ export class UploadController {
       },
     }),
   )
-  async uploadImage(@UploadedFile() file: Express.Multer.File): Promise<UploadResponseDto> {
+  async uploadImage(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: { type?: UploadType },
+  ): Promise<UploadResponseDto> {
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
-    return this.uploadService.uploadImage(file);
+
+    const folder = body.type ? UPLOAD_FOLDER_MAP[body.type] : undefined;
+    return this.uploadService.uploadImage(file, folder);
   }
 
   @Post('file')
@@ -77,30 +87,27 @@ export class UploadController {
       },
     }),
   )
-  async uploadFile(@UploadedFile() file: Express.Multer.File): Promise<UploadResponseDto> {
+  async uploadFile(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: { type?: UploadType },
+  ): Promise<UploadResponseDto> {
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
-    return this.uploadService.uploadFile(file);
+
+    const folder = body.type ? UPLOAD_FOLDER_MAP[body.type] : undefined;
+    return this.uploadService.uploadFile(file, folder);
   }
 
-  @Delete(':folder/:filename')
+  @Delete()
   @UseGuards(PermissionsGuard)
   @RequirePermissions('PRODUCT_MANAGE')
-  async deleteFile(
-    @Param('folder') folder: string,
-    @Param('filename') filename: string,
-  ) {
-    const publicId = `${folder}/${filename}`;
-
+  async deleteFile(@Query('publicId') publicId: string) {
     if (!publicId) {
       throw new BadRequestException('PublicId is required');
     }
 
-    // Decode URL-encoded publicId
-    const decodedPublicId = decodeURIComponent(publicId);
-
-    return this.uploadService.deleteFile(decodedPublicId);
+    return this.uploadService.deleteFile(publicId);
   }
 
   @Patch('mark-used')

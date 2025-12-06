@@ -23,3 +23,19 @@ export const JWT_ACCESS_TOKEN_EXPIRY = '1d';
 
 // Cloudinary
 export const CLOUDINARY_FOLDER = 'gn-farm';
+
+export enum UploadType {
+  AVATAR = 'avatar',
+  PRODUCT = 'product',
+  RICE_CROP = 'rice-crop',
+  DOCUMENT = 'document',
+  COMMON = 'common',
+}
+
+export const UPLOAD_FOLDER_MAP: Record<UploadType, string> = {
+  [UploadType.AVATAR]: 'avatars',
+  [UploadType.PRODUCT]: 'products',
+  [UploadType.RICE_CROP]: 'rice-crops',
+  [UploadType.DOCUMENT]: 'documents',
+  [UploadType.COMMON]: 'common',
+};
