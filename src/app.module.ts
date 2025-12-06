@@ -46,6 +46,7 @@ import { ProfitReportModule } from './modules/profit-report/profit-report.module
 import { StoreProfitReportModule } from './modules/store-profit-report/store-profit-report.module';
 import { FirebaseModule } from './modules/firebase/firebase.module';
 import { HealthModule } from './health/health.module';
+import { CleanupModule } from './modules/cleanup/cleanup.module';
 
 
 /**
@@ -128,6 +129,7 @@ import { HealthModule } from './health/health.module';
     ProfitReportModule, // Module báo cáo lợi nhuận (nông dân)
     StoreProfitReportModule, // Module báo cáo lợi nhuận (cửa hàng)
     HealthModule, // Module health check để tránh Render free tier sleep
+    CleanupModule, // Module dọn dẹp dữ liệu rác định kỳ
   ],
   controllers: [], // Các controller global (nếu có)
   providers: [
