@@ -22,7 +22,7 @@ export const JWT_REFRESH_TOKEN_EXPIRY = '90d'; // 3 tháng - cho ứng dụng c�
 export const JWT_ACCESS_TOKEN_EXPIRY = '1d';
 
 // Cloudinary
-export const CLOUDINARY_FOLDER = 'gn-farm';
+export const CLOUDINARY_FOLDER = 'xanh-ag';
 
 export enum UploadType {
   AVATAR = 'avatar',

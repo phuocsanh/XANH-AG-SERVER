@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder, Not, IsNull } from 'typeorm';
 import { User } from '../../entities/users.entity';
@@ -11,6 +11,8 @@ import { FilterConditionDto } from './dto/filter-condition.dto';
 import * as bcrypt from 'bcrypt';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 import { BaseStatus } from '../../entities/base-status.enum';
+import { ImageCleanupHelper } from '../../common/helpers/image-cleanup.helper';
+import { UploadService } from '../upload/upload.service';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến người dùng
@@ -22,12 +24,15 @@ export class UserService {
    * Constructor injection các repository cần thiết
    * @param userRepository - Repository để thao tác với entity User
    * @param userProfileRepository - Repository để thao tác với entity UserProfile
+   * @param uploadService - Service quản lý upload và xóa file
    */
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
     @InjectRepository(UserProfile)
     private userProfileRepository: Repository<UserProfile>,
+    @Inject(UploadService)
+    private uploadService: UploadService,
   ) {}
 
   /**
@@ -243,7 +248,23 @@ export class UserService {
     userId: number,
     profileData: Partial<UserProfile>,
   ): Promise<UserProfile | null> {
+    // Lấy profile hiện tại để so sánh avatar
+    const currentProfile = await this.userProfileRepository.findOne({
+      where: { user_id: userId },
+    });
+
+    // Cập nhật profile
     await this.userProfileRepository.update({ user_id: userId }, profileData);
+
+    // Xóa avatar cũ nếu có thay đổi
+    if (currentProfile && profileData.avatar) {
+      await ImageCleanupHelper.cleanupSingleImage(
+        currentProfile.avatar,
+        profileData.avatar,
+        this.uploadService,
+      );
+    }
+
     return this.userProfileRepository.findOne({ where: { user_id: userId } });
   }
 

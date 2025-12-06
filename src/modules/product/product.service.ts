@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from '../../entities/products.entity';
@@ -12,6 +12,8 @@ import { SearchProductDto } from './dto/search-product.dto';
 import { BaseSearchService } from '../../common/services/base-search.service';
 import { PricingCalculatorUtil } from './utils/pricing-calculator.util';
 import { OperatingCostService } from '../operating-cost/operating-cost.service';
+import { ImageCleanupHelper } from '../../common/helpers/image-cleanup.helper';
+import { UploadService } from '../upload/upload.service';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến sản phẩm
@@ -27,6 +29,7 @@ export class ProductService extends BaseSearchService<Product> {
    * @param productFactoryRegistry - Registry quản lý các factory tạo sản phẩm
    * @param fileTrackingService - Service quản lý theo dõi file
    * @param operatingCostService - Service quản lý chi phí vận hành
+   * @param uploadService - Service quản lý upload và xóa file
    */
   constructor(
     @InjectRepository(Product)
@@ -34,6 +37,8 @@ export class ProductService extends BaseSearchService<Product> {
     private productFactoryRegistry: ProductFactoryRegistry,
     private fileTrackingService: FileTrackingService,
     private operatingCostService: OperatingCostService,
+    @Inject(UploadService)
+    private uploadService: UploadService,
   ) {
     super();
   }
@@ -185,11 +190,53 @@ export class ProductService extends BaseSearchService<Product> {
     updateProductDto: UpdateProductDto,
   ): Promise<Product | null> {
     try {
+      // Lấy thông tin sản phẩm hiện tại để so sánh ảnh
+      const currentProduct = await this.findOne(id);
+      if (!currentProduct) {
+        throw new Error(`Không tìm thấy sản phẩm với ID: ${id}`);
+      }
+
+      // Cập nhật sản phẩm
       await this.productRepository.update(id, updateProductDto);
+
+      // Xử lý xóa ảnh cũ nếu có thay đổi
+      await this.cleanupOldImages(currentProduct, updateProductDto);
+
       return this.findOne(id);
     } catch (error) {
       ErrorHandler.handleUpdateError(error, 'sản phẩm');
     }
+  }
+
+  /**
+   * Xóa các ảnh cũ không còn được sử dụng sau khi update
+   * @param currentProduct - Sản phẩm hiện tại (trước khi update)
+   * @param updateDto - Dữ liệu update mới
+   */
+  private async cleanupOldImages(
+    currentProduct: Product,
+    updateDto: UpdateProductDto,
+  ): Promise<void> {
+    // Xóa thumb cũ nếu có thay đổi
+    await ImageCleanupHelper.cleanupSingleImage(
+      currentProduct.thumb,
+      updateDto.thumb,
+      this.uploadService,
+    );
+
+    // Xóa pictures cũ nếu có thay đổi
+    await ImageCleanupHelper.cleanupArrayImages(
+      currentProduct.pictures,
+      updateDto.pictures,
+      this.uploadService,
+    );
+
+    // Xóa videos cũ nếu có thay đổi
+    await ImageCleanupHelper.cleanupArrayImages(
+      currentProduct.videos,
+      updateDto.videos,
+      this.uploadService,
+    );
   }
 
   /**

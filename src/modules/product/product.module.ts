@@ -11,6 +11,7 @@ import { InventoryModule } from '../inventory/inventory.module';
 import { UnitModule } from '../unit/unit.module';
 import { ProductTypeModule } from '../product-type/product-type.module';
 import { OperatingCostModule } from '../operating-cost/operating-cost.module';
+import { UploadModule } from '../upload/upload.module';
 
 /**
  * ProductModule - Module quản lý sản phẩm
@@ -36,6 +37,8 @@ import { OperatingCostModule } from '../operating-cost/operating-cost.module';
     ProductTypeModule,
     // Import OperatingCostModule để sử dụng OperatingCostService
     OperatingCostModule,
+    // Import UploadModule để sử dụng UploadService (xóa ảnh cũ)
+    UploadModule,
   ],
   controllers: [
     ProductController, // Controller xử lý các request liên quan đến sản phẩm

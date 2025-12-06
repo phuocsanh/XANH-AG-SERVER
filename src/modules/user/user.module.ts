@@ -6,6 +6,7 @@ import { UserService } from './user.service';
 import { UserController } from './user.controller';
 import { FileTrackingModule } from '../file-tracking/file-tracking.module';
 import { UniqueAccountValidator } from './validators/unique-account.validator';
+import { UploadModule } from '../upload/upload.module';
 
 /**
  * UserModule - Module quản lý người dùng
@@ -23,6 +24,8 @@ import { UniqueAccountValidator } from './validators/unique-account.validator';
     TypeOrmModule.forFeature([User, UserProfile]),
     // Import FileTrackingModule để sử dụng FileTrackingService
     FileTrackingModule,
+    // Import UploadModule để sử dụng UploadService (xóa avatar cũ)
+    UploadModule,
   ],
   controllers: [UserController], // Controller xử lý các request liên quan đến người dùng
   providers: [
