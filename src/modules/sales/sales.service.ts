@@ -69,7 +69,7 @@ export class SalesService {
         notes: createSalesInvoiceDto.notes,
         warning: createSalesInvoiceDto.warning,
         created_by: 1, // TODO: Lấy user ID từ context
-        status: SalesInvoiceStatus.DRAFT, // Trạng thái mặc định
+        status: createSalesInvoiceDto.status || SalesInvoiceStatus.DRAFT, // Trạng thái từ DTO hoặc mặc định là DRAFT
         partial_payment_amount: partialPayment,
         remaining_amount: remainingAmount,
         rice_crop_id: createSalesInvoiceDto.rice_crop_id,

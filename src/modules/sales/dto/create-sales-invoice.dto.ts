@@ -1,5 +1,6 @@
-import { IsNumber, IsString, IsOptional, IsArray, ValidateNested } from 'class-validator';
+import { IsNumber, IsString, IsOptional, IsArray, ValidateNested, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
+import { SalesInvoiceStatus } from '../../../entities/sales-invoices.entity';
 
 /**
  * DTO (Data Transfer Object) dùng để tạo chi tiết hóa đơn bán hàng
@@ -38,6 +39,11 @@ export class CreateSalesInvoiceDto {
   @IsString()
   @IsOptional()
   invoice_code?: string;
+
+  /** Trạng thái hóa đơn (tùy chọn - mặc định là DRAFT) */
+  @IsEnum(SalesInvoiceStatus)
+  @IsOptional()
+  status?: SalesInvoiceStatus;
 
   /** ID khách hàng trong hệ thống (tùy chọn - dùng cho khách hàng đã đăng ký) */
   @IsNumber()
