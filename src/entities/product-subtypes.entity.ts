@@ -5,8 +5,11 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   DeleteDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { BaseStatus } from './base-status.enum';
+import { ProductType } from './product-types.entity';
 
 /**
  * Entity biểu diễn thông tin loại phụ sản phẩm
@@ -29,6 +32,10 @@ export class ProductSubtype {
   /** ID loại sản phẩm mà loại phụ sản phẩm này thuộc về */
   @Column({ name: 'product_type_id' })
   product_type_id!: number;
+
+  @ManyToOne(() => ProductType)
+  @JoinColumn({ name: 'product_type_id' })
+  product_type?: ProductType;
 
   /** Mô tả loại phụ sản phẩm */
   @Column({ name: 'description', nullable: true })

@@ -22,12 +22,16 @@ export class ApplicationRecordService {
   async findByCrop(cropId: number): Promise<ApplicationRecord[]> {
     return this.recordRepository.find({
       where: { rice_crop_id: cropId },
+      relations: ['rice_crop'],
       order: { application_date: 'DESC' },
     });
   }
 
   async findOne(id: number): Promise<ApplicationRecord> {
-    const record = await this.recordRepository.findOne({ where: { id } });
+    const record = await this.recordRepository.findOne({
+      where: { id },
+      relations: ['rice_crop'],
+    });
     if (!record) {
       throw new NotFoundException(`Không tìm thấy nhật ký với ID: ${id}`);
     }

@@ -6,9 +6,12 @@ import {
   UpdateDateColumn,
   DeleteDateColumn,
   OneToMany,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { InventoryReceipt } from './inventory-receipts.entity';
 import { BaseStatus } from './base-status.enum';
+import { User } from './users.entity';
 
 /**
  * Entity biểu diễn thông tin nhà cung cấp
@@ -60,6 +63,10 @@ export class Supplier {
   /** ID của người tạo */
   @Column({ name: 'created_by' })
   created_by!: number;
+
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'created_by' })
+  creator?: User;
 
   /** ID của người cập nhật cuối cùng */
   @Column({ name: 'updated_by', nullable: true })

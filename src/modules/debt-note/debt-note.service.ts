@@ -70,6 +70,8 @@ export class DebtNoteService {
     
     queryBuilder.leftJoinAndSelect('debt_note.customer', 'customer');
     queryBuilder.leftJoinAndSelect('debt_note.season', 'season');
+    queryBuilder.leftJoin('debt_note.creator', 'creator')
+      .addSelect(['creator.id', 'creator.account']);
 
     this.buildSearchConditions(queryBuilder, searchDto, 'debt_note');
 

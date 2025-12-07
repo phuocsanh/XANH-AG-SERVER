@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { Customer } from './customer.entity';
 import { PaymentAllocation } from './payment-allocation.entity'; // Import entity phân bổ
+import { User } from './users.entity';
 
 /**
  * Entity phiếu thu tiền
@@ -56,6 +57,11 @@ export class Payment {
   /** ID người tạo phiếu */
   @Column({ name: 'created_by', nullable: true })
   created_by?: number;
+
+  /** Người tạo phiếu */
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'created_by' })
+  creator?: User;
 
   /** Ngày tạo */
   @CreateDateColumn({ name: 'created_at' })

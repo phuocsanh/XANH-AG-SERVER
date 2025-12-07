@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { Customer } from './customer.entity';
 import { Season } from './season.entity';
+import { User } from './users.entity';
 
 /**
  * Enum trạng thái phiếu công nợ
@@ -90,6 +91,11 @@ export class DebtNote {
   /** ID người tạo phiếu */
   @Column({ name: 'created_by', nullable: true })
   created_by?: number;
+
+  /** Người tạo phiếu */
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'created_by' })
+  creator?: User;
 
   /** ID phiếu nợ mùa trước (được chuyển từ phiếu nào) */
   @Column({ name: 'rolled_over_from_id', nullable: true })

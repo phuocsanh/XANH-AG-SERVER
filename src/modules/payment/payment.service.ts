@@ -59,6 +59,8 @@ export class PaymentService {
     
     // Join customer for searching
     queryBuilder.leftJoinAndSelect('payment.customer', 'customer');
+    queryBuilder.leftJoin('payment.creator', 'creator')
+      .addSelect(['creator.id', 'creator.account']);
 
     this.buildSearchConditions(queryBuilder, searchDto, 'payment');
 

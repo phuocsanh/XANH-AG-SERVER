@@ -11,6 +11,7 @@ import {
 } from 'typeorm';
 import { InventoryReceiptItem } from './inventory-receipt-items.entity';
 import { Supplier } from './suppliers.entity';
+import { User } from './users.entity';
 
 /**
  * Entity biểu diễn thông tin phiếu nhập kho
@@ -50,6 +51,11 @@ export class InventoryReceipt {
   /** ID của người tạo phiếu nhập kho */
   @Column({ name: 'created_by' })
   created_by!: number;
+
+  /** Người tạo phiếu */
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'created_by' })
+  creator?: User;
 
   /** ID của người cập nhật phiếu nhập kho */
   @Column({ name: 'updated_by', nullable: true })

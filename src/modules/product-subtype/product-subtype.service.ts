@@ -53,6 +53,7 @@ export class ProductSubtypeService {
   async findAll(): Promise<ProductSubtype[]> {
     return this.productSubtypeRepository
       .createQueryBuilder('productSubtype')
+      .leftJoinAndSelect('productSubtype.product_type', 'product_type')
       .where('productSubtype.deleted_at IS NULL')
       .getMany();
   }
@@ -65,6 +66,7 @@ export class ProductSubtypeService {
   async findByStatus(status: BaseStatus): Promise<ProductSubtype[]> {
     return this.productSubtypeRepository
       .createQueryBuilder('productSubtype')
+      .leftJoinAndSelect('productSubtype.product_type', 'product_type')
       .where('productSubtype.status = :status', { status })
       .andWhere('productSubtype.deleted_at IS NULL')
       .getMany();
@@ -78,6 +80,7 @@ export class ProductSubtypeService {
   async findOne(id: number): Promise<ProductSubtype | null> {
     return this.productSubtypeRepository
       .createQueryBuilder('productSubtype')
+      .leftJoinAndSelect('productSubtype.product_type', 'product_type')
       .where('productSubtype.id = :id', { id })
       .andWhere('productSubtype.deleted_at IS NULL')
       .getOne();
@@ -178,6 +181,7 @@ export class ProductSubtypeService {
     return this.productSubtypeRepository
       .createQueryBuilder('productSubtype')
       .withDeleted()
+      .leftJoinAndSelect('productSubtype.product_type', 'product_type')
       .where('productSubtype.deleted_at IS NOT NULL')
       .getMany();
   }
@@ -195,6 +199,8 @@ export class ProductSubtypeService {
   }> {
     const queryBuilder =
       this.productSubtypeRepository.createQueryBuilder('productSubtype');
+
+    queryBuilder.leftJoinAndSelect('productSubtype.product_type', 'product_type');
 
     // Thêm điều kiện mặc định
     queryBuilder.where('productSubtype.deleted_at IS NULL');
@@ -228,6 +234,7 @@ export class ProductSubtypeService {
   async findByProductType(productTypeId: number): Promise<ProductSubtype[]> {
     return this.productSubtypeRepository.find({
       where: { product_type_id: productTypeId },
+      relations: ['product_type'],
       order: { name: 'ASC' },
     });
   }

@@ -5,7 +5,11 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   DeleteDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
+import { Product } from './products.entity';
+import { Supplier } from './suppliers.entity';
 
 /**
  * Entity biểu diễn thông tin lô hàng tồn kho
@@ -20,6 +24,11 @@ export class InventoryBatch {
   /** ID của sản phẩm trong lô hàng */
   @Column({ name: 'product_id' })
   product_id!: number;
+
+  /** Sản phẩm */
+  @ManyToOne(() => Product)
+  @JoinColumn({ name: 'product_id' })
+  product?: Product;
 
   /** Mã lô hàng (có thể null) */
   @Column({ name: 'code', nullable: true })
@@ -48,6 +57,11 @@ export class InventoryBatch {
   /** ID nhà cung cấp (có thể null) */
   @Column({ name: 'supplier_id', nullable: true })
   supplier_id?: number;
+
+  /** Nhà cung cấp */
+  @ManyToOne(() => Supplier)
+  @JoinColumn({ name: 'supplier_id' })
+  supplier?: Supplier;
 
   /** Ghi chú về lô hàng (có thể null) */
   @Column({ name: 'notes', nullable: true, type: 'text' })

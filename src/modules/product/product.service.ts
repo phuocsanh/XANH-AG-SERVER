@@ -125,6 +125,8 @@ export class ProductService extends BaseSearchService<Product> {
   async findAll(): Promise<Product[]> {
     return this.productRepository
       .createQueryBuilder('product')
+      .leftJoinAndSelect('product.unit', 'unit')
+      .leftJoinAndSelect('product.symbol', 'symbol')
       .where('product.status = :status', { status: BaseStatus.ACTIVE })
       .andWhere('product.deleted_at IS NULL')
       .getMany();
@@ -138,6 +140,8 @@ export class ProductService extends BaseSearchService<Product> {
   async findByStatus(status: BaseStatus): Promise<Product[]> {
     return this.productRepository
       .createQueryBuilder('product')
+      .leftJoinAndSelect('product.unit', 'unit')
+      .leftJoinAndSelect('product.symbol', 'symbol')
       .where('product.status = :status', { status })
       .andWhere('product.deleted_at IS NULL')
       .getMany();
@@ -151,6 +155,8 @@ export class ProductService extends BaseSearchService<Product> {
   async findOne(id: number): Promise<Product | null> {
     return this.productRepository
       .createQueryBuilder('product')
+      .leftJoinAndSelect('product.unit', 'unit')
+      .leftJoinAndSelect('product.symbol', 'symbol')
       .where('product.id = :id', { id })
       .andWhere('product.deleted_at IS NULL')
       .getOne();
@@ -310,6 +316,8 @@ export class ProductService extends BaseSearchService<Product> {
   async searchProducts(query: string): Promise<Product[]> {
     return this.productRepository
       .createQueryBuilder('product')
+      .leftJoinAndSelect('product.unit', 'unit')
+      .leftJoinAndSelect('product.symbol', 'symbol')
       .where('product.name ILIKE :query', { query: `%${query}%` })
       .orWhere('product.description ILIKE :query', {
         query: `%${query}%`,
@@ -328,6 +336,9 @@ export class ProductService extends BaseSearchService<Product> {
     searchDto: SearchProductDto,
   ): Promise<{ data: Product[]; total: number; page: number; limit: number }> {
     const queryBuilder = this.productRepository.createQueryBuilder('product');
+
+    queryBuilder.leftJoinAndSelect('product.unit', 'unit');
+    queryBuilder.leftJoinAndSelect('product.symbol', 'symbol');
 
     // Kiểm tra xem có filter deleted_at không
     const hasDeletedFilter = searchDto.filters?.some(
@@ -400,6 +411,8 @@ export class ProductService extends BaseSearchService<Product> {
   async findByType(productType: number): Promise<Product[]> {
     return this.productRepository
       .createQueryBuilder('product')
+      .leftJoinAndSelect('product.unit', 'unit')
+      .leftJoinAndSelect('product.symbol', 'symbol')
       .where('product.productType = :productType', { productType })
       .andWhere('product.status = :status', { status: BaseStatus.ACTIVE })
       .andWhere('product.deleted_at IS NULL')

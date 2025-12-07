@@ -11,6 +11,7 @@ import {
 import { SalesInvoice } from './sales-invoices.entity';
 import { Customer } from './customer.entity';
 import { SalesReturnItem } from './sales-return-items.entity';
+import { User } from './users.entity';
 
 export enum SalesReturnStatus {
   DRAFT = 'draft',
@@ -55,6 +56,10 @@ export class SalesReturn {
 
   @Column({ name: 'created_by', nullable: true })
   created_by?: number;
+
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'created_by' })
+  creator?: User;
 
   @CreateDateColumn()
   created_at!: Date;

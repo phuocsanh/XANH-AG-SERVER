@@ -98,6 +98,7 @@ export class InventoryService {
   async findBatchesByProduct(productId: number) {
     return this.inventoryBatchRepository.find({
       where: { product_id: productId },
+      relations: ['product', 'supplier'],
     });
   }
 
@@ -107,7 +108,10 @@ export class InventoryService {
    * @returns Thông tin lô hàng tồn kho
    */
   async findBatchById(id: number): Promise<InventoryBatch | null> {
-    return this.inventoryBatchRepository.findOne({ where: { id } });
+    return this.inventoryBatchRepository.findOne({
+      where: { id },
+      relations: ['product', 'supplier'],
+    });
   }
 
   /**
@@ -149,6 +153,9 @@ export class InventoryService {
   }> {
     const queryBuilder =
       this.inventoryBatchRepository.createQueryBuilder('batch');
+
+    queryBuilder.leftJoinAndSelect('batch.product', 'product');
+    queryBuilder.leftJoinAndSelect('batch.supplier', 'supplier');
 
     // Xây dựng điều kiện tìm kiếm
     this.buildSearchConditions(queryBuilder, searchDto, 'batch');
@@ -1251,6 +1258,7 @@ export class InventoryService {
   async findAllReceipts() {
     return this.inventoryReceiptRepository.find({
       order: { created_at: 'DESC' }, // Sắp xếp theo thời gian tạo giảm dần
+      relations: ['supplier', 'creator'],
     });
   }
 
@@ -1262,7 +1270,7 @@ export class InventoryService {
   async findReceiptById(id: number): Promise<InventoryReceipt | null> {
     return this.inventoryReceiptRepository.findOne({
       where: { id },
-      relations: ['items'], // Bao gồm cả các item trong phiếu
+      relations: ['items', 'items.product', 'supplier', 'creator'],
     });
   }
 
@@ -1274,7 +1282,7 @@ export class InventoryService {
   async findReceiptByCode(code: string): Promise<InventoryReceipt | null> {
     return this.inventoryReceiptRepository.findOne({
       where: { code },
-      relations: ['items'], // Bao gồm cả các item trong phiếu
+      relations: ['items', 'items.product', 'supplier', 'creator'],
     });
   }
 

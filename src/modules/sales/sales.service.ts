@@ -203,13 +203,16 @@ export class SalesService {
    * @returns Danh sách hóa đơn bán hàng theo trạng thái
    */
   async findByStatus(status: SalesInvoiceStatus): Promise<SalesInvoice[]> {
-    return this.salesInvoiceRepository.find({
-      where: {
-        status,
-        deleted_at: IsNull(),
-      },
-      order: { created_at: 'DESC' },
-    });
+    return this.salesInvoiceRepository.createQueryBuilder('invoice')
+      .leftJoinAndSelect('invoice.season', 'season')
+      .leftJoinAndSelect('invoice.rice_crop', 'rice_crop')
+      .leftJoinAndSelect('invoice.customer', 'customer')
+      .leftJoin('invoice.creator', 'creator')
+      .addSelect(['creator.id', 'creator.account'])
+      .where('invoice.status = :status', { status })
+      .andWhere('invoice.deleted_at IS NULL')
+      .orderBy('invoice.created_at', 'DESC')
+      .getMany();
   }
 
   /**
@@ -217,12 +220,17 @@ export class SalesService {
    * @returns Danh sách hóa đơn bán hàng đã xóa mềm
    */
   async findDeleted(): Promise<SalesInvoice[]> {
-    return this.salesInvoiceRepository.find({
-      where: { deleted_at: Not(IsNull()) },
-      order: { deleted_at: 'DESC' },
-      withDeleted: true,
-      relations: ['items'],
-    });
+    return this.salesInvoiceRepository.createQueryBuilder('invoice')
+      .withDeleted()
+      // .leftJoinAndSelect('invoice.items', 'items') // Commented out items for list view performance, similar to search
+      .leftJoinAndSelect('invoice.season', 'season')
+      .leftJoinAndSelect('invoice.rice_crop', 'rice_crop')
+      .leftJoinAndSelect('invoice.customer', 'customer')
+      .leftJoin('invoice.creator', 'creator')
+      .addSelect(['creator.id', 'creator.account'])
+      .where('invoice.deleted_at IS NOT NULL')
+      .orderBy('invoice.deleted_at', 'DESC')
+      .getMany();
   }
 
   /**
@@ -231,10 +239,17 @@ export class SalesService {
    * @returns Thông tin hóa đơn bán hàng
    */
   async findOne(id: number): Promise<SalesInvoice | null> {
-    return this.salesInvoiceRepository.findOne({
-      where: { id, deleted_at: IsNull() },
-      relations: ['items'], // Bao gồm cả các item trong hóa đơn
-    });
+    return this.salesInvoiceRepository.createQueryBuilder('invoice')
+      .leftJoinAndSelect('invoice.items', 'items')
+      .leftJoinAndSelect('items.product', 'product')
+      .leftJoinAndSelect('invoice.customer', 'customer')
+      .leftJoinAndSelect('invoice.season', 'season')
+      .leftJoinAndSelect('invoice.rice_crop', 'rice_crop')
+      .leftJoin('invoice.creator', 'creator')
+      .addSelect(['creator.id', 'creator.account'])
+      .where('invoice.id = :id', { id })
+      .andWhere('invoice.deleted_at IS NULL')
+      .getOne();
   }
 
   /**
@@ -243,10 +258,17 @@ export class SalesService {
    * @returns Thông tin hóa đơn bán hàng
    */
   async findByCode(code: string): Promise<SalesInvoice | null> {
-    return this.salesInvoiceRepository.findOne({
-      where: { code, deleted_at: IsNull() },
-      relations: ['items'], // Bao gồm cả các item trong hóa đơn
-    });
+    return this.salesInvoiceRepository.createQueryBuilder('invoice')
+      .leftJoinAndSelect('invoice.items', 'items')
+      .leftJoinAndSelect('items.product', 'product')
+      .leftJoinAndSelect('invoice.customer', 'customer')
+      .leftJoinAndSelect('invoice.season', 'season')
+      .leftJoinAndSelect('invoice.rice_crop', 'rice_crop')
+      .leftJoin('invoice.creator', 'creator')
+      .addSelect(['creator.id', 'creator.account'])
+      .where('invoice.code = :code', { code })
+      .andWhere('invoice.deleted_at IS NULL')
+      .getOne();
   }
 
   /**
@@ -521,6 +543,15 @@ export class SalesService {
   }> {
     const queryBuilder =
       this.salesInvoiceRepository.createQueryBuilder('invoice');
+
+    // Join các bảng liên quan để lấy tên hiển thị
+    queryBuilder
+      .leftJoin('invoice.season', 'season')
+      .leftJoin('invoice.rice_crop', 'rice_crop')
+      .leftJoin('invoice.creator', 'creator')
+      .addSelect(['season.id', 'season.name', 'season.code'])
+      .addSelect(['rice_crop.id', 'rice_crop.field_name'])
+      .addSelect(['creator.id', 'creator.account']);
 
     // Thêm điều kiện mặc định
     queryBuilder.where('invoice.deleted_at IS NULL');

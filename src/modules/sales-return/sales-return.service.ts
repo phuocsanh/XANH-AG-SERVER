@@ -171,7 +171,7 @@ export class SalesReturnService {
 
   async findAll(): Promise<SalesReturn[]> {
     return this.salesReturnRepository.find({
-      relations: ['invoice', 'customer', 'items'],
+      relations: ['invoice', 'customer', 'items', 'creator'],
       order: { created_at: 'DESC' },
     });
   }
@@ -187,6 +187,7 @@ export class SalesReturnService {
     queryBuilder.leftJoinAndSelect('sales_return.invoice', 'invoice');
     queryBuilder.leftJoinAndSelect('sales_return.customer', 'customer');
     queryBuilder.leftJoinAndSelect('sales_return.items', 'items');
+    queryBuilder.leftJoinAndSelect('sales_return.creator', 'creator');
 
     this.buildSearchConditions(queryBuilder, searchDto, 'sales_return');
 

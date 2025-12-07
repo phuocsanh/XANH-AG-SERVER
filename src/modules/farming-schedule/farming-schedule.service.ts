@@ -22,6 +22,7 @@ export class FarmingScheduleService {
   async findByCrop(cropId: number): Promise<FarmingSchedule[]> {
     return this.scheduleRepository.find({
       where: { rice_crop_id: cropId },
+      relations: ['rice_crop'],
       order: { scheduled_date: 'ASC' },
     });
   }
@@ -36,12 +37,16 @@ export class FarmingScheduleService {
         scheduled_date: LessThanOrEqual(futureDate),
         status: ScheduleStatus.PENDING,
       },
+      relations: ['rice_crop'],
       order: { scheduled_date: 'ASC' },
     });
   }
 
   async findOne(id: number): Promise<FarmingSchedule> {
-    const schedule = await this.scheduleRepository.findOne({ where: { id } });
+    const schedule = await this.scheduleRepository.findOne({
+      where: { id },
+      relations: ['rice_crop'],
+    });
     if (!schedule) {
       throw new NotFoundException(`Không tìm thấy lịch với ID: ${id}`);
     }

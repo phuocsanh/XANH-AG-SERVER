@@ -22,12 +22,16 @@ export class GrowthTrackingService {
   async findByCrop(cropId: number): Promise<GrowthTracking[]> {
     return this.trackingRepository.find({
       where: { rice_crop_id: cropId },
+      relations: ['rice_crop'],
       order: { tracking_date: 'DESC' },
     });
   }
 
   async findOne(id: number): Promise<GrowthTracking> {
-    const tracking = await this.trackingRepository.findOne({ where: { id } });
+    const tracking = await this.trackingRepository.findOne({
+      where: { id },
+      relations: ['rice_crop'],
+    });
     if (!tracking) {
       throw new NotFoundException(`Không tìm thấy theo dõi với ID: ${id}`);
     }

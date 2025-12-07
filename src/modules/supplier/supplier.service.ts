@@ -37,7 +37,9 @@ export class SupplierService {
    * @returns Danh sách nhà cung cấp
    */
   async findAll() {
-    return this.supplierRepository.find();
+    return this.supplierRepository.find({
+      relations: ['creator'],
+    });
   }
 
   /**
@@ -46,7 +48,10 @@ export class SupplierService {
    * @returns Thông tin nhà cung cấp
    */
   async findOne(id: number) {
-    return this.supplierRepository.findOne({ where: { id } });
+    return this.supplierRepository.findOne({
+      where: { id },
+      relations: ['creator'],
+    });
   }
 
   /**
@@ -84,6 +89,7 @@ export class SupplierService {
 
     // Thêm điều kiện mặc định
     queryBuilder.where('supplier.status = :status', { status: 'active' });
+    queryBuilder.leftJoinAndSelect('supplier.creator', 'creator');
 
     // Xây dựng điều kiện tìm kiếm
     this.buildSearchConditions(queryBuilder, searchDto, 'supplier');

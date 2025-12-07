@@ -13,6 +13,7 @@ import { SalesInvoiceItem } from './sales-invoice-items.entity';
 import { Season } from './season.entity';
 import { Customer } from './customer.entity';
 import { RiceCrop } from './rice-crop.entity';
+import { User } from './users.entity';
 
 /**
  * Enum định nghĩa các trạng thái của hóa đơn bán hàng
@@ -121,6 +122,11 @@ export class SalesInvoice {
   /** ID người tạo hóa đơn */
   @Column({ name: 'created_by' })
   created_by!: number;
+
+  /** Thông tin người tạo */
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'created_by' })
+  creator?: User;
 
   /** Trạng thái hóa đơn */
   @Column({
