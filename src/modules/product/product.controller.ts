@@ -52,16 +52,7 @@ export class ProductController {
     return this.productService.createWithSuggestedPrice(createProductDto);
   }
 
-  /**
-   * Lấy danh sách tất cả sản phẩm
-   * @returns Danh sách sản phẩm
-   */
-  @Get()
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('PRODUCT_VIEW')
-  async findAll(): Promise<Product[]> {
-    return this.productService.findAll();
-  }
+
 
   /**
    * Tìm sản phẩm theo ID
@@ -180,6 +171,8 @@ export class ProductController {
    * @returns Danh sách sản phẩm phù hợp
    */
   @Post('search')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('PRODUCT_VIEW')
   async searchAdvanced(@Body() searchDto: SearchProductDto): Promise<any> {
     return this.productService.searchProductsAdvanced(searchDto);
   }

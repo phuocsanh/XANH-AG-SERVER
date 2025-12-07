@@ -258,4 +258,55 @@ export class RiceCropService {
       throw new BadRequestException(`Không thể lấy thống kê: ${err.message}`);
     }
   }
+  async search(searchDto: any): Promise<{ data: RiceCrop[]; total: number }> {
+    try {
+      const { page = 1, limit = 20, ...query } = searchDto;
+      const skip = (page - 1) * limit;
+
+      const queryBuilder = this.riceCropRepository
+        .createQueryBuilder('rice_crop')
+        .leftJoinAndSelect('rice_crop.customer', 'customer')
+        .leftJoinAndSelect('rice_crop.season', 'season')
+        .orderBy('rice_crop.created_at', 'DESC');
+
+      // Filter theo customer_id
+      if (query.customer_id) {
+        queryBuilder.andWhere('rice_crop.customer_id = :customer_id', { 
+          customer_id: query.customer_id 
+        });
+      }
+
+      // Filter theo season_id
+      if (query.season_id) {
+        queryBuilder.andWhere('rice_crop.season_id = :season_id', { 
+          season_id: query.season_id 
+        });
+      }
+
+      // Filter theo status
+      if (query.status) {
+        queryBuilder.andWhere('rice_crop.status = :status', { 
+          status: query.status 
+        });
+      }
+
+      // Filter theo growth_stage
+      if (query.growth_stage) {
+        queryBuilder.andWhere('rice_crop.growth_stage = :growth_stage', { 
+          growth_stage: query.growth_stage 
+        });
+      }
+
+      queryBuilder.skip(skip).take(limit);
+
+      const [data, total] = await queryBuilder.getManyAndCount();
+      this.logger.log(`📋 Tìm thấy ${data.length} vụ lúa`);
+      
+      return { data, total };
+    } catch (error) {
+      const err = error as Error;
+      this.logger.error(`❌ Lỗi tìm kiếm vụ lúa: ${err.message}`, err.stack);
+      throw new BadRequestException(`Không thể tìm kiếm vụ lúa: ${err.message}`);
+    }
+  }
 }

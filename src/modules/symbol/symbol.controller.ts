@@ -11,19 +11,23 @@ import {
   NotFoundException,
   HttpException,
   HttpStatus,
-  Query,
+  UseGuards,
 } from '@nestjs/common';
 import { SymbolService } from './symbol.service';
 import { Symbol } from '../../entities/symbols.entity';
 import { SearchSymbolDto } from './dto/search-symbol.dto';
 import { BaseStatus } from '../../entities/base-status.enum';
 import { CreateSymbolDto } from './dto/create-symbol.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 /**
  * Controller xử lý các yêu cầu HTTP liên quan đến ký hiệu sản phẩm
  * Cung cấp các endpoint để quản lý ký hiệu
  */
 @Controller('symbols')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class SymbolController {
   /**
    * Constructor injection service cần thiết
@@ -49,48 +53,7 @@ export class SymbolController {
    * @param deleted - Lọc theo trạng thái xóa (true: đã xóa, false: chưa xóa, undefined: tất cả)
    * @returns Danh sách ký hiệu với thông tin phân trang
    */
-  @Get()
-  async findAll(
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 20,
-    @Query('status') status?: string,
-    @Query('deleted') deleted?: boolean,
-  ): Promise<{ data: Symbol[]; total: number; page: number; limit: number }> {
-    // Chuyển đổi thành cấu trúc search với điều kiện lọc
-    const searchDto = new SearchSymbolDto();
-    searchDto.page = Number(page);
-    searchDto.limit = Number(limit);
-    searchDto.filters = [];
-    searchDto.nested_filters = [];
 
-    // Thêm điều kiện lọc status nếu có
-    if (status) {
-      searchDto.filters.push({
-        field: 'status',
-        operator: 'eq',
-        value: status,
-      });
-    }
-
-    // Thêm điều kiện lọc deleted_at nếu có
-    if (deleted !== undefined) {
-      if (deleted) {
-        searchDto.filters.push({
-          field: 'deleted_at',
-          operator: 'isnotnull',
-          value: null,
-        });
-      } else {
-        searchDto.filters.push({
-          field: 'deleted_at',
-          operator: 'isnull',
-          value: null,
-        });
-      }
-    }
-
-    return this.symbolService.searchSymbols(searchDto);
-  }
 
   /**
    * Lấy danh sách ký hiệu theo trạng thái
@@ -198,6 +161,7 @@ export class SymbolController {
    * @returns Danh sách ký hiệu phù hợp
    */
   @Post('search')
+  @RequirePermissions('PRODUCT_VIEW')
   search(@Body() searchDto: SearchSymbolDto) {
     try {
       return this.symbolService.searchSymbols(searchDto);

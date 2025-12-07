@@ -8,17 +8,22 @@ import {
   Put,
   Delete,
   NotFoundException,
+  UseGuards,
 } from '@nestjs/common';
 import { OperatingCostService } from './operating-cost.service';
 import { CreateOperatingCostDto } from './dto/create-operating-cost.dto';
 import { UpdateOperatingCostDto } from './dto/update-operating-cost.dto';
 import { SearchOperatingCostDto } from './dto/search-operating-cost.dto';
 import { OperatingCost } from '../../entities/operating-costs.entity';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 /**
  * Controller xử lý các yêu cầu liên quan đến chi phí vận hành
  */
 @Controller('operating-costs')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class OperatingCostController {
   constructor(private readonly operatingCostService: OperatingCostService) {}
 
@@ -46,6 +51,7 @@ export class OperatingCostController {
    * @returns Tổng tất cả chi phí
    */
   @Get('total')
+  @RequirePermissions('OPERATING_COST_VIEW')
   async getTotalCost(): Promise<{ total: number }> {
     const total = await this.operatingCostService.getTotalCost();
     return { total };
@@ -56,6 +62,7 @@ export class OperatingCostController {
    * @returns Tổng chi phí theo từng loại
    */
   @Get('summary-all')
+  @RequirePermissions('OPERATING_COST_VIEW')
   async getCostSummary(): Promise<Array<{ costType: string; total: number }>> {
     // Các loại chi phí phổ biến
     const costTypes = [
@@ -85,6 +92,7 @@ export class OperatingCostController {
    * @returns Tổng chi phí của loại chi phí tương ứng
    */
   @Get('type/:costType')
+  @RequirePermissions('OPERATING_COST_VIEW')
   async getTotalCostByType(
     @Param('costType') costType: string,
   ): Promise<{ total: number }> {
@@ -98,19 +106,11 @@ export class OperatingCostController {
    * @returns Thông tin chi phí vận hành đã tạo
    */
   @Post()
+  @RequirePermissions('OPERATING_COST_MANAGE')
   async create(
     @Body() createOperatingCostDto: CreateOperatingCostDto,
   ): Promise<OperatingCost> {
     return this.operatingCostService.create(createOperatingCostDto);
-  }
-
-  /**
-   * Lấy danh sách tất cả chi phí vận hành
-   * @returns Danh sách chi phí vận hành
-   */
-  @Get()
-  async findAll(): Promise<OperatingCost[]> {
-    return this.operatingCostService.findAll();
   }
 
   /**
@@ -119,6 +119,7 @@ export class OperatingCostController {
    * @returns Thông tin chi phí vận hành
    */
   @Get(':id')
+  @RequirePermissions('OPERATING_COST_VIEW')
   async findOne(@Param('id', ParseIntPipe) id: number): Promise<OperatingCost> {
     const operatingCost = await this.operatingCostService.findOne(id);
     if (!operatingCost) {
@@ -136,6 +137,7 @@ export class OperatingCostController {
    * @returns Thông tin chi phí vận hành đã cập nhật
    */
   @Put(':id')
+  @RequirePermissions('OPERATING_COST_MANAGE')
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateOperatingCostDto: UpdateOperatingCostDto,
@@ -157,6 +159,7 @@ export class OperatingCostController {
    * @param id - ID của chi phí vận hành cần xóa
    */
   @Delete(':id')
+  @RequirePermissions('OPERATING_COST_MANAGE')
   async remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
     const operatingCost = await this.operatingCostService.findOne(id);
     if (!operatingCost) {
@@ -173,6 +176,7 @@ export class OperatingCostController {
    * @returns Danh sách chi phí vận hành phù hợp
    */
   @Post('search')
+  @RequirePermissions('OPERATING_COST_VIEW')
   async searchAdvanced(
     @Body() searchDto: SearchOperatingCostDto,
   ): Promise<any> {

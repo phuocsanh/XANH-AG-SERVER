@@ -18,13 +18,10 @@ export class DebtNoteController {
     return this.debtNoteService.create(createDto);
   }
 
-  @Get()
-  @RequirePermissions('SALES_VIEW')
-  findAll() {
-    return this.debtNoteService.findAll();
-  }
+
 
   @Post('search')
+  @RequirePermissions('SALES_VIEW')
   search(@Body() searchDto: SearchDebtNoteDto) {
     return this.debtNoteService.search(searchDto);
   }

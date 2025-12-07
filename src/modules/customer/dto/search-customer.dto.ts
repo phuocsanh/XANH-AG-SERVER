@@ -12,4 +12,7 @@ export class SearchCustomerDto {
 
   @IsOptional()
   filters?: FilterConditionDto[];
+
+  @IsOptional()
+  search?: string;
 }

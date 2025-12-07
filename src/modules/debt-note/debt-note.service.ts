@@ -32,12 +32,7 @@ export class DebtNoteService {
     }
   }
 
-  async findAll(): Promise<DebtNote[]> {
-    return this.debtNoteRepository.find({
-      relations: ['customer', 'season'],
-      order: { created_at: 'DESC' },
-    });
-  }
+
 
   async findOne(id: number): Promise<DebtNote | null> {
     return this.debtNoteRepository.findOne({
@@ -64,6 +59,12 @@ export class DebtNoteService {
     total: number;
     page: number;
     limit: number;
+    summary: {
+      total_debt: number;
+      overdue_count: number;
+      active_count: number;
+      paid_count: number;
+    };
   }> {
     const queryBuilder = this.debtNoteRepository.createQueryBuilder('debt_note');
     
@@ -81,11 +82,31 @@ export class DebtNoteService {
 
     const [data, total] = await queryBuilder.getManyAndCount();
 
+    // Tính toán các chỉso thống kê (Summary) dựa trên điều kiện lọc hiện tại
+    const summaryQuery = queryBuilder.clone(); // Clone để không ảnh hưởng offset/limit
+    
+    // Xóa bỏ phân trang
+    summaryQuery.skip(undefined).take(undefined);
+    summaryQuery.orderBy(); // Bỏ order by cho nhẹ
+
+    const { total_debt, overdue_count, active_count, paid_count } = await summaryQuery
+      .select('SUM(debt_note.remaining_amount)', 'total_debt')
+      .addSelect(`COUNT(CASE WHEN debt_note.status = '${DebtNoteStatus.OVERDUE}' THEN 1 END)`, 'overdue_count')
+      .addSelect(`COUNT(CASE WHEN debt_note.status = '${DebtNoteStatus.ACTIVE}' THEN 1 END)`, 'active_count')
+      .addSelect(`COUNT(CASE WHEN debt_note.status = '${DebtNoteStatus.PAID}' THEN 1 END)`, 'paid_count')
+      .getRawOne();
+
     return {
       data,
       total,
       page,
       limit,
+      summary: {
+        total_debt: Number(total_debt || 0),
+        overdue_count: Number(overdue_count || 0),
+        active_count: Number(active_count || 0),
+        paid_count: Number(paid_count || 0),
+      },
     };
   }
 

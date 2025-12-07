@@ -36,10 +36,7 @@ export class FileTrackingController {
    * Lấy danh sách tất cả file upload
    * @returns Danh sách file upload
    */
-  @Get()
-  findAll() {
-    return this.fileTrackingService.findAll();
-  }
+
 
   /**
    * Tìm file upload theo ID

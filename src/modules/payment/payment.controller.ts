@@ -19,13 +19,10 @@ export class PaymentController {
     return this.paymentService.settleDebt(dto);
   }
 
-  @Get()
-  @RequirePermissions('SALES_VIEW')
-  findAll() {
-    return this.paymentService.findAll();
-  }
+
 
   @Post('search')
+  @RequirePermissions('SALES_VIEW')
   search(@Body() searchDto: SearchPaymentDto) {
     return this.paymentService.search(searchDto);
   }

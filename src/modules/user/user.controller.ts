@@ -43,16 +43,7 @@ export class UserController {
     return this.userService.create(createUserDto);
   }
 
-  /**
-   * Endpoint lấy danh sách tất cả người dùng
-   * @returns Danh sách người dùng
-   */
-  @Get()
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('USER_VIEW')
-  findAll() {
-    return this.userService.findAll();
-  }
+
 
   /**
    * Endpoint tìm người dùng theo ID

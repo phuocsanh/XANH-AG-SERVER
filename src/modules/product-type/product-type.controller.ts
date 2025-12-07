@@ -8,7 +8,6 @@ import {
   Delete,
   HttpException,
   HttpStatus,
-  Query,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -51,39 +50,7 @@ export class ProductTypeController {
    * @param deleted - Lọc theo trạng thái xóa (true: đã xóa, false: chưa xóa, undefined: tất cả)
    * @returns Danh sách loại sản phẩm với thông tin phân trang
    */
-  @Get()
-  @RequirePermissions('PRODUCT_VIEW')
-  async findAll(
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 20,
-    @Query('deleted') deleted?: boolean,
-  ) {
-    // Chuyển đổi thành cấu trúc search với điều kiện lọc
-    const searchDto = new SearchProductTypeDto();
-    searchDto.page = Number(page);
-    searchDto.limit = Number(limit);
-    searchDto.filters = [];
-    searchDto.nested_filters = [];
 
-    // Thêm điều kiện lọc deleted_at nếu có
-    if (deleted !== undefined) {
-      if (deleted) {
-        searchDto.filters.push({
-          field: 'deleted_at',
-          operator: 'isnotnull',
-          value: null,
-        });
-      } else {
-        searchDto.filters.push({
-          field: 'deleted_at',
-          operator: 'isnull',
-          value: null,
-        });
-      }
-    }
-
-    return this.productTypeService.searchProductTypes(searchDto);
-  }
 
   /**
    * Lấy danh sách loại sản phẩm theo trạng thái
@@ -112,6 +79,7 @@ export class ProductTypeController {
    * @returns Danh sách loại sản phẩm phù hợp
    */
   @Post('search')
+  @RequirePermissions('PRODUCT_VIEW')
   search(@Body() searchDto: SearchProductTypeDto) {
     try {
       return this.productTypeService.searchProductTypes(searchDto);

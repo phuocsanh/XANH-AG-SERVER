@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query } from '@nestjs/common';
 import { CustomerService } from './customer.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { SearchCustomerDto } from './dto/search-customer.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -17,14 +18,10 @@ export class CustomerController {
     return this.customerService.create(createCustomerDto);
   }
 
-  @Get()
+  @Post('search')
   @RequirePermissions('SALES_VIEW')
-  findAll(
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 20,
-    @Query('search') search?: string,
-  ) {
-    return this.customerService.findAll(+page, +limit, search);
+  search(@Body() searchDto: SearchCustomerDto) {
+    return this.customerService.searchCustomers(searchDto);
   }
 
   @Get('debtors')

@@ -149,3 +149,20 @@ export class QueryCostItemDto {
   @IsEnum(CostCategory, { message: 'Loại chi phí không hợp lệ' })
   category?: CostCategory;
 }
+
+/**
+ * DTO để tìm kiếm chi phí (nâng cao)
+ */
+export class SearchCostItemDto extends QueryCostItemDto {
+  @ApiPropertyOptional({ description: 'Trang hiện tại', example: 1 })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  page?: number = 1;
+
+  @ApiPropertyOptional({ description: 'Số lượng mỗi trang', example: 20 })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  limit?: number = 20;
+}

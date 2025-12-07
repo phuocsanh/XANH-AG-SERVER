@@ -8,7 +8,6 @@ import {
   Delete,
   HttpException,
   HttpStatus,
-  Query,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -52,49 +51,7 @@ export class UnitController {
    * @param deleted - Lọc theo trạng thái xóa (true: đã xóa, false: chưa xóa, undefined: tất cả)
    * @returns Danh sách đơn vị tính với thông tin phân trang
    */
-  @Get()
-  @RequirePermissions('PRODUCT_VIEW')
-  async findAll(
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 20,
-    @Query('status') status?: string,
-    @Query('deleted') deleted?: boolean,
-  ) {
-    // Chuyển đổi thành cấu trúc search với điều kiện lọc
-    const searchDto = new SearchUnitDto();
-    searchDto.page = Number(page);
-    searchDto.limit = Number(limit);
-    searchDto.filters = [];
-    searchDto.nested_filters = [];
 
-    // Thêm điều kiện lọc status nếu có
-    if (status) {
-      searchDto.filters.push({
-        field: 'status',
-        operator: 'eq',
-        value: status,
-      });
-    }
-
-    // Thêm điều kiện lọc deleted_at nếu có
-    if (deleted !== undefined) {
-      if (deleted) {
-        searchDto.filters.push({
-          field: 'deleted_at',
-          operator: 'isnotnull',
-          value: null,
-        });
-      } else {
-        searchDto.filters.push({
-          field: 'deleted_at',
-          operator: 'isnull',
-          value: null,
-        });
-      }
-    }
-
-    return this.unitService.searchUnits(searchDto);
-  }
 
   /**
    * Lấy danh sách đơn vị tính theo trạng thái
@@ -201,6 +158,7 @@ export class UnitController {
    * @returns Danh sách đơn vị tính phù hợp
    */
   @Post('search')
+  @RequirePermissions('PRODUCT_VIEW')
   search(@Body() searchDto: SearchUnitDto) {
     try {
       return this.unitService.searchUnits(searchDto);

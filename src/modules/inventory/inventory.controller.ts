@@ -55,21 +55,7 @@ export class InventoryController {
    * @param limit - Số bản ghi mỗi trang (mặc định: 20)
    * @returns Danh sách lô hàng tồn kho với thông tin phân trang
    */
-  @Get('batches')
-  @RequirePermissions('INVENTORY_VIEW')
-  async findAllBatches(
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 20,
-  ) {
-    // Chuyển đổi thành cấu trúc search với điều kiện mặc định
-    const searchDto = new SearchInventoryDto();
-    searchDto.page = Number(page);
-    searchDto.limit = Number(limit);
-    searchDto.filters = [];
-    searchDto.nested_filters = [];
 
-    return this.inventoryService.searchBatches(searchDto);
-  }
 
   /**
    * Tìm kiếm nâng cao lô hàng tồn kho

@@ -27,12 +27,7 @@ export class PaymentService {
   ) {}
 
 
-  async findAll(): Promise<Payment[]> {
-    return this.paymentRepository.find({
-      order: { created_at: 'DESC' },
-      relations: ['customer'],
-    });
-  }
+
 
   async findOne(id: number): Promise<Payment | null> {
     return this.paymentRepository.findOne({
@@ -267,8 +262,8 @@ export class PaymentService {
         // Trả hết nợ
         oldDebtNote.status = DebtNoteStatus.PAID;
       } else {
-        // Còn nợ → Đánh dấu đã chốt sổ
-        oldDebtNote.status = DebtNoteStatus.SETTLED;
+        // Còn nợ → Vẫn cho phép trả tiếp (ACTIVE) thay vì chốt sổ cứng (SETTLED)
+        oldDebtNote.status = DebtNoteStatus.ACTIVE;
       }
 
       await this.debtNoteRepository.save(oldDebtNote);

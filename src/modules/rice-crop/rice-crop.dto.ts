@@ -238,3 +238,20 @@ export class QueryRiceCropDto {
   @IsEnum(GrowthStage, { message: 'Giai đoạn sinh trưởng không hợp lệ' })
   growth_stage?: GrowthStage;
 }
+
+/**
+ * DTO để tìm kiếm vụ lúa (nâng cao)
+ */
+export class SearchRiceCropDto extends QueryRiceCropDto {
+  @ApiPropertyOptional({ description: 'Trang hiện tại', example: 1 })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  page?: number = 1;
+
+  @ApiPropertyOptional({ description: 'Số lượng mỗi trang', example: 20 })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  limit?: number = 20;
+}

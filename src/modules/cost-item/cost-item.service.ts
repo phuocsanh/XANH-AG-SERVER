@@ -148,4 +148,38 @@ export class CostItemService {
       throw new BadRequestException(`Không thể lấy tổng hợp chi phí: ${err.message}`);
     }
   }
+  async search(searchDto: any): Promise<{ data: CostItem[]; total: number }> {
+    try {
+      const { page = 1, limit = 20, ...query } = searchDto;
+      const skip = (page - 1) * limit;
+
+      const queryBuilder = this.costItemRepository
+        .createQueryBuilder('cost_item')
+        .leftJoinAndSelect('cost_item.rice_crop', 'rice_crop')
+        .orderBy('cost_item.created_at', 'DESC');
+
+      if (query.rice_crop_id) {
+        queryBuilder.andWhere('cost_item.rice_crop_id = :rice_crop_id', { 
+          rice_crop_id: query.rice_crop_id 
+        });
+      }
+
+      if (query.category) {
+        queryBuilder.andWhere('cost_item.category = :category', { 
+          category: query.category 
+        });
+      }
+
+      queryBuilder.skip(skip).take(limit);
+
+      const [data, total] = await queryBuilder.getManyAndCount();
+      this.logger.log(`📋 Tìm thấy ${data.length} chi phí`);
+      
+      return { data, total };
+    } catch (error) {
+      const err = error as Error;
+      this.logger.error(`❌ Lỗi tìm kiếm chi phí: ${err.message}`, err.stack);
+      throw new BadRequestException(`Không thể tìm kiếm chi phí: ${err.message}`);
+    }
+  }
 }

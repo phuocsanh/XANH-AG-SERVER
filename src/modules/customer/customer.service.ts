@@ -117,4 +117,8 @@ export class CustomerService {
     const customer = await this.findOne(id);
     await this.customerRepository.remove(customer);
   }
+  async searchCustomers(searchDto: any): Promise<{ data: Customer[]; total: number }> {
+    const { page = 1, limit = 20, search } = searchDto;
+    return this.findAll(page, limit, search);
+  }
 }

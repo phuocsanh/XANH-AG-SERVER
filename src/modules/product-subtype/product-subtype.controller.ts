@@ -8,21 +8,19 @@ import {
   Delete,
   HttpException,
   HttpStatus,
-  Query,
+  UseGuards,
 } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { ProductSubtypeService } from './product-subtype.service';
 import { CreateProductSubtypeDto } from './dto/create-product-subtype.dto';
 import { UpdateProductSubtypeDto } from './dto/update-product-subtype.dto';
 import { BaseStatus } from '../../entities/base-status.enum';
 import { SearchProductSubtypeDto } from './dto/search-product-subtype.dto';
 
-/**
- * Controller xử lý các request liên quan đến loại phụ sản phẩm
- * Cung cấp các endpoint CRUD cho quản lý loại phụ sản phẩm
- * Hỗ trợ soft delete và quản lý trạng thái (active/inactive/archived)
- */
 @Controller('product-subtype')
-// @UseGuards(JwtAuthGuard) // Tạm thời comment để test
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class ProductSubtypeController {
   /**
    * Constructor injection ProductSubtypeService
@@ -47,38 +45,7 @@ export class ProductSubtypeController {
    * @param deleted - Lọc theo trạng thái xóa (true: đã xóa, false: chưa xóa, undefined: tất cả)
    * @returns Danh sách loại phụ sản phẩm với thông tin phân trang
    */
-  @Get()
-  async findAll(
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 20,
-    @Query('deleted') deleted?: boolean,
-  ) {
-    // Chuyển đổi thành cấu trúc search với điều kiện lọc
-    const searchDto = new SearchProductSubtypeDto();
-    searchDto.page = Number(page);
-    searchDto.limit = Number(limit);
-    searchDto.filters = [];
-    searchDto.nested_filters = [];
 
-    // Thêm điều kiện lọc deleted_at nếu có
-    if (deleted !== undefined) {
-      if (deleted) {
-        searchDto.filters.push({
-          field: 'deleted_at',
-          operator: 'isnotnull',
-          value: null,
-        });
-      } else {
-        searchDto.filters.push({
-          field: 'deleted_at',
-          operator: 'isnull',
-          value: null,
-        });
-      }
-    }
-
-    return this.productSubtypeService.searchProductSubtypes(searchDto);
-  }
 
   /**
    * Lấy danh sách loại phụ sản phẩm theo trạng thái
@@ -125,6 +92,7 @@ export class ProductSubtypeController {
    * @returns Danh sách loại phụ sản phẩm phù hợp
    */
   @Post('search')
+  @RequirePermissions('PRODUCT_VIEW')
   search(@Body() searchDto: SearchProductSubtypeDto) {
     try {
       return this.productSubtypeService.searchProductSubtypes(searchDto);

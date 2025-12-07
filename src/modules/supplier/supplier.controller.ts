@@ -9,7 +9,7 @@ import {
   UseGuards,
   HttpException,
   HttpStatus,
-  Query,
+
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
@@ -47,54 +47,7 @@ export class SupplierController {
    * @param deleted - Lọc theo trạng thái xóa (true: đã xóa, false: chưa xóa, undefined: tất cả)
    * @returns Danh sách nhà cung cấp với thông tin phân trang
    */
-  @Get()
-  @RequirePermissions('INVENTORY_VIEW')
-  async findAll(
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 20,
-    @Query('status') status?: string,
-    @Query('deleted') deleted?: boolean,
-  ) {
-    // Chuyển đổi thành cấu trúc search với điều kiện lọc
-    const searchDto = new SearchSupplierDto();
-    searchDto.page = Number(page);
-    searchDto.limit = Number(limit);
-    searchDto.filters = [];
-    searchDto.nested_filters = [];
 
-    // Thêm điều kiện lọc status nếu có
-    if (status) {
-      searchDto.filters.push({
-        field: 'status',
-        operator: 'eq',
-        value: status,
-      });
-    }
-
-    // Thêm điều kiện lọc deleted_at nếu có
-    if (deleted !== undefined) {
-      if (deleted) {
-        searchDto.filters.push({
-          field: 'deleted_at',
-          operator: 'isnotnull',
-          value: null,
-        });
-      } else {
-        searchDto.filters.push({
-          field: 'deleted_at',
-          operator: 'isnull',
-          value: null,
-        });
-      }
-    }
-
-    // Đảm bảo nested_filters luôn là mảng
-    if (!searchDto.nested_filters) {
-      searchDto.nested_filters = [];
-    }
-
-    return this.supplierService.searchSuppliers(searchDto);
-  }
 
   /**
    * Tìm nhà cung cấp theo ID
@@ -112,6 +65,7 @@ export class SupplierController {
    * @returns Danh sách nhà cung cấp phù hợp với thông tin phân trang
    */
   @Post('search')
+  @RequirePermissions('INVENTORY_VIEW')
   search(@Body() searchDto: SearchSupplierDto) {
     try {
       return this.supplierService.searchSuppliers(searchDto);

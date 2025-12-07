@@ -6,7 +6,7 @@ import {
   Patch,
   Param,
   Delete,
-  Query,
+
   ParseIntPipe,
   HttpCode,
   HttpStatus,
@@ -19,7 +19,7 @@ import {
   UpdateRiceCropDto,
   UpdateGrowthStageDto,
   UpdateCropStatusDto,
-  QueryRiceCropDto,
+  SearchRiceCropDto,
 } from './rice-crop.dto';
 import { RiceCrop } from '../../entities/rice-crop.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -50,14 +50,17 @@ export class RiceCropController {
   /**
    * Lấy danh sách vụ lúa
    */
-  @Get()
+  /**
+   * Tìm kiếm vụ lúa
+   */
+  @Post('search')
   @RequirePermissions('rice_crop:read')
-  @ApiOperation({ summary: 'Lấy danh sách vụ lúa với filter' })
-  @ApiResponse({ status: 200, description: 'Danh sách vụ lúa', type: [RiceCrop] })
+  @ApiOperation({ summary: 'Tìm kiếm vụ lúa với filter' })
+  @ApiResponse({ status: 200, description: 'Danh sách vụ lúa' })
   @ApiResponse({ status: 401, description: 'Chưa xác thực' })
   @ApiResponse({ status: 403, description: 'Không có quyền' })
-  async findAll(@Query() query: QueryRiceCropDto): Promise<RiceCrop[]> {
-    return this.riceCropService.findAll(query);
+  async search(@Body() searchDto: SearchRiceCropDto): Promise<{ data: RiceCrop[]; total: number }> {
+    return this.riceCropService.search(searchDto);
   }
 
   /**

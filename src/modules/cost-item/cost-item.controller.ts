@@ -6,7 +6,7 @@ import {
   Patch,
   Param,
   Delete,
-  Query,
+
   ParseIntPipe,
   HttpCode,
   HttpStatus,
@@ -14,7 +14,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { CostItemService } from './cost-item.service';
-import { CreateCostItemDto, UpdateCostItemDto, QueryCostItemDto } from './cost-item.dto';
+import { CreateCostItemDto, UpdateCostItemDto, SearchCostItemDto } from './cost-item.dto';
 import { CostItem } from '../../entities/cost-item.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -35,12 +35,12 @@ export class CostItemController {
     return this.costItemService.create(createDto);
   }
 
-  @Get()
+  @Post('search')
   @RequirePermissions('cost_item:read')
-  @ApiOperation({ summary: 'Lấy danh sách chi phí' })
-  @ApiResponse({ status: 200, description: 'Danh sách chi phí', type: [CostItem] })
-  async findAll(@Query() query: QueryCostItemDto): Promise<CostItem[]> {
-    return this.costItemService.findAll(query);
+  @ApiOperation({ summary: 'Tìm kiếm chi phí với filter' })
+  @ApiResponse({ status: 200, description: 'Danh sách chi phí' })
+  async search(@Body() searchDto: SearchCostItemDto): Promise<{ data: CostItem[]; total: number }> {
+    return this.costItemService.search(searchDto);
   }
 
   @Get('crop/:cropId/summary')

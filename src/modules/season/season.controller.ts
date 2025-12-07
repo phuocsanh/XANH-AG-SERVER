@@ -17,11 +17,7 @@ export class SeasonController {
     return this.seasonService.create(createSeasonDto);
   }
 
-  @Get()
-  @RequirePermissions('PRODUCT_VIEW')
-  findAll() {
-    return this.seasonService.findAll();
-  }
+
 
   @Get('active')
   @RequirePermissions('PRODUCT_VIEW')
