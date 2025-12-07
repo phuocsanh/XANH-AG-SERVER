@@ -48,4 +48,34 @@ export class SeasonService {
       order: { created_at: 'DESC' },
     });
   }
+
+  async search(searchDto: any): Promise<{ data: Season[]; total: number }> {
+    const { page = 1, limit = 20, filters = [] } = searchDto;
+    const skip = (page - 1) * limit;
+
+    const queryBuilder = this.seasonRepository
+      .createQueryBuilder('season')
+      .orderBy('season.created_at', 'DESC');
+
+    // Áp dụng filters nếu có
+    if (filters && filters.length > 0) {
+      filters.forEach((filter: any, index: number) => {
+        const paramName = `param${index}`;
+        if (filter.operator === 'eq') {
+          queryBuilder.andWhere(`season.${filter.field} = :${paramName}`, {
+            [paramName]: filter.value,
+          });
+        } else if (filter.operator === 'like') {
+          queryBuilder.andWhere(`season.${filter.field} ILIKE :${paramName}`, {
+            [paramName]: `%${filter.value}%`,
+          });
+        }
+      });
+    }
+
+    queryBuilder.skip(skip).take(limit);
+
+    const [data, total] = await queryBuilder.getManyAndCount();
+    return { data, total };
+  }
 }

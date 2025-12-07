@@ -17,6 +17,12 @@ export class SeasonController {
     return this.seasonService.create(createSeasonDto);
   }
 
+  @Post('search')
+  @RequirePermissions('PRODUCT_VIEW')
+  search(@Body() searchDto: any) {
+    return this.seasonService.search(searchDto);
+  }
+
 
 
   @Get('active')
