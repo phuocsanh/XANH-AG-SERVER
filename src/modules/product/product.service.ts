@@ -6,7 +6,6 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 import { BaseStatus } from '../../entities/base-status.enum';
-import { ProductFactoryRegistry } from './factories/product-factory.registry';
 import { FileTrackingService } from '../file-tracking/file-tracking.service';
 import { SearchProductDto } from './dto/search-product.dto';
 import { BaseSearchService } from '../../common/services/base-search.service';
@@ -26,7 +25,6 @@ export class ProductService extends BaseSearchService<Product> {
   /**
    * Constructor injection các repository và service cần thiết
    * @param productRepository - Repository để thao tác với entity Product
-   * @param productFactoryRegistry - Registry quản lý các factory tạo sản phẩm
    * @param fileTrackingService - Service quản lý theo dõi file
    * @param operatingCostService - Service quản lý chi phí vận hành
    * @param uploadService - Service quản lý upload và xóa file
@@ -34,7 +32,6 @@ export class ProductService extends BaseSearchService<Product> {
   constructor(
     @InjectRepository(Product)
     private productRepository: Repository<Product>,
-    private productFactoryRegistry: ProductFactoryRegistry,
     private fileTrackingService: FileTrackingService,
     private operatingCostService: OperatingCostService,
     @Inject(UploadService)
@@ -50,21 +47,12 @@ export class ProductService extends BaseSearchService<Product> {
    */
   async create(createProductDto: CreateProductDto): Promise<Product> {
     try {
-      // Kiểm tra xem có factory nào phù hợp với productType không
-      const factory = this.productFactoryRegistry.getFactory(
-        createProductDto.type,
-      );
-
-      if (factory) {
-        // Sử dụng factory để tạo product
-        return factory.createProduct(createProductDto);
-      } else {
-        // Nếu không có factory phù hợp, tạo product theo cách thông thường
-        const product = new Product();
-        Object.assign(product, createProductDto);
-        product.status = createProductDto.status || BaseStatus.ACTIVE;
-        return this.productRepository.save(product);
-      }
+      // Tạo product mới trực tiếp, bỏ qua Factory pattern vì logic xử lý attributes đã được thống nhất
+      const product = new Product();
+      Object.assign(product, createProductDto);
+      product.status = createProductDto.status || BaseStatus.ACTIVE;
+      
+      return await this.productRepository.save(product);
     } catch (error) {
       ErrorHandler.handleCreateError(error, 'sản phẩm');
     }

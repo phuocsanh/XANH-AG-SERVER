@@ -8,6 +8,13 @@ import { UserService } from '../user/user.service';
  * Được sử dụng để xác thực người dùng từ token trong header của request
  * Tự động load role và permissions của user
  */
+import { BaseStatus } from '../../entities/base-status.enum';
+
+/**
+ * Strategy xử lý xác thực JWT (JSON Web Token)
+ * Được sử dụng để xác thực người dùng từ token trong header của request
+ * Tự động load role và permissions của user
+ */
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   private readonly logger = new Logger(JwtStrategy.name);
@@ -16,10 +23,13 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
    * Constructor cấu hình JWT strategy
    */
   constructor(private userService: UserService) {
+    if (!process.env.JWT_SECRET) {
+      throw new Error('JWT_SECRET is required in .env file.');
+    }
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(), // Trích xuất token từ header Authorization
       ignoreExpiration: false, // Không bỏ qua thời gian hết hạn của token
-      secretOrKey: process.env.JWT_SECRET || 'my_jwt_secret_key', // Secret key để xác minh token
+      secretOrKey: process.env.JWT_SECRET, // Secret key để xác minh token
     });
   }
 
@@ -39,7 +49,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       throw new UnauthorizedException('User not found');
     }
 
-    if (user.status !== 'active') {
+    if (user.status !== BaseStatus.ACTIVE) {
       throw new UnauthorizedException('User account is not active');
     }
 

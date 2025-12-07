@@ -6,6 +6,7 @@ import { SettleDebtDto } from './dto/settle-debt.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @Controller('payments')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -15,8 +16,11 @@ export class PaymentController {
 
   @Post('settle-debt')
   @RequirePermissions('SALES_MANAGE')
-  settleDebt(@Body() dto: SettleDebtDto) {
-    return this.paymentService.settleDebt(dto);
+  settleDebt(
+    @Body() dto: SettleDebtDto,
+    @CurrentUser('id') userId: number,
+  ) {
+    return this.paymentService.settleDebt(dto, userId);
   }
 
 

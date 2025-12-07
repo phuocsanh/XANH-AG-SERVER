@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, SelectQueryBuilder } from 'typeorm';
 import { SalesReturn, SalesReturnStatus } from '../../entities/sales-return.entity';
@@ -21,7 +21,7 @@ export class SalesReturnService {
     private dataSource: DataSource,
   ) {}
 
-  async create(createDto: CreateSalesReturnDto): Promise<SalesReturn> {
+  async create(createDto: CreateSalesReturnDto, userId: number): Promise<SalesReturn> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -30,16 +30,16 @@ export class SalesReturnService {
       // 1. Get Invoice
       const invoice = await queryRunner.manager.findOne(SalesInvoice, {
         where: { id: createDto.invoice_id },
-        relations: ['customer'],
+        relations: ['items'],
       });
 
       if (!invoice) {
-        throw new NotFoundException('Hóa đơn không tồn tại');
+        throw new Error('Hóa đơn không tồn tại');
       }
 
-      // 2. Calculate Total Refund
-      let totalRefund = 0;
+      // 2. Create Return Items
       const returnItems: SalesReturnItem[] = [];
+      let totalRefund = 0;
 
       for (const itemDto of createDto.items) {
         const total = itemDto.quantity * itemDto.unit_price;
@@ -61,7 +61,7 @@ export class SalesReturnService {
         total_refund_amount: totalRefund,
         reason: createDto.reason || '',
         status: SalesReturnStatus.COMPLETED,
-        created_by: 1,
+        created_by: userId, // Lấy từ JWT token
         items: returnItems,
       };
       

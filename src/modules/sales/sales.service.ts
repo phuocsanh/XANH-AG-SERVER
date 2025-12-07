@@ -41,10 +41,12 @@ export class SalesService {
   /**
    * Tạo hóa đơn bán hàng mới
    * @param createSalesInvoiceDto - Dữ liệu tạo hóa đơn bán hàng mới
+   * @param userId - ID của user đang tạo hóa đơn (từ JWT token)
    * @returns Thông tin hóa đơn bán hàng đã tạo
    */
   async create(
     createSalesInvoiceDto: CreateSalesInvoiceDto,
+    userId: number,
   ): Promise<SalesInvoice> {
     try {
       // Tính toán số tiền còn nợ
@@ -68,7 +70,7 @@ export class SalesService {
         payment_method: createSalesInvoiceDto.payment_method,
         notes: createSalesInvoiceDto.notes,
         warning: createSalesInvoiceDto.warning,
-        created_by: 1, // TODO: Lấy user ID từ context
+        created_by: userId, // Lấy từ JWT token
         status: createSalesInvoiceDto.status || SalesInvoiceStatus.DRAFT, // Trạng thái từ DTO hoặc mặc định là DRAFT
         partial_payment_amount: partialPayment,
         remaining_amount: remainingAmount,

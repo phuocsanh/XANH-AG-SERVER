@@ -13,6 +13,7 @@ import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 import { BaseStatus } from '../../entities/base-status.enum';
 import { ImageCleanupHelper } from '../../common/helpers/image-cleanup.helper';
 import { UploadService } from '../upload/upload.service';
+import { RoleCode } from '../../common/enums/role-code.enum';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến người dùng
@@ -54,7 +55,7 @@ export class UserService {
 
       // Tìm role USER mặc định
       const userRole = await this.userRepository.manager.getRepository('Role').findOne({
-        where: { code: 'USER' }
+        where: { code: RoleCode.USER }
       });
 
       // Tạo user entity với status PENDING và role USER
@@ -288,7 +289,7 @@ export class UserService {
     const targetRoleCode = (targetUser.role as any)?.code;
 
     // Kiểm tra quyền: ADMIN không được kích hoạt SUPER_ADMIN hoặc ADMIN khác
-    if (operatorRoleCode === 'ADMIN' && ['SUPER_ADMIN', 'ADMIN'].includes(targetRoleCode)) {
+    if (operatorRoleCode === RoleCode.ADMIN && [RoleCode.SUPER_ADMIN, RoleCode.ADMIN].includes(targetRoleCode)) {
       throw new Error('Admin cannot activate Super Admin or other Admin accounts');
     }
 
@@ -316,7 +317,7 @@ export class UserService {
     const targetRoleCode = (targetUser.role as any)?.code;
 
     // Kiểm tra quyền: ADMIN không được vô hiệu hóa SUPER_ADMIN hoặc ADMIN khác
-    if (operatorRoleCode === 'ADMIN' && ['SUPER_ADMIN', 'ADMIN'].includes(targetRoleCode)) {
+    if (operatorRoleCode === RoleCode.ADMIN && [RoleCode.SUPER_ADMIN, RoleCode.ADMIN].includes(targetRoleCode)) {
       throw new Error('Admin cannot deactivate Super Admin or other Admin accounts');
     }
 
@@ -414,11 +415,11 @@ export class UserService {
       // Kiểm tra quyền tạo role
       // SUPER_ADMIN có thể tạo tất cả (ADMIN, STAFF, USER)
       // ADMIN chỉ có thể tạo STAFF và USER
-      if (creatorRoleCode === 'ADMIN' && targetRole.code === 'ADMIN') {
+      if (creatorRoleCode === RoleCode.ADMIN && targetRole.code === RoleCode.ADMIN) {
         throw new Error('Admin cannot create another Admin account');
       }
 
-      if (creatorRoleCode === 'ADMIN' && targetRole.code === 'SUPER_ADMIN') {
+      if (creatorRoleCode === RoleCode.ADMIN && targetRole.code === RoleCode.SUPER_ADMIN) {
         throw new Error('Admin cannot create Super Admin account');
       }
 
@@ -481,7 +482,7 @@ export class UserService {
 
       // SUPER_ADMIN có thể duyệt tất cả
       // ADMIN chỉ có thể duyệt USER và STAFF
-      if (approverRoleCode === 'ADMIN' && userRoleCode === 'ADMIN') {
+      if (approverRoleCode === RoleCode.ADMIN && userRoleCode === RoleCode.ADMIN) {
         throw new Error('Admin cannot approve another Admin account');
       }
 
@@ -532,7 +533,7 @@ export class UserService {
     const targetRoleCode = (targetUser.role as any)?.code;
 
     // Kiểm tra quyền: ADMIN không được xóa SUPER_ADMIN hoặc ADMIN khác
-    if (operatorRoleCode === 'ADMIN' && ['SUPER_ADMIN', 'ADMIN'].includes(targetRoleCode)) {
+    if (operatorRoleCode === RoleCode.ADMIN && [RoleCode.SUPER_ADMIN, RoleCode.ADMIN].includes(targetRoleCode)) {
       throw new Error('Admin cannot delete Super Admin or other Admin accounts');
     }
 

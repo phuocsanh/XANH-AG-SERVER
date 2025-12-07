@@ -19,6 +19,7 @@ import { SupplierService } from './supplier.service';
 
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 /**
  * Controller xử lý các request liên quan đến nhà cung cấp
@@ -35,8 +36,11 @@ export class SupplierController {
    */
   @Post()
   @RequirePermissions('INVENTORY_MANAGE')
-  create(@Body() createSupplierDto: CreateSupplierDto) {
-    return this.supplierService.create(createSupplierDto);
+  create(
+    @Body() createSupplierDto: CreateSupplierDto,
+    @CurrentUser('id') userId: number,
+  ) {
+    return this.supplierService.create(createSupplierDto, userId);
   }
 
   /**

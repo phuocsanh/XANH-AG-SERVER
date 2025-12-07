@@ -18,6 +18,7 @@ import { CreateInventoryReceiptDto } from './dto/create-inventory-receipt.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { InventoryReceiptItem } from '../../entities/inventory-receipt-items.entity';
 import {
   ProductGroup,
@@ -198,11 +199,13 @@ export class InventoryController {
       batchCode?: string;
       expiryDate?: Date;
     },
+    @CurrentUser('id') userId: number,
   ) {
     return this.inventoryService.processStockIn(
       stockInData.productId,
       stockInData.quantity,
       stockInData.unitCost,
+      userId,
       stockInData.receiptItemId,
       stockInData.batchCode,
       stockInData.expiryDate,
@@ -224,11 +227,13 @@ export class InventoryController {
       referenceId?: number;
       notes?: string;
     },
+    @CurrentUser('id') userId: number,
   ) {
     return this.inventoryService.processStockOut(
       stockOutData.productId,
       stockOutData.quantity,
       stockOutData.referenceType,
+      userId,
       stockOutData.referenceId,
       stockOutData.notes,
     );
@@ -336,8 +341,11 @@ export class InventoryController {
    */
   @Post('receipt')
   @RequirePermissions('INVENTORY_MANAGE')
-  createReceipt(@Body() createInventoryReceiptDto: CreateInventoryReceiptDto) {
-    return this.inventoryService.createReceipt(createInventoryReceiptDto);
+  createReceipt(
+    @Body() createInventoryReceiptDto: CreateInventoryReceiptDto,
+    @CurrentUser('id') userId: number,
+  ) {
+    return this.inventoryService.createReceipt(createInventoryReceiptDto, userId);
   }
 
   /**
@@ -409,8 +417,8 @@ export class InventoryController {
    * @returns Kết quả hoàn thành phiếu nhập kho
    */
   @Post('receipt/:id/complete')
-  completeReceipt(@Param('id') id: string) {
-    return this.inventoryService.completeReceipt(+id);
+  completeReceipt(@Param('id') id: string, @CurrentUser('id') userId: number) {
+    return this.inventoryService.completeReceipt(+id, userId);
   }
 
   /**
@@ -531,8 +539,11 @@ export class InventoryController {
    */
   @Post('return')
   @RequirePermissions('INVENTORY_MANAGE')
-  createReturn(@Body() createInventoryReturnDto: any) {
-    return this.inventoryService.createReturn(createInventoryReturnDto);
+  createReturn(
+    @Body() createInventoryReturnDto: any,
+    @CurrentUser('id') userId: number,
+  ) {
+    return this.inventoryService.createReturn(createInventoryReturnDto, userId);
   }
 
   /**
@@ -572,8 +583,8 @@ export class InventoryController {
    */
   @Post('return/:id/complete')
   @RequirePermissions('INVENTORY_MANAGE')
-  completeReturn(@Param('id') id: string) {
-    return this.inventoryService.completeReturn(+id);
+  completeReturn(@Param('id') id: string, @CurrentUser('id') userId: number) {
+    return this.inventoryService.completeReturn(+id, userId);
   }
 
   /**
@@ -608,8 +619,14 @@ export class InventoryController {
    */
   @Post('adjustment')
   @RequirePermissions('INVENTORY_MANAGE')
-  createAdjustment(@Body() createInventoryAdjustmentDto: any) {
-    return this.inventoryService.createAdjustment(createInventoryAdjustmentDto);
+  createAdjustment(
+    @Body() createInventoryAdjustmentDto: any,
+    @CurrentUser('id') userId: number,
+  ) {
+    return this.inventoryService.createAdjustment(
+      createInventoryAdjustmentDto,
+      userId,
+    );
   }
 
   /**
@@ -649,8 +666,11 @@ export class InventoryController {
    */
   @Post('adjustment/:id/complete')
   @RequirePermissions('INVENTORY_MANAGE')
-  completeAdjustment(@Param('id') id: string) {
-    return this.inventoryService.completeAdjustment(+id);
+  completeAdjustment(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: number,
+  ) {
+    return this.inventoryService.completeAdjustment(+id, userId);
   }
 
   /**

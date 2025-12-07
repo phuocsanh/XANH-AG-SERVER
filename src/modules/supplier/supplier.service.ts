@@ -21,11 +21,15 @@ export class SupplierService {
   /**
    * Tạo nhà cung cấp mới
    * @param createSupplierDto - Dữ liệu tạo nhà cung cấp mới
+   * @param userId - ID người tạo
    * @returns Thông tin nhà cung cấp đã tạo
    */
-  async create(createSupplierDto: CreateSupplierDto) {
+  async create(createSupplierDto: CreateSupplierDto, userId: number) {
     try {
-      const supplier = this.supplierRepository.create(createSupplierDto);
+      const supplier = this.supplierRepository.create({
+        ...createSupplierDto,
+        created_by: userId,
+      });
       return await this.supplierRepository.save(supplier);
     } catch (error) {
       ErrorHandler.handleCreateError(error, 'nhà cung cấp');

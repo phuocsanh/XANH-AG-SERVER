@@ -3,9 +3,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Product } from '../../entities/products.entity';
 import { ProductService } from './product.service';
 import { ProductController } from './product.controller';
-import { ProductFactoryRegistry } from './factories/product-factory.registry';
-import { FertilizerProductFactory } from './factories/fertilizer-product.factory';
-import { PesticideProductFactory } from './factories/pesticide-product.factory';
 import { FileTrackingModule } from '../file-tracking/file-tracking.module';
 import { InventoryModule } from '../inventory/inventory.module';
 import { UnitModule } from '../unit/unit.module';
@@ -45,9 +42,6 @@ import { UploadModule } from '../upload/upload.module';
   ],
   providers: [
     ProductService, // Service xử lý logic nghiệp vụ sản phẩm
-    ProductFactoryRegistry, // Registry quản lý các factory tạo sản phẩm
-    FertilizerProductFactory, // Factory tạo sản phẩm phân bón
-    PesticideProductFactory, // Factory tạo sản phẩm thuốc trừ sâu
   ],
   exports: [ProductService], // Xuất ProductService để các module khác có thể sử dụng
 })

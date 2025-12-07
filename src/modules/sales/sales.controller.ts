@@ -20,6 +20,7 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
 import { SalesInvoiceStatus } from '../../entities/sales-invoices.entity';
 import { SearchSalesDto } from './dto/search-sales.dto';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 /**
  * Controller xử lý các request liên quan đến quản lý bán hàng
@@ -41,8 +42,11 @@ export class SalesController {
   @Post('invoice')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('SALES_CREATE')
-  create(@Body() createSalesInvoiceDto: CreateSalesInvoiceDto) {
-    return this.salesService.create(createSalesInvoiceDto);
+  create(
+    @Body() createSalesInvoiceDto: CreateSalesInvoiceDto,
+    @CurrentUser('id') userId: number,
+  ) {
+    return this.salesService.create(createSalesInvoiceDto, userId);
   }
 
   /**

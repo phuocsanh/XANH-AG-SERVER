@@ -17,14 +17,14 @@ export class DebtNoteService {
     private debtNoteRepository: Repository<DebtNote>,
   ) {}
 
-  async create(createDto: CreateDebtNoteDto): Promise<DebtNote> {
+  async create(createDto: CreateDebtNoteDto, userId: number): Promise<DebtNote> {
     try {
       const debtNote = this.debtNoteRepository.create({
         ...createDto,
         remaining_amount: createDto.amount, // Initially remaining = amount
         paid_amount: 0,
         status: DebtNoteStatus.ACTIVE,
-        created_by: 1, // TODO: Get user ID
+        created_by: userId, // Lấy từ JWT token
       });
       return await this.debtNoteRepository.save(debtNote);
     } catch (error) {

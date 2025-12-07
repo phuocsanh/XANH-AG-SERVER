@@ -5,6 +5,7 @@ import { SearchSalesReturnDto } from './dto/search-sales-return.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @Controller('sales-returns')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -13,8 +14,11 @@ export class SalesReturnController {
 
   @Post()
   @RequirePermissions('SALES_MANAGE')
-  create(@Body() createDto: CreateSalesReturnDto) {
-    return this.salesReturnService.create(createDto);
+  create(
+    @Body() createDto: CreateSalesReturnDto,
+    @CurrentUser('id') userId: number,
+  ) {
+    return this.salesReturnService.create(createDto, userId);
   }
 
   @Post('search')

@@ -24,19 +24,12 @@ export class AuthService {
     private userService: UserService,
     private jwtService: JwtService,
   ) {
-    // Validate JWT_REFRESH_SECRET trong production
+    // Bắt buộc phải có JWT_REFRESH_SECRET, không fallback
     this.refreshSecret = process.env.JWT_REFRESH_SECRET || '';
     
-    if (!this.refreshSecret && process.env.NODE_ENV === 'production') {
-      throw new InternalServerErrorException(
-        'JWT_REFRESH_SECRET is required in production environment'
-      );
-    }
-    
-    // Warn nếu dùng default secret trong development
     if (!this.refreshSecret) {
-      this.logger.warn('⚠️  Using default JWT_REFRESH_SECRET (development only)');
-      this.refreshSecret = 'dev-refresh-secret-key';
+      this.logger.error('❌ Missing JWT_REFRESH_SECRET in environment variables.');
+      throw new Error('JWT_REFRESH_SECRET is required in .env file.');
     }
   }
 

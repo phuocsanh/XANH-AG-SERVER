@@ -592,12 +592,14 @@ export class InventoryService {
    * @param receiptItemId - ID của item trong phiếu nhập (tùy chọn)
    * @param code - Mã lô hàng (tùy chọn)
    * @param expiryDate - Ngày hết hạn (tùy chọn)
+   * @param userId - ID của user đang thực hiện (từ JWT token)
    * @returns Thông tin giao dịch nhập kho và giá vốn trung bình mới
    */
   async processStockIn(
     productId: number,
     quantity: number,
     unitCostPrice: number,
+    userId: number,
     receiptItemId?: number,
     code?: string,
     expiryDate?: Date,
@@ -648,7 +650,7 @@ export class InventoryService {
       reference_type: 'STOCK_IN',
       reference_id: newBatch.id,
       notes: `Nhập kho ${quantity} sản phẩm với giá ${unitCostPrice}`,
-      created_by_user_id: 1, // TODO: Lấy từ context
+      created_by_user_id: userId,
       ...(receiptItemId && { receipt_item_id: receiptItemId }),
     };
 
@@ -696,6 +698,7 @@ export class InventoryService {
    * @param productId - ID của sản phẩm
    * @param quantity - Số lượng xuất kho
    * @param referenceType - Loại tham chiếu (SALE, TRANSFER, ADJUSTMENT, etc.)
+   * @param userId - ID của user thực hiện (từ JWT token)
    * @param referenceId - ID tham chiếu
    * @param notes - Ghi chú
    * @returns Thông tin giao dịch xuất kho
@@ -704,6 +707,7 @@ export class InventoryService {
     productId: number,
     quantity: number,
     referenceType: string,
+    userId: number,
     referenceId?: number,
     notes?: string,
   ) {
@@ -731,29 +735,29 @@ export class InventoryService {
     let totalCostValue = 0;
     const affectedBatches: any[] = [];
 
-    // Xuất kho theo FIFO
+    // Trừ số lượng từ các lô theo FIFO
     for (const batch of batches) {
       if (remainingToDeduct <= 0) break;
 
       const deductFromBatch = Math.min(
-        remainingToDeduct,
         batch.remaining_quantity,
+        remainingToDeduct,
       );
-      const batchCostValue =
-        deductFromBatch * parseFloat(batch.unit_cost_price);
-
-      // Cập nhật số lượng còn lại trong lô
       batch.remaining_quantity -= deductFromBatch;
-      await this.inventoryBatchRepository.save(batch);
-
-      totalCostValue += batchCostValue;
       remainingToDeduct -= deductFromBatch;
 
+      // Tính giá trị xuất kho dựa trên giá vốn của lô
+      const batchCost = parseFloat(batch.unit_cost_price);
+      totalCostValue += deductFromBatch * batchCost;
+
+      // Cập nhật batch
+      await this.inventoryBatchRepository.save(batch);
+      
       affectedBatches.push({
         batchId: batch.id,
         deductedQuantity: deductFromBatch,
-        unitCostPrice: parseFloat(batch.unit_cost_price),
-        costValue: batchCostValue,
+        remainingQuantity: batch.remaining_quantity,
+        cost: batchCost
       });
     }
 
@@ -771,7 +775,7 @@ export class InventoryService {
       new_average_cost: currentAverageCost.toString(), // Giá vốn trung bình không thay đổi khi xuất kho
       reference_type: referenceType,
       notes: notes || `Xuất kho ${quantity} sản phẩm theo FIFO`,
-      created_by_user_id: 1, // TODO: Lấy từ context
+      created_by_user_id: userId, // Lấy từ JWT token
       ...(referenceId && { reference_id: referenceId }),
     };
 
@@ -1090,15 +1094,15 @@ export class InventoryService {
    * @param createInventoryReceiptDto - Dữ liệu tạo phiếu nhập kho mới
    * @returns Thông tin phiếu nhập kho đã tạo
    */
-  async createReceipt(createInventoryReceiptDto: CreateInventoryReceiptDto) {
+  async createReceipt(createInventoryReceiptDto: CreateInventoryReceiptDto, userId: number) {
     // Tạo phiếu nhập kho
     const receiptData: any = {
       code: createInventoryReceiptDto.receipt_code,
       supplier_id: createInventoryReceiptDto.supplier_id,
       total_amount: createInventoryReceiptDto.total_amount,
       status: createInventoryReceiptDto.status,
-      created_by: createInventoryReceiptDto.created_by,
-      updated_by: createInventoryReceiptDto.created_by, // Người tạo cũng là người cập nhật đầu tiên
+      created_by: userId, // Lấy từ JWT token
+      updated_by: userId, // Người tạo cũng là người cập nhật đầu tiên
     };
 
     // Only add notes if it's not undefined
@@ -1227,7 +1231,8 @@ export class InventoryService {
             await this.processStockIn(
               item.product_id,
               item.quantity,
-              item.final_unit_cost, // ← Sử dụng giá đã bao gồm phí vận chuyển
+              item.final_unit_cost,
+              userId,
               itemId,
               `RECEIPT_${receiptEntity.id}_ITEM_${itemId}`,
             );
@@ -1359,7 +1364,7 @@ export class InventoryService {
    * @param id - ID của phiếu nhập kho cần hoàn thành
    * @returns Thông tin phiếu nhập kho đã hoàn thành
    */
-  async completeReceipt(id: number): Promise<InventoryReceipt | null> {
+  async completeReceipt(id: number, userId: number): Promise<InventoryReceipt | null> {
     const receipt = await this.findReceiptById(id);
     if (!receipt) {
       return null;
@@ -1386,6 +1391,7 @@ export class InventoryService {
           item.product_id,
           item.quantity,
           costPrice,
+          userId,
           item.id,
           `RECEIPT_${receipt.id}_ITEM_${item.id}`,
         );
@@ -1600,7 +1606,7 @@ export class InventoryService {
    * @param createInventoryReturnDto - Dữ liệu tạo phiếu xuất trả hàng mới
    * @returns Thông tin phiếu xuất trả hàng đã tạo
    */
-  async createReturn(createInventoryReturnDto: CreateInventoryReturnDto) {
+  async createReturn(createInventoryReturnDto: CreateInventoryReturnDto, userId: number) {
     const returnData: any = {
       code: createInventoryReturnDto.return_code,
       receipt_id: createInventoryReturnDto.receipt_id,
@@ -1608,8 +1614,8 @@ export class InventoryService {
       total_amount: createInventoryReturnDto.total_amount,
       reason: createInventoryReturnDto.reason,
       status: createInventoryReturnDto.status || 'draft',
-      created_by: createInventoryReturnDto.created_by,
-      updated_by: createInventoryReturnDto.created_by,
+      created_by: userId,
+      updated_by: userId,
     };
 
     if (createInventoryReturnDto.notes !== undefined) {
@@ -1697,7 +1703,7 @@ export class InventoryService {
    * @param id - ID của phiếu xuất trả hàng cần hoàn thành
    * @returns Thông tin phiếu xuất trả hàng đã hoàn thành
    */
-  async completeReturn(id: number): Promise<InventoryReturn | null> {
+  async completeReturn(id: number, userId: number): Promise<InventoryReturn | null> {
     const returnDoc = await this.findReturnById(id);
     if (!returnDoc) {
       return null;
@@ -1719,6 +1725,7 @@ export class InventoryService {
           item.product_id,
           item.quantity,
           'RETURN',
+          userId,
           id,
           `Trả hàng cho nhà cung cấp - Phiếu ${returnDoc.code}`,
         );
@@ -1791,14 +1798,15 @@ export class InventoryService {
    */
   async createAdjustment(
     createInventoryAdjustmentDto: CreateInventoryAdjustmentDto,
+    userId: number,
   ) {
     const adjustmentData: any = {
       code: createInventoryAdjustmentDto.adjustment_code,
       adjustment_type: createInventoryAdjustmentDto.adjustment_type,
       reason: createInventoryAdjustmentDto.reason,
       status: createInventoryAdjustmentDto.status || 'draft',
-      created_by: createInventoryAdjustmentDto.created_by,
-      updated_by: createInventoryAdjustmentDto.created_by,
+      created_by: userId,
+      updated_by: userId,
     };
 
     if (createInventoryAdjustmentDto.notes !== undefined) {
@@ -1883,7 +1891,7 @@ export class InventoryService {
    * @param id - ID của phiếu điều chỉnh kho cần hoàn thành
    * @returns Thông tin phiếu điều chỉnh kho đã hoàn thành
    */
-  async completeAdjustment(id: number): Promise<InventoryAdjustment | null> {
+  async completeAdjustment(id: number, userId: number): Promise<InventoryAdjustment | null> {
     const adjustment = await this.findAdjustmentById(id);
     if (!adjustment) {
       return null;
@@ -1912,6 +1920,7 @@ export class InventoryService {
             item.product_id,
             quantityChange,
             currentAverageCost, // Sử dụng giá vốn hiện tại
+            userId,
             undefined,
             `Điều chỉnh tăng kho - Phiếu ${adjustment.code}`,
           );
@@ -1921,6 +1930,7 @@ export class InventoryService {
             item.product_id,
             Math.abs(quantityChange),
             'ADJUSTMENT',
+            userId,
             id,
             `Điều chỉnh giảm kho - Phiếu ${adjustment.code}`,
           );

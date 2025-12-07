@@ -174,18 +174,21 @@ export class PaymentService {
 
   /**
    * Chốt sổ công nợ
+   * @param dto - Dữ liệu chốt sổ
+   * @param userId - ID của user đang thực hiện (từ JWT token)
    */
-  async settleDebt(dto: SettleDebtDto): Promise<{
+  async settleDebt(dto: SettleDebtDto, userId: number): Promise<{
     payment: Payment;
     settled_invoices: SalesInvoice[];
-    old_debt_note: DebtNote;
+    total_debt: number;
+    remaining_debt: number;
   }> {
     try {
-      // 1. Lấy tất cả hóa đơn nợ của khách trong mùa vụ
+      // 1. Lấy tất cả hóa đơn chưa thanh toán của khách hàng trong mùa vụ
       const unpaidInvoices = await this.salesInvoiceRepository
         .createQueryBuilder('si')
-        .where('si.customer_id = :customer_id', { customer_id: dto.customer_id })
-        .andWhere('si.season_id = :season_id', { season_id: dto.season_id })
+        .where('si.customer_id = :customerId', { customerId: dto.customer_id })
+        .andWhere('si.season_id = :seasonId', { seasonId: dto.season_id })
         .andWhere('si.remaining_amount > 0')
         .orderBy('si.created_at', 'ASC') // Trả hóa đơn cũ trước
         .getMany();
@@ -209,7 +212,7 @@ export class PaymentService {
         payment_date: dto.payment_date || new Date().toISOString(),
         payment_method: dto.payment_method,
         notes: dto.notes || `Chốt sổ công nợ mùa vụ #${dto.season_id}`,
-        created_by: 1, // TODO: Get from context
+        created_by: userId, // Lấy từ JWT token
       });
       const savedPayment = await this.paymentRepository.save(payment);
 
@@ -277,7 +280,8 @@ export class PaymentService {
       return {
         payment: savedPayment,
         settled_invoices: settledInvoices,
-        old_debt_note: oldDebtNote,
+        total_debt: totalDebt,
+        remaining_debt: totalDebt - dto.amount,
       };
     } catch (error) {
       this.logger.error('Lỗi khi chốt sổ công nợ:', error);

@@ -99,6 +99,17 @@ export class ProductTypeService {
   }
 
   /**
+   * Tìm loại sản phẩm theo code
+   * @param code - Mã loại sản phẩm cần tìm
+   * @returns Thông tin loại sản phẩm hoặc null nếu không tìm thấy
+   */
+  async findByCode(code: string): Promise<ProductType | null> {
+    return this.productTypeRepository.findOne({
+      where: { code },
+    });
+  }
+
+  /**
    * Cập nhật thông tin loại sản phẩm chỉ sử dụng status
    * @param id - ID của loại sản phẩm cần cập nhật
    * @param updateProductTypeDto - Dữ liệu cập nhật loại sản phẩm

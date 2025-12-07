@@ -6,6 +6,7 @@ import { DebtNoteService } from './debt-note.service';
 import { CreateDebtNoteDto } from './dto/create-debt-note.dto';
 import { UpdateDebtNoteDto } from './dto/update-debt-note.dto';
 import { SearchDebtNoteDto } from './dto/search-debt-note.dto';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @Controller('debt-notes')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -14,8 +15,11 @@ export class DebtNoteController {
 
   @Post()
   @RequirePermissions('SALES_MANAGE')
-  create(@Body() createDto: CreateDebtNoteDto) {
-    return this.debtNoteService.create(createDto);
+  create(
+    @Body() createDto: CreateDebtNoteDto,
+    @CurrentUser('id') userId: number,
+  ) {
+    return this.debtNoteService.create(createDto, userId);
   }
 
 
