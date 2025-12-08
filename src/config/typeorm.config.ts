@@ -40,7 +40,7 @@ const typeOrmConfig: TypeOrmModuleOptions = {
   
   // Tự động đồng bộ schema từ entities
   // TypeORM sẽ tự tạo/update tables dựa trên entities
-  synchronize: true,
+  synchronize: false,
   
   // Logging
   logging: isProduction ? ['error', 'warn'] : true,

@@ -41,12 +41,18 @@ export class CreateRiceCropDto {
   @Type(() => Number)
   field_area!: number;
 
-  @ApiProperty({ description: 'Số công lớn (diện tích tính theo công)', example: 10 })
-  @IsNotEmpty({ message: 'Số công lớn không được để trống' })
-  @IsNumber({}, { message: 'Số công lớn phải là số' })
-  @Min(0, { message: 'Số công lớn phải lớn hơn hoặc bằng 0' })
+  @ApiProperty({ description: 'Số lượng đất', example: 10 })
+  @IsNotEmpty({ message: 'Số lượng đất không được để trống' })
+  @IsNumber({}, { message: 'Số lượng đất phải là số' })
+  @Min(0, { message: 'Số lượng đất phải lớn hơn hoặc bằng 0' })
   @Type(() => Number)
-  large_labor_days!: number;
+  amount_of_land!: number;
+
+  @ApiPropertyOptional({ description: 'ID vùng/lô đất', example: 1 })
+  @IsOptional()
+  @IsNumber({}, { message: 'ID vùng/lô đất phải là số' })
+  @Type(() => Number)
+  area_of_each_plot_of_land_id?: number;
 
   @ApiPropertyOptional({ description: 'Vị trí địa lý', example: 'Xã Tân Hiệp, An Giang' })
   @IsOptional()
@@ -103,12 +109,18 @@ export class UpdateRiceCropDto {
   @Type(() => Number)
   field_area?: number;
 
-  @ApiPropertyOptional({ description: 'Số công lớn (diện tích tính theo công)', example: 10 })
+  @ApiPropertyOptional({ description: 'Số lượng đất', example: 10 })
   @IsOptional()
-  @IsNumber({}, { message: 'Số công lớn phải là số' })
-  @Min(0, { message: 'Số công lớn phải lớn hơn hoặc bằng 0' })
+  @IsNumber({}, { message: 'Số lượng đất phải là số' })
+  @Min(0, { message: 'Số lượng đất phải lớn hơn hoặc bằng 0' })
   @Type(() => Number)
-  large_labor_days?: number;
+  amount_of_land?: number;
+
+  @ApiPropertyOptional({ description: 'ID vùng/lô đất', example: 1 })
+  @IsOptional()
+  @IsNumber({}, { message: 'ID vùng/lô đất phải là số' })
+  @Type(() => Number)
+  area_of_each_plot_of_land_id?: number;
 
   @ApiPropertyOptional({ description: 'Vị trí địa lý', example: 'Xã Tân Hiệp, An Giang' })
   @IsOptional()

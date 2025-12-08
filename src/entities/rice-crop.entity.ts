@@ -10,6 +10,7 @@ import {
 import { ApiProperty } from '@nestjs/swagger';
 import { Customer } from './customer.entity';
 import { Season } from './season.entity';
+import { AreaOfEachPlotOfLand } from './area-of-each-plot-of-land.entity';
 
 /**
  * Enum định nghĩa giai đoạn sinh trưởng của lúa
@@ -73,10 +74,20 @@ export class RiceCrop {
   @Column({ name: 'field_area', type: 'decimal', precision: 10, scale: 2 })
   field_area!: number;
 
-  /** Số công lớn (diện tích tính theo công) */
-  @ApiProperty({ description: 'Số công lớn (diện tích tính theo công)', example: 10 })
-  @Column({ name: 'large_labor_days', type: 'decimal', precision: 10, scale: 2 })
-  large_labor_days!: number;
+  /** Số lượng đất (amount_of_land) thay cho large_labor_days */
+  @ApiProperty({ description: 'Số lượng đất', example: 10 })
+  @Column({ name: 'amount_of_land', type: 'decimal', precision: 10, scale: 2 })
+  amount_of_land!: number;
+
+  /** ID vùng/lô đất */
+  @ApiProperty({ description: 'ID vùng/lô đất', example: 1, required: false })
+  @Column({ name: 'area_of_each_plot_of_land_id', nullable: true })
+  area_of_each_plot_of_land_id?: number;
+
+  /** Thông tin vùng/lô đất */
+  @ManyToOne(() => AreaOfEachPlotOfLand, (area) => area.riceCrops)
+  @JoinColumn({ name: 'area_of_each_plot_of_land_id' })
+  areaOfEachPlotOfLand?: AreaOfEachPlotOfLand;
 
   /** Vị trí địa lý (tọa độ hoặc mô tả) */
   @ApiProperty({ description: 'Vị trí địa lý', example: 'Xã Tân Hiệp, An Giang', required: false })
