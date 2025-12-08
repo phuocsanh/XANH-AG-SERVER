@@ -47,6 +47,7 @@ import { StoreProfitReportModule } from './modules/store-profit-report/store-pro
 import { FirebaseModule } from './modules/firebase/firebase.module';
 import { HealthModule } from './health/health.module';
 import { CleanupModule } from './modules/cleanup/cleanup.module';
+import { AreaOfEachPlotOfLandModule } from './modules/area-of-each-plot-of-land/area-of-each-plot-of-land.module';
 
 
 /**
@@ -130,6 +131,7 @@ import { CleanupModule } from './modules/cleanup/cleanup.module';
     StoreProfitReportModule, // Module báo cáo lợi nhuận (cửa hàng)
     HealthModule, // Module health check để tránh Render free tier sleep
     CleanupModule, // Module dọn dẹp dữ liệu rác định kỳ
+    AreaOfEachPlotOfLandModule, // Module quản lý các vùng/lô đất
   ],
   controllers: [], // Các controller global (nếu có)
   providers: [

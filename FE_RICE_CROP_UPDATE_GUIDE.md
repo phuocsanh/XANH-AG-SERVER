@@ -93,6 +93,71 @@ Tương tự, payload update cũng cần dùng key mới:
 *   Cập nhật hiển thị cột/trường từ "Số công lớn" sang "Số lượng đất".
 *   Hiển thị thêm thông tin "Vùng/Lô đất" (tên hoặc mã) nếu `areaOfEachPlotOfLand` có dữ liệu trả về.
 
-## 5. Các vấn đề cần lưu ý (Pending)
+## 5. API Danh sách Vùng/Lô đất
 
-*   **API List Area**: Hiện tại Backend mới chỉ tạo Entity và sửa bảng `RiceCrop`. Chưa có Controller/Service cho `AreaOfEachPlotOfLand`. Nếu Frontend cần API để lấy danh sách các vùng đất để hiển thị lên Dropdown, hãy yêu cầu Backend triển khai thêm module này.
+Backend đã triển khai đầy đủ module `AreaOfEachPlotOfLand` với các endpoint sau:
+
+### 5.1. Tìm kiếm vùng/lô đất (với pagination)
+```
+POST /area-of-each-plot-of-land/search
+```
+
+**Payload:**
+```json
+{
+  "keyword": "Lô A",  // Optional - tìm kiếm theo tên hoặc mã
+  "page": 1,          // Optional - mặc định 1
+  "limit": 20         // Optional - mặc định 20
+}
+```
+
+**Response:**
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "name": "Lô A1",
+      "code": "LA1",
+      "acreage": 1000,
+      "created_at": "2024-12-08T...",
+      "updated_at": "2024-12-08T..."
+    }
+  ],
+  "total": 10
+}
+```
+
+### 5.2. Tạo vùng/lô đất mới
+```
+POST /area-of-each-plot-of-land
+```
+
+**Payload:**
+```json
+{
+  "name": "Lô A1",
+  "code": "LA1",
+  "acreage": 1000
+}
+```
+
+### 5.3. Cập nhật vùng/lô đất
+```
+PATCH /area-of-each-plot-of-land/:id
+```
+
+### 5.4. Xóa vùng/lô đất
+```
+DELETE /area-of-each-plot-of-land/:id
+```
+
+## 6. Quyền truy cập (Permissions)
+
+Các permissions đã được thêm vào hệ thống RBAC:
+- `area_of_each_plot_of_land:read` - Xem danh sách
+- `area_of_each_plot_of_land:create` - Tạo mới
+- `area_of_each_plot_of_land:update` - Cập nhật
+- `area_of_each_plot_of_land:delete` - Xóa
+
+**Lưu ý:** Sau khi deploy, cần chạy lệnh `npm run seed:rbac` để cập nhật permissions vào database.

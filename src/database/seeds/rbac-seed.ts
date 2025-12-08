@@ -85,6 +85,12 @@ export async function seedRBAC(dataSource: DataSource) {
     { code: 'growth:create', name: 'Ghi nhận quan sát', group: 'Growth Tracking', description: 'Ghi nhận quan sát mới' },
     { code: 'growth:update', name: 'Cập nhật quan sát', group: 'Growth Tracking', description: 'Cập nhật quan sát' },
     { code: 'growth:delete', name: 'Xóa quan sát', group: 'Growth Tracking', description: 'Xóa quan sát' },
+    
+    // Area of Each Plot of Land Management
+    { code: 'area_of_each_plot_of_land:read', name: 'Xem vùng/lô đất', group: 'Area Management', description: 'Xem danh sách vùng/lô đất' },
+    { code: 'area_of_each_plot_of_land:create', name: 'Tạo vùng/lô đất', group: 'Area Management', description: 'Tạo vùng/lô đất mới' },
+    { code: 'area_of_each_plot_of_land:update', name: 'Cập nhật vùng/lô đất', group: 'Area Management', description: 'Cập nhật thông tin vùng/lô đất' },
+    { code: 'area_of_each_plot_of_land:delete', name: 'Xóa vùng/lô đất', group: 'Area Management', description: 'Xóa vùng/lô đất' },
   ];
 
   const createdPermissions: Permission[] = [];
@@ -123,6 +129,7 @@ export async function seedRBAC(dataSource: DataSource) {
         'schedule:read', 'schedule:create', 'schedule:update', 'schedule:delete',
         'application:read', 'application:create', 'application:update', 'application:delete',
         'growth:read', 'growth:create', 'growth:update', 'growth:delete',
+        'area_of_each_plot_of_land:read', 'area_of_each_plot_of_land:create', 'area_of_each_plot_of_land:update', 'area_of_each_plot_of_land:delete',
       ],
     },
     {
@@ -142,6 +149,7 @@ export async function seedRBAC(dataSource: DataSource) {
         'schedule:read', 'schedule:create', 'schedule:update',
         'application:read', 'application:create', 'application:update',
         'growth:read', 'growth:create', 'growth:update',
+        'area_of_each_plot_of_land:read', 'area_of_each_plot_of_land:create', 'area_of_each_plot_of_land:update',
       ],
     },
     {
@@ -158,6 +166,7 @@ export async function seedRBAC(dataSource: DataSource) {
         'schedule:read', 'schedule:create', 'schedule:update',
         'application:read', 'application:create', 'application:update',
         'growth:read', 'growth:create', 'growth:update',
+        'area_of_each_plot_of_land:read', 'area_of_each_plot_of_land:create', 'area_of_each_plot_of_land:update',
       ],
     },
   ];
