@@ -507,4 +507,91 @@ export class StoreProfitReportService {
       throw error;
     }
   }
+
+  /**
+   * Báo cáo lợi nhuận theo vụ lúa (rice_crop)
+   */
+  async getRiceCropProfitReport(riceCropId: number): Promise<any> {
+    try {
+      // Lấy tất cả hóa đơn liên quan đến rice_crop này
+      const invoices = await this.salesInvoiceRepository.find({
+        where: {
+          rice_crop_id: riceCropId,
+          status: Not(SalesInvoiceStatus.CANCELLED),
+        },
+        relations: ['items', 'items.product', 'customer', 'season', 'rice_crop'],
+        order: { created_at: 'DESC' },
+      });
+
+      if (invoices.length === 0) {
+        throw new NotFoundException(`Không tìm thấy hóa đơn nào cho vụ lúa ID: ${riceCropId}`);
+      }
+
+      const firstInvoice = invoices[0]!;
+      const fieldName = firstInvoice.rice_crop?.field_name || 'Unknown';
+      const customerName = firstInvoice.customer?.name || firstInvoice.customer_name;
+      const seasonName = firstInvoice.season?.name;
+
+      // Tính toán cho từng đơn hàng
+      let totalRevenue = 0;
+      let totalCost = 0;
+      let totalProfit = 0;
+      const invoiceDetails: any[] = [];
+
+      for (const invoice of invoices) {
+        // Tính COGS cho đơn hàng này
+        let invoiceCOGS = 0;
+        for (const item of invoice.items || []) {
+          const avgCost = Number(item.product?.average_cost_price || 0);
+          invoiceCOGS += item.quantity * avgCost;
+        }
+
+        const invoiceProfit = invoice.final_amount - invoiceCOGS;
+        const invoiceMargin = invoice.final_amount > 0 
+          ? (invoiceProfit / invoice.final_amount) * 100 
+          : 0;
+
+        totalRevenue += invoice.final_amount;
+        totalCost += invoiceCOGS;
+        totalProfit += invoiceProfit;
+
+        invoiceDetails.push({
+          invoice_id: invoice.id,
+          invoice_code: invoice.code,
+          date: invoice.created_at,
+          revenue: invoice.final_amount,
+          cost: invoiceCOGS,
+          profit: invoiceProfit,
+          margin: Math.round(invoiceMargin * 100) / 100,
+          customer_name: invoice.customer_name,
+        });
+      }
+
+      // Summary
+      const avgMargin = totalRevenue > 0 
+        ? (totalProfit / totalRevenue) * 100 
+        : 0;
+
+      this.logger.log(`✅ Báo cáo vụ lúa #${riceCropId}: ${invoices.length} đơn, lợi nhuận ${totalProfit.toLocaleString()} đ`);
+
+      return {
+        rice_crop_id: riceCropId,
+        field_name: fieldName,
+        customer_name: customerName,
+        season_name: seasonName,
+        summary: {
+          total_invoices: invoices.length,
+          total_revenue: Math.round(totalRevenue * 100) / 100,
+          total_cost: Math.round(totalCost * 100) / 100,
+          total_profit: Math.round(totalProfit * 100) / 100,
+          avg_margin: Math.round(avgMargin * 100) / 100,
+        },
+        invoices: invoiceDetails,
+      };
+    } catch (error) {
+      const err = error as Error;
+      this.logger.error(`❌ Lỗi báo cáo vụ lúa: ${err.message}`, err.stack);
+      throw error;
+    }
+  }
 }

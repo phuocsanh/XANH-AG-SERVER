@@ -78,4 +78,20 @@ export class StoreProfitReportController {
     
     return this.service.getCustomerProfitReport(customerId, season, start, end);
   }
+
+  @Get('rice-crop/:riceCropId')
+  @RequirePermissions('store-profit-report:read')
+  @ApiOperation({
+    summary: 'Báo cáo lợi nhuận theo vụ lúa',
+    description: 'Xem lợi nhuận từ các đơn hàng liên quan đến một vụ lúa cụ thể'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Báo cáo lợi nhuận vụ lúa',
+  })
+  async getRiceCropReport(
+    @Param('riceCropId', ParseIntPipe) riceCropId: number,
+  ): Promise<any> {
+    return this.service.getRiceCropProfitReport(riceCropId);
+  }
 }
