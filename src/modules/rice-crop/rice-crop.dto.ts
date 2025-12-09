@@ -13,7 +13,7 @@ import { Type } from 'class-transformer';
 import { GrowthStage, CropStatus } from '../../entities/rice-crop.entity';
 
 /**
- * DTO để tạo vụ lúa mới
+ * DTO để tạo mảnh ruộng mới
  */
 export class CreateRiceCropDto {
   @ApiProperty({ description: 'ID khách hàng (nông dân)', example: 1 })
@@ -93,7 +93,7 @@ export class CreateRiceCropDto {
 }
 
 /**
- * DTO để cập nhật thông tin vụ lúa
+ * DTO để cập nhật thông tin mảnh ruộng
  */
 export class UpdateRiceCropDto {
   @ApiPropertyOptional({ description: 'Tên ruộng/lô', example: 'Ruộng sau nhà' })
@@ -198,7 +198,7 @@ export class UpdateGrowthStageDto {
 }
 
 /**
- * DTO để cập nhật trạng thái vụ lúa
+ * DTO để cập nhật trạng thái mảnh ruộng
  */
 export class UpdateCropStatusDto {
   @ApiProperty({ 
@@ -217,7 +217,7 @@ export class UpdateCropStatusDto {
 }
 
 /**
- * DTO để query/filter danh sách vụ lúa
+ * DTO để query/filter danh sách mảnh ruộng
  */
 export class QueryRiceCropDto {
   @ApiPropertyOptional({ description: 'ID khách hàng', example: 1 })

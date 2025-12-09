@@ -1,18 +1,18 @@
 # Rice Crop Management Module
 
-Module quản lý vụ lúa của nông dân, theo dõi từ khi gieo trồng đến thu hoạch.
+Module quản lý mảnh ruộng của nông dân, theo dõi từ khi gieo trồng đến thu hoạch.
 
 ## Chức năng
 
-- ✅ Tạo và quản lý thông tin vụ lúa (ruộng, giống, thời gian)
+- ✅ Tạo và quản lý thông tin mảnh ruộng (ruộng, giống, thời gian)
 - ✅ Theo dõi giai đoạn sinh trưởng (mạ → đẻ nhánh → làm đòng → trổ → chín → thu hoạch)
-- ✅ Cập nhật trạng thái vụ lúa (active, harvested, failed)
+- ✅ Cập nhật trạng thái mảnh ruộng (active, harvested, failed)
 - ✅ Ghi nhận kết quả thu hoạch (năng suất, chất lượng)
-- ✅ Thống kê vụ lúa theo khách hàng
+- ✅ Thống kê mảnh ruộng theo khách hàng
 
 ## API Endpoints
 
-### 1. Tạo vụ lúa mới
+### 1. Tạo mảnh ruộng mới
 ```http
 POST /rice-crops
 Authorization: Bearer <token>
@@ -29,11 +29,11 @@ Content-Type: application/json
   "sowing_date": "2024-11-01",
   "transplanting_date": "2024-11-20",
   "expected_harvest_date": "2025-02-15",
-  "notes": "Vụ lúa đông xuân 2024"
+  "notes": "Mảnh ruộng đông xuân 2024"
 }
 ```
 
-### 2. Lấy danh sách vụ lúa
+### 2. Lấy danh sách mảnh ruộng
 ```http
 GET /rice-crops?customer_id=1&season_id=1&status=active
 Authorization: Bearer <token>
@@ -45,13 +45,13 @@ Authorization: Bearer <token>
 - `status` (optional): Lọc theo trạng thái (active, harvested, failed)
 - `growth_stage` (optional): Lọc theo giai đoạn sinh trưởng
 
-### 3. Lấy chi tiết vụ lúa
+### 3. Lấy chi tiết mảnh ruộng
 ```http
 GET /rice-crops/:id
 Authorization: Bearer <token>
 ```
 
-### 4. Cập nhật thông tin vụ lúa
+### 4. Cập nhật thông tin mảnh ruộng
 ```http
 PATCH /rice-crops/:id
 Authorization: Bearer <token>
@@ -84,7 +84,7 @@ Content-Type: application/json
 - `ripening` - Chín
 - `harvested` - Đã thu hoạch
 
-### 6. Cập nhật trạng thái vụ lúa
+### 6. Cập nhật trạng thái mảnh ruộng
 ```http
 PATCH /rice-crops/:id/status
 Authorization: Bearer <token>
@@ -101,13 +101,13 @@ Content-Type: application/json
 - `harvested` - Đã thu hoạch
 - `failed` - Thất bại
 
-### 7. Xóa vụ lúa
+### 7. Xóa mảnh ruộng
 ```http
 DELETE /rice-crops/:id
 Authorization: Bearer <token>
 ```
 
-### 8. Thống kê vụ lúa theo khách hàng
+### 8. Thống kê mảnh ruộng theo khách hàng
 ```http
 GET /rice-crops/customer/:customerId/stats
 Authorization: Bearer <token>
@@ -154,10 +154,10 @@ CREATE TABLE rice_crops (
 ## Permissions
 
 Module này yêu cầu các quyền sau:
-- `rice_crop:create` - Tạo vụ lúa mới
-- `rice_crop:read` - Xem danh sách và chi tiết vụ lúa
-- `rice_crop:update` - Cập nhật thông tin vụ lúa
-- `rice_crop:delete` - Xóa vụ lúa
+- `rice_crop:create` - Tạo mảnh ruộng mới
+- `rice_crop:read` - Xem danh sách và chi tiết mảnh ruộng
+- `rice_crop:update` - Cập nhật thông tin mảnh ruộng
+- `rice_crop:delete` - Xóa mảnh ruộng
 
 ## Business Logic
 
@@ -175,11 +175,11 @@ Module này yêu cầu các quyền sau:
 
 ### Liên kết với Customer
 - Mỗi vụ lúa thuộc về 1 khách hàng (nông dân)
-- Có thể lấy tất cả vụ lúa của 1 khách hàng
+- Có thể lấy tất cả mảnh ruộng của 1 khách hàng
 
 ### Liên kết với Season
 - Mỗi vụ lúa thuộc về 1 mùa vụ (VD: Đông Xuân 2024)
-- Có thể lấy tất cả vụ lúa trong 1 mùa vụ
+- Có thể lấy tất cả mảnh ruộng trong 1 mùa vụ
 
 ### Sẽ liên kết với (Phase 2-3)
 - **Farming Schedule** - Lịch canh tác của vụ lúa

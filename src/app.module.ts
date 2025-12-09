@@ -121,7 +121,7 @@ import { AreaOfEachPlotOfLandModule } from './modules/area-of-each-plot-of-land/
     AiBrownPlantHopperModule, // Module cảnh báo Rầy Nâu
     AiSheathBlightModule, // Module cảnh báo Bệnh Khô Vằn
     AiGrainDiscolorationModule, // Module cảnh báo Bệnh Lem Lép Hạt
-    RiceCropModule, // Module quản lý vụ lúa của nông dân
+    RiceCropModule, // Module quản lý mảnh ruộng của nông dân
     CostItemModule, // Module quản lý chi phí đầu vào
     HarvestRecordModule, // Module ghi nhận thu hoạch & doanh thu
     FarmingScheduleModule, // Module lịch canh tác

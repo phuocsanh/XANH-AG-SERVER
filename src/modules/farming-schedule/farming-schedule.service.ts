@@ -14,7 +14,7 @@ export class FarmingScheduleService {
   ) {}
 
   async create(createDto: CreateFarmingScheduleDto): Promise<FarmingSchedule> {
-    this.logger.log(`Tạo lịch canh tác mới cho vụ lúa ${createDto.rice_crop_id}`);
+    this.logger.log(`Tạo lịch canh tác mới cho mảnh ruộng ${createDto.rice_crop_id}`);
     const schedule = this.scheduleRepository.create(createDto);
     return this.scheduleRepository.save(schedule);
   }

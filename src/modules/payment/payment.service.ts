@@ -371,4 +371,109 @@ export class PaymentService {
     
     return `PT${year}${month}${day}${hours}${minutes}${seconds}${random}`;
   }
+
+  /**
+   * Rollback payment (hoàn tác thanh toán)
+   * Dùng khi nhập sai, cần sửa lại
+   * 
+   * @param paymentId - ID của payment cần rollback
+   * @returns Thông tin rollback
+   */
+  async rollbackPayment(paymentId: number): Promise<{
+    success: boolean;
+    message: string;
+    payment: Payment;
+    affected_invoices: number;
+    affected_debt_note: DebtNote | null;
+  }> {
+    try {
+      // 1. Lấy thông tin payment và allocations
+      const payment = await this.paymentRepository.findOne({
+        where: { id: paymentId },
+        relations: ['allocations', 'customer'],
+      });
+
+      if (!payment) {
+        throw new Error(`Payment #${paymentId} không tồn tại`);
+      }
+
+      const allocations = await this.paymentAllocationRepository.find({
+        where: { payment_id: paymentId },
+        relations: ['invoice'],
+      });
+
+      this.logger.log(`🔄 Bắt đầu rollback payment #${payment.code}...`);
+
+      // 2. Hoàn tác từng invoice
+      let affectedInvoiceCount = 0;
+      for (const allocation of allocations) {
+        const invoice = allocation.invoice;
+        if (!invoice) continue;
+
+        // Trả lại số tiền đã thanh toán
+        invoice.partial_payment_amount = Number(invoice.partial_payment_amount || 0) - allocation.amount;
+        invoice.remaining_amount = Number(invoice.remaining_amount) + allocation.amount;
+
+        // Cập nhật trạng thái
+        if (invoice.remaining_amount > 0) {
+          invoice.payment_status = invoice.partial_payment_amount > 0 ? 'partial' : 'unpaid';
+        }
+
+        await this.salesInvoiceRepository.save(invoice);
+        affectedInvoiceCount++;
+
+        this.logger.log(`  ↩️  Invoice #${invoice.code}: +${allocation.amount.toLocaleString()} đ`);
+      }
+
+      // 3. Tìm và cập nhật debt_note
+      let affectedDebtNote: DebtNote | null = null;
+      
+      // Lấy customer_id và season_id từ invoice đầu tiên
+      const firstInvoice = allocations[0]?.invoice;
+      if (firstInvoice) {
+        const debtNote = await this.debtNoteRepository
+          .createQueryBuilder('dn')
+          .where('dn.customer_id = :customer_id', { customer_id: firstInvoice.customer_id })
+          .andWhere('dn.season_id = :season_id', { season_id: firstInvoice.season_id })
+          .getOne();
+
+        if (debtNote) {
+          // Trả lại số tiền vào nợ
+          debtNote.paid_amount = Number(debtNote.paid_amount || 0) - payment.amount;
+          debtNote.remaining_amount = Number(debtNote.remaining_amount) + payment.amount;
+
+          // Cập nhật trạng thái
+          if (debtNote.remaining_amount > 0) {
+            debtNote.status = DebtNoteStatus.ACTIVE;
+          }
+
+          await this.debtNoteRepository.save(debtNote);
+          affectedDebtNote = debtNote;
+
+          this.logger.log(`  ↩️  DebtNote #${debtNote.code}: +${payment.amount.toLocaleString()} đ`);
+        }
+      }
+
+      // 4. Xóa payment allocations
+      await this.paymentAllocationRepository.delete({ payment_id: paymentId });
+      this.logger.log(`  🗑️  Đã xóa ${allocations.length} payment allocations`);
+
+      // 5. Xóa payment
+      await this.paymentRepository.delete(paymentId);
+      this.logger.log(`  🗑️  Đã xóa payment #${payment.code}`);
+
+      this.logger.log(`✅ Rollback thành công payment #${payment.code}`);
+
+      return {
+        success: true,
+        message: `Đã rollback payment #${payment.code}. Hoàn trả ${payment.amount.toLocaleString()} đ vào công nợ.`,
+        payment,
+        affected_invoices: affectedInvoiceCount,
+        affected_debt_note: affectedDebtNote,
+      };
+    } catch (error) {
+      this.logger.error(`❌ Lỗi khi rollback payment #${paymentId}:`, error);
+      throw error;
+    }
+  }
 }

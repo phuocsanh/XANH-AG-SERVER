@@ -4,7 +4,7 @@ import { Type } from 'class-transformer';
 import { PaymentStatus } from '../../entities/harvest-record.entity';
 
 export class CreateHarvestRecordDto {
-  @ApiProperty({ description: 'ID vụ lúa', example: 1 })
+  @ApiProperty({ description: 'ID mảnh ruộng', example: 1 })
   @IsNotEmpty()
   @IsNumber()
   @Type(() => Number)

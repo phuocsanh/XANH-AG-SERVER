@@ -14,7 +14,7 @@ export class GrowthTrackingService {
   ) {}
 
   async create(createDto: CreateGrowthTrackingDto): Promise<GrowthTracking> {
-    this.logger.log(`Tạo theo dõi sinh trưởng mới cho vụ lúa ${createDto.rice_crop_id}`);
+    this.logger.log(`Tạo theo dõi sinh trưởng mới cho mảnh ruộng ${createDto.rice_crop_id}`);
     const tracking = this.trackingRepository.create(createDto);
     return this.trackingRepository.save(tracking);
   }

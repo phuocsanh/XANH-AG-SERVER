@@ -15,7 +15,7 @@ export class CostItemService {
 
   async create(createDto: CreateCostItemDto): Promise<CostItem> {
     try {
-      this.logger.log(`Tạo chi phí mới cho vụ lúa ${createDto.rice_crop_id}`);
+      this.logger.log(`Tạo chi phí mới cho mảnh ruộng ${createDto.rice_crop_id}`);
       
       const costItem = this.costItemRepository.create(createDto);
       const saved = await this.costItemRepository.save(costItem);

@@ -10,7 +10,7 @@ export class AddRiceCropIdToSalesInvoices1763989000000 implements MigrationInter
                 name: 'rice_crop_id',
                 type: 'int',
                 isNullable: true,
-                comment: 'ID vụ lúa (để biết chi phí cho ruộng nào)'
+                comment: 'ID mảnh ruộng (để biết chi phí cho ruộng nào)'
             }));
 
             // Tạo foreign key từ sales_invoices.rice_crop_id → rice_crops.id

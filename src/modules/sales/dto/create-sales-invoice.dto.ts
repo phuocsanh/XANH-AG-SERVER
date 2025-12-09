@@ -55,7 +55,7 @@ export class CreateSalesInvoiceDto {
   @IsOptional()
   season_id?: number;
 
-  /** ID vụ lúa (tùy chọn) */
+  /** ID mảnh ruộng (tùy chọn) */
   @IsNumber()
   @IsOptional()
   rice_crop_id?: number;

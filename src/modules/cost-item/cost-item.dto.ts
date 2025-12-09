@@ -12,9 +12,9 @@ import { Type } from 'class-transformer';
 import { CostCategory } from '../../entities/cost-item.entity';
 
 export class CreateCostItemDto {
-  @ApiProperty({ description: 'ID vụ lúa', example: 1 })
-  @IsNotEmpty({ message: 'ID vụ lúa không được để trống' })
-  @IsNumber({}, { message: 'ID vụ lúa phải là số' })
+  @ApiProperty({ description: 'ID mảnh ruộng', example: 1 })
+  @IsNotEmpty({ message: 'ID mảnh ruộng không được để trống' })
+  @IsNumber({}, { message: 'ID mảnh ruộng phải là số' })
   @Type(() => Number)
   rice_crop_id!: number;
 
@@ -134,9 +134,9 @@ export class UpdateCostItemDto {
 }
 
 export class QueryCostItemDto {
-  @ApiPropertyOptional({ description: 'ID vụ lúa', example: 1 })
+  @ApiPropertyOptional({ description: 'ID mảnh ruộng', example: 1 })
   @IsOptional()
-  @IsNumber({}, { message: 'ID vụ lúa phải là số' })
+  @IsNumber({}, { message: 'ID mảnh ruộng phải là số' })
   @Type(() => Number)
   rice_crop_id?: number;
 

@@ -38,7 +38,7 @@ export class GrowthTracking {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @ApiProperty({ description: 'ID vụ lúa', example: 1 })
+  @ApiProperty({ description: 'ID mảnh ruộng', example: 1 })
   @Column({ name: 'rice_crop_id' })
   rice_crop_id!: number;
 

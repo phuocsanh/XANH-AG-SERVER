@@ -51,10 +51,10 @@ export async function seedRBAC(dataSource: DataSource) {
     { code: 'REPORT_EXPORT', name: 'Xuất báo cáo', group: 'Report', description: 'Xuất báo cáo ra file' },
     
     // Rice Crop Management
-    { code: 'rice_crop:read', name: 'Xem vụ lúa', group: 'Rice Crop Management', description: 'Xem danh sách và chi tiết vụ lúa' },
-    { code: 'rice_crop:create', name: 'Tạo vụ lúa', group: 'Rice Crop Management', description: 'Tạo vụ lúa mới' },
-    { code: 'rice_crop:update', name: 'Cập nhật vụ lúa', group: 'Rice Crop Management', description: 'Cập nhật thông tin vụ lúa' },
-    { code: 'rice_crop:delete', name: 'Xóa vụ lúa', group: 'Rice Crop Management', description: 'Xóa vụ lúa' },
+    { code: 'rice_crop:read', name: 'Xem vụ lúa', group: 'Rice Crop Management', description: 'Xem danh sách và chi tiết mảnh ruộng' },
+    { code: 'rice_crop:create', name: 'Tạo mảnh ruộng', group: 'Rice Crop Management', description: 'Tạo mảnh ruộng mới' },
+    { code: 'rice_crop:update', name: 'Cập nhật mảnh ruộng', group: 'Rice Crop Management', description: 'Cập nhật thông tin mảnh ruộng' },
+    { code: 'rice_crop:delete', name: 'Xóa mảnh ruộng', group: 'Rice Crop Management', description: 'Xóa mảnh ruộng' },
     
     // Cost Item Management
     { code: 'cost_item:read', name: 'Xem chi phí', group: 'Cost Item Management', description: 'Xem danh sách chi phí' },

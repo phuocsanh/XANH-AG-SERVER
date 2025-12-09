@@ -110,7 +110,7 @@ export class SalesInvoice {
   @JoinColumn({ name: 'season_id' })
   season?: Season;
 
-  /** ID vụ lúa (nullable - để biết chi phí cho ruộng nào) */
+  /** ID mảnh ruộng (nullable - để biết chi phí cho ruộng nào) */
   @Column({ name: 'rice_crop_id', nullable: true })
   rice_crop_id?: number;
 

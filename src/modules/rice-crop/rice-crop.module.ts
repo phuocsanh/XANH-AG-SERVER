@@ -5,14 +5,14 @@ import { RiceCropService } from './rice-crop.service';
 import { RiceCropController } from './rice-crop.controller';
 
 /**
- * Module quản lý vụ lúa của nông dân
+ * Module quản lý mảnh ruộng của nông dân
  * 
  * Chức năng:
- * - Tạo và quản lý thông tin vụ lúa (ruộng, giống, thời gian)
+ * - Tạo và quản lý thông tin mảnh ruộng (ruộng, giống, thời gian)
  * - Theo dõi giai đoạn sinh trưởng
- * - Cập nhật trạng thái vụ lúa
+ * - Cập nhật trạng thái mảnh ruộng
  * - Ghi nhận kết quả thu hoạch
- * - Thống kê vụ lúa theo khách hàng
+ * - Thống kê mảnh ruộng theo khách hàng
  */
 @Module({
   imports: [TypeOrmModule.forFeature([RiceCrop])],

@@ -50,7 +50,7 @@ export class ProfitReportService {
    */
   async calculateCropProfitability(cropId: number): Promise<ProfitReport> {
     try {
-      // Lấy thông tin vụ lúa
+      // Lấy thông tin mảnh ruộng
       const crop = await this.riceCropRepository.findOne({ where: { id: cropId } });
       if (!crop) {
         throw new Error(`Không tìm thấy vụ lúa với ID: ${cropId}`);
@@ -122,7 +122,7 @@ export class ProfitReportService {
         duration_days,
       };
 
-      this.logger.log(`✅ Đã tính toán báo cáo lợi nhuận cho vụ lúa ID: ${cropId}`);
+      this.logger.log(`✅ Đã tính toán báo cáo lợi nhuận cho mảnh ruộng ID: ${cropId}`);
       return report;
     } catch (error) {
       const err = error as Error;

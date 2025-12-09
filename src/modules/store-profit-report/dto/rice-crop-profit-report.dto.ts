@@ -56,7 +56,7 @@ export class RiceCropProfitSummaryDto {
  * DTO cho báo cáo lợi nhuận theo rice crop
  */
 export class RiceCropProfitReportDto {
-  @ApiProperty({ description: 'ID vụ lúa' })
+  @ApiProperty({ description: 'ID mảnh ruộng' })
   rice_crop_id!: number;
 
   @ApiProperty({ description: 'Tên ruộng/lô' })

@@ -585,7 +585,7 @@ export class StoreProfitReportService {
       });
 
       if (invoices.length === 0) {
-        throw new NotFoundException(`Không tìm thấy hóa đơn nào cho vụ lúa ID: ${riceCropId}`);
+        throw new NotFoundException(`Không tìm thấy hóa đơn nào cho mảnh ruộng ID: ${riceCropId}`);
       }
 
       const firstInvoice = invoices[0]!;
@@ -638,7 +638,7 @@ export class StoreProfitReportService {
         ? (totalProfit / totalRevenue) * 100 
         : 0;
 
-      this.logger.log(`✅ Báo cáo vụ lúa #${riceCropId}: ${invoices.length} đơn, Lợi nhuận gộp ${totalProfit.toLocaleString()} đ, Quà tặng từ đơn ${totalGiftFromInvoices.toLocaleString()} đ`);
+      this.logger.log(`✅ Báo cáo mảnh ruộng #${riceCropId}: ${invoices.length} đơn, Lợi nhuận gộp ${totalProfit.toLocaleString()} đ, Quà tặng từ đơn ${totalGiftFromInvoices.toLocaleString()} đ`);
 
       return {
         rice_crop_id: riceCropId,

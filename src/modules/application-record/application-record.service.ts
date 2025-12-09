@@ -14,7 +14,7 @@ export class ApplicationRecordService {
   ) {}
 
   async create(createDto: CreateApplicationRecordDto): Promise<ApplicationRecord> {
-    this.logger.log(`Tạo nhật ký canh tác mới cho vụ lúa ${createDto.rice_crop_id}`);
+    this.logger.log(`Tạo nhật ký canh tác mới cho mảnh ruộng ${createDto.rice_crop_id}`);
     const record = this.recordRepository.create(createDto);
     return this.recordRepository.save(record);
   }

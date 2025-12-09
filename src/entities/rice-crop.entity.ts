@@ -25,7 +25,7 @@ export enum GrowthStage {
 }
 
 /**
- * Enum định nghĩa trạng thái vụ lúa
+ * Enum định nghĩa trạng thái mảnh ruộng
  */
 export enum CropStatus {
   ACTIVE = 'active',       // Đang canh tác
@@ -34,7 +34,7 @@ export enum CropStatus {
 }
 
 /**
- * Entity biểu diễn thông tin vụ lúa của nông dân
+ * Entity biểu diễn thông tin mảnh ruộng của nông dân
  * Ánh xạ với bảng 'rice_crops' trong cơ sở dữ liệu
  */
 @Entity('rice_crops')
@@ -44,7 +44,7 @@ export class RiceCrop {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  /** ID khách hàng (nông dân) sở hữu vụ lúa này */
+  /** ID khách hàng (nông dân) sở hữu mảnh ruộng này */
   @ApiProperty({ description: 'ID khách hàng (nông dân)', example: 1 })
   @Column({ name: 'customer_id' })
   customer_id!: number;

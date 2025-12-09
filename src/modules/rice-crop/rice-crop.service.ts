@@ -20,11 +20,11 @@ export class RiceCropService {
   ) {}
 
   /**
-   * Tạo vụ lúa mới
+   * Tạo mảnh ruộng mới
    */
   async create(createDto: CreateRiceCropDto): Promise<RiceCrop> {
     try {
-      this.logger.log(`Tạo vụ lúa mới cho khách hàng ${createDto.customer_id}`);
+      this.logger.log(`Tạo mảnh ruộng mới cho khách hàng ${createDto.customer_id}`);
       
       const riceCrop = this.riceCropRepository.create({
         ...createDto,
@@ -44,7 +44,7 @@ export class RiceCropService {
   }
 
   /**
-   * Lấy danh sách vụ lúa với filter
+   * Lấy danh sách mảnh ruộng với filter
    */
   async findAll(query: QueryRiceCropDto): Promise<RiceCrop[]> {
     try {
@@ -88,13 +88,13 @@ export class RiceCropService {
       return crops;
     } catch (error) {
       const err = error as Error;
-      this.logger.error(`❌ Lỗi lấy danh sách vụ lúa: ${err.message}`, err.stack);
-      throw new BadRequestException(`Không thể lấy danh sách vụ lúa: ${err.message}`);
+      this.logger.error(`❌ Lỗi lấy danh sách mảnh ruộng: ${err.message}`, err.stack);
+      throw new BadRequestException(`Không thể lấy danh sách mảnh ruộng: ${err.message}`);
     }
   }
 
   /**
-   * Lấy chi tiết vụ lúa theo ID
+   * Lấy chi tiết mảnh ruộng theo ID
    */
   async findOne(id: number): Promise<RiceCrop> {
     try {
@@ -113,13 +113,13 @@ export class RiceCropService {
         throw error;
       }
       const err = error as Error;
-      this.logger.error(`❌ Lỗi lấy thông tin vụ lúa: ${err.message}`, err.stack);
-      throw new BadRequestException(`Không thể lấy thông tin vụ lúa: ${err.message}`);
+      this.logger.error(`❌ Lỗi lấy thông tin mảnh ruộng: ${err.message}`, err.stack);
+      throw new BadRequestException(`Không thể lấy thông tin mảnh ruộng: ${err.message}`);
     }
   }
 
   /**
-   * Cập nhật thông tin vụ lúa
+   * Cập nhật thông tin mảnh ruộng
    */
   async update(id: number, updateDto: UpdateRiceCropDto): Promise<RiceCrop> {
     try {
@@ -177,7 +177,7 @@ export class RiceCropService {
   }
 
   /**
-   * Cập nhật trạng thái vụ lúa
+   * Cập nhật trạng thái mảnh ruộng
    */
   async updateStatus(id: number, dto: UpdateCropStatusDto): Promise<RiceCrop> {
     try {
@@ -195,7 +195,7 @@ export class RiceCropService {
       }
 
       const updated = await this.riceCropRepository.save(crop);
-      this.logger.log(`✅ Đã cập nhật trạng thái vụ lúa ID: ${id} → ${dto.status}`);
+      this.logger.log(`✅ Đã cập nhật trạng thái mảnh ruộng ID: ${id} → ${dto.status}`);
       
       return updated;
     } catch (error) {
@@ -209,7 +209,7 @@ export class RiceCropService {
   }
 
   /**
-   * Xóa vụ lúa
+   * Xóa mảnh ruộng
    */
   async remove(id: number): Promise<void> {
     try {
@@ -227,7 +227,7 @@ export class RiceCropService {
   }
 
   /**
-   * Lấy thống kê vụ lúa theo khách hàng
+   * Lấy thống kê mảnh ruộng theo khách hàng
    */
   async getCustomerStats(customerId: number): Promise<{
     total: number;

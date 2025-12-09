@@ -34,12 +34,12 @@ export class RiceCropController {
   constructor(private readonly riceCropService: RiceCropService) {}
 
   /**
-   * Tạo vụ lúa mới
+   * Tạo mảnh ruộng mới
    */
   @Post()
   @RequirePermissions('rice_crop:create')
-  @ApiOperation({ summary: 'Tạo vụ lúa mới' })
-  @ApiResponse({ status: 201, description: 'Vụ lúa đã được tạo thành công', type: RiceCrop })
+  @ApiOperation({ summary: 'Tạo mảnh ruộng mới' })
+  @ApiResponse({ status: 201, description: 'Mảnh ruộng đã được tạo thành công', type: RiceCrop })
   @ApiResponse({ status: 400, description: 'Dữ liệu không hợp lệ' })
   @ApiResponse({ status: 401, description: 'Chưa xác thực' })
   @ApiResponse({ status: 403, description: 'Không có quyền' })
@@ -48,7 +48,7 @@ export class RiceCropController {
   }
 
   /**
-   * Lấy danh sách vụ lúa
+   * Lấy danh sách mảnh ruộng
    */
   /**
    * Tìm kiếm vụ lúa
@@ -64,11 +64,11 @@ export class RiceCropController {
   }
 
   /**
-   * Lấy chi tiết vụ lúa
+   * Lấy chi tiết mảnh ruộng
    */
   @Get(':id')
   @RequirePermissions('rice_crop:read')
-  @ApiOperation({ summary: 'Lấy chi tiết vụ lúa theo ID' })
+  @ApiOperation({ summary: 'Lấy chi tiết mảnh ruộng theo ID' })
   @ApiResponse({ status: 200, description: 'Chi tiết vụ lúa', type: RiceCrop })
   @ApiResponse({ status: 404, description: 'Không tìm thấy vụ lúa' })
   @ApiResponse({ status: 401, description: 'Chưa xác thực' })
@@ -78,12 +78,12 @@ export class RiceCropController {
   }
 
   /**
-   * Cập nhật thông tin vụ lúa
+   * Cập nhật thông tin mảnh ruộng
    */
   @Patch(':id')
   @RequirePermissions('rice_crop:update')
-  @ApiOperation({ summary: 'Cập nhật thông tin vụ lúa' })
-  @ApiResponse({ status: 200, description: 'Vụ lúa đã được cập nhật', type: RiceCrop })
+  @ApiOperation({ summary: 'Cập nhật thông tin mảnh ruộng' })
+  @ApiResponse({ status: 200, description: 'Mảnh ruộng đã được cập nhật', type: RiceCrop })
   @ApiResponse({ status: 404, description: 'Không tìm thấy vụ lúa' })
   @ApiResponse({ status: 400, description: 'Dữ liệu không hợp lệ' })
   @ApiResponse({ status: 401, description: 'Chưa xác thực' })
@@ -114,11 +114,11 @@ export class RiceCropController {
   }
 
   /**
-   * Cập nhật trạng thái vụ lúa
+   * Cập nhật trạng thái mảnh ruộng
    */
   @Patch(':id/status')
   @RequirePermissions('rice_crop:update')
-  @ApiOperation({ summary: 'Cập nhật trạng thái vụ lúa' })
+  @ApiOperation({ summary: 'Cập nhật trạng thái mảnh ruộng' })
   @ApiResponse({ status: 200, description: 'Trạng thái đã được cập nhật', type: RiceCrop })
   @ApiResponse({ status: 404, description: 'Không tìm thấy vụ lúa' })
   @ApiResponse({ status: 400, description: 'Dữ liệu không hợp lệ' })
@@ -132,13 +132,13 @@ export class RiceCropController {
   }
 
   /**
-   * Xóa vụ lúa
+   * Xóa mảnh ruộng
    */
   @Delete(':id')
   @RequirePermissions('rice_crop:delete')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Xóa vụ lúa' })
-  @ApiResponse({ status: 204, description: 'Vụ lúa đã được xóa' })
+  @ApiOperation({ summary: 'Xóa mảnh ruộng' })
+  @ApiResponse({ status: 204, description: 'Mảnh ruộng đã được xóa' })
   @ApiResponse({ status: 404, description: 'Không tìm thấy vụ lúa' })
   @ApiResponse({ status: 401, description: 'Chưa xác thực' })
   @ApiResponse({ status: 403, description: 'Không có quyền' })
@@ -147,11 +147,11 @@ export class RiceCropController {
   }
 
   /**
-   * Lấy thống kê vụ lúa theo khách hàng
+   * Lấy thống kê mảnh ruộng theo khách hàng
    */
   @Get('customer/:customerId/stats')
   @RequirePermissions('rice_crop:read')
-  @ApiOperation({ summary: 'Lấy thống kê vụ lúa theo khách hàng' })
+  @ApiOperation({ summary: 'Lấy thống kê mảnh ruộng theo khách hàng' })
   @ApiResponse({ 
     status: 200, 
     description: 'Thống kê vụ lúa',

@@ -42,7 +42,14 @@ export class PaymentController {
   }
 
   @Delete(':id')
+  @RequirePermissions('SALES_MANAGE')
   remove(@Param('id') id: string) {
     return this.paymentService.remove(+id);
+  }
+
+  @Post(':id/rollback')
+  @RequirePermissions('SALES_MANAGE')
+  rollback(@Param('id') id: string) {
+    return this.paymentService.rollbackPayment(+id);
   }
 }
