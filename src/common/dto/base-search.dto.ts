@@ -25,6 +25,10 @@ export class BaseSearchDto {
 
   @IsString()
   @IsOptional()
+  sort?: string; // Format: "field:DESC"
+
+  @IsString()
+  @IsOptional()
   sort_by?: string;
 
   @IsEnum(SortOrder)

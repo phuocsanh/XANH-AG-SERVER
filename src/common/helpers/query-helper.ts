@@ -18,7 +18,15 @@ export class QueryHelper {
     query.skip(skip).take(limit);
 
     // 2. Sắp xếp (Sort)
-    if (dto.sort_by) {
+    if (dto.sort) {
+      const [field, order] = dto.sort.split(':');
+      if (field) {
+         const sortField = field.includes('.') ? field : `${alias}.${field}`;
+         const sortOrder = (order || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+         query.orderBy(sortField, sortOrder);
+      }
+    }
+    else if (dto.sort_by) {
       // Cho phép sort theo relations
       const sortField = dto.sort_by.includes('.') ? dto.sort_by : `${alias}.${dto.sort_by}`;
       const sortOrder = dto.sort_order === 'ASC' ? 'ASC' : 'DESC';
@@ -50,7 +58,7 @@ export class QueryHelper {
     alias: string,
     ignoreFields: string[] = []
   ) {
-    const reservedFields = ['page', 'limit', 'keyword', 'sort_by', 'sort_order', 'filters', 'customer_term', ...ignoreFields];
+    const reservedFields = ['page', 'limit', 'keyword', 'sort', 'sort_by', 'sort_order', 'filters', 'customer_term', 'nested_filters', 'operator', ...ignoreFields];
     
     Object.keys(dto).forEach(key => {
       // Bỏ qua reserved fields hoặc giá trị null/undefined/empty
@@ -65,6 +73,8 @@ export class QueryHelper {
       if (Array.isArray(value)) {
         query.andWhere(`${field} IN (:...${paramName})`, { [paramName]: value });
       } else if (typeof value === 'string') {
+        // Basic heuristic: if string looks like date, use = ? No, standard string is ILIKE. 
+        // IDs as string? "PT001". ILIKE ok.
         query.andWhere(`${field} ILIKE :${paramName}`, { [paramName]: `%${value}%` });
       } else {
         query.andWhere(`${field} = :${paramName}`, { [paramName]: value });
