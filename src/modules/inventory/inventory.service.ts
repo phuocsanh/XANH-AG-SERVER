@@ -164,6 +164,24 @@ export class InventoryService {
       ['code', 'product.name', 'product.code', 'notes'] // Global search
     );
 
+    // Fix: Handle sorting for numeric string fields
+    const sortField = searchDto.sort
+      ? searchDto.sort.split(':')[0]
+      : searchDto.sort_by;
+    if (sortField && ['unit_cost_price'].includes(sortField)) {
+      const sortOrder = searchDto.sort
+        ? ((searchDto.sort.split(':')[1] || 'DESC').toUpperCase() as
+            | 'ASC'
+            | 'DESC')
+        : searchDto.sort_order || 'DESC';
+
+      queryBuilder.addSelect(
+        `CAST(batch.${sortField} AS DECIMAL)`,
+        'sort_numeric_value',
+      );
+      queryBuilder.orderBy('sort_numeric_value', sortOrder);
+    }
+
     // 2. Simple Filters
     QueryHelper.applyFilters(
       queryBuilder,
