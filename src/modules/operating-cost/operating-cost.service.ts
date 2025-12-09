@@ -1,11 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder } from 'typeorm';
+import { Repository } from 'typeorm';
 import { OperatingCost } from '../../entities/operating-costs.entity';
 import { CreateOperatingCostDto } from './dto/create-operating-cost.dto';
 import { UpdateOperatingCostDto } from './dto/update-operating-cost.dto';
 import { SearchOperatingCostDto } from './dto/search-operating-cost.dto';
-import { FilterConditionDto } from './dto/filter-condition.dto';
 import { QueryHelper } from '../../common/helpers/query-helper';
 
 /**
@@ -117,6 +116,10 @@ export class OperatingCostService {
     const queryBuilder =
       this.operatingCostRepository.createQueryBuilder('operating_cost');
 
+    queryBuilder.leftJoinAndSelect('operating_cost.season', 'season');
+    queryBuilder.leftJoinAndSelect('operating_cost.rice_crop', 'rice_crop');
+    queryBuilder.leftJoinAndSelect('operating_cost.cost_type', 'cost_type');
+
     // 1. Base Search
     const { page, limit } = QueryHelper.applyBaseSearch(
       queryBuilder,
@@ -130,13 +133,13 @@ export class OperatingCostService {
       queryBuilder,
       searchDto,
       'operating_cost',
-      ['filters', 'nested_filters', 'operator']
+      ['filters', 'nested_filters', 'operator'],
+      {
+         season_name: 'season.name',
+         rice_crop_name: 'rice_crop.field_name',
+         cost_type_name: 'cost_type.name',
+      }
     );
-
-    // 3. Backward Compatibility
-    if (searchDto.filters && searchDto.filters.length > 0) {
-      this.buildSearchConditions(queryBuilder, searchDto, 'operating_cost');
-    }
 
     const [data, total] = await queryBuilder.getManyAndCount();
 
@@ -146,181 +149,5 @@ export class OperatingCostService {
       page,
       limit,
     };
-  }
-
-  /**
-   * Xây dựng điều kiện tìm kiếm từ DTO
-   * @param queryBuilder - Query builder
-   * @param searchDto - DTO tìm kiếm
-   * @param alias - Alias của bảng
-   */
-  private buildSearchConditions(
-    queryBuilder: SelectQueryBuilder<OperatingCost>,
-    searchDto: SearchOperatingCostDto | FilterConditionDto,
-    alias: string,
-  ): void {
-    // Xử lý điều kiện filters
-    if ('filters' in searchDto && searchDto.filters) {
-      const operator = searchDto.operator || 'AND';
-      const whereMethod = operator === 'OR' ? 'orWhere' : 'andWhere';
-
-      searchDto.filters.forEach((filter, index) => {
-        if (!filter.field || !filter.operator) return;
-
-        const paramName = `${alias}_${filter.field}_${index}`;
-        const fieldAlias = `${alias}.${filter.field}`;
-
-        switch (filter.operator) {
-          case 'eq':
-            if (index === 0) {
-              queryBuilder.where(`${fieldAlias} = :${paramName}`, {
-                [paramName]: filter.value,
-              });
-            } else {
-              queryBuilder[whereMethod](`${fieldAlias} = :${paramName}`, {
-                [paramName]: filter.value,
-              });
-            }
-            break;
-          case 'ne':
-            if (index === 0) {
-              queryBuilder.where(`${fieldAlias} != :${paramName}`, {
-                [paramName]: filter.value,
-              });
-            } else {
-              queryBuilder[whereMethod](`${fieldAlias} != :${paramName}`, {
-                [paramName]: filter.value,
-              });
-            }
-            break;
-          case 'gt':
-            if (index === 0) {
-              queryBuilder.where(`${fieldAlias} > :${paramName}`, {
-                [paramName]: filter.value,
-              });
-            } else {
-              queryBuilder[whereMethod](`${fieldAlias} > :${paramName}`, {
-                [paramName]: filter.value,
-              });
-            }
-            break;
-          case 'lt':
-            if (index === 0) {
-              queryBuilder.where(`${fieldAlias} < :${paramName}`, {
-                [paramName]: filter.value,
-              });
-            } else {
-              queryBuilder[whereMethod](`${fieldAlias} < :${paramName}`, {
-                [paramName]: filter.value,
-              });
-            }
-            break;
-          case 'gte':
-            if (index === 0) {
-              queryBuilder.where(`${fieldAlias} >= :${paramName}`, {
-                [paramName]: filter.value,
-              });
-            } else {
-              queryBuilder[whereMethod](`${fieldAlias} >= :${paramName}`, {
-                [paramName]: filter.value,
-              });
-            }
-            break;
-          case 'lte':
-            if (index === 0) {
-              queryBuilder.where(`${fieldAlias} <= :${paramName}`, {
-                [paramName]: filter.value,
-              });
-            } else {
-              queryBuilder[whereMethod](`${fieldAlias} <= :${paramName}`, {
-                [paramName]: filter.value,
-              });
-            }
-            break;
-          case 'like':
-            if (index === 0) {
-              queryBuilder.where(`${fieldAlias} LIKE :${paramName}`, {
-                [paramName]: `%${filter.value}%`,
-              });
-            } else {
-              queryBuilder[whereMethod](`${fieldAlias} LIKE :${paramName}`, {
-                [paramName]: `%${filter.value}%`,
-              });
-            }
-            break;
-          case 'ilike':
-            if (index === 0) {
-              queryBuilder.where(
-                `LOWER(${fieldAlias}) LIKE LOWER(:${paramName})`,
-                {
-                  [paramName]: `%${filter.value}%`,
-                },
-              );
-            } else {
-              queryBuilder[whereMethod](
-                `LOWER(${fieldAlias}) LIKE LOWER(:${paramName})`,
-                {
-                  [paramName]: `%${filter.value}%`,
-                },
-              );
-            }
-            break;
-          case 'in':
-            if (index === 0) {
-              queryBuilder.where(`${fieldAlias} IN (:...${paramName})`, {
-                [paramName]: Array.isArray(filter.value)
-                  ? filter.value
-                  : [filter.value],
-              });
-            } else {
-              queryBuilder[whereMethod](`${fieldAlias} IN (:...${paramName})`, {
-                [paramName]: Array.isArray(filter.value)
-                  ? filter.value
-                  : [filter.value],
-              });
-            }
-            break;
-          case 'notin':
-            if (index === 0) {
-              queryBuilder.where(`${fieldAlias} NOT IN (:...${paramName})`, {
-                [paramName]: Array.isArray(filter.value)
-                  ? filter.value
-                  : [filter.value],
-              });
-            } else {
-              queryBuilder[whereMethod](
-                `${fieldAlias} NOT IN (:...${paramName})`,
-                {
-                  [paramName]: Array.isArray(filter.value)
-                    ? filter.value
-                    : [filter.value],
-                },
-              );
-            }
-            break;
-          case 'isnull':
-            if (index === 0) {
-              queryBuilder.where(`${fieldAlias} IS NULL`);
-            } else {
-              queryBuilder[whereMethod](`${fieldAlias} IS NULL`);
-            }
-            break;
-          case 'isnotnull':
-            if (index === 0) {
-              queryBuilder.where(`${fieldAlias} IS NOT NULL`);
-            } else {
-              queryBuilder[whereMethod](`${fieldAlias} IS NOT NULL`);
-            }
-            break;
-        }
-      });
-    }
-
-    // Xử lý điều kiện nested_filters
-    if ('nested_filters' in searchDto && searchDto.nested_filters) {
-      searchDto.nested_filters.forEach((nestedFilter) => {
-        this.buildSearchConditions(queryBuilder, nestedFilter, alias);
-      });
-    }
   }
 }

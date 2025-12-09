@@ -87,13 +87,13 @@ export class DebtNoteService {
       queryBuilder,
       searchDto,
       'debt_note',
-      ['filters', 'nested_filters', 'operator']
+      ['filters', 'nested_filters', 'operator'],
+      {
+        customer_name: 'customer.name',
+        customer_phone: 'customer.phone',
+        season_name: 'season.name',
+      }
     );
-
-    // 3. Backward Compatibility
-    if (searchDto.filters && searchDto.filters.length > 0) {
-      this.buildSearchConditions(queryBuilder, searchDto, 'debt_note');
-    }
 
     const [data, total] = await queryBuilder.getManyAndCount();
 
@@ -125,74 +125,6 @@ export class DebtNoteService {
     };
   }
 
-  private buildSearchConditions(
-    queryBuilder: SelectQueryBuilder<DebtNote>,
-    searchDto: SearchDebtNoteDto,
-    alias: string,
-  ): void {
-    if (searchDto.filters && searchDto.filters.length > 0) {
-      const operator = searchDto.operator || 'AND';
-      const conditions: string[] = [];
-      const parameters: { [key: string]: any } = {};
-
-      searchDto.filters.forEach((filter, index) => {
-        const condition = this.buildFilterCondition(
-          filter,
-          alias,
-          index,
-          parameters,
-        );
-        if (condition) {
-          conditions.push(condition);
-        }
-      });
-
-      if (conditions.length > 0) {
-        const combinedCondition = conditions.join(` ${operator} `);
-        queryBuilder.andWhere(`(${combinedCondition})`, parameters);
-      }
-    }
-  }
-
-  private buildFilterCondition(
-    filter: FilterConditionDto,
-    alias: string,
-    index: number,
-    parameters: { [key: string]: any },
-  ): string | null {
-    if (!filter.field || !filter.operator) return null;
-    const paramName = `param_${index}`;
-    let field = `${alias}.${filter.field}`;
-    if (filter.field.includes('.')) {
-        field = filter.field;
-    }
-
-    switch (filter.operator) {
-      case 'eq': parameters[paramName] = filter.value; return `${field} = :${paramName}`;
-      case 'ne': parameters[paramName] = filter.value; return `${field} != :${paramName}`;
-      case 'gt': parameters[paramName] = filter.value; return `${field} > :${paramName}`;
-      case 'lt': parameters[paramName] = filter.value; return `${field} < :${paramName}`;
-      case 'gte': parameters[paramName] = filter.value; return `${field} >= :${paramName}`;
-      case 'lte': parameters[paramName] = filter.value; return `${field} <= :${paramName}`;
-      case 'like': parameters[paramName] = `%${filter.value}%`; return `${field} LIKE :${paramName}`;
-      case 'ilike': parameters[paramName] = `%${filter.value}%`; return `LOWER(${field}) LIKE LOWER(:${paramName})`;
-      case 'in':
-        if (Array.isArray(filter.value)) {
-          parameters[paramName] = filter.value;
-          return `${field} IN (:...${paramName})`;
-        }
-        return null;
-      case 'notin':
-        if (Array.isArray(filter.value)) {
-          parameters[paramName] = filter.value;
-          return `${field} NOT IN (:...${paramName})`;
-        }
-        return null;
-      case 'isnull': return `${field} IS NULL`;
-      case 'isnotnull': return `${field} IS NOT NULL`;
-      default: return null;
-    }
-  }
 
   /**
    * Tìm hoặc tạo phiếu công nợ cho khách hàng trong mùa vụ

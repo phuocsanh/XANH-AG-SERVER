@@ -1,32 +1,18 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, IsNumber } from 'class-validator';
+import { Type } from 'class-transformer';
 import { BaseSearchDto } from '../../../common/dto/base-search.dto';
 
 export class SearchCustomerDto extends BaseSearchDto {
-  /**
-   * Filter theo loại khách hàng (regular, vip...)
-   */
-  @IsString()
-  @IsOptional()
-  type?: string;
+  @IsOptional() @Type(() => Number) id?: number;
+  @IsString() @IsOptional() code?: string;
+  @IsString() @IsOptional() name?: string;
+  @IsString() @IsOptional() phone?: string;
+  @IsString() @IsOptional() address?: string;
+  
+  @IsNumber() @IsOptional() @Type(() => Number) province_id?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) district_id?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) ward_id?: number;
 
-  /**
-   * Filter theo số điện thoại
-   */
-  @IsString()
-  @IsOptional()
-  phone?: string;
-
-  /**
-   * Filter theo mã khách hàng
-   */
-  @IsString()
-  @IsOptional()
-  code?: string;
-
-  /**
-   * Tìm kiếm theo từ khóa (alias cho keyword)
-   */
-  @IsString()
-  @IsOptional()
-  search?: string;
+  @IsString() @IsOptional() status?: string;
+  @IsString() @IsOptional() notes?: string;
 }

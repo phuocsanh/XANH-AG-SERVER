@@ -1,32 +1,25 @@
-import { IsOptional, IsArray, ValidateNested, IsString, IsEnum } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsDateString } from 'class-validator';
 import { Type } from 'class-transformer';
-import { FilterConditionDto } from '../../payment/dto/filter-condition.dto';
 import { BaseSearchDto } from '../../../common/dto/base-search.dto';
 
 export class SearchDebtNoteDto extends BaseSearchDto {
-  @IsString()
-  @IsOptional()
-  code?: string;
+  // --- Entity Fields ---
+  @IsOptional() @Type(() => Number) id?: number;
+  @IsString() @IsOptional() code?: string;
+  @IsNumber() @IsOptional() @Type(() => Number) customer_id?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) season_id?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) created_by?: number;
+  
+  @IsNumber() @IsOptional() @Type(() => Number) total_amount?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) paid_amount?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) remaining_amount?: number;
 
-  @IsString()
-  @IsOptional()
-  status?: string;
+  @IsString() @IsOptional() status?: string;
+  @IsDateString() @IsOptional() created_at?: string;
+  @IsDateString() @IsOptional() updated_at?: string;
 
-  // --- Backward Compatibility ---
-
-  @IsArray()
-  @IsOptional()
-  @ValidateNested({ each: true })
-  @Type(() => FilterConditionDto)
-  filters?: FilterConditionDto[];
-
-  @IsEnum(['AND', 'OR', 'MUST', 'SHOULD', 'MUST_NOT'])
-  @IsOptional()
-  operator?: 'AND' | 'OR' | 'MUST' | 'SHOULD' | 'MUST_NOT' = 'AND';
-
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => SearchDebtNoteDto)
-  nested_filters?: SearchDebtNoteDto[];
+  // --- Relations Flat Fields ---
+  @IsString() @IsOptional() customer_name?: string;
+  @IsString() @IsOptional() customer_phone?: string;
+  @IsString() @IsOptional() season_name?: string;
 }

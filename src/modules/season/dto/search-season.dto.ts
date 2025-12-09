@@ -1,31 +1,16 @@
-import { IsOptional, IsString, IsArray, ValidateNested, IsEnum } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsDateString } from 'class-validator';
 import { Type } from 'class-transformer';
-import { FilterConditionDto } from '../../sales/dto/filter-condition.dto';
 import { BaseSearchDto } from '../../../common/dto/base-search.dto';
 
 export class SearchSeasonDto extends BaseSearchDto {
-  @IsString()
-  @IsOptional()
-  name?: string;
-
-  @IsString()
-  @IsOptional()
-  code?: string;
-
-  // --- Backward Compatibility ---
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => FilterConditionDto)
-  filters?: FilterConditionDto[];
-
-  @IsOptional()
-  @IsEnum(['AND', 'OR', 'MUST', 'SHOULD', 'MUST_NOT'])
-  operator?: 'AND' | 'OR' | 'MUST' | 'SHOULD' | 'MUST_NOT' = 'AND';
-
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => SearchSeasonDto)
-  nested_filters?: SearchSeasonDto[];
+  @IsNumber() @IsOptional() @Type(() => Number) id?: number;
+  @IsString() @IsOptional() code?: string;
+  @IsString() @IsOptional() name?: string;
+  
+  @IsString() @IsOptional() status?: string;
+  @IsString() @IsOptional() notes?: string;
+  
+  @IsDateString() @IsOptional() start_date?: string;
+  @IsDateString() @IsOptional() end_date?: string;
+  @IsDateString() @IsOptional() created_at?: string;
 }

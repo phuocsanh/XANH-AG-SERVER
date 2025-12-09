@@ -75,22 +75,6 @@ export class SeasonService {
       ['filters', 'nested_filters', 'operator']
     );
 
-    // 3. Backward Compatibility
-    if (searchDto.filters && searchDto.filters.length > 0) {
-      searchDto.filters.forEach((filter: any, index: number) => {
-        const paramName = `param${index}`;
-        if (filter.operator === 'eq') {
-          queryBuilder.andWhere(`season.${filter.field} = :${paramName}`, {
-            [paramName]: filter.value,
-          });
-        } else if (filter.operator === 'like') {
-          queryBuilder.andWhere(`season.${filter.field} ILIKE :${paramName}`, {
-            [paramName]: `%${filter.value}%`,
-          });
-        }
-      });
-    }
-
     const [data, total] = await queryBuilder.getManyAndCount();
 
     return {

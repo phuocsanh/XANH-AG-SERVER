@@ -203,13 +203,13 @@ export class SalesReturnService {
       queryBuilder,
       searchDto,
       'sales_return',
-      ['filters', 'nested_filters', 'operator']
+      ['filters', 'nested_filters', 'operator'],
+      {
+        customer_name: 'customer.name',
+        customer_phone: 'customer.phone',
+        invoice_code: 'invoice.code',
+      }
     );
-
-    // 3. Backward Compatibility
-    if (searchDto.filters && searchDto.filters.length > 0) {
-      this.buildSearchConditions(queryBuilder, searchDto, 'sales_return');
-    }
 
     const [data, total] = await queryBuilder.getManyAndCount();
 
@@ -219,51 +219,5 @@ export class SalesReturnService {
       page,
       limit,
     };
-  }
-
-  private buildSearchConditions(
-    queryBuilder: SelectQueryBuilder<SalesReturn>,
-    searchDto: SearchSalesReturnDto,
-    alias: string,
-  ): void {
-    if (searchDto.filters && searchDto.filters.length > 0) {
-      const operator = searchDto.operator || 'AND';
-      const conditions: string[] = [];
-      const parameters: { [key: string]: any } = {};
-
-      searchDto.filters.forEach((filter, index) => {
-        const condition = this.buildFilterCondition(
-          filter,
-          alias,
-          index,
-          parameters,
-        );
-        if (condition) {
-          conditions.push(condition);
-        }
-      });
-
-      if (conditions.length > 0) {
-        const combinedCondition = conditions.join(` ${operator} `);
-        queryBuilder.andWhere(`(${combinedCondition})`, parameters);
-      }
-    }
-  }
-
-  private buildFilterCondition(
-    filter: FilterConditionDto,
-    alias: string,
-    index: number,
-    parameters: { [key: string]: any },
-  ): string | null {
-    if (!filter.field || !filter.operator) return null;
-    const paramName = `param_${index}`;
-    const field = `${alias}.${filter.field}`;
-
-    switch (filter.operator) {
-      case 'eq': parameters[paramName] = filter.value; return `${field} = :${paramName}`;
-      // Add other operators as needed
-      default: return null;
-    }
   }
 }

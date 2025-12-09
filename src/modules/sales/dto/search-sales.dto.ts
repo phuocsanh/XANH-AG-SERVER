@@ -1,69 +1,107 @@
 import {
   IsOptional,
-  IsArray,
-  ValidateNested,
-  IsEnum,
   IsNumber,
   IsString,
+  IsDateString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { FilterConditionDto } from './filter-condition.dto';
 import { BaseSearchDto } from '../../../common/dto/base-search.dto';
 
 export class SearchSalesDto extends BaseSearchDto {
-  /**
-   * Filter theo mã hóa đơn
-   */
+  // --- Core Fields ---
+  @IsOptional()
+  @Type(() => Number)
+  id?: number;
+
   @IsString()
   @IsOptional()
   code?: string;
 
-  /**
-   * Filter theo khách hàng
-   */
   @IsNumber()
   @IsOptional()
   @Type(() => Number)
   customer_id?: number;
 
-  /**
-   * Filter theo mùa vụ
-   */
   @IsNumber()
   @IsOptional()
   @Type(() => Number)
   season_id?: number;
 
-  /**
-   * Filter theo người tạo
-   */
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  rice_crop_id?: number;
+
   @IsNumber()
   @IsOptional()
   @Type(() => Number)
   created_by?: number;
 
-  /**
-   * Filter theo trạng thái thanh toán
-   */
+  // --- Amount Fields ---
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  total_amount?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  discount_amount?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  final_amount?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  paid_amount?: number; // partial_payment_amount ?
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  remaining_amount?: number;
+
+  // --- Status & Dates ---
+  @IsString()
+  @IsOptional()
+  sale_date?: string;
+
   @IsString()
   @IsOptional()
   payment_status?: string;
 
-  // --- Backward Compatibility & Complex Filters ---
-
+  @IsString()
   @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => FilterConditionDto)
-  filters?: FilterConditionDto[];
+  status?: string;
 
+  @IsString()
   @IsOptional()
-  @IsEnum(['AND', 'OR', 'MUST', 'SHOULD', 'MUST_NOT'])
-  operator?: 'AND' | 'OR' | 'MUST' | 'SHOULD' | 'MUST_NOT' = 'AND';
+  notes?: string;
 
+  @IsDateString()
   @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => SearchSalesDto)
-  nested_filters?: SearchSalesDto[];
+  created_at?: string;
+
+  @IsDateString()
+  @IsOptional()
+  updated_at?: string;
+
+  // --- Relation Flat Fields ---
+  @IsString()
+  @IsOptional()
+  customer_name?: string;
+
+  @IsString()
+  @IsOptional()
+  customer_phone?: string;
+
+  @IsString()
+  @IsOptional()
+  season_name?: string;
+
+  @IsString()
+  @IsOptional()
+  rice_crop_name?: string;
 }

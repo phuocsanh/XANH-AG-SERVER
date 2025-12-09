@@ -152,13 +152,13 @@ export class PaymentAllocationService {
       queryBuilder,
       searchDto,
       'allocation',
-      ['filters', 'nested_filters', 'operator']
+      ['filters', 'nested_filters', 'operator'],
+      {
+        payment_code: 'payment.code',
+        invoice_code: 'invoice.code',
+        debt_note_code: 'debt_note.code',
+      }
     );
-
-    // 3. Backward Compatibility
-    if (searchDto.filters && searchDto.filters.length > 0) {
-      this.buildSearchConditions(queryBuilder, searchDto, 'allocation');
-    }
 
     const [data, total] = await queryBuilder.getManyAndCount();
 
@@ -168,52 +168,5 @@ export class PaymentAllocationService {
       page,
       limit,
     };
-  }
-
-  // Helper for search conditions (duplicated from PaymentService, could be shared)
-  private buildSearchConditions(
-    queryBuilder: SelectQueryBuilder<PaymentAllocation>,
-    searchDto: SearchPaymentAllocationDto,
-    alias: string,
-  ): void {
-    if (searchDto.filters && searchDto.filters.length > 0) {
-      const operator = searchDto.operator || 'AND';
-      const conditions: string[] = [];
-      const parameters: { [key: string]: any } = {};
-
-      searchDto.filters.forEach((filter, index) => {
-        const condition = this.buildFilterCondition(
-          filter,
-          alias,
-          index,
-          parameters,
-        );
-        if (condition) {
-          conditions.push(condition);
-        }
-      });
-
-      if (conditions.length > 0) {
-        const combinedCondition = conditions.join(` ${operator} `);
-        queryBuilder.andWhere(`(${combinedCondition})`, parameters);
-      }
-    }
-  }
-
-  private buildFilterCondition(
-    filter: FilterConditionDto,
-    alias: string,
-    index: number,
-    parameters: { [key: string]: any },
-  ): string | null {
-    if (!filter.field || !filter.operator) return null;
-    const paramName = `param_${index}`;
-    const field = `${alias}.${filter.field}`; // Simplified for now
-
-    switch (filter.operator) {
-      case 'eq': parameters[paramName] = filter.value; return `${field} = :${paramName}`;
-      // ... other operators can be added as needed
-      default: return null;
-    }
   }
 }

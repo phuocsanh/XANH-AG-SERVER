@@ -1,11 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Unit } from '../../entities/unit.entity';
 import { CreateUnitDto } from './dto/create-unit.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
 import { SearchUnitDto } from './dto/search-unit.dto';
-import { FilterConditionDto } from './dto/filter-condition.dto';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 import { BaseStatus } from '../../entities/base-status.enum';
 import { QueryHelper } from '../../common/helpers/query-helper';
@@ -162,11 +161,6 @@ export class UnitService {
       ['filters', 'nested_filters', 'operator']
     );
 
-    // 3. Backward Compatibility
-    if (searchDto.filters && searchDto.filters.length > 0) {
-      this.buildSearchConditions(queryBuilder, searchDto, 'unit');
-    }
-
     const [data, total] = await queryBuilder.getManyAndCount();
 
     return {
@@ -175,127 +169,5 @@ export class UnitService {
       page,
       limit,
     };
-  }
-
-  /**
-   * Xây dựng các điều kiện tìm kiếm động
-   * @param queryBuilder - Query builder
-   * @param searchDto - DTO tìm kiếm
-   * @param alias - Alias của bảng
-   * @param parameterIndex - Chỉ số để tạo parameter name duy nhất
-   */
-  private buildSearchConditions(
-    queryBuilder: SelectQueryBuilder<Unit>,
-    searchDto: SearchUnitDto,
-    alias: string,
-    parameterIndex: number = 0,
-  ): number {
-    // Xử lý các điều kiện lọc cơ bản
-    if (searchDto.filters && searchDto.filters.length > 0) {
-      const operator = searchDto.operator || 'AND';
-      const conditions: string[] = [];
-      const parameters: { [key: string]: any } = {};
-
-      searchDto.filters.forEach((filter, index) => {
-        const condition = this.buildFilterCondition(
-          filter,
-          alias,
-          parameterIndex + index,
-          parameters,
-        );
-        if (condition) {
-          conditions.push(condition);
-        }
-      });
-
-      if (conditions.length > 0) {
-        const combinedCondition = conditions.join(` ${operator} `);
-        queryBuilder.andWhere(`(${combinedCondition})`, parameters);
-      }
-
-      parameterIndex += searchDto.filters.length;
-    }
-
-    // Xử lý các bộ lọc lồng nhau
-    if (searchDto.nested_filters && searchDto.nested_filters.length > 0) {
-      // Xây dựng điều kiện cho từng bộ lọc lồng nhau
-      searchDto.nested_filters.forEach((nestedFilter) => {
-        parameterIndex = this.buildSearchConditions(
-          queryBuilder,
-          nestedFilter,
-          alias,
-          parameterIndex,
-        );
-      });
-    }
-
-    return parameterIndex;
-  }
-
-  /**
-   * Xây dựng điều kiện lọc đơn lẻ
-   * @param filter - Điều kiện lọc
-   * @param alias - Alias của bảng
-   * @param index - Chỉ số để tạo parameter name duy nhất
-   * @param parameters - Object chứa các parameter
-   * @returns Chuỗi điều kiện SQL
-   */
-  private buildFilterCondition(
-    filter: FilterConditionDto,
-    alias: string,
-    index: number,
-    parameters: { [key: string]: any },
-  ): string | null {
-    if (!filter.field || !filter.operator) {
-      return null;
-    }
-
-    const paramName = `param_${index}`;
-    const field = `${alias}.${filter.field}`;
-
-    switch (filter.operator) {
-      case 'eq':
-        parameters[paramName] = filter.value;
-        return `${field} = :${paramName}`;
-      case 'ne':
-        parameters[paramName] = filter.value;
-        return `${field} != :${paramName}`;
-      case 'gt':
-        parameters[paramName] = filter.value;
-        return `${field} > :${paramName}`;
-      case 'lt':
-        parameters[paramName] = filter.value;
-        return `${field} < :${paramName}`;
-      case 'gte':
-        parameters[paramName] = filter.value;
-        return `${field} >= :${paramName}`;
-      case 'lte':
-        parameters[paramName] = filter.value;
-        return `${field} <= :${paramName}`;
-      case 'like':
-        parameters[paramName] = `%${filter.value}%`;
-        return `${field} LIKE :${paramName}`;
-      case 'ilike':
-        parameters[paramName] = `%${filter.value}%`;
-        return `LOWER(${field}) LIKE LOWER(:${paramName})`;
-      case 'in':
-        if (Array.isArray(filter.value)) {
-          parameters[paramName] = filter.value;
-          return `${field} IN (:...${paramName})`;
-        }
-        return null;
-      case 'notin':
-        if (Array.isArray(filter.value)) {
-          parameters[paramName] = filter.value;
-          return `${field} NOT IN (:...${paramName})`;
-        }
-        return null;
-      case 'isnull':
-        return `${field} IS NULL`;
-      case 'isnotnull':
-        return `${field} IS NOT NULL`;
-      default:
-        return null;
-    }
   }
 }

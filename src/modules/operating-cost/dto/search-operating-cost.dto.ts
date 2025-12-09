@@ -1,38 +1,21 @@
-import {
-  IsOptional,
-  IsArray,
-  ValidateNested,
-  IsEnum,
-  IsString,
-} from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsDateString } from 'class-validator';
 import { Type } from 'class-transformer';
-import { FilterConditionDto } from './filter-condition.dto';
 import { BaseSearchDto } from '../../../common/dto/base-search.dto';
 
 export class SearchOperatingCostDto extends BaseSearchDto {
-  @IsString()
-  @IsOptional()
-  code?: string;
+  @IsOptional() @Type(() => Number) id?: number;
+  @IsString() @IsOptional() code?: string;
+  @IsNumber() @IsOptional() @Type(() => Number) season_id?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) rice_crop_id?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) cost_type_id?: number;
+  
+  @IsNumber() @IsOptional() @Type(() => Number) amount?: number;
+  @IsDateString() @IsOptional() expense_date?: string;
+  @IsString() @IsOptional() notes?: string;
+  @IsDateString() @IsOptional() created_at?: string;
 
-  @IsString()
-  @IsOptional()
-  name?: string;
-
-  // --- Backward Compatibility ---
-
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => FilterConditionDto)
-  filters?: FilterConditionDto[];
-
-  @IsOptional()
-  @IsEnum(['AND', 'OR', 'MUST', 'SHOULD', 'MUST_NOT'])
-  operator?: 'AND' | 'OR' | 'MUST' | 'SHOULD' | 'MUST_NOT' = 'AND';
-
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => SearchOperatingCostDto)
-  nested_filters?: SearchOperatingCostDto[];
+  // Relations
+  @IsString() @IsOptional() season_name?: string;
+  @IsString() @IsOptional() rice_crop_name?: string;
+  @IsString() @IsOptional() cost_type_name?: string;
 }

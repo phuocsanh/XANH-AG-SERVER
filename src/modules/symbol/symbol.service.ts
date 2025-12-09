@@ -162,30 +162,6 @@ export class SymbolService {
       ['filters', 'nested_filters', 'operator']
     );
 
-    // 3. Backward Compatibility
-    // Thêm điều kiện tìm kiếm nếu có (Manual, vì module này chưa có buildSearchConditions chuẩn)
-    if (searchDto.filters && searchDto.filters.length > 0) {
-      searchDto.filters.forEach((filter: any, index: number) => {
-        if (filter.field && filter.operator && filter.value !== undefined) {
-          const paramName = `param_${index}`;
-          const field = `symbol.${filter.field}`;
-
-          switch (filter.operator) {
-            case 'eq':
-              queryBuilder.andWhere(`${field} = :${paramName}`, {
-                [paramName]: filter.value,
-              });
-              break;
-            case 'like':
-              queryBuilder.andWhere(`${field} ILIKE :${paramName}`, {
-                [paramName]: `%${filter.value}%`,
-              });
-              break;
-            // Thêm các operator khác nếu cần
-          }
-        }
-      });
-    }
 
     const [data, total] = await queryBuilder.getManyAndCount();
 

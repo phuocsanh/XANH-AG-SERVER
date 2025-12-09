@@ -1,39 +1,20 @@
-import { IsNumber, IsOptional, IsArray, ValidateNested, IsEnum } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsDateString } from 'class-validator';
 import { Type } from 'class-transformer';
-import { FilterConditionDto } from '../../payment/dto/filter-condition.dto';
 import { BaseSearchDto } from '../../../common/dto/base-search.dto';
 
 export class SearchPaymentAllocationDto extends BaseSearchDto {
-  @IsNumber()
-  @IsOptional()
-  @Type(() => Number)
-  payment_id?: number;
+  @IsOptional() @Type(() => Number) id?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) payment_id?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) invoice_id?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) debt_note_id?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) created_by?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) amount?: number;
+  
+  @IsDateString() @IsOptional() created_at?: string;
+  @IsDateString() @IsOptional() updated_at?: string;
 
-  @IsNumber()
-  @IsOptional()
-  @Type(() => Number)
-  invoice_id?: number;
-
-  @IsNumber()
-  @IsOptional()
-  @Type(() => Number)
-  debt_note_id?: number;
-
-  // --- Backward Compatibility ---
-
-  @IsArray()
-  @IsOptional()
-  @ValidateNested({ each: true })
-  @Type(() => FilterConditionDto)
-  filters?: FilterConditionDto[];
-
-  @IsEnum(['AND', 'OR', 'MUST', 'SHOULD', 'MUST_NOT'])
-  @IsOptional()
-  operator?: 'AND' | 'OR' | 'MUST' | 'SHOULD' | 'MUST_NOT' = 'AND';
-
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => SearchPaymentAllocationDto)
-  nested_filters?: SearchPaymentAllocationDto[];
+  // Relations
+  @IsString() @IsOptional() payment_code?: string;
+  @IsString() @IsOptional() invoice_code?: string;
+  @IsString() @IsOptional() debt_note_code?: string;
 }

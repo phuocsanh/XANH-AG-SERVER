@@ -119,11 +119,11 @@ export class CustomerService {
     const customer = await this.findOne(id);
     await this.customerRepository.remove(customer);
   }
-  async searchCustomers(searchDto: SearchCustomerDto): Promise<{ data: Customer[]; total: number }> {
+  async searchCustomers(searchDto: SearchCustomerDto) {
     const queryBuilder = this.customerRepository.createQueryBuilder('customer');
 
     // 1. Base Search (Page, Sort, Keyword)
-    QueryHelper.applyBaseSearch(
+    const { page, limit } = QueryHelper.applyBaseSearch(
       queryBuilder,
       searchDto,
       'customer',
@@ -133,16 +133,16 @@ export class CustomerService {
     // 2. Filters (type, phone, code...)
     QueryHelper.applyFilters(queryBuilder, searchDto, 'customer', ['search']);
 
-    // 3. Backward compatibility for 'search' field (mapped to keyword in base search)
-    // Nếu keyword chưa set nhưng search có set => dùng search làm keyword
-    if (!searchDto.keyword && searchDto.search) {
+    // 3. Backward compatibility for 'search' field
+    if (!searchDto.keyword && (searchDto as any).search) {
+       const search = (searchDto as any).search;
        queryBuilder.andWhere(
         '(customer.name ILIKE :search OR customer.phone ILIKE :search OR customer.code ILIKE :search)',
-        { search: `%${searchDto.search}%` },
+        { search: `%${search}%` },
       );
     }
 
     const [data, total] = await queryBuilder.getManyAndCount();
-    return { data, total };
+    return { data, total, page, limit };
   }
 }

@@ -56,7 +56,8 @@ export class QueryHelper {
     query: SelectQueryBuilder<T>,
     dto: any,
     alias: string,
-    ignoreFields: string[] = []
+    ignoreFields: string[] = [],
+    fieldMapping: Record<string, string> = {}
   ) {
     const reservedFields = ['page', 'limit', 'keyword', 'sort', 'sort_by', 'sort_order', 'filters', 'customer_term', 'nested_filters', 'operator', ...ignoreFields];
     
@@ -67,8 +68,14 @@ export class QueryHelper {
       }
 
       const value = dto[key];
-      const field = key.includes('.') ? key : `${alias}.${key}`;
-      const paramName = key.replace(/\./g, '_'); // Replace all dots
+      
+      // Determine field name based on mapping or default alias
+      let field = fieldMapping[key];
+      if (!field) {
+         field = key.includes('.') ? key : `${alias}.${key}`;
+      }
+      
+      const paramName = key.replace(/\.|:/g, '_'); // Replace dots and colons
       
       if (Array.isArray(value)) {
         query.andWhere(`${field} IN (:...${paramName})`, { [paramName]: value });

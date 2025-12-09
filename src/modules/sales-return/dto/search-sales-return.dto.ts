@@ -1,32 +1,27 @@
-import { IsOptional, IsArray, ValidateNested, IsString, IsEnum } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsDateString } from 'class-validator';
 import { Type } from 'class-transformer';
-import { FilterConditionDto } from '../../payment/dto/filter-condition.dto';
 import { BaseSearchDto } from '../../../common/dto/base-search.dto';
 
 export class SearchSalesReturnDto extends BaseSearchDto {
-  @IsString()
-  @IsOptional()
-  code?: string;
+  @IsOptional() @Type(() => Number) id?: number;
+  @IsString() @IsOptional() code?: string;
+  @IsNumber() @IsOptional() @Type(() => Number) customer_id?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) invoice_id?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) created_by?: number;
+  
+  @IsNumber() @IsOptional() @Type(() => Number) total_amount?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) refund_amount?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) final_amount?: number;
+  
+  @IsString() @IsOptional() status?: string;
+  @IsString() @IsOptional() return_reason?: string;
+  @IsString() @IsOptional() notes?: string;
+  @IsDateString() @IsOptional() return_date?: string;
+  @IsDateString() @IsOptional() created_at?: string;
+  @IsDateString() @IsOptional() updated_at?: string;
 
-  @IsString()
-  @IsOptional()
-  status?: string;
-
-  // --- Backward Compatibility ---
-
-  @IsArray()
-  @IsOptional()
-  @ValidateNested({ each: true })
-  @Type(() => FilterConditionDto)
-  filters?: FilterConditionDto[];
-
-  @IsEnum(['AND', 'OR', 'MUST', 'SHOULD', 'MUST_NOT'])
-  @IsOptional()
-  operator?: 'AND' | 'OR' | 'MUST' | 'SHOULD' | 'MUST_NOT' = 'AND';
-
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => SearchSalesReturnDto)
-  nested_filters?: SearchSalesReturnDto[];
+  // Relations
+  @IsString() @IsOptional() customer_name?: string;
+  @IsString() @IsOptional() customer_phone?: string;
+  @IsString() @IsOptional() invoice_code?: string;
 }

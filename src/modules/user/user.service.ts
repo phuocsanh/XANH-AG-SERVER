@@ -1,13 +1,12 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder, Not, IsNull } from 'typeorm';
+import { Repository,  Not, IsNull } from 'typeorm';
 import { User } from '../../entities/users.entity';
 import { UserProfile } from '../../entities/user-profiles.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { SearchUserDto } from './dto/search-user.dto';
-import { FilterConditionDto } from './dto/filter-condition.dto';
 import * as bcrypt from 'bcrypt';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 import { BaseStatus } from '../../entities/base-status.enum';
@@ -559,13 +558,6 @@ export class UserService {
     // Thêm điều kiện mặc định
     queryBuilder.where('user.deleted_at IS NULL');
 
-    // Xử lý custom filter: full_name -> profile.nickname
-    if (searchDto.full_name) {
-      queryBuilder.andWhere('profile.nickname ILIKE :fullName', {
-        fullName: `%${searchDto.full_name}%`,
-      });
-    }
-
     // 1. Base Search
     const { page, limit } = QueryHelper.applyBaseSearch(
       queryBuilder,
@@ -575,18 +567,18 @@ export class UserService {
     );
 
     // 2. Simple Filters
-    // Ignore 'full_name' vì đã xử lý ở trên và nó không thuộc bảng 'user'
     QueryHelper.applyFilters(
       queryBuilder,
       searchDto,
       'user',
-      ['filters', 'nested_filters', 'operator', 'full_name']
+      ['filters', 'nested_filters', 'operator'],
+      {
+        full_name: 'profile.nickname',
+        phone_number: 'profile.mobile',
+        email: 'profile.email',
+        role: 'role.code',
+      }
     );
-
-    // 3. Backward Compatibility
-    if (searchDto.filters && searchDto.filters.length > 0) {
-      this.buildSearchConditions(queryBuilder, searchDto, 'user');
-    }
 
     const [data, total] = await queryBuilder.getManyAndCount();
 
@@ -597,117 +589,5 @@ export class UserService {
       limit,
     };
   }
-
-  /**
-   * Xây dựng các điều kiện tìm kiếm động
-   * @param queryBuilder - Query builder
-   * @param searchDto - DTO tìm kiếm
-   * @param alias - Alias của bảng
-   * @param parameterIndex - Chỉ số để tạo parameter name duy nhất
-   */
-  private buildSearchConditions(
-    queryBuilder: SelectQueryBuilder<User>,
-    searchDto: SearchUserDto,
-    alias: string,
-    parameterIndex: number = 0,
-  ): number {
-    // Xử lý các điều kiện lọc cơ bản
-    if (searchDto.filters && searchDto.filters.length > 0) {
-      const operator = searchDto.operator || 'AND';
-      const conditions: string[] = [];
-      const parameters: { [key: string]: any } = {};
-
-      searchDto.filters.forEach((filter, index) => {
-        const condition = this.buildFilterCondition(
-          filter,
-          alias,
-          parameterIndex + index,
-          parameters,
-        );
-        if (condition) {
-          conditions.push(condition);
-        }
-      });
-
-      if (conditions.length > 0) {
-        const combinedCondition = conditions.join(` ${operator} `);
-        queryBuilder.andWhere(`(${combinedCondition})`, parameters);
-      }
-
-      parameterIndex += searchDto.filters.length;
-    }
-
-    // Xử lý các bộ lọc lồng nhau
-    if (searchDto.nested_filters && searchDto.nested_filters.length > 0) {
-      // Xây dựng điều kiện cho từng bộ lọc lồng nhau
-      searchDto.nested_filters.forEach((nestedFilter) => {
-        parameterIndex = this.buildSearchConditions(
-          queryBuilder,
-          nestedFilter,
-          alias,
-          parameterIndex,
-        );
-      });
-    }
-
-    return parameterIndex;
-  }
-
-  /**
-   * Xây dựng điều kiện lọc đơn lẻ
-   * @param filter - Điều kiện lọc
-   * @param alias - Alias của bảng
-   * @param index - Chỉ số để tạo parameter name duy nhất
-   * @param parameters - Object chứa các parameter
-   * @returns Chuỗi điều kiện SQL
-   */
-  private buildFilterCondition(
-    filter: FilterConditionDto,
-    alias: string,
-    index: number,
-    parameters: { [key: string]: any },
-  ): string | null {
-    if (!filter.field || !filter.operator) {
-      return null;
-    }
-
-    const paramName = `param_${index}`;
-    const field = `${alias}.${filter.field}`;
-
-    switch (filter.operator) {
-      case 'eq':
-        parameters[paramName] = filter.value;
-        return `${field} = :${paramName}`;
-      case 'ne':
-        parameters[paramName] = filter.value;
-        return `${field} != :${paramName}`;
-      case 'gt':
-        parameters[paramName] = filter.value;
-        return `${field} > :${paramName}`;
-      case 'gte':
-        parameters[paramName] = filter.value;
-        return `${field} >= :${paramName}`;
-      case 'lt':
-        parameters[paramName] = filter.value;
-        return `${field} < :${paramName}`;
-      case 'lte':
-        parameters[paramName] = filter.value;
-        return `${field} <= :${paramName}`;
-      case 'like':
-        parameters[paramName] = `%${filter.value}%`;
-        return `${field} ILIKE :${paramName}`;
-      case 'in':
-        if (Array.isArray(filter.value)) {
-          parameters[paramName] = filter.value;
-          return `${field} IN (:...${paramName})`;
-        }
-        return null;
-      case 'isnull':
-        return `${field} IS NULL`;
-      case 'isnotnull':
-        return `${field} IS NOT NULL`;
-      default:
-        return null;
-    }
-  }
 }
+

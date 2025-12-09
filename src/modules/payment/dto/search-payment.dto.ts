@@ -1,48 +1,22 @@
-import { IsNumber, IsOptional, IsArray, ValidateNested, IsString } from 'class-validator';
+import { IsNumber, IsOptional, IsString, IsDateString } from 'class-validator';
 import { Type } from 'class-transformer';
-import { FilterConditionDto } from './filter-condition.dto';
 import { BaseSearchDto } from '../../../common/dto/base-search.dto';
 
 export class SearchPaymentDto extends BaseSearchDto {
-  /**
-   * Filter theo mã phiếu thu
-   */
-  @IsString()
-  @IsOptional()
-  code?: string;
+  // --- Entity Fields ---
+  @IsOptional() @Type(() => Number) id?: number;
+  @IsString() @IsOptional() code?: string;
+  @IsNumber() @IsOptional() @Type(() => Number) customer_id?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) amount?: number;
+  @IsString() @IsOptional() payment_date?: string; // DateString
+  @IsString() @IsOptional() payment_method?: string;
+  @IsString() @IsOptional() notes?: string;
+  @IsDateString() @IsOptional() created_at?: string;
+  @IsDateString() @IsOptional() updated_at?: string;
+  @IsNumber() @IsOptional() @Type(() => Number) created_by?: number;
 
-  /**
-   * Filter theo phương thức thanh toán
-   */
-  @IsString()
-  @IsOptional()
-  payment_method?: string;
-
-  /**
-   * Filter theo mã phiếu công nợ
-   */
-  @IsString()
-  @IsOptional()
-  debt_note_code?: string;
-
-  /**
-   * Filter theo ID khách hàng
-   */
-  @IsNumber()
-  @IsOptional()
-  @Type(() => Number)
-  customer_id?: number;
-
-  /**
-   * Backward compatibility: Mảng filters cũ
-   */
-  @IsArray()
-  @IsOptional()
-  @ValidateNested({ each: true })
-  @Type(() => FilterConditionDto)
-  filters?: FilterConditionDto[];
-
-  @IsString()
-  @IsOptional()
-  operator?: 'AND' | 'OR';
+  // --- Relations Flat Fields ---
+  @IsString() @IsOptional() debt_note_code?: string;
+  @IsString() @IsOptional() customer_name?: string;
+  @IsString() @IsOptional() customer_phone?: string;
 }

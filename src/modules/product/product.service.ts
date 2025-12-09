@@ -338,40 +338,22 @@ export class ProductService extends BaseSearchService<Product> {
     );
 
     // 2. Simple Filters (code, name, status...)
+    // 2. Simple Filters (code, name, status...)
     QueryHelper.applyFilters(
       queryBuilder,
       searchDto,
       'product',
-      ['filters', 'nested_filters', 'operator'] // Ignore complex fields
-    );
-
-    // 3. Deleted Filter Logic (Giữ nguyên logic đặc thù này)
-    const hasDeletedFilter = searchDto.filters?.some(
-      (filter) => filter.field === 'deleted_at',
-    );
-    if (hasDeletedFilter) {
-      queryBuilder.withDeleted();
-      const deletedFilter = searchDto.filters?.find(
-        (filter) => filter.field === 'deleted_at',
-      );
-      if (deletedFilter?.operator === 'isnotnull') {
-        queryBuilder.where('product.deleted_at IS NOT NULL');
-      } else if (deletedFilter?.operator === 'isnull') {
-        queryBuilder.where('product.deleted_at IS NULL');
+      ['filters', 'nested_filters', 'operator'], // Ignore complex fields
+      {
+         unit_name: 'unit.name',
+         symbol_name: 'symbol.name',
       }
-    } else {
-       // Mặc định chỉ lấy active và chưa xóa nếu ko có filter đặc biệt
-       if (!searchDto.status) { // Chỉ filter status active nếu người dùng không lọc status cụ thể
-          queryBuilder.andWhere('product.status = :activeStatus', { activeStatus: BaseStatus.ACTIVE });
-       }
-       queryBuilder.andWhere('product.deleted_at IS NULL');
-    }
+    );
 
-
-    // 4. Complex Filters & Nested Filters (Backward Compatibility)
-    if (searchDto.filters && searchDto.filters.length > 0) {
-       this.buildSearchConditions(queryBuilder, searchDto, 'product');
+    if (!searchDto.status) {
+       queryBuilder.andWhere('product.status = :activeStatus', { activeStatus: BaseStatus.ACTIVE });
     }
+    queryBuilder.andWhere('product.deleted_at IS NULL');
 
     const [data, total] = await queryBuilder.getManyAndCount();
 

@@ -72,11 +72,17 @@ export class PaymentService {
       ['code', 'debt_note_code', 'customer.name', 'customer.phone']
     );
 
-    // 2. Áp dụng Filters tự động từ DTO phẳng (code: "PT001", payment_method: "cash"...)
-    QueryHelper.applyFilters(queryBuilder, searchDto, 'payment');
-
-    // 3. Backward compatibility (Filters array cũ)
-    this.buildSearchConditions(queryBuilder, searchDto, 'payment');
+    // 2. Simple Filters
+    QueryHelper.applyFilters(
+      queryBuilder,
+      searchDto,
+      'payment',
+      ['filters', 'nested_filters', 'operator'], // Ignore fields
+      {
+        customer_name: 'customer.name',
+        customer_phone: 'customer.phone',
+      } // Field Mapping
+    );
 
     const [data, total] = await queryBuilder.getManyAndCount();
 
@@ -88,96 +94,6 @@ export class PaymentService {
     };
   }
 
-  private buildSearchConditions(
-    queryBuilder: SelectQueryBuilder<Payment>,
-    searchDto: SearchPaymentDto,
-    alias: string,
-  ): void {
-    if (searchDto.filters && searchDto.filters.length > 0) {
-      const operator = searchDto.operator || 'AND';
-      const conditions: string[] = [];
-      const parameters: { [key: string]: any } = {};
-
-      searchDto.filters.forEach((filter, index) => {
-        const condition = this.buildFilterCondition(
-          filter,
-          alias,
-          index,
-          parameters,
-        );
-        if (condition) {
-          conditions.push(condition);
-        }
-      });
-
-      if (conditions.length > 0) {
-        const combinedCondition = conditions.join(` ${operator} `);
-        queryBuilder.andWhere(`(${combinedCondition})`, parameters);
-      }
-    }
-  }
-
-  private buildFilterCondition(
-    filter: FilterConditionDto,
-    alias: string,
-    index: number,
-    parameters: { [key: string]: any },
-  ): string | null {
-    if (!filter.field || !filter.operator) {
-      return null;
-    }
-
-    const paramName = `param_${index}`;
-    // Handle fields from joined tables if needed
-    let field = `${alias}.${filter.field}`;
-    if (filter.field.startsWith('customer.')) {
-        field = filter.field; // Already has alias
-    }
-
-    switch (filter.operator) {
-      case 'eq':
-        parameters[paramName] = filter.value;
-        return `${field} = :${paramName}`;
-      case 'ne':
-        parameters[paramName] = filter.value;
-        return `${field} != :${paramName}`;
-      case 'gt':
-        parameters[paramName] = filter.value;
-        return `${field} > :${paramName}`;
-      case 'lt':
-        parameters[paramName] = filter.value;
-        return `${field} < :${paramName}`;
-      case 'gte':
-        parameters[paramName] = filter.value;
-        return `${field} >= :${paramName}`;
-      case 'lte':
-        parameters[paramName] = filter.value;
-        return `${field} <= :${paramName}`;
-      case 'like':
-        parameters[paramName] = `%${filter.value}%`;
-        return `${field} LIKE :${paramName}`;
-      case 'ilike':
-        parameters[paramName] = `%${filter.value}%`;
-        return `LOWER(${field}) LIKE LOWER(:${paramName})`;
-      case 'in':
-        if (Array.isArray(filter.value)) {
-          parameters[paramName] = filter.value;
-          return `${field} IN (:...${paramName})`;
-        }
-        return null;
-      case 'notin':
-        if (Array.isArray(filter.value)) {
-          parameters[paramName] = filter.value;
-          return `${field} NOT IN (:...${paramName})`;
-        }
-        return null;
-      case 'isnull':
-        return `${field} IS NULL`;
-      case 'isnotnull':
-        return `${field} IS NOT NULL`;
-      default: return null;
-    }
-  }
 
   /**
    * Chốt sổ công nợ
