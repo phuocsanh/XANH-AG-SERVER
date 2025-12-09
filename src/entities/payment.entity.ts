@@ -54,6 +54,10 @@ export class Payment {
   @Column({ name: 'notes', type: 'text', nullable: true })
   notes?: string;
 
+  /** Mã phiếu công nợ liên quan (để hiển thị trên UI) */
+  @Column({ name: 'debt_note_code', length: 50, nullable: true })
+  debt_note_code?: string;
+
   /** ID người tạo phiếu */
   @Column({ name: 'created_by', nullable: true })
   created_by?: number;

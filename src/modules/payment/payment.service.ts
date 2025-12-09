@@ -259,7 +259,19 @@ export class PaymentService {
 
       const breakdownByRiceCrop = Array.from(riceCropMap.values());
 
-      // 4. Tạo Payment record
+      // 4. Tìm phiếu công nợ trước
+      const oldDebtNote = await this.debtNoteRepository
+        .createQueryBuilder('dn')
+        .where('dn.customer_id = :customer_id', { customer_id: dto.customer_id })
+        .andWhere('dn.season_id = :season_id', { season_id: dto.season_id })
+        .andWhere('dn.status IN (:...statuses)', { statuses: [DebtNoteStatus.ACTIVE, DebtNoteStatus.OVERDUE] })
+        .getOne();
+
+      if (!oldDebtNote) {
+        throw new Error('Không tìm thấy phiếu công nợ cho mùa vụ này');
+      }
+
+      // 5. Tạo Payment record với debt_note_code
       const paymentCode = this.generatePaymentCode();
       const payment = this.paymentRepository.create({
         code: paymentCode,
@@ -268,11 +280,12 @@ export class PaymentService {
         payment_date: dto.payment_date || new Date().toISOString(),
         payment_method: dto.payment_method,
         notes: dto.notes || `Chốt sổ công nợ mùa vụ #${dto.season_id}`,
-        created_by: userId, // Lấy từ JWT token
+        created_by: userId,
+        debt_note_code: oldDebtNote.code, // ✅ Lưu mã phiếu công nợ
       });
       const savedPayment = await this.paymentRepository.save(payment);
 
-      // 5. Phân bổ thanh toán cho các hóa đơn
+      // 6. Phân bổ thanh toán cho các hóa đơn
       let remainingPayment = dto.amount;
       const settledInvoices: SalesInvoice[] = [];
 
@@ -300,18 +313,6 @@ export class PaymentService {
         await this.salesInvoiceRepository.save(invoice);
         settledInvoices.push(invoice);
         remainingPayment -= amountToAllocate;
-      }
-
-      // 6. Tìm phiếu công nợ hiện tại
-      const oldDebtNote = await this.debtNoteRepository
-        .createQueryBuilder('dn')
-        .where('dn.customer_id = :customer_id', { customer_id: dto.customer_id })
-        .andWhere('dn.season_id = :season_id', { season_id: dto.season_id })
-        .andWhere('dn.status IN (:...statuses)', { statuses: [DebtNoteStatus.ACTIVE, DebtNoteStatus.OVERDUE] })
-        .getOne();
-
-      if (!oldDebtNote) {
-        throw new Error('Không tìm thấy phiếu công nợ cho mùa vụ này');
       }
 
       // 7. Cập nhật phiếu công nợ cũ + Lưu gift
