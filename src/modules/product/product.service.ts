@@ -13,6 +13,7 @@ import { PricingCalculatorUtil } from './utils/pricing-calculator.util';
 import { OperatingCostService } from '../operating-cost/operating-cost.service';
 import { ImageCleanupHelper } from '../../common/helpers/image-cleanup.helper';
 import { UploadService } from '../upload/upload.service';
+import { QueryHelper } from '../../common/helpers/query-helper';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến sản phẩm
@@ -328,59 +329,50 @@ export class ProductService extends BaseSearchService<Product> {
     queryBuilder.leftJoinAndSelect('product.unit', 'unit');
     queryBuilder.leftJoinAndSelect('product.symbol', 'symbol');
 
-    // Kiểm tra xem có filter deleted_at không
+    // 1. Base Search & Pagination
+    const { page, limit } = QueryHelper.applyBaseSearch(
+      queryBuilder,
+      searchDto,
+      'product',
+      ['name', 'code', 'description']
+    );
+
+    // 2. Simple Filters (code, name, status...)
+    QueryHelper.applyFilters(
+      queryBuilder,
+      searchDto,
+      'product',
+      ['filters', 'nested_filters', 'operator'] // Ignore complex fields
+    );
+
+    // 3. Deleted Filter Logic (Giữ nguyên logic đặc thù này)
     const hasDeletedFilter = searchDto.filters?.some(
       (filter) => filter.field === 'deleted_at',
     );
-
-    // Thêm điều kiện mặc định chỉ khi không có filter deleted_at
-    if (!hasDeletedFilter) {
-      queryBuilder
-        .where('product.status = :status', { status: BaseStatus.ACTIVE })
-        .andWhere('product.deleted_at IS NULL');
-    } else {
-      // Nếu có filter deleted_at, cần sử dụng withDeleted() để bao gồm các bản ghi đã xóa
+    if (hasDeletedFilter) {
       queryBuilder.withDeleted();
-
-      // Kiểm tra xem filter deleted_at có giá trị là isnotnull không
       const deletedFilter = searchDto.filters?.find(
         (filter) => filter.field === 'deleted_at',
       );
-
-      if (deletedFilter && deletedFilter.operator === 'isnotnull') {
-        // Nếu đang tìm kiếm các bản ghi đã xóa, chỉ hiển thị các bản ghi có deleted_at IS NOT NULL
+      if (deletedFilter?.operator === 'isnotnull') {
         queryBuilder.where('product.deleted_at IS NOT NULL');
-      } else if (deletedFilter && deletedFilter.operator === 'isnull') {
-        // Nếu đang tìm kiếm các bản ghi chưa xóa, thêm điều kiện này
+      } else if (deletedFilter?.operator === 'isnull') {
         queryBuilder.where('product.deleted_at IS NULL');
       }
-
-      // Luôn thêm điều kiện status nếu không có filter status
-      const hasStatusFilter = searchDto.filters?.some(
-        (filter) => filter.field === 'status',
-      );
-
-      if (!hasStatusFilter) {
-        queryBuilder.andWhere('product.status = :status', {
-          status: BaseStatus.ACTIVE,
-        });
-      }
+    } else {
+       // Mặc định chỉ lấy active và chưa xóa nếu ko có filter đặc biệt
+       if (!searchDto.status) { // Chỉ filter status active nếu người dùng không lọc status cụ thể
+          queryBuilder.andWhere('product.status = :activeStatus', { activeStatus: BaseStatus.ACTIVE });
+       }
+       queryBuilder.andWhere('product.deleted_at IS NULL');
     }
 
-    // Tạo một bản sao sâu của searchDto để tránh thay đổi dữ liệu gốc
-    const searchDtoCopy = JSON.parse(JSON.stringify(searchDto));
 
-    // Xây dựng điều kiện tìm kiếm
-    this.buildSearchConditions(queryBuilder, searchDtoCopy, 'product');
+    // 4. Complex Filters & Nested Filters (Backward Compatibility)
+    if (searchDto.filters && searchDto.filters.length > 0) {
+       this.buildSearchConditions(queryBuilder, searchDto, 'product');
+    }
 
-    // Xử lý phân trang
-    const page = searchDto.page || 1;
-    const limit = searchDto.limit || 20;
-    const offset = (page - 1) * limit;
-
-    queryBuilder.skip(offset).take(limit);
-
-    // Thực hiện truy vấn
     const [data, total] = await queryBuilder.getManyAndCount();
 
     return {

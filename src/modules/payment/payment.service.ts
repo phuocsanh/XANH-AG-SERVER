@@ -10,6 +10,7 @@ import { SearchPaymentDto } from './dto/search-payment.dto';
 import { SettleDebtDto } from './dto/settle-debt.dto';
 import { FilterConditionDto } from './dto/filter-condition.dto';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
+import { QueryHelper } from '../../common/helpers/query-helper';
 
 @Injectable()
 export class PaymentService {
@@ -62,14 +63,20 @@ export class PaymentService {
     queryBuilder.leftJoin('payment.creator', 'creator')
       .addSelect(['creator.id', 'creator.account']);
 
+    // 1. Áp dụng Base Search (Sort, Page, Keyword)
+    // Cho phép search keyword trên các field: code, debt_note_code, customer name/phone
+    const { page, limit } = QueryHelper.applyBaseSearch(
+      queryBuilder,
+      searchDto,
+      'payment',
+      ['code', 'debt_note_code', 'customer.name', 'customer.phone']
+    );
+
+    // 2. Áp dụng Filters tự động từ DTO phẳng (code: "PT001", payment_method: "cash"...)
+    QueryHelper.applyFilters(queryBuilder, searchDto, 'payment');
+
+    // 3. Backward compatibility (Filters array cũ)
     this.buildSearchConditions(queryBuilder, searchDto, 'payment');
-
-    const page = searchDto.page || 1;
-    const limit = searchDto.limit || 20;
-    const offset = (page - 1) * limit;
-
-    queryBuilder.skip(offset).take(limit);
-    queryBuilder.orderBy('payment.created_at', 'DESC');
 
     const [data, total] = await queryBuilder.getManyAndCount();
 

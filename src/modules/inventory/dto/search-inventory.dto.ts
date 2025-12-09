@@ -6,18 +6,16 @@ import {
   IsNumber,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { FilterConditionDto } from '../../supplier/dto/filter-condition.dto';
+import { FilterConditionDto } from '../../supplier/dto/filter-condition.dto'; // Giữ nguyên import cũ nếu muốn an toàn, hoặc đổi sang common
+import { BaseSearchDto } from '../../../common/dto/base-search.dto';
 
-export class SearchInventoryDto {
+export class SearchInventoryDto extends BaseSearchDto {
   @IsOptional()
   @IsNumber()
   @Type(() => Number)
-  page?: number = 1;
+  product_id?: number;
 
-  @IsOptional()
-  @IsNumber()
-  @Type(() => Number)
-  limit?: number = 20;
+  // --- Backward Compatibility ---
 
   @IsOptional()
   @IsArray()

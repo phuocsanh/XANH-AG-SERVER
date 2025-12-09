@@ -4,20 +4,52 @@ import {
   ValidateNested,
   IsEnum,
   IsNumber,
+  IsString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { FilterConditionDto } from './filter-condition.dto';
+import { BaseSearchDto } from '../../../common/dto/base-search.dto';
 
-export class SearchSalesDto {
+export class SearchSalesDto extends BaseSearchDto {
+  /**
+   * Filter theo mã hóa đơn
+   */
+  @IsString()
   @IsOptional()
-  @IsNumber()
-  @Type(() => Number)
-  page?: number = 1;
+  code?: string;
 
-  @IsOptional()
+  /**
+   * Filter theo khách hàng
+   */
   @IsNumber()
+  @IsOptional()
   @Type(() => Number)
-  limit?: number = 20;
+  customer_id?: number;
+
+  /**
+   * Filter theo mùa vụ
+   */
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  season_id?: number;
+
+  /**
+   * Filter theo người tạo
+   */
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  created_by?: number;
+
+  /**
+   * Filter theo trạng thái thanh toán
+   */
+  @IsString()
+  @IsOptional()
+  payment_status?: string;
+
+  // --- Backward Compatibility & Complex Filters ---
 
   @IsOptional()
   @IsArray()

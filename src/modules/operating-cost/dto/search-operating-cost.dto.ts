@@ -3,13 +3,23 @@ import {
   IsArray,
   ValidateNested,
   IsEnum,
-  IsNumber,
-  Min,
+  IsString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { FilterConditionDto } from './filter-condition.dto';
+import { BaseSearchDto } from '../../../common/dto/base-search.dto';
 
-export class SearchOperatingCostDto {
+export class SearchOperatingCostDto extends BaseSearchDto {
+  @IsString()
+  @IsOptional()
+  code?: string;
+
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  // --- Backward Compatibility ---
+
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
@@ -25,14 +35,4 @@ export class SearchOperatingCostDto {
   @ValidateNested({ each: true })
   @Type(() => SearchOperatingCostDto)
   nested_filters?: SearchOperatingCostDto[];
-
-  @IsOptional()
-  @IsNumber()
-  @Min(1)
-  page?: number = 1;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(1)
-  limit?: number = 20;
 }

@@ -7,6 +7,7 @@ import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { SearchSupplierDto } from './dto/search-supplier.dto';
 import { FilterConditionDto } from './dto/filter-condition.dto';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
+import { QueryHelper } from '../../common/helpers/query-helper';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến nhà cung cấp
@@ -83,29 +84,44 @@ export class SupplierService {
 
   /**
    * Tìm kiếm nâng cao nhà cung cấp
-   * @param searchDto - Điều kiện tìm kiếm
-   * @returns Danh sách nhà cung cấp phù hợp với thông tin phân trang
    */
   async searchSuppliers(
     searchDto: SearchSupplierDto,
   ): Promise<{ data: Supplier[]; total: number; page: number; limit: number }> {
     const queryBuilder = this.supplierRepository.createQueryBuilder('supplier');
-
-    // Thêm điều kiện mặc định
-    queryBuilder.where('supplier.status = :status', { status: 'active' });
     queryBuilder.leftJoinAndSelect('supplier.creator', 'creator');
 
-    // Xây dựng điều kiện tìm kiếm
-    this.buildSearchConditions(queryBuilder, searchDto, 'supplier');
+    // Thêm điều kiện mặc định: Nếu không có filter status thì mặc định lấy active
+    // Kiểm tra xem có filter status trong flat fields hoặc filters array không
+    const hasStatusFilter =
+      searchDto.status ||
+      searchDto.filters?.some((filter) => filter.field === 'status');
 
-    // Xử lý phân trang
-    const page = searchDto.page || 1;
-    const limit = searchDto.limit || 20;
-    const offset = (page - 1) * limit;
+    if (!hasStatusFilter) {
+      queryBuilder.where('supplier.status = :status', { status: 'active' });
+    }
 
-    queryBuilder.skip(offset).take(limit);
+    // 1. Base Search
+    const { page, limit } = QueryHelper.applyBaseSearch(
+      queryBuilder,
+      searchDto,
+      'supplier',
+      ['name', 'code', 'phone', 'address', 'email'] // Global search
+    );
 
-    // Thực hiện truy vấn
+    // 2. Simple Filters
+    QueryHelper.applyFilters(
+      queryBuilder,
+      searchDto,
+      'supplier',
+      ['filters', 'nested_filters', 'operator']
+    );
+
+    // 3. Backward Compatibility
+    if (searchDto.filters && searchDto.filters.length > 0) {
+      this.buildSearchConditions(queryBuilder, searchDto, 'supplier');
+    }
+
     const [data, total] = await queryBuilder.getManyAndCount();
 
     return {

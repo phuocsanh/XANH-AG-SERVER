@@ -5,6 +5,7 @@ import { Symbol } from '../../entities/symbols.entity';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 import { SearchSymbolDto } from './dto/search-symbol.dto';
 import { BaseStatus } from '../../entities/base-status.enum';
+import { QueryHelper } from '../../common/helpers/query-helper';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến ký hiệu
@@ -139,15 +140,30 @@ export class SymbolService {
 
   /**
    * Tìm kiếm ký hiệu theo điều kiện
-   * @param searchDto - Điều kiện tìm kiếm
-   * @returns Danh sách ký hiệu phù hợp với thông tin phân trang
    */
   async searchSymbols(
     searchDto: SearchSymbolDto,
   ): Promise<{ data: Symbol[]; total: number; page: number; limit: number }> {
     const queryBuilder = this.symbolRepository.createQueryBuilder('symbol');
 
-    // Thêm điều kiện tìm kiếm nếu có
+    // 1. Base Search
+    const { page, limit } = QueryHelper.applyBaseSearch(
+      queryBuilder,
+      searchDto,
+      'symbol',
+      ['name'] // Global search
+    );
+
+    // 2. Simple Filters
+    QueryHelper.applyFilters(
+      queryBuilder,
+      searchDto,
+      'symbol',
+      ['filters', 'nested_filters', 'operator']
+    );
+
+    // 3. Backward Compatibility
+    // Thêm điều kiện tìm kiếm nếu có (Manual, vì module này chưa có buildSearchConditions chuẩn)
     if (searchDto.filters && searchDto.filters.length > 0) {
       searchDto.filters.forEach((filter: any, index: number) => {
         if (filter.field && filter.operator && filter.value !== undefined) {
@@ -171,14 +187,6 @@ export class SymbolService {
       });
     }
 
-    // Xử lý phân trang
-    const page = searchDto.page || 1;
-    const limit = searchDto.limit || 20;
-    const offset = (page - 1) * limit;
-
-    queryBuilder.skip(offset).take(limit);
-
-    // Thực hiện truy vấn
     const [data, total] = await queryBuilder.getManyAndCount();
 
     return {

@@ -1,15 +1,25 @@
-import { IsNumber, IsOptional, IsArray, ValidateNested, IsString } from 'class-validator';
+import { IsNumber, IsOptional, IsArray, ValidateNested, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
 import { FilterConditionDto } from '../../payment/dto/filter-condition.dto';
+import { BaseSearchDto } from '../../../common/dto/base-search.dto';
 
-export class SearchPaymentAllocationDto {
+export class SearchPaymentAllocationDto extends BaseSearchDto {
   @IsNumber()
   @IsOptional()
-  page?: number;
+  @Type(() => Number)
+  payment_id?: number;
 
   @IsNumber()
   @IsOptional()
-  limit?: number;
+  @Type(() => Number)
+  invoice_id?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  debt_note_id?: number;
+
+  // --- Backward Compatibility ---
 
   @IsArray()
   @IsOptional()
@@ -17,7 +27,13 @@ export class SearchPaymentAllocationDto {
   @Type(() => FilterConditionDto)
   filters?: FilterConditionDto[];
 
-  @IsString()
+  @IsEnum(['AND', 'OR', 'MUST', 'SHOULD', 'MUST_NOT'])
   @IsOptional()
-  operator?: 'AND' | 'OR';
+  operator?: 'AND' | 'OR' | 'MUST' | 'SHOULD' | 'MUST_NOT' = 'AND';
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SearchPaymentAllocationDto)
+  nested_filters?: SearchPaymentAllocationDto[];
 }

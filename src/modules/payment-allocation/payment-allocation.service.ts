@@ -8,6 +8,7 @@ import { DebtNote, DebtNoteStatus } from '../../entities/debt-note.entity';
 import { CreatePaymentAllocationDto } from './dto/create-payment-allocation.dto';
 import { SearchPaymentAllocationDto } from './dto/search-payment-allocation.dto';
 import { FilterConditionDto } from '../payment/dto/filter-condition.dto';
+import { QueryHelper } from '../../common/helpers/query-helper';
 
 @Injectable()
 export class PaymentAllocationService {
@@ -138,14 +139,26 @@ export class PaymentAllocationService {
     queryBuilder.leftJoinAndSelect('allocation.invoice', 'invoice');
     queryBuilder.leftJoinAndSelect('allocation.debt_note', 'debt_note');
 
-    this.buildSearchConditions(queryBuilder, searchDto, 'allocation');
+    // 1. Base Search
+    const { page, limit } = QueryHelper.applyBaseSearch(
+      queryBuilder,
+      searchDto,
+      'allocation',
+      ['payment.code', 'invoice.code'] // Global search
+    );
 
-    const page = searchDto.page || 1;
-    const limit = searchDto.limit || 20;
-    const offset = (page - 1) * limit;
+    // 2. Simple Filters
+    QueryHelper.applyFilters(
+      queryBuilder,
+      searchDto,
+      'allocation',
+      ['filters', 'nested_filters', 'operator']
+    );
 
-    queryBuilder.skip(offset).take(limit);
-    queryBuilder.orderBy('allocation.created_at', 'DESC');
+    // 3. Backward Compatibility
+    if (searchDto.filters && searchDto.filters.length > 0) {
+      this.buildSearchConditions(queryBuilder, searchDto, 'allocation');
+    }
 
     const [data, total] = await queryBuilder.getManyAndCount();
 

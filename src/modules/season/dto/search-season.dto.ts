@@ -1,15 +1,31 @@
-import { IsOptional, IsInt } from 'class-validator';
+import { IsOptional, IsString, IsArray, ValidateNested, IsEnum } from 'class-validator';
+import { Type } from 'class-transformer';
 import { FilterConditionDto } from '../../sales/dto/filter-condition.dto';
+import { BaseSearchDto } from '../../../common/dto/base-search.dto';
 
-export class SearchSeasonDto {
+export class SearchSeasonDto extends BaseSearchDto {
+  @IsString()
   @IsOptional()
-  @IsInt()
-  page?: number = 1;
+  name?: string;
 
+  @IsString()
   @IsOptional()
-  @IsInt()
-  limit?: number = 20;
+  code?: string;
 
+  // --- Backward Compatibility ---
   @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => FilterConditionDto)
   filters?: FilterConditionDto[];
+
+  @IsOptional()
+  @IsEnum(['AND', 'OR', 'MUST', 'SHOULD', 'MUST_NOT'])
+  operator?: 'AND' | 'OR' | 'MUST' | 'SHOULD' | 'MUST_NOT' = 'AND';
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SearchSeasonDto)
+  nested_filters?: SearchSeasonDto[];
 }

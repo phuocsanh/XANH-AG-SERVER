@@ -9,6 +9,7 @@ import { FileTrackingService } from '../file-tracking/file-tracking.service';
 import { SearchProductTypeDto } from './dto/search-product-type.dto';
 import { FilterConditionDto } from './dto/filter-condition.dto';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
+import { QueryHelper } from '../../common/helpers/query-helper';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến loại sản phẩm
@@ -229,23 +230,34 @@ export class ProductTypeService {
 
       if (deletedFilter && deletedFilter.operator === 'isnotnull') {
         // Nếu đang tìm kiếm các bản ghi đã xóa, không cần thêm điều kiện mặc định
+        queryBuilder.where('productType.deleted_at IS NOT NULL');
       } else if (deletedFilter && deletedFilter.operator === 'isnull') {
         // Nếu đang tìm kiếm các bản ghi chưa xóa, thêm điều kiện này
         queryBuilder.where('productType.deleted_at IS NULL');
       }
     }
 
-    // Xây dựng điều kiện tìm kiếm
-    this.buildSearchConditions(queryBuilder, searchDto, 'productType');
+    // 1. Base Search
+    const { page, limit } = QueryHelper.applyBaseSearch(
+      queryBuilder,
+      searchDto,
+      'productType',
+      ['name'] // Global search
+    );
 
-    // Xử lý phân trang
-    const page = searchDto.page || 1;
-    const limit = searchDto.limit || 20;
-    const offset = (page - 1) * limit;
+    // 2. Simple Filters
+    QueryHelper.applyFilters(
+      queryBuilder,
+      searchDto,
+      'productType',
+      ['filters', 'nested_filters', 'operator']
+    );
 
-    queryBuilder.skip(offset).take(limit);
+    // 3. Backward Compatibility
+    if (searchDto.filters && searchDto.filters.length > 0) {
+      this.buildSearchConditions(queryBuilder, searchDto, 'productType');
+    }
 
-    // Thực hiện truy vấn
     const [data, total] = await queryBuilder.getManyAndCount();
 
     return {

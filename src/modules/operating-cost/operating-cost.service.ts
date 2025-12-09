@@ -6,6 +6,7 @@ import { CreateOperatingCostDto } from './dto/create-operating-cost.dto';
 import { UpdateOperatingCostDto } from './dto/update-operating-cost.dto';
 import { SearchOperatingCostDto } from './dto/search-operating-cost.dto';
 import { FilterConditionDto } from './dto/filter-condition.dto';
+import { QueryHelper } from '../../common/helpers/query-helper';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến chi phí vận hành
@@ -104,8 +105,6 @@ export class OperatingCostService {
 
   /**
    * Tìm kiếm chi phí vận hành nâng cao với cấu trúc filter lồng nhau
-   * @param searchDto - Điều kiện tìm kiếm
-   * @returns Danh sách chi phí vận hành phù hợp
    */
   async searchOperatingCostsAdvanced(
     searchDto: SearchOperatingCostDto,
@@ -118,17 +117,27 @@ export class OperatingCostService {
     const queryBuilder =
       this.operatingCostRepository.createQueryBuilder('operating_cost');
 
-    // Xây dựng điều kiện tìm kiếm
-    this.buildSearchConditions(queryBuilder, searchDto, 'operating_cost');
+    // 1. Base Search
+    const { page, limit } = QueryHelper.applyBaseSearch(
+      queryBuilder,
+      searchDto,
+      'operating_cost',
+      ['name', 'code', 'note'] // Global search
+    );
 
-    // Xử lý phân trang
-    const page = searchDto.page || 1;
-    const limit = searchDto.limit || 20;
-    const offset = (page - 1) * limit;
+    // 2. Simple Filters
+    QueryHelper.applyFilters(
+      queryBuilder,
+      searchDto,
+      'operating_cost',
+      ['filters', 'nested_filters', 'operator']
+    );
 
-    queryBuilder.skip(offset).take(limit);
+    // 3. Backward Compatibility
+    if (searchDto.filters && searchDto.filters.length > 0) {
+      this.buildSearchConditions(queryBuilder, searchDto, 'operating_cost');
+    }
 
-    // Thực hiện truy vấn
     const [data, total] = await queryBuilder.getManyAndCount();
 
     return {

@@ -9,6 +9,7 @@ import { FileTrackingService } from '../file-tracking/file-tracking.service';
 import { SearchProductSubtypeDto } from './dto/search-product-subtype.dto';
 import { FilterConditionDto } from './dto/filter-condition.dto';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
+import { QueryHelper } from '../../common/helpers/query-helper';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến nhóm sản phẩm
@@ -205,17 +206,27 @@ export class ProductSubtypeService {
     // Thêm điều kiện mặc định
     queryBuilder.where('productSubtype.deleted_at IS NULL');
 
-    // Xây dựng điều kiện tìm kiếm
-    this.buildSearchConditions(queryBuilder, searchDto, 'productSubtype');
+    // 1. Base Search
+    const { page, limit } = QueryHelper.applyBaseSearch(
+      queryBuilder,
+      searchDto,
+      'productSubtype',
+      ['name'] // Global search fields
+    );
 
-    // Xử lý phân trang
-    const page = searchDto.page || 1;
-    const limit = searchDto.limit || 20;
-    const offset = (page - 1) * limit;
+    // 2. Simple Filters
+    QueryHelper.applyFilters(
+      queryBuilder,
+      searchDto,
+      'productSubtype',
+      ['filters', 'nested_filters', 'operator']
+    );
 
-    queryBuilder.skip(offset).take(limit);
+    // 3. Backward Compatibility
+    if (searchDto.filters && searchDto.filters.length > 0) {
+      this.buildSearchConditions(queryBuilder, searchDto, 'productSubtype');
+    }
 
-    // Thực hiện truy vấn
     const [data, total] = await queryBuilder.getManyAndCount();
 
     return {

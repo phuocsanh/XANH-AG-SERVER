@@ -4,6 +4,8 @@ import { Repository } from 'typeorm';
 import { Season } from '../../entities/season.entity';
 import { CreateSeasonDto } from './dto/create-season.dto';
 import { UpdateSeasonDto } from './dto/update-season.dto';
+import { QueryHelper } from '../../common/helpers/query-helper';
+import { SearchSeasonDto } from './dto/search-season.dto';
 
 @Injectable()
 export class SeasonService {
@@ -49,17 +51,33 @@ export class SeasonService {
     });
   }
 
-  async search(searchDto: any): Promise<{ data: Season[]; total: number }> {
-    const { page = 1, limit = 20, filters = [] } = searchDto;
-    const skip = (page - 1) * limit;
+  async search(searchDto: SearchSeasonDto): Promise<{
+    data: Season[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const queryBuilder = this.seasonRepository.createQueryBuilder('season');
 
-    const queryBuilder = this.seasonRepository
-      .createQueryBuilder('season')
-      .orderBy('season.created_at', 'DESC');
+    // 1. Base Search
+    const { page, limit } = QueryHelper.applyBaseSearch(
+      queryBuilder,
+      searchDto,
+      'season',
+      ['name', 'code'] // Global search
+    );
 
-    // Áp dụng filters nếu có
-    if (filters && filters.length > 0) {
-      filters.forEach((filter: any, index: number) => {
+    // 2. Simple Filters
+    QueryHelper.applyFilters(
+      queryBuilder,
+      searchDto,
+      'season',
+      ['filters', 'nested_filters', 'operator']
+    );
+
+    // 3. Backward Compatibility
+    if (searchDto.filters && searchDto.filters.length > 0) {
+      searchDto.filters.forEach((filter: any, index: number) => {
         const paramName = `param${index}`;
         if (filter.operator === 'eq') {
           queryBuilder.andWhere(`season.${filter.field} = :${paramName}`, {
@@ -73,9 +91,13 @@ export class SeasonService {
       });
     }
 
-    queryBuilder.skip(skip).take(limit);
-
     const [data, total] = await queryBuilder.getManyAndCount();
-    return { data, total };
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+    };
   }
 }

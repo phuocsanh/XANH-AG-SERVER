@@ -8,6 +8,7 @@ import { SearchUnitDto } from './dto/search-unit.dto';
 import { FilterConditionDto } from './dto/filter-condition.dto';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 import { BaseStatus } from '../../entities/base-status.enum';
+import { QueryHelper } from '../../common/helpers/query-helper';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến đơn vị tính
@@ -139,25 +140,33 @@ export class UnitService {
 
   /**
    * Tìm kiếm nâng cao đơn vị tính
-   * @param searchDto - Điều kiện tìm kiếm
-   * @returns Danh sách đơn vị tính phù hợp với thông tin phân trang
    */
   async searchUnits(
     searchDto: SearchUnitDto,
   ): Promise<{ data: Unit[]; total: number; page: number; limit: number }> {
     const queryBuilder = this.unitRepository.createQueryBuilder('unit');
 
-    // Xây dựng điều kiện tìm kiếm
-    this.buildSearchConditions(queryBuilder, searchDto, 'unit');
+    // 1. Base Search
+    const { page, limit } = QueryHelper.applyBaseSearch(
+      queryBuilder,
+      searchDto,
+      'unit',
+      ['name'] // Global search
+    );
 
-    // Xử lý phân trang
-    const page = searchDto.page || 1;
-    const limit = searchDto.limit || 20;
-    const offset = (page - 1) * limit;
+    // 2. Simple Filters
+    QueryHelper.applyFilters(
+      queryBuilder,
+      searchDto,
+      'unit',
+      ['filters', 'nested_filters', 'operator']
+    );
 
-    queryBuilder.skip(offset).take(limit);
+    // 3. Backward Compatibility
+    if (searchDto.filters && searchDto.filters.length > 0) {
+      this.buildSearchConditions(queryBuilder, searchDto, 'unit');
+    }
 
-    // Thực hiện truy vấn
     const [data, total] = await queryBuilder.getManyAndCount();
 
     return {

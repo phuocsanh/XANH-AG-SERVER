@@ -4,12 +4,60 @@ import {
   ValidateNested,
   IsEnum,
   IsNumber,
-  Min,
+  IsString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { FilterConditionDto } from './filter-condition.dto';
+import { BaseSearchDto } from '../../../common/dto/base-search.dto';
 
-export class SearchProductDto {
+export class SearchProductDto extends BaseSearchDto {
+  /**
+   * Filter theo mã sản phẩm
+   */
+  @IsString()
+  @IsOptional()
+  code?: string;
+
+  /**
+   * Filter theo tên sản phẩm
+   */
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  /**
+   * Filter theo danh mục (product_type_id)
+   */
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  product_type_id?: number;
+
+  /**
+   * Filter theo danh mục con (product_subtype_id)
+   */
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  product_subtype_id?: number;
+
+  /**
+   * Filter theo nhà cung cấp
+   */
+  @IsNumber()
+  @IsOptional()
+  @Type(() => Number)
+  supplier_id?: number;
+
+  /**
+   * Filter theo trạng thái
+   */
+  @IsString()
+  @IsOptional()
+  status?: string;
+
+  // --- Backward Compatibility & Complex Filters ---
+
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
@@ -25,14 +73,4 @@ export class SearchProductDto {
   @ValidateNested({ each: true })
   @Type(() => SearchProductDto)
   nested_filters?: SearchProductDto[];
-
-  @IsOptional()
-  @IsNumber()
-  @Min(1)
-  page?: number = 1;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(1)
-  limit?: number = 20;
 }

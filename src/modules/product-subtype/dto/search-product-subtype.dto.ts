@@ -3,21 +3,24 @@ import {
   IsArray,
   ValidateNested,
   IsEnum,
+  IsString,
   IsNumber,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { FilterConditionDto } from './filter-condition.dto';
+import { BaseSearchDto } from '../../../common/dto/base-search.dto';
 
-export class SearchProductSubtypeDto {
+export class SearchProductSubtypeDto extends BaseSearchDto {
+  @IsString()
   @IsOptional()
-  @IsNumber()
-  @Type(() => Number)
-  page?: number = 1;
+  name?: string;
 
-  @IsOptional()
   @IsNumber()
+  @IsOptional()
   @Type(() => Number)
-  limit?: number = 20;
+  product_type_id?: number;
+
+  // --- Backward Compatibility ---
 
   @IsOptional()
   @IsArray()

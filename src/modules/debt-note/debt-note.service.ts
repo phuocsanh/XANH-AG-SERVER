@@ -6,6 +6,7 @@ import { CreateDebtNoteDto } from './dto/create-debt-note.dto';
 import { UpdateDebtNoteDto } from './dto/update-debt-note.dto';
 import { SearchDebtNoteDto } from './dto/search-debt-note.dto';
 import { FilterConditionDto } from '../payment/dto/filter-condition.dto';
+import { QueryHelper } from '../../common/helpers/query-helper';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 
 @Injectable()
@@ -73,18 +74,30 @@ export class DebtNoteService {
     queryBuilder.leftJoin('debt_note.creator', 'creator')
       .addSelect(['creator.id', 'creator.account']);
 
-    this.buildSearchConditions(queryBuilder, searchDto, 'debt_note');
+    // 1. Base Search
+    const { page, limit } = QueryHelper.applyBaseSearch(
+      queryBuilder,
+      searchDto,
+      'debt_note',
+      ['code', 'customer.name', 'customer.phone'] // Global search
+    );
 
-    const page = searchDto.page || 1;
-    const limit = searchDto.limit || 20;
-    const offset = (page - 1) * limit;
+    // 2. Simple Filters
+    QueryHelper.applyFilters(
+      queryBuilder,
+      searchDto,
+      'debt_note',
+      ['filters', 'nested_filters', 'operator']
+    );
 
-    queryBuilder.skip(offset).take(limit);
-    queryBuilder.orderBy('debt_note.created_at', 'DESC');
+    // 3. Backward Compatibility
+    if (searchDto.filters && searchDto.filters.length > 0) {
+      this.buildSearchConditions(queryBuilder, searchDto, 'debt_note');
+    }
 
     const [data, total] = await queryBuilder.getManyAndCount();
 
-    // Tính toán các chỉso thống kê (Summary) dựa trên điều kiện lọc hiện tại
+    // Tính toán các chỉ số thống kê (Summary) dựa trên điều kiện lọc hiện tại
     const summaryQuery = queryBuilder.clone(); // Clone để không ảnh hưởng offset/limit
     
     // Xóa bỏ phân trang

@@ -3,21 +3,42 @@ import {
   IsArray,
   ValidateNested,
   IsEnum,
-  IsNumber,
+  IsString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { FilterConditionDto } from './filter-condition.dto';
+import { BaseSearchDto } from '../../../common/dto/base-search.dto';
 
-export class SearchSupplierDto {
+export class SearchSupplierDto extends BaseSearchDto {
+  /**
+   * Filter theo mã nhà cung cấp
+   */
+  @IsString()
   @IsOptional()
-  @IsNumber()
-  @Type(() => Number)
-  page?: number = 1;
+  code?: string;
 
+  /**
+   * Filter theo tên nhà cung cấp
+   */
+  @IsString()
   @IsOptional()
-  @IsNumber()
-  @Type(() => Number)
-  limit?: number = 20;
+  name?: string;
+
+  /**
+   * Filter theo số điện thoại
+   */
+  @IsString()
+  @IsOptional()
+  phone?: string;
+
+  /**
+   * Filter theo trạng thái
+   */
+  @IsString()
+  @IsOptional()
+  status?: string;
+
+  // --- Backward Compatibility ---
 
   @IsOptional()
   @IsArray()

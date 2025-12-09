@@ -8,6 +8,7 @@ import { CreateSalesReturnDto } from './dto/create-sales-return.dto';
 import { SearchSalesReturnDto } from './dto/search-sales-return.dto';
 import { FilterConditionDto } from '../payment/dto/filter-condition.dto';
 import { InventoryBatch } from '../../entities/inventories.entity';
+import { QueryHelper } from '../../common/helpers/query-helper';
 
 @Injectable()
 export class SalesReturnService {
@@ -189,14 +190,26 @@ export class SalesReturnService {
     queryBuilder.leftJoinAndSelect('sales_return.items', 'items');
     queryBuilder.leftJoinAndSelect('sales_return.creator', 'creator');
 
-    this.buildSearchConditions(queryBuilder, searchDto, 'sales_return');
+    // 1. Base Search
+    const { page, limit } = QueryHelper.applyBaseSearch(
+      queryBuilder,
+      searchDto,
+      'sales_return',
+      ['code', 'customer.name', 'customer.phone'] // Global search
+    );
 
-    const page = searchDto.page || 1;
-    const limit = searchDto.limit || 20;
-    const offset = (page - 1) * limit;
+    // 2. Simple Filters
+    QueryHelper.applyFilters(
+      queryBuilder,
+      searchDto,
+      'sales_return',
+      ['filters', 'nested_filters', 'operator']
+    );
 
-    queryBuilder.skip(offset).take(limit);
-    queryBuilder.orderBy('sales_return.created_at', 'DESC');
+    // 3. Backward Compatibility
+    if (searchDto.filters && searchDto.filters.length > 0) {
+      this.buildSearchConditions(queryBuilder, searchDto, 'sales_return');
+    }
 
     const [data, total] = await queryBuilder.getManyAndCount();
 

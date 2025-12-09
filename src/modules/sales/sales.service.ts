@@ -11,6 +11,7 @@ import { CreateSalesInvoiceDto } from './dto/create-sales-invoice.dto';
 import { UpdateSalesInvoiceDto } from './dto/update-sales-invoice.dto';
 import { SearchSalesDto } from './dto/search-sales.dto';
 import { FilterConditionDto } from './dto/filter-condition.dto';
+import { QueryHelper } from '../../common/helpers/query-helper';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 import { DebtNoteService } from '../debt-note/debt-note.service';
 
@@ -550,26 +551,36 @@ export class SalesService {
     queryBuilder
       .leftJoin('invoice.season', 'season')
       .leftJoin('invoice.rice_crop', 'rice_crop')
+      .leftJoin('invoice.customer', 'customer') // Thêm join customer
       .leftJoin('invoice.creator', 'creator')
       .addSelect(['season.id', 'season.name', 'season.code'])
       .addSelect(['rice_crop.id', 'rice_crop.field_name'])
+      .addSelect(['customer.id', 'customer.name', 'customer.code', 'customer.phone']) // Select customer info
       .addSelect(['creator.id', 'creator.account']);
 
     // Thêm điều kiện mặc định
     queryBuilder.where('invoice.deleted_at IS NULL');
 
-    // Xây dựng điều kiện tìm kiếm
-    this.buildSearchConditions(queryBuilder, searchDto, 'invoice');
+    // 1. Base Search & Pagination
+    const { page, limit } = QueryHelper.applyBaseSearch(
+      queryBuilder,
+      searchDto,
+      'invoice',
+      ['code', 'customer.name', 'customer.phone', 'notes'] // Global search fields
+    );
 
-    // Sắp xếp theo thời gian tạo giảm dần (mới nhất lên đầu)
-    queryBuilder.orderBy('invoice.created_at', 'DESC');
+    // 2. Simple Filters (code, customer_id, season_id, payment_status...)
+    QueryHelper.applyFilters(
+      queryBuilder,
+      searchDto,
+      'invoice',
+      ['filters', 'nested_filters', 'operator'] // Ignore complex fields
+    );
 
-    // Xử lý phân trang
-    const page = searchDto.page || 1;
-    const limit = searchDto.limit || 20;
-    const offset = (page - 1) * limit;
-
-    queryBuilder.skip(offset).take(limit);
+    // 3. Backward compatibility (Filters array)
+    if (searchDto.filters && searchDto.filters.length > 0) {
+      this.buildSearchConditions(queryBuilder, searchDto, 'invoice');
+    }
 
     // Thực hiện truy vấn
     const [data, total] = await queryBuilder.getManyAndCount();

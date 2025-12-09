@@ -14,6 +14,7 @@ import { BaseStatus } from '../../entities/base-status.enum';
 import { ImageCleanupHelper } from '../../common/helpers/image-cleanup.helper';
 import { UploadService } from '../upload/upload.service';
 import { RoleCode } from '../../common/enums/role-code.enum';
+import { QueryHelper } from '../../common/helpers/query-helper';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến người dùng
@@ -542,8 +543,6 @@ export class UserService {
 
   /**
    * Tìm kiếm nâng cao người dùng với cấu trúc filter lồng nhau
-   * @param searchDto - Điều kiện tìm kiếm
-   * @returns Danh sách người dùng phù hợp với thông tin phân trang
    */
   async searchUsers(searchDto: SearchUserDto): Promise<{
     data: User[];
@@ -553,20 +552,42 @@ export class UserService {
   }> {
     const queryBuilder = this.userRepository.createQueryBuilder('user');
 
+    // Join profile và role để search và display
+    queryBuilder.leftJoinAndSelect('user.profile', 'profile');
+    queryBuilder.leftJoinAndSelect('user.role', 'role');
+
     // Thêm điều kiện mặc định
     queryBuilder.where('user.deleted_at IS NULL');
 
-    // Xây dựng điều kiện tìm kiếm
-    this.buildSearchConditions(queryBuilder, searchDto, 'user');
+    // Xử lý custom filter: full_name -> profile.nickname
+    if (searchDto.full_name) {
+      queryBuilder.andWhere('profile.nickname ILIKE :fullName', {
+        fullName: `%${searchDto.full_name}%`,
+      });
+    }
 
-    // Xử lý phân trang
-    const page = searchDto.page || 1;
-    const limit = searchDto.limit || 20;
-    const offset = (page - 1) * limit;
+    // 1. Base Search
+    const { page, limit } = QueryHelper.applyBaseSearch(
+      queryBuilder,
+      searchDto,
+      'user',
+      ['account', 'profile.nickname', 'profile.email', 'profile.mobile'] // Global search
+    );
 
-    queryBuilder.skip(offset).take(limit);
+    // 2. Simple Filters
+    // Ignore 'full_name' vì đã xử lý ở trên và nó không thuộc bảng 'user'
+    QueryHelper.applyFilters(
+      queryBuilder,
+      searchDto,
+      'user',
+      ['filters', 'nested_filters', 'operator', 'full_name']
+    );
 
-    // Thực hiện truy vấn
+    // 3. Backward Compatibility
+    if (searchDto.filters && searchDto.filters.length > 0) {
+      this.buildSearchConditions(queryBuilder, searchDto, 'user');
+    }
+
     const [data, total] = await queryBuilder.getManyAndCount();
 
     return {

@@ -10,6 +10,7 @@ import { InventoryReturnItem } from '../../entities/inventory-return-items.entit
 import { InventoryAdjustment } from '../../entities/inventory-adjustments.entity';
 import { InventoryAdjustmentItem } from '../../entities/inventory-adjustment-items.entity';
 import { CreateInventoryBatchDto } from './dto/create-inventory-batch.dto';
+import { QueryHelper } from '../../common/helpers/query-helper';
 import { CreateInventoryTransactionDto } from './dto/create-inventory-transaction.dto';
 import {
   CreateInventoryReceiptDto,
@@ -142,8 +143,6 @@ export class InventoryService {
 
   /**
    * Tìm kiếm nâng cao lô hàng tồn kho
-   * @param searchDto - Điều kiện tìm kiếm
-   * @returns Danh sách lô hàng tồn kho phù hợp với thông tin phân trang
    */
   async searchBatches(searchDto: SearchInventoryDto): Promise<{
     data: InventoryBatch[];
@@ -157,17 +156,27 @@ export class InventoryService {
     queryBuilder.leftJoinAndSelect('batch.product', 'product');
     queryBuilder.leftJoinAndSelect('batch.supplier', 'supplier');
 
-    // Xây dựng điều kiện tìm kiếm
-    this.buildSearchConditions(queryBuilder, searchDto, 'batch');
+    // 1. Base Search
+    const { page, limit } = QueryHelper.applyBaseSearch(
+      queryBuilder,
+      searchDto,
+      'batch',
+      ['code', 'product.name', 'product.code', 'notes'] // Global search
+    );
 
-    // Xử lý phân trang
-    const page = searchDto.page || 1;
-    const limit = searchDto.limit || 20;
-    const offset = (page - 1) * limit;
+    // 2. Simple Filters
+    QueryHelper.applyFilters(
+      queryBuilder,
+      searchDto,
+      'batch',
+      ['filters', 'nested_filters', 'operator']
+    );
 
-    queryBuilder.skip(offset).take(limit);
+    // 3. Backward Compatibility
+    if (searchDto.filters && searchDto.filters.length > 0) {
+      this.buildSearchConditions(queryBuilder, searchDto, 'batch');
+    }
 
-    // Thực hiện truy vấn
     const [data, total] = await queryBuilder.getManyAndCount();
 
     return {
