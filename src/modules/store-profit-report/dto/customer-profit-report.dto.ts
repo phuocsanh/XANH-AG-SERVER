@@ -75,7 +75,48 @@ export class CustomerProfitReportDto {
   customer_email?: string | undefined;
 
   @ApiProperty({ 
-    description: 'Tổng hợp lợi nhuận',
+    description: 'Tổng hợp lợi nhuận từ trước đến nay (lifetime)',
+    example: {
+      total_invoices: 50,
+      total_revenue: 100000000,
+      total_cost: 80000000,
+      total_profit: 20000000,
+      avg_margin: 20.0
+    }
+  })
+  lifetime_summary!: {
+    total_invoices: number;
+    total_revenue: number;
+    total_cost: number;
+    total_profit: number;
+    avg_margin: number;
+  };
+
+  @ApiProperty({ 
+    description: 'Tổng hợp lợi nhuận trong mùa vụ hiện tại (nếu có filter seasonId)',
+    required: false,
+    example: {
+      season_id: 1,
+      season_name: 'Đông Xuân 2024-2025',
+      total_invoices: 10,
+      total_revenue: 20000000,
+      total_cost: 16000000,
+      total_profit: 4000000,
+      avg_margin: 20.0
+    }
+  })
+  current_season_summary?: {
+    season_id: number;
+    season_name: string;
+    total_invoices: number;
+    total_revenue: number;
+    total_cost: number;
+    total_profit: number;
+    avg_margin: number;
+  };
+
+  @ApiProperty({ 
+    description: 'Tổng hợp lợi nhuận trong khoảng thời gian được lọc (deprecated - dùng lifetime_summary)',
     example: {
       total_invoices: 25,
       total_revenue: 50000000,

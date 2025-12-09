@@ -33,4 +33,14 @@ export class SettleDebtDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  /** Mô tả quà tặng khi quyết toán nợ */
+  @IsString()
+  @IsOptional()
+  gift_description?: string;
+
+  /** Giá trị quà tặng (quy đổi ra tiền) */
+  @IsNumber()
+  @IsOptional()
+  gift_value?: number;
 }

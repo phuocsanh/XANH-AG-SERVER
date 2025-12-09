@@ -91,6 +91,9 @@ export async function seedRBAC(dataSource: DataSource) {
     { code: 'area_of_each_plot_of_land:create', name: 'Tạo vùng/lô đất', group: 'Area Management', description: 'Tạo vùng/lô đất mới' },
     { code: 'area_of_each_plot_of_land:update', name: 'Cập nhật vùng/lô đất', group: 'Area Management', description: 'Cập nhật thông tin vùng/lô đất' },
     { code: 'area_of_each_plot_of_land:delete', name: 'Xóa vùng/lô đất', group: 'Area Management', description: 'Xóa vùng/lô đất' },
+    
+    // Store Profit Report
+    { code: 'store-profit-report:read', name: 'Xem báo cáo lợi nhuận', group: 'Store Profit Report', description: 'Xem báo cáo lợi nhuận cửa hàng' },
   ];
 
   const createdPermissions: Permission[] = [];
@@ -130,6 +133,7 @@ export async function seedRBAC(dataSource: DataSource) {
         'application:read', 'application:create', 'application:update', 'application:delete',
         'growth:read', 'growth:create', 'growth:update', 'growth:delete',
         'area_of_each_plot_of_land:read', 'area_of_each_plot_of_land:create', 'area_of_each_plot_of_land:update', 'area_of_each_plot_of_land:delete',
+        'store-profit-report:read',
       ],
     },
     {
@@ -150,6 +154,7 @@ export async function seedRBAC(dataSource: DataSource) {
         'application:read', 'application:create', 'application:update',
         'growth:read', 'growth:create', 'growth:update',
         'area_of_each_plot_of_land:read', 'area_of_each_plot_of_land:create', 'area_of_each_plot_of_land:update',
+        'store-profit-report:read',
       ],
     },
     {
@@ -167,6 +172,7 @@ export async function seedRBAC(dataSource: DataSource) {
         'application:read', 'application:create', 'application:update',
         'growth:read', 'growth:create', 'growth:update',
         'area_of_each_plot_of_land:read', 'area_of_each_plot_of_land:create', 'area_of_each_plot_of_land:update',
+        'store-profit-report:read',
       ],
     },
   ];

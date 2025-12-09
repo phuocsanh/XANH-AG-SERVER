@@ -182,11 +182,26 @@ export class PaymentService {
     settled_invoices: SalesInvoice[];
     total_debt: number;
     remaining_debt: number;
+    breakdown_by_rice_crop: Array<{
+      rice_crop_id: number | null;
+      field_name: string;
+      invoice_count: number;
+      total_debt: number;
+      invoices: Array<{
+        id: number;
+        code: string;
+        amount: number;
+        remaining_amount: number;
+      }>;
+    }>;
+    gift_description?: string | undefined;
+    gift_value: number;
   }> {
     try {
       // 1. Lấy tất cả hóa đơn chưa thanh toán của khách hàng trong mùa vụ
       const unpaidInvoices = await this.salesInvoiceRepository
         .createQueryBuilder('si')
+        .leftJoinAndSelect('si.rice_crop', 'rice_crop')
         .where('si.customer_id = :customerId', { customerId: dto.customer_id })
         .andWhere('si.season_id = :seasonId', { seasonId: dto.season_id })
         .andWhere('si.remaining_amount > 0')
@@ -203,7 +218,48 @@ export class PaymentService {
         0,
       );
 
-      // 3. Tạo Payment record
+      // 3. Tạo breakdown theo rice_crop
+      const riceCropMap = new Map<number | null, {
+        rice_crop_id: number | null;
+        field_name: string;
+        invoice_count: number;
+        total_debt: number;
+        invoices: Array<{
+          id: number;
+          code: string;
+          amount: number;
+          remaining_amount: number;
+        }>;
+      }>();
+
+      unpaidInvoices.forEach(invoice => {
+        const riceCropId = invoice.rice_crop_id || null;
+        const fieldName = invoice.rice_crop?.field_name || 'Không thuộc vụ lúa nào';
+
+        if (!riceCropMap.has(riceCropId)) {
+          riceCropMap.set(riceCropId, {
+            rice_crop_id: riceCropId,
+            field_name: fieldName,
+            invoice_count: 0,
+            total_debt: 0,
+            invoices: [],
+          });
+        }
+
+        const cropData = riceCropMap.get(riceCropId)!;
+        cropData.invoice_count++;
+        cropData.total_debt += Number(invoice.remaining_amount);
+        cropData.invoices.push({
+          id: invoice.id,
+          code: invoice.code,
+          amount: invoice.final_amount,
+          remaining_amount: Number(invoice.remaining_amount),
+        });
+      });
+
+      const breakdownByRiceCrop = Array.from(riceCropMap.values());
+
+      // 4. Tạo Payment record
       const paymentCode = this.generatePaymentCode();
       const payment = this.paymentRepository.create({
         code: paymentCode,
@@ -216,7 +272,7 @@ export class PaymentService {
       });
       const savedPayment = await this.paymentRepository.save(payment);
 
-      // 4. Phân bổ thanh toán cho các hóa đơn
+      // 5. Phân bổ thanh toán cho các hóa đơn
       let remainingPayment = dto.amount;
       const settledInvoices: SalesInvoice[] = [];
 
@@ -246,7 +302,7 @@ export class PaymentService {
         remainingPayment -= amountToAllocate;
       }
 
-      // 5. Tìm phiếu công nợ hiện tại
+      // 6. Tìm phiếu công nợ hiện tại
       const oldDebtNote = await this.debtNoteRepository
         .createQueryBuilder('dn')
         .where('dn.customer_id = :customer_id', { customer_id: dto.customer_id })
@@ -258,11 +314,19 @@ export class PaymentService {
         throw new Error('Không tìm thấy phiếu công nợ cho mùa vụ này');
       }
 
-      // 6. Cập nhật phiếu công nợ cũ
+      // 7. Cập nhật phiếu công nợ cũ + Lưu gift
       oldDebtNote.paid_amount = Number(oldDebtNote.paid_amount || 0) + dto.amount;
       oldDebtNote.remaining_amount = totalDebt - dto.amount;
+      
+      // Lưu thông tin quà tặng
+      if (dto.gift_description) {
+        oldDebtNote.gift_description = dto.gift_description;
+      }
+      if (dto.gift_value !== undefined) {
+        oldDebtNote.gift_value = dto.gift_value;
+      }
 
-      // 7. Cập nhật trạng thái
+      // 8. Cập nhật trạng thái
       if (oldDebtNote.remaining_amount <= 0) {
         // Trả hết nợ
         oldDebtNote.status = DebtNoteStatus.PAID;
@@ -274,7 +338,7 @@ export class PaymentService {
       await this.debtNoteRepository.save(oldDebtNote);
 
       this.logger.log(
-        `✅ Chốt sổ công nợ thành công: ${settledInvoices.length} hóa đơn, số tiền: ${dto.amount}`,
+        `✅ Chốt sổ công nợ thành công: ${settledInvoices.length} hóa đơn, số tiền: ${dto.amount}, Quà tặng: ${dto.gift_value || 0}`,
       );
 
       return {
@@ -282,6 +346,9 @@ export class PaymentService {
         settled_invoices: settledInvoices,
         total_debt: totalDebt,
         remaining_debt: totalDebt - dto.amount,
+        breakdown_by_rice_crop: breakdownByRiceCrop,
+        gift_description: dto.gift_description,
+        gift_value: dto.gift_value || 0,
       };
     } catch (error) {
       this.logger.error('Lỗi khi chốt sổ công nợ:', error);

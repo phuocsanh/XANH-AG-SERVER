@@ -115,6 +115,26 @@ export class DebtNote {
   @JoinColumn({ name: 'rolled_over_to_id' })
   rolled_over_to?: DebtNote;
 
+  /** Mô tả quà tặng khi quyết toán nợ */
+  @Column({ 
+    name: 'gift_description', 
+    type: 'text', 
+    nullable: true,
+    comment: 'Mô tả quà tặng khi quyết toán nợ: VD "1 bao phân DAP 50kg", "2 chai thuốc trừ sâu"'
+  })
+  gift_description?: string;
+
+  /** Giá trị quà tặng khi quyết toán nợ */
+  @Column({ 
+    name: 'gift_value', 
+    type: 'decimal', 
+    precision: 10, 
+    scale: 2, 
+    default: 0,
+    comment: 'Giá trị quà tặng quy đổi ra tiền, trừ vào lợi nhuận'
+  })
+  gift_value!: number;
+
   /** Ngày tạo */
   @CreateDateColumn({ name: 'created_at' })
   created_at!: Date;

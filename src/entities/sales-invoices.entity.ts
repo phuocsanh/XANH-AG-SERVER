@@ -167,8 +167,29 @@ export class SalesInvoice {
   })
   gross_profit_margin!: number;
 
+  /** Mô tả quà tặng (tặng gì cho khách hàng) */
+  @Column({ 
+    name: 'gift_description', 
+    type: 'text', 
+    nullable: true,
+    comment: 'Mô tả quà tặng: VD "1 thùng nước ngọt Coca", "2 bao phân NPK"'
+  })
+  gift_description?: string;
+
+  /** Giá trị quà tặng cho khách hàng (tặng ngay khi bán) */
+  @Column({ 
+    name: 'gift_value', 
+    type: 'decimal', 
+    precision: 10, 
+    scale: 2, 
+    default: 0,
+    comment: 'Giá trị quà tặng quy đổi ra tiền, trừ vào lợi nhuận'
+  })
+  gift_value!: number;
+
   /** Thời gian tạo */
   @CreateDateColumn({ name: 'created_at' })
+
   created_at!: Date;
 
   /** Thời gian cập nhật */

@@ -86,7 +86,14 @@ export class StoreProfitReportService {
         ? (grossProfit / invoice.final_amount) * 100
         : 0;
 
-      this.logger.log(`✅ Tính toán lợi nhuận đơn hàng #${invoiceId}: ${grossProfit.toLocaleString()} đ`);
+      // Lấy giá trị quà tặng và mô tả
+      const giftDescription = invoice.gift_description || undefined;
+      const giftValue = Number(invoice.gift_value || 0);
+      
+      // Tính lợi nhuận ròng (sau khi trừ quà tặng)
+      const netProfit = grossProfit - giftValue;
+
+      this.logger.log(`✅ Tính toán lợi nhuận đơn hàng #${invoiceId}: Gross ${grossProfit.toLocaleString()} đ, Gift ${giftValue.toLocaleString()} đ${giftDescription ? ` (${giftDescription})` : ''}, Net ${netProfit.toLocaleString()} đ`);
 
       return {
         invoice_id: invoice.id,
@@ -97,6 +104,9 @@ export class StoreProfitReportService {
         cost_of_goods_sold: totalCOGS,
         gross_profit: grossProfit,
         gross_margin: Math.round(margin * 100) / 100,
+        gift_description: giftDescription,
+        gift_value: giftValue,
+        net_profit: netProfit,
         item_details: itemDetails,
       };
     } catch (error) {
@@ -369,39 +379,67 @@ export class StoreProfitReportService {
     endDate?: Date,
   ): Promise<CustomerProfitReportDto> {
     try {
-      // Build where conditions
+      // 1. Lấy TOÀN BỘ hóa đơn của khách hàng (lifetime)
+      const allInvoices = await this.salesInvoiceRepository.find({
+        where: {
+          customer_id: customerId,
+          status: Not(SalesInvoiceStatus.CANCELLED),
+        },
+        relations: ['items', 'items.product', 'season'],
+        order: { created_at: 'DESC' },
+      });
+
+      if (allInvoices.length === 0) {
+        throw new NotFoundException(`Không tìm thấy đơn hàng nào của khách hàng ID: ${customerId}`);
+      }
+
+      const firstInvoice = allInvoices[0]!;
+      const customerName = firstInvoice.customer_name;
+      const customerPhone = firstInvoice.customer_phone || undefined;
+      const customerEmail = firstInvoice.customer_email || undefined;
+
+      // 2. Tính toán LIFETIME summary
+      let lifetimeRevenue = 0;
+      let lifetimeCost = 0;
+      let lifetimeProfit = 0;
+
+      for (const invoice of allInvoices) {
+        let invoiceCOGS = 0;
+        for (const item of invoice.items || []) {
+          const avgCost = Number(item.product?.average_cost_price || 0);
+          invoiceCOGS += item.quantity * avgCost;
+        }
+        lifetimeRevenue += invoice.final_amount;
+        lifetimeCost += invoiceCOGS;
+        lifetimeProfit += (invoice.final_amount - invoiceCOGS);
+      }
+
+      const lifetimeMargin = lifetimeRevenue > 0 
+        ? (lifetimeProfit / lifetimeRevenue) * 100 
+        : 0;
+
+      // 3. Build where conditions cho filtered invoices
       const where: any = {
         customer_id: customerId,
         status: Not(SalesInvoiceStatus.CANCELLED),
       };
 
-      // Filter by season if provided
       if (seasonId) {
         where.season_id = seasonId;
       }
 
-      // Filter by date range if provided
       if (startDate && endDate) {
         where.created_at = Between(startDate, endDate);
       }
 
-      // Lấy tất cả hóa đơn của khách hàng
+      // 4. Lấy hóa đơn theo filter (để hiển thị chi tiết)
       const invoices = await this.salesInvoiceRepository.find({
         where,
         relations: ['items', 'items.product', 'season'],
         order: { created_at: 'DESC' },
       });
 
-      if (invoices.length === 0) {
-        throw new NotFoundException(`Không tìm thấy đơn hàng nào của khách hàng ID: ${customerId}`);
-      }
-
-      const firstInvoice = invoices[0]!;
-      const customerName = firstInvoice.customer_name;
-      const customerPhone = firstInvoice.customer_phone || undefined;
-      const customerEmail = firstInvoice.customer_email || undefined;
-
-      // Tính toán cho từng đơn hàng
+      // 5. Tính toán cho từng đơn hàng (filtered)
       let totalRevenue = 0;
       let totalCost = 0;
       let totalProfit = 0;
@@ -416,7 +454,6 @@ export class StoreProfitReportService {
       }>();
 
       for (const invoice of invoices) {
-        // Tính COGS cho đơn hàng này
         let invoiceCOGS = 0;
         for (const item of invoice.items || []) {
           const avgCost = Number(item.product?.average_cost_price || 0);
@@ -464,12 +501,11 @@ export class StoreProfitReportService {
         }
       }
 
-      // Summary
       const avgMargin = totalRevenue > 0 
         ? (totalProfit / totalRevenue) * 100 
         : 0;
 
-      // Season summary
+      // 6. Season summary
       const seasonSummary: CustomerSeasonSummaryDto[] = Array.from(seasonMap.values())
         .sort((a, b) => b.profit - a.profit)
         .map(s => ({
@@ -484,13 +520,38 @@ export class StoreProfitReportService {
             : 0,
         }));
 
-      this.logger.log(`✅ Báo cáo khách hàng #${customerId}: ${invoices.length} đơn, lợi nhuận ${totalProfit.toLocaleString()} đ`);
+      // 7. Current season summary (nếu có filter seasonId)
+      let currentSeasonSummary: any = undefined;
+      if (seasonId && seasonMap.has(seasonId)) {
+        const seasonData = seasonMap.get(seasonId)!;
+        currentSeasonSummary = {
+          season_id: seasonData.id,
+          season_name: seasonData.name,
+          total_invoices: seasonData.invoices,
+          total_revenue: Math.round(seasonData.revenue * 100) / 100,
+          total_cost: Math.round(seasonData.cost * 100) / 100,
+          total_profit: Math.round(seasonData.profit * 100) / 100,
+          avg_margin: seasonData.revenue > 0 
+            ? Math.round((seasonData.profit / seasonData.revenue) * 10000) / 100 
+            : 0,
+        };
+      }
+
+      this.logger.log(`✅ Báo cáo khách hàng #${customerId}: Lifetime ${allInvoices.length} đơn, Filtered ${invoices.length} đơn`);
 
       return {
         customer_id: customerId,
         customer_name: customerName,
         customer_phone: customerPhone,
         customer_email: customerEmail,
+        lifetime_summary: {
+          total_invoices: allInvoices.length,
+          total_revenue: Math.round(lifetimeRevenue * 100) / 100,
+          total_cost: Math.round(lifetimeCost * 100) / 100,
+          total_profit: Math.round(lifetimeProfit * 100) / 100,
+          avg_margin: Math.round(lifetimeMargin * 100) / 100,
+        },
+        current_season_summary: currentSeasonSummary,
         summary: {
           total_invoices: invoices.length,
           total_revenue: Math.round(totalRevenue * 100) / 100,
@@ -536,6 +597,7 @@ export class StoreProfitReportService {
       let totalRevenue = 0;
       let totalCost = 0;
       let totalProfit = 0;
+      let totalGiftFromInvoices = 0; // Tổng quà tặng từ các đơn hàng
       const invoiceDetails: any[] = [];
 
       for (const invoice of invoices) {
@@ -551,9 +613,13 @@ export class StoreProfitReportService {
           ? (invoiceProfit / invoice.final_amount) * 100 
           : 0;
 
+        // Lấy giá trị quà tặng của đơn hàng
+        const invoiceGiftValue = Number(invoice.gift_value || 0);
+
         totalRevenue += invoice.final_amount;
         totalCost += invoiceCOGS;
         totalProfit += invoiceProfit;
+        totalGiftFromInvoices += invoiceGiftValue;
 
         invoiceDetails.push({
           invoice_id: invoice.id,
@@ -572,7 +638,7 @@ export class StoreProfitReportService {
         ? (totalProfit / totalRevenue) * 100 
         : 0;
 
-      this.logger.log(`✅ Báo cáo vụ lúa #${riceCropId}: ${invoices.length} đơn, lợi nhuận ${totalProfit.toLocaleString()} đ`);
+      this.logger.log(`✅ Báo cáo vụ lúa #${riceCropId}: ${invoices.length} đơn, Lợi nhuận gộp ${totalProfit.toLocaleString()} đ, Quà tặng từ đơn ${totalGiftFromInvoices.toLocaleString()} đ`);
 
       return {
         rice_crop_id: riceCropId,
@@ -585,6 +651,7 @@ export class StoreProfitReportService {
           total_cost: Math.round(totalCost * 100) / 100,
           total_profit: Math.round(totalProfit * 100) / 100,
           avg_margin: Math.round(avgMargin * 100) / 100,
+          gift_value_from_invoices: Math.round(totalGiftFromInvoices * 100) / 100,
         },
         invoices: invoiceDetails,
       };

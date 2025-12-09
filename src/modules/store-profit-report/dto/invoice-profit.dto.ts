@@ -54,6 +54,15 @@ export class InvoiceProfitDto {
   @ApiProperty({ description: 'Tỷ suất lợi nhuận gộp (%)', example: 17.4 })
   gross_margin!: number;
 
+  @ApiProperty({ description: 'Mô tả quà tặng', example: '1 thùng nước ngọt Coca', required: false })
+  gift_description?: string | undefined;
+
+  @ApiProperty({ description: 'Giá trị quà tặng', example: 50000 })
+  gift_value!: number;
+
+  @ApiProperty({ description: 'Lợi nhuận ròng (sau trừ quà tặng)', example: 350000 })
+  net_profit!: number;
+
   @ApiProperty({ description: 'Chi tiết lợi nhuận từng sản phẩm', type: [InvoiceItemProfitDto] })
   item_details!: InvoiceItemProfitDto[];
 }

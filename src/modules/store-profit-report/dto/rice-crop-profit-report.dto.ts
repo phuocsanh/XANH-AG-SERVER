@@ -47,6 +47,9 @@ export class RiceCropProfitSummaryDto {
 
   @ApiProperty({ description: 'Tỷ suất lợi nhuận trung bình (%)' })
   avg_margin!: number;
+
+  @ApiProperty({ description: 'Tổng giá trị quà tặng từ các đơn hàng' })
+  gift_value_from_invoices!: number;
 }
 
 /**
