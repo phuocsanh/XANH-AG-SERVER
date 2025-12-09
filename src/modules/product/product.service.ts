@@ -374,12 +374,10 @@ export class ProductService extends BaseSearchService<Product> {
     );
 
     if (searchDto.type_id) {
-      this.logger.warn(`Applying manual type filter: ${searchDto.type_id}`);
-      queryBuilder.andWhere('product.type = :manualParamTypeId', {
-        manualParamTypeId: searchDto.type_id,
+      queryBuilder.andWhere('product.type = :typeId', {
+        typeId: searchDto.type_id,
       });
     }
-    this.logger.warn(`Generated SQL: ${queryBuilder.getSql()}`);
 
     if (!searchDto.status) {
        queryBuilder.andWhere('product.status = :activeStatus', { activeStatus: BaseStatus.ACTIVE });

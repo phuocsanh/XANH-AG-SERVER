@@ -92,9 +92,14 @@ export class QueryHelper {
       if (Array.isArray(value)) {
         query.andWhere(`${field} IN (:...${paramName})`, { [paramName]: value });
       } else if (typeof value === 'string') {
-        // Basic heuristic: if string looks like date, use = ? No, standard string is ILIKE. 
-        // IDs as string? "PT001". ILIKE ok.
-        query.andWhere(`${field} ILIKE :${paramName}`, { [paramName]: `%${value}%` });
+        // Enums (like status) don't support ILIKE in Postgres
+        if (key === 'status' || field.endsWith('.status')) {
+          query.andWhere(`${field}::text = :${paramName}`, { [paramName]: value });
+        } else {
+          query.andWhere(`${field} ILIKE :${paramName}`, {
+            [paramName]: `%${value}%`,
+          });
+        }
       } else {
         query.andWhere(`${field} = :${paramName}`, { [paramName]: value });
       }
