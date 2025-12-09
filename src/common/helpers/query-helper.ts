@@ -46,6 +46,18 @@ export class QueryHelper {
       query.andWhere(`(${conditions.join(' OR ')})`, { keyword: `%${dto.keyword}%` });
     }
 
+    // 4. Date Range Search
+    if (dto.start_date) {
+      query.andWhere(`${alias}.created_at >= :startDate`, {
+        startDate: dto.start_date,
+      });
+    }
+    if (dto.end_date) {
+      query.andWhere(`${alias}.created_at <= :endDate`, {
+        endDate: dto.end_date,
+      });
+    }
+
     return { page, limit, skip };
   }
 
@@ -59,7 +71,7 @@ export class QueryHelper {
     ignoreFields: string[] = [],
     fieldMapping: Record<string, string> = {}
   ) {
-    const reservedFields = ['page', 'limit', 'keyword', 'sort', 'sort_by', 'sort_order', 'filters', 'customer_term', 'nested_filters', 'operator', ...ignoreFields];
+    const reservedFields = ['page', 'limit', 'keyword', 'sort', 'sort_by', 'sort_order', 'filters', 'customer_term', 'nested_filters', 'operator', 'start_date', 'end_date', ...ignoreFields];
     
     Object.keys(dto).forEach(key => {
       // Bỏ qua reserved fields hoặc giá trị null/undefined/empty

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Payment } from '../../entities/payment.entity';
 import { PaymentAllocation } from '../../entities/payment-allocation.entity';
 import { DebtNote, DebtNoteStatus } from '../../entities/debt-note.entity';
@@ -8,7 +8,6 @@ import { SalesInvoice } from '../../entities/sales-invoices.entity';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { SearchPaymentDto } from './dto/search-payment.dto';
 import { SettleDebtDto } from './dto/settle-debt.dto';
-import { FilterConditionDto } from './dto/filter-condition.dto';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 import { QueryHelper } from '../../common/helpers/query-helper';
 
@@ -77,11 +76,11 @@ export class PaymentService {
       queryBuilder,
       searchDto,
       'payment',
-      ['filters', 'nested_filters', 'operator'], // Ignore fields
+      ['filters', 'nested_filters', 'operator'],
       {
         customer_name: 'customer.name',
         customer_phone: 'customer.phone',
-      } // Field Mapping
+      }
     );
 
     const [data, total] = await queryBuilder.getManyAndCount();

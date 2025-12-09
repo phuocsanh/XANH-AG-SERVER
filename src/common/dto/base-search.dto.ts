@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional, IsString, IsEnum, Min } from 'class-validator';
+import { IsNumber, IsOptional, IsString, IsEnum, Min, IsDateString } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export enum SortOrder {
@@ -34,4 +34,12 @@ export class BaseSearchDto {
   @IsEnum(SortOrder)
   @IsOptional()
   sort_order?: SortOrder;
+
+  @IsDateString()
+  @IsOptional()
+  start_date?: string;
+
+  @IsDateString()
+  @IsOptional()
+  end_date?: string;
 }
