@@ -1,6 +1,7 @@
 import { Injectable, Inject, forwardRef, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan, In, SelectQueryBuilder } from 'typeorm';
+import { Repository, MoreThan, In } from 'typeorm';
+
 import { InventoryBatch } from '../../entities/inventories.entity';
 import { InventoryTransaction } from '../../entities/inventory-transactions.entity';
 import { InventoryReceipt } from '../../entities/inventory-receipts.entity';
@@ -26,7 +27,6 @@ import {
   LowStockProduct,
 } from './interfaces/inventory-report.interface';
 import { SearchInventoryDto } from './dto/search-inventory.dto';
-import { FilterConditionDto } from '../supplier/dto/filter-condition.dto';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 
 /**

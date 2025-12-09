@@ -10,7 +10,5 @@ export class SearchSeasonDto extends BaseSearchDto {
   @IsString() @IsOptional() status?: string;
   @IsString() @IsOptional() notes?: string;
   
-  @IsDateString() @IsOptional() start_date?: string;
-  @IsDateString() @IsOptional() end_date?: string;
   @IsDateString() @IsOptional() created_at?: string;
 }

@@ -1,12 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, SelectQueryBuilder } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { SalesReturn, SalesReturnStatus } from '../../entities/sales-return.entity';
 import { SalesReturnItem } from '../../entities/sales-return-items.entity';
 import { SalesInvoice } from '../../entities/sales-invoices.entity';
 import { CreateSalesReturnDto } from './dto/create-sales-return.dto';
 import { SearchSalesReturnDto } from './dto/search-sales-return.dto';
-import { FilterConditionDto } from '../payment/dto/filter-condition.dto';
 import { InventoryBatch } from '../../entities/inventories.entity';
 import { QueryHelper } from '../../common/helpers/query-helper';
 

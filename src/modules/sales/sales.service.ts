@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull, Not, SelectQueryBuilder } from 'typeorm';
+import { Repository, IsNull, Not } from 'typeorm';
 import {
   SalesInvoice,
   SalesInvoiceStatus,
@@ -10,7 +10,6 @@ import { Product } from '../../entities/products.entity';
 import { CreateSalesInvoiceDto } from './dto/create-sales-invoice.dto';
 import { UpdateSalesInvoiceDto } from './dto/update-sales-invoice.dto';
 import { SearchSalesDto } from './dto/search-sales.dto';
-import { FilterConditionDto } from './dto/filter-condition.dto';
 import { QueryHelper } from '../../common/helpers/query-helper';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 import { DebtNoteService } from '../debt-note/debt-note.service';

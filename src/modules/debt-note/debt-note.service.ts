@@ -1,11 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder } from 'typeorm';
+import { Repository } from 'typeorm';
 import { DebtNote, DebtNoteStatus } from '../../entities/debt-note.entity';
 import { CreateDebtNoteDto } from './dto/create-debt-note.dto';
 import { UpdateDebtNoteDto } from './dto/update-debt-note.dto';
 import { SearchDebtNoteDto } from './dto/search-debt-note.dto';
-import { FilterConditionDto } from '../payment/dto/filter-condition.dto';
 import { QueryHelper } from '../../common/helpers/query-helper';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 

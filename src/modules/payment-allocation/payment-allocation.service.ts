@@ -1,13 +1,12 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, SelectQueryBuilder } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { PaymentAllocation } from '../../entities/payment-allocation.entity';
 import { Payment } from '../../entities/payment.entity';
 import { SalesInvoice, SalesInvoiceStatus } from '../../entities/sales-invoices.entity';
 import { DebtNote, DebtNoteStatus } from '../../entities/debt-note.entity';
 import { CreatePaymentAllocationDto } from './dto/create-payment-allocation.dto';
 import { SearchPaymentAllocationDto } from './dto/search-payment-allocation.dto';
-import { FilterConditionDto } from '../payment/dto/filter-condition.dto';
 import { QueryHelper } from '../../common/helpers/query-helper';
 
 @Injectable()
