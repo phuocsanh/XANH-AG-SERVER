@@ -1301,6 +1301,16 @@ export class InventoryService {
     id: number,
     updateData: Partial<CreateInventoryReceiptDto>,
   ): Promise<InventoryReceipt | null> {
+    const receipt = await this.findReceiptById(id);
+    if (!receipt) {
+      throw new Error('Không tìm thấy phiếu nhập kho');
+    }
+
+    // Chỉ cho phép sửa phiếu ở trạng thái 'draft'
+    if (receipt.status !== 'draft') {
+      throw new Error('Chỉ có thể chỉnh sửa phiếu nhập kho ở trạng thái nháp (draft)');
+    }
+
     // Map DTO fields to entity fields
     const entityUpdateData: any = {};
     if (updateData.receipt_code !== undefined)
@@ -1330,11 +1340,20 @@ export class InventoryService {
       throw new Error('Không tìm thấy phiếu nhập kho');
     }
 
-    // Chỉ cho phép xóa phiếu ở trạng thái nháp hoặc đã hủy
-    if (receipt.status !== 'draft' && receipt.status !== 'cancelled') {
-      throw new Error(
-        'Không thể xóa phiếu nhập kho đã duyệt hoặc hoàn thành. Vui lòng hủy phiếu thay thế.',
-      );
+    // Chỉ cho phép xóa phiếu ở trạng thái 'draft'
+    // KHÔNG cho phép xóa phiếu 'cancelled' nếu đã từng 'completed' (để giữ audit trail)
+    if (receipt.status !== 'draft') {
+      if (receipt.status === 'cancelled') {
+        // Kiểm tra xem phiếu này có completed_at không (tức là đã từng completed)
+        if (receipt.completed_at) {
+           throw new Error('Không thể xóa phiếu đã từng hoàn thành và bị hủy. Dữ liệu cần được giữ lại để đối soát.');
+        }
+        // Nếu là cancelled nhưng chưa completed bao giờ (cancel từ draft/approved) thì cho xóa
+      } else {
+        throw new Error(
+          'Không thể xóa phiếu nhập kho đang hoạt động. Vui lòng hủy phiếu thay thế.',
+        );
+      }
     }
 
     // Xóa các item trong phiếu trước (để tránh lỗi foreign key)
@@ -1354,6 +1373,11 @@ export class InventoryService {
     if (!receipt) {
       return null;
     }
+    
+    if (receipt.status !== 'draft') {
+       throw new Error('Chỉ có thể duyệt phiếu ở trạng thái nháp');
+    }
+
     receipt.status = 'approved'; // Cập nhật trạng thái thành đã duyệt
     receipt.approved_at = new Date(); // Ghi nhận thời gian duyệt
     return this.inventoryReceiptRepository.save(receipt);
@@ -1372,6 +1396,10 @@ export class InventoryService {
 
     if (receipt.status === 'completed') {
       return receipt; // Đã hoàn thành rồi thì không làm gì
+    }
+    
+    if (receipt.status === 'cancelled') {
+      throw new Error('Không thể hoàn thành phiếu đã bị hủy');
     }
 
     // Lấy danh sách chi tiết phiếu nhập
@@ -1415,20 +1443,77 @@ export class InventoryService {
    * Hủy phiếu nhập kho
    * @param id - ID của phiếu nhập kho cần hủy
    * @param reason - Lý do hủy phiếu nhập kho
+   * @param userId - ID người thực hiện
    * @returns Thông tin phiếu nhập kho đã hủy
    */
   async cancelReceipt(
     id: number,
     reason: string,
+    userId: number,
   ): Promise<InventoryReceipt | null> {
     const receipt = await this.findReceiptById(id);
     if (!receipt) {
-      return null;
+      throw new Error('Không tìm thấy phiếu nhập kho');
     }
+    
+    // Validate: Không cho phép cancel phiếu đã cancelled
+    if (receipt.status === 'cancelled') {
+        throw new Error('Phiếu nhập kho đã bị hủy trước đó');
+    }
+    
+    // Nếu phiếu đã completed → Cần rollback inventory
+    if (receipt.status === 'completed') {
+        await this.rollbackReceiptInventory(id, userId, reason);
+    }
+    
     receipt.status = 'cancelled'; // Cập nhật trạng thái thành đã hủy
     receipt.cancelled_at = new Date(); // Ghi nhận thời gian hủy
     receipt.cancelled_reason = reason; // Ghi nhận lý do hủy
     return this.inventoryReceiptRepository.save(receipt);
+  }
+
+  /**
+   * Rollback inventory khi cancel phiếu nhập kho đã completed
+   * @param receiptId - ID phiếu nhập
+   * @param userId - ID người thực hiện
+   * @param reason - Lý do hủy
+   */
+  private async rollbackReceiptInventory(
+    receiptId: number, 
+    userId: number,
+    reason: string
+  ) {
+    this.logger.log(`Bắt đầu rollback inventory cho receipt #${receiptId}`);
+    const items = await this.getReceiptItems(receiptId);
+    
+    for (const item of items) {
+      try {
+        // Tạo transaction xuất kho (ngược lại với nhập kho)
+        // Dùng referenceType đặc biệt để tracking
+        await this.processStockOut(
+          item.product_id,
+          item.quantity,
+          'RECEIPT_CANCELLATION',
+          userId,
+          receiptId,
+          `Hủy phiếu nhập #${receiptId} (Sản phẩm ${item.product_id}): ${reason}`
+        );
+        
+        // Tính lại giá vốn trung bình vì lượng tồn và giá trị tồn đã thay đổi
+        await this.recalculateWeightedAverageCost(item.product_id);
+      } catch (error) {
+         this.logger.error(
+          `Lỗi khi rollback inventory cho sản phẩm ${item.product_id} trong receipt #${receiptId}:`,
+          error
+        );
+        // Trong trường hợp rollback lỗi, ta vẫn ném lỗi ra để ngừng quá trình cancel
+        // Để admin có thể xử lý thủ công hoặc thử lại
+        throw new Error(
+          `Không thể hủy phiếu nhập kho do lỗi khi hoàn tác tồn kho sản phẩm ${item.product_id}`
+        );
+      }
+    }
+    this.logger.log(`Hoàn tất rollback inventory cho receipt #${receiptId}`);
   }
 
   /**

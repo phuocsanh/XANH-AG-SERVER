@@ -118,14 +118,13 @@ export class OperatingCostService {
 
     queryBuilder.leftJoinAndSelect('operating_cost.season', 'season');
     queryBuilder.leftJoinAndSelect('operating_cost.rice_crop', 'rice_crop');
-    queryBuilder.leftJoinAndSelect('operating_cost.cost_type', 'cost_type');
 
     // 1. Base Search
     const { page, limit } = QueryHelper.applyBaseSearch(
       queryBuilder,
       searchDto,
       'operating_cost',
-      ['name', 'code', 'note'] // Global search
+      ['name', 'description'] // Global search fields (code không có trong entity)
     );
 
     // 2. Simple Filters
@@ -137,7 +136,6 @@ export class OperatingCostService {
       {
          season_name: 'season.name',
          rice_crop_name: 'rice_crop.field_name',
-         cost_type_name: 'cost_type.name',
       }
     );
 

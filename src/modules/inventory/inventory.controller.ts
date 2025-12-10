@@ -447,8 +447,12 @@ export class InventoryController {
    * @returns Kết quả hủy phiếu nhập kho
    */
   @Post('receipt/:id/cancel')
-  cancelReceipt(@Param('id') id: string, @Body('reason') reason: string) {
-    return this.inventoryService.cancelReceipt(+id, reason);
+  cancelReceipt(
+    @Param('id') id: string,
+    @Body('reason') reason: string,
+    @CurrentUser('id') userId: number,
+  ) {
+    return this.inventoryService.cancelReceipt(+id, reason, userId);
   }
 
   /**

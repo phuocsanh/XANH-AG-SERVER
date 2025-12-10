@@ -211,10 +211,11 @@ export class StoreProfitReportService {
       const grossProfit = totalRevenue - totalCOGS;
       const grossMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
 
-      // Lấy chi phí vận hành trong khoảng thời gian season
+      // Lấy chi phí vận hành gắn với season này HOẶC trong khoảng thời gian season (cho dữ liệu cũ)
       const operatingCosts = await this.getSeasonOperatingCosts(
         season.start_date,
         season.end_date,
+        seasonId,
       );
 
       // Lấy thống kê giao hàng
@@ -291,18 +292,32 @@ export class StoreProfitReportService {
   }
 
   /**
-   * Lấy chi phí vận hành trong khoảng thời gian
+   * Lấy chi phí vận hành trong khoảng thời gian hoặc theo seasonId
    */
   private async getSeasonOperatingCosts(
     startDate?: Date,
     endDate?: Date,
+    seasonId?: number,
   ): Promise<OperatingCostBreakdownDto[]> {
     try {
-      const where: any = {};
+      // Ưu tiên lấy theo season_id nếu có
+      let where: any = [];
       
-      if (startDate && endDate) {
-        where.createdAt = Between(startDate, endDate);
+      if (seasonId) {
+        where.push({ season_id: seasonId });
       }
+
+      // Fallback: Lấy theo ngày tháng nếu chưa gán season_id (cho dữ liệu cũ)
+      // VÀ phải chưa được gán cho season nào khác (season_id IS NULL) để tránh duplicate
+      if (startDate && endDate) {
+         where.push({ 
+           created_at: Between(startDate, endDate),
+           season_id: null // Chỉ lấy những cái chưa gán season cụ thể
+         });
+      }
+
+      // Nếu không có điều kiện nào thì trả về rỗng
+      if (where.length === 0) return [];
 
       const costs = await this.operatingCostRepository.find({ where });
 
@@ -574,7 +589,7 @@ export class StoreProfitReportService {
    */
   async getRiceCropProfitReport(riceCropId: number): Promise<any> {
     try {
-      // Lấy tất cả hóa đơn liên quan đến rice_crop này
+      // 1. Lấy hóa đơn
       const invoices = await this.salesInvoiceRepository.find({
         where: {
           rice_crop_id: riceCropId,
@@ -593,15 +608,14 @@ export class StoreProfitReportService {
       const customerName = firstInvoice.customer?.name || firstInvoice.customer_name;
       const seasonName = firstInvoice.season?.name;
 
-      // Tính toán cho từng đơn hàng
+      // 2. Tính toán doanh thu & COGS
       let totalRevenue = 0;
       let totalCost = 0;
       let totalProfit = 0;
-      let totalGiftFromInvoices = 0; // Tổng quà tặng từ các đơn hàng
+      let totalGiftFromInvoices = 0; 
       const invoiceDetails: any[] = [];
 
       for (const invoice of invoices) {
-        // Tính COGS cho đơn hàng này
         let invoiceCOGS = 0;
         for (const item of invoice.items || []) {
           const avgCost = Number(item.product?.average_cost_price || 0);
@@ -612,8 +626,6 @@ export class StoreProfitReportService {
         const invoiceMargin = invoice.final_amount > 0 
           ? (invoiceProfit / invoice.final_amount) * 100 
           : 0;
-
-        // Lấy giá trị quà tặng của đơn hàng
         const invoiceGiftValue = Number(invoice.gift_value || 0);
 
         totalRevenue += invoice.final_amount;
@@ -633,12 +645,22 @@ export class StoreProfitReportService {
         });
       }
 
-      // Summary
+      // 3. Lấy Chi phí vận hành RIÊNG cho vụ lúa này
+      const operatingCosts = await this.operatingCostRepository.find({
+        where: { rice_crop_id: riceCropId }
+      });
+      const totalOperatingCosts = operatingCosts.reduce((sum, cost) => sum + Number(cost.value), 0);
+
+      // 4. Tính Net Profit của vụ lúa
+      // Net Profit = Gross Profit (Doanh thu - Giá vốn) - Chi phí vận hành
+      const netProfit = totalProfit - totalOperatingCosts;
+      const netMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+
       const avgMargin = totalRevenue > 0 
         ? (totalProfit / totalRevenue) * 100 
-        : 0;
+        : 0; // Đây là Gross Margin trung bình
 
-      this.logger.log(`✅ Báo cáo mảnh ruộng #${riceCropId}: ${invoices.length} đơn, Lợi nhuận gộp ${totalProfit.toLocaleString()} đ, Quà tặng từ đơn ${totalGiftFromInvoices.toLocaleString()} đ`);
+      this.logger.log(`✅ Báo cáo mảnh ruộng #${riceCropId}: Gross ${totalProfit.toLocaleString()}, Operating Cost ${totalOperatingCosts.toLocaleString()}, Net ${netProfit.toLocaleString()}`);
 
       return {
         rice_crop_id: riceCropId,
@@ -648,11 +670,21 @@ export class StoreProfitReportService {
         summary: {
           total_invoices: invoices.length,
           total_revenue: Math.round(totalRevenue * 100) / 100,
-          total_cost: Math.round(totalCost * 100) / 100,
-          total_profit: Math.round(totalProfit * 100) / 100,
-          avg_margin: Math.round(avgMargin * 100) / 100,
+          cost_of_goods_sold: Math.round(totalCost * 100) / 100,
+          gross_profit: Math.round(totalProfit * 100) / 100, // Lợi nhuận gộp
+          avg_margin: Math.round(avgMargin * 100) / 100, // Biên LN gộp
           gift_value_from_invoices: Math.round(totalGiftFromInvoices * 100) / 100,
+          
+          // Thêm các fields mới
+          operating_costs: Math.round(totalOperatingCosts * 100) / 100,
+          net_profit: Math.round(netProfit * 100) / 100,
+          net_margin: Math.round(netMargin * 100) / 100
         },
+        operating_costs_breakdown: operatingCosts.map(c => ({
+            name: c.name,
+            amount: Number(c.value),
+            date: c.expense_date || c.createdAt
+        })),
         invoices: invoiceDetails,
       };
     } catch (error) {

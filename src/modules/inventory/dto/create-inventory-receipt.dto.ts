@@ -4,6 +4,7 @@ import {
   IsOptional,
   ValidateNested,
   IsArray,
+  IsIn,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -63,6 +64,9 @@ export class CreateInventoryReceiptDto {
 
   /** Trạng thái phiếu nhập kho (draft, approved, completed, cancelled) (bắt buộc) */
   @IsString()
+  @IsIn(['draft', 'approved', 'completed', 'cancelled'], {
+    message: 'Trạng thái không hợp lệ. Chỉ chấp nhận: draft, approved, completed, cancelled',
+  })
   status!: string;
 
   /** ID của người tạo phiếu nhập kho (bắt buộc) */

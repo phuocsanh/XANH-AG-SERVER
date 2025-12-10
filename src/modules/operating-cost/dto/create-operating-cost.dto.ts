@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsOptional } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsDateString } from 'class-validator';
 
 /**
  * DTO (Data Transfer Object) dùng để tạo chi phí vận hành mới
@@ -21,4 +21,19 @@ export class CreateOperatingCostDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  /** ID Mùa vụ liên quan (tùy chọn) */
+  @IsOptional()
+  @IsNumber()
+  season_id?: number;
+
+  /** ID Vụ lúa (Ruộng) liên quan (tùy chọn) */
+  @IsOptional()
+  @IsNumber()
+  rice_crop_id?: number;
+
+  /** Ngày phát sinh chi phí (tùy chọn, mặc định là ngày tạo) */
+  @IsOptional()
+  @IsDateString()
+  expense_date?: string;
 }

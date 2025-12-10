@@ -4,7 +4,11 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
+import { Season } from './season.entity';
+import { RiceCrop } from './rice-crop.entity';
 
 /**
  * Entity biểu diễn chi phí vận hành trong cơ sở dữ liệu
@@ -31,6 +35,28 @@ export class OperatingCost {
   /** Mô tả chi phí */
   @Column({ type: 'text', nullable: true })
   description?: string;
+
+  /** ID Mùa vụ liên quan (nếu có) */
+  @Column({ name: 'season_id', nullable: true })
+  season_id?: number;
+
+  /** Quan hệ Mùa vụ */
+  @ManyToOne(() => Season)
+  @JoinColumn({ name: 'season_id' })
+  season?: Season;
+
+  /** ID Vụ lúa (Ruộng) liên quan (nếu có) */
+  @Column({ name: 'rice_crop_id', nullable: true })
+  rice_crop_id?: number;
+
+  /** Quan hệ Vụ lúa */
+  @ManyToOne(() => RiceCrop)
+  @JoinColumn({ name: 'rice_crop_id' })
+  rice_crop?: RiceCrop;
+
+  /** Ngày phát sinh chi phí thực tế */
+  @Column({ name: 'expense_date', type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  expense_date!: Date;
 
   /** Thời gian tạo bản ghi */
   @CreateDateColumn({ name: 'created_at' })
