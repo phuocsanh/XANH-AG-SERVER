@@ -38,16 +38,9 @@ export class OperatingCostCategoryController {
     return this.categoryService.create(createDto);
   }
 
-  /**
-   * Lấy tất cả categories (cho dropdown) - Dùng POST theo convention của project
-   */
-  @Post()
-  findAll() {
-    return this.categoryService.findAll();
-  }
 
   /**
-   * Tìm kiếm nâng cao
+   * Tìm kiếm nâng cao (hoặc lấy tất cả nếu body rỗng)
    */
   @Post('search')
   @RequirePermissions('OPERATING_COST_VIEW')

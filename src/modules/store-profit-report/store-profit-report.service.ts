@@ -325,7 +325,7 @@ export class StoreProfitReportService {
       const costs = await this.operatingCostRepository.find({ where });
 
       return costs.map(cost => ({
-        type: cost.type,
+        type: cost.type || 'other', // Fallback nếu type không có (dữ liệu cũ)
         name: cost.name,
         amount: Number(cost.value),
       }));
