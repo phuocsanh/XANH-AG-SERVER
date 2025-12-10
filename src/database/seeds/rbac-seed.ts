@@ -61,6 +61,8 @@ export async function seedRBAC(dataSource: DataSource) {
     { code: 'cost_item:create', name: 'Thêm chi phí', group: 'Cost Item Management', description: 'Thêm chi phí mới' },
     { code: 'cost_item:update', name: 'Cập nhật chi phí', group: 'Cost Item Management', description: 'Cập nhật chi phí' },
     { code: 'cost_item:delete', name: 'Xóa chi phí', group: 'Cost Item Management', description: 'Xóa chi phí' },
+    { code: 'COST_ITEM_VIEW', name: 'Xem loại chi phí canh tác', group: 'Cost Item Management', description: 'Xem danh sách loại chi phí canh tác' },
+    { code: 'COST_ITEM_MANAGE', name: 'Quản lý loại chi phí canh tác', group: 'Cost Item Management', description: 'Thêm sửa xóa loại chi phí canh tác' },
     
     // Harvest Record Management
     { code: 'harvest:read', name: 'Xem thu hoạch', group: 'Harvest Management', description: 'Xem thông tin thu hoạch' },

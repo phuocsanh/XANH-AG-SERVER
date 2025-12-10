@@ -57,6 +57,18 @@ export class CostItemCategoryService {
       });
     }
 
+    if (searchDto.code) {
+      queryBuilder.andWhere('category.code ILIKE :code', {
+        code: `%${searchDto.code}%`,
+      });
+    }
+
+    if (searchDto.name) {
+      queryBuilder.andWhere('category.name ILIKE :name', {
+        name: `%${searchDto.name}%`,
+      });
+    }
+
     const [data, total] = await queryBuilder.getManyAndCount();
 
     return { data, total, page, limit };

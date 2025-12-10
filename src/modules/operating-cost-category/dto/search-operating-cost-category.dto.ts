@@ -1,31 +1,23 @@
-import { IsOptional, IsString, IsBoolean, IsNumber } from 'class-validator';
+import { IsOptional, IsString, IsBoolean } from 'class-validator';
+import { BaseSearchDto } from '../../../common/dto/base-search.dto';
 
 /**
  * DTO để tìm kiếm loại chi phí vận hành
+ * Extends BaseSearchDto để có sẵn page, limit, keyword, sort, etc.
  */
-export class SearchOperatingCostCategoryDto {
-  /** Trang hiện tại */
-  @IsOptional()
-  @IsNumber()
-  page?: number;
-
-  /** Số lượng items mỗi trang */
-  @IsOptional()
-  @IsNumber()
-  limit?: number;
-
-  /** Từ khóa tìm kiếm (tìm trong code, name) */
+export class SearchOperatingCostCategoryDto extends BaseSearchDto {
+  /** Lọc theo mã */
   @IsOptional()
   @IsString()
-  keyword?: string;
+  code?: string;
+
+  /** Lọc theo tên */
+  @IsOptional()
+  @IsString()
+  name?: string;
 
   /** Lọc theo trạng thái kích hoạt */
   @IsOptional()
   @IsBoolean()
   is_active?: boolean;
-
-  /** Sắp xếp theo field:order (ví dụ: "name:ASC") */
-  @IsOptional()
-  @IsString()
-  sort?: string;
 }
