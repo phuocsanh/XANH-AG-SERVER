@@ -1,5 +1,8 @@
 module.exports = [
   {
+    ignores: ['**/*.spec.ts', 'dist/**', 'node_modules/**', 'test/**'],
+  },
+  {
     files: ['**/*.ts'],
     languageOptions: {
       parser: require('@typescript-eslint/parser'),

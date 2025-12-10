@@ -133,6 +133,23 @@ export class InventoryController {
     );
   }
 
+  /**
+   * Tìm kiếm nâng cao giao dịch kho
+   * @param searchDto - Điều kiện tìm kiếm
+   * @returns Danh sách giao dịch kho phù hợp với thông tin phân trang
+   */
+  @Post('transactions/search')
+  searchTransactions(@Body() searchDto: SearchInventoryDto) {
+    try {
+      return this.inventoryService.searchTransactions(searchDto);
+    } catch (error) {
+      throw new HttpException(
+        'Error occurred while searching inventory transactions',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
 
 
   /**
@@ -341,6 +358,22 @@ export class InventoryController {
     return this.inventoryService.createReceipt(createInventoryReceiptDto, userId);
   }
 
+  /**
+   * Tìm kiếm nâng cao phiếu nhập kho
+   * @param searchDto - Điều kiện tìm kiếm
+   * @returns Danh sách phiếu nhập kho phù hợp với thông tin phân trang
+   */
+  @Post('receipts/search')
+  searchReceipts(@Body() searchDto: SearchInventoryDto) {
+    try {
+      return this.inventoryService.searchReceipts(searchDto);
+    } catch (error) {
+      throw new HttpException(
+        'Error occurred while searching inventory receipts',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
 
 
   /**
@@ -532,6 +565,23 @@ export class InventoryController {
     return this.inventoryService.createReturn(createInventoryReturnDto, userId);
   }
 
+  /**
+   * Tìm kiếm nâng cao phiếu xuất trả hàng
+   * @param searchDto - Điều kiện tìm kiếm
+   * @returns Danh sách phiếu xuất trả hàng phù hợp với thông tin phân trang
+   */
+  @Post('returns/search')
+  searchReturns(@Body() searchDto: SearchInventoryDto) {
+    try {
+      return this.inventoryService.searchReturns(searchDto);
+    } catch (error) {
+      throw new HttpException(
+        'Error occurred while searching inventory returns',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
 
 
   /**
@@ -606,6 +656,23 @@ export class InventoryController {
       createInventoryAdjustmentDto,
       userId,
     );
+  }
+
+  /**
+   * Tìm kiếm nâng cao phiếu điều chỉnh kho
+   * @param searchDto - Điều kiện tìm kiếm
+   * @returns Danh sách phiếu điều chỉnh kho phù hợp với thông tin phân trang
+   */
+  @Post('adjustments/search')
+  searchAdjustments(@Body() searchDto: SearchInventoryDto) {
+    try {
+      return this.inventoryService.searchAdjustments(searchDto);
+    } catch (error) {
+      throw new HttpException(
+        'Error occurred while searching inventory adjustments',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
 

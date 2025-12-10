@@ -256,6 +256,69 @@ export class InventoryService {
   }
 
   /**
+   * Tìm kiếm nâng cao giao dịch kho
+   */
+  async searchTransactions(searchDto: SearchInventoryDto): Promise<{
+    data: InventoryTransaction[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const queryBuilder =
+      this.inventoryTransactionRepository.createQueryBuilder('transaction');
+
+    queryBuilder.leftJoinAndSelect('transaction.product', 'product');
+    queryBuilder.leftJoinAndSelect('transaction.creator', 'creator');
+
+    // 1. Base Search
+    const { page, limit } = QueryHelper.applyBaseSearch(
+      queryBuilder,
+      searchDto,
+      'transaction',
+      ['product.name', 'product.code', 'notes'] // Global search
+    );
+
+    // Fix: Handle sorting for numeric string fields
+    const sortField = searchDto.sort
+      ? searchDto.sort.split(':')[0]
+      : searchDto.sort_by;
+    if (sortField && ['unit_cost_price', 'total_value'].includes(sortField)) {
+      const sortOrder = searchDto.sort
+        ? ((searchDto.sort.split(':')[1] || 'DESC').toUpperCase() as
+            | 'ASC'
+            | 'DESC')
+        : searchDto.sort_order || 'DESC';
+
+      queryBuilder.addSelect(
+        `CAST(transaction.${sortField} AS DECIMAL)`,
+        'sort_numeric_value',
+      );
+      queryBuilder.orderBy('sort_numeric_value', sortOrder);
+    }
+
+    // 2. Simple Filters
+    QueryHelper.applyFilters(
+      queryBuilder,
+      searchDto,
+      'transaction',
+      ['filters', 'nested_filters', 'operator'],
+      {
+        product_name: 'product.name',
+        product_code: 'product.code',
+      }
+    );
+
+    const [data, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+    };
+  }
+
+  /**
    * Lấy tổng hợp tồn kho theo ID sản phẩm
    * @param productId - ID của sản phẩm
    * @returns Tổng hợp tồn kho của sản phẩm
@@ -1182,6 +1245,53 @@ export class InventoryService {
   }
 
   /**
+   * Tìm kiếm nâng cao phiếu nhập kho
+   */
+  async searchReceipts(searchDto: SearchInventoryDto): Promise<{
+    data: InventoryReceipt[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const queryBuilder =
+      this.inventoryReceiptRepository.createQueryBuilder('receipt');
+
+    queryBuilder.leftJoinAndSelect('receipt.supplier', 'supplier');
+    queryBuilder.leftJoinAndSelect('receipt.creator', 'creator');
+    queryBuilder.leftJoinAndSelect('receipt.items', 'items');
+    queryBuilder.leftJoinAndSelect('items.product', 'product');
+
+    // 1. Base Search
+    const { page, limit } = QueryHelper.applyBaseSearch(
+      queryBuilder,
+      searchDto,
+      'receipt',
+      ['code', 'supplier.name', 'notes'] // Global search
+    );
+
+    // 2. Simple Filters
+    QueryHelper.applyFilters(
+      queryBuilder,
+      searchDto,
+      'receipt',
+      ['filters', 'nested_filters', 'operator'],
+      {
+        supplier_name: 'supplier.name',
+        creator_account: 'creator.account',
+      }
+    );
+
+    const [data, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+    };
+  }
+
+  /**
    * Cập nhật thông tin phiếu nhập kho
    * @param id - ID của phiếu nhập kho cần cập nhật
    * @param updateData - Dữ liệu cập nhật phiếu nhập kho
@@ -1566,6 +1676,51 @@ export class InventoryService {
   }
 
   /**
+   * Tìm kiếm nâng cao phiếu xuất trả hàng
+   */
+  async searchReturns(searchDto: SearchInventoryDto): Promise<{
+    data: InventoryReturn[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const queryBuilder =
+      this.inventoryReturnRepository.createQueryBuilder('return');
+
+    queryBuilder.leftJoinAndSelect('return.supplier', 'supplier');
+    queryBuilder.leftJoinAndSelect('return.items', 'items');
+    queryBuilder.leftJoinAndSelect('items.product', 'product');
+
+    // 1. Base Search
+    const { page, limit } = QueryHelper.applyBaseSearch(
+      queryBuilder,
+      searchDto,
+      'return',
+      ['code', 'supplier.name', 'notes'] // Global search
+    );
+
+    // 2. Simple Filters
+    QueryHelper.applyFilters(
+      queryBuilder,
+      searchDto,
+      'return',
+      ['filters', 'nested_filters', 'operator'],
+      {
+        supplier_name: 'supplier.name',
+      }
+    );
+
+    const [data, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+    };
+  }
+
+  /**
    * Duyệt phiếu xuất trả hàng
    * @param id - ID của phiếu xuất trả hàng cần duyệt
    * @returns Kết quả duyệt phiếu xuất trả hàng
@@ -1743,6 +1898,47 @@ export class InventoryService {
       where: { id },
       relations: ['items'],
     });
+  }
+
+  /**
+   * Tìm kiếm nâng cao phiếu điều chỉnh kho
+   */
+  async searchAdjustments(searchDto: SearchInventoryDto): Promise<{
+    data: InventoryAdjustment[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const queryBuilder =
+      this.inventoryAdjustmentRepository.createQueryBuilder('adjustment');
+
+    queryBuilder.leftJoinAndSelect('adjustment.items', 'items');
+    queryBuilder.leftJoinAndSelect('items.product', 'product');
+
+    // 1. Base Search
+    const { page, limit } = QueryHelper.applyBaseSearch(
+      queryBuilder,
+      searchDto,
+      'adjustment',
+      ['code', 'reason', 'notes'] // Global search
+    );
+
+    // 2. Simple Filters
+    QueryHelper.applyFilters(
+      queryBuilder,
+      searchDto,
+      'adjustment',
+      ['filters', 'nested_filters', 'operator']
+    );
+
+    const [data, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+    };
   }
 
   /**
