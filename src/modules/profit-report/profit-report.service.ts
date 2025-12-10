@@ -75,7 +75,8 @@ export class ProfitReportService {
       };
 
       costItems.forEach(item => {
-        cost_breakdown[item.category] += Number(item.total_cost);
+        const category = item.category || CostCategory.OTHER; // Fallback nếu category undefined
+        cost_breakdown[category] += Number(item.total_cost);
       });
 
       // Lấy thông tin thu hoạch

@@ -138,7 +138,8 @@ export class CostItemService {
       };
 
       items.forEach(item => {
-        breakdown[item.category] += Number(item.total_cost);
+        const category = item.category || CostCategory.OTHER; // Fallback nếu category undefined
+        breakdown[category] += Number(item.total_cost);
       });
 
       return { total, breakdown, items };

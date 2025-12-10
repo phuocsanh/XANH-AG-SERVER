@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 import { RiceCrop } from './rice-crop.entity';
+import { CostItemCategory } from './cost-item-category.entity';
 
 /**
  * Enum định nghĩa loại chi phí
@@ -41,16 +42,27 @@ export class CostItem {
   rice_crop?: RiceCrop;
 
   @ApiProperty({ 
-    description: 'Loại chi phí', 
+    description: 'Loại chi phí (deprecated - dùng category_id thay thế)', 
     enum: CostCategory,
-    example: CostCategory.FERTILIZER 
+    example: CostCategory.FERTILIZER,
+    required: false
   })
   @Column({
     name: 'category',
     type: 'enum',
     enum: CostCategory,
+    nullable: true,
   })
-  category!: CostCategory;
+  category?: CostCategory;
+
+  /** ID Loại chi phí (foreign key to cost_item_categories) */
+  @Column({ name: 'category_id', nullable: true })
+  category_id?: number;
+
+  /** Quan hệ Loại chi phí */
+  @ManyToOne(() => CostItemCategory, (cat) => cat.items)
+  @JoinColumn({ name: 'category_id' })
+  categoryRelation?: CostItemCategory;
 
   @ApiProperty({ description: 'Tên khoản chi', example: 'Giống lúa OM 5451' })
   @Column({ name: 'item_name', length: 255 })

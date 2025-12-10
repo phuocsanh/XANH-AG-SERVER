@@ -39,6 +39,7 @@ import { AiSheathBlightModule } from './modules/ai-sheath-blight/ai-sheath-bligh
 import { AiGrainDiscolorationModule } from './modules/ai-grain-discoloration/ai-grain-discoloration.module';
 import { RiceCropModule } from './modules/rice-crop/rice-crop.module';
 import { CostItemModule } from './modules/cost-item/cost-item.module';
+import { CostItemCategoryModule } from './modules/cost-item-category/cost-item-category.module';
 import { HarvestRecordModule } from './modules/harvest-record/harvest-record.module';
 import { FarmingScheduleModule } from './modules/farming-schedule/farming-schedule.module';
 import { ApplicationRecordModule } from './modules/application-record/application-record.module';
@@ -125,6 +126,7 @@ import { AreaOfEachPlotOfLandModule } from './modules/area-of-each-plot-of-land/
     AiGrainDiscolorationModule, // Module cảnh báo Bệnh Lem Lép Hạt
     RiceCropModule, // Module quản lý mảnh ruộng của nông dân
     CostItemModule, // Module quản lý chi phí đầu vào
+    CostItemCategoryModule, // Module quản lý loại chi phí canh tác
     HarvestRecordModule, // Module ghi nhận thu hoạch & doanh thu
     FarmingScheduleModule, // Module lịch canh tác
     ApplicationRecordModule, // Module nhật ký phun thuốc/bón phân
