@@ -22,6 +22,7 @@ import { CompatibilityMixingPesticidesModule } from './modules/ai-compatibility-
 import { UnitModule } from './modules/unit/unit.module';
 import { SymbolModule } from './modules/symbol/symbol.module';
 import { OperatingCostModule } from './modules/operating-cost/operating-cost.module';
+import { OperatingCostCategoryModule } from './modules/operating-cost-category/operating-cost-category.module';
 import { SeasonModule } from './modules/season/season.module';
 import { CustomerModule } from './modules/customer/customer.module';
 import { PaymentModule } from './modules/payment/payment.module';
@@ -106,6 +107,7 @@ import { AreaOfEachPlotOfLandModule } from './modules/area-of-each-plot-of-land/
     SymbolModule,
     SupplierModule,
     OperatingCostModule,
+    OperatingCostCategoryModule,
     SeasonModule,
     CustomerModule,
     PaymentModule,

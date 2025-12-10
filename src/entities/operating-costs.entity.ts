@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { Season } from './season.entity';
 import { RiceCrop } from './rice-crop.entity';
+import { OperatingCostCategory } from './operating-cost-category.entity';
 
 /**
  * Entity biểu diễn chi phí vận hành trong cơ sở dữ liệu
@@ -28,9 +29,18 @@ export class OperatingCost {
   @Column({ type: 'decimal', precision: 15, scale: 2 })
   value!: number;
 
-  /** Loại chi phí */
-  @Column({ type: 'varchar' })
-  type!: string;
+  /** Loại chi phí (deprecated - sẽ được thay thế bởi category_id) */
+  @Column({ type: 'varchar', nullable: true })
+  type?: string;
+
+  /** ID Loại chi phí (foreign key to operating_cost_categories) */
+  @Column({ name: 'category_id', nullable: true })
+  category_id?: number;
+
+  /** Quan hệ Loại chi phí */
+  @ManyToOne(() => OperatingCostCategory, (category) => category.costs)
+  @JoinColumn({ name: 'category_id' })
+  category?: OperatingCostCategory;
 
   /** Mô tả chi phí */
   @Column({ type: 'text', nullable: true })

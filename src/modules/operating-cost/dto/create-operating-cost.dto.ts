@@ -13,9 +13,14 @@ export class CreateOperatingCostDto {
   @IsNumber()
   value!: number;
 
-  /** Loại chi phí (bắt buộc) */
+  /** ID Loại chi phí (bắt buộc) */
+  @IsNumber()
+  category_id!: number;
+
+  /** Loại chi phí (deprecated - dùng category_id thay thế) */
+  @IsOptional()
   @IsString()
-  type!: string;
+  type?: string;
 
   /** Mô tả chi phí (tùy chọn) */
   @IsOptional()

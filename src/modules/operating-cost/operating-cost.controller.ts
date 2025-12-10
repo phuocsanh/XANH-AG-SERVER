@@ -56,17 +56,6 @@ export class OperatingCostController {
   }
 
   /**
-   * Lấy danh sách các loại chi phí gợi ý
-   */
-  @Post('types')
-  getCostTypes() {
-    return this.operatingCostService.getCostTypes();
-  }
-
-  /**
-   * Lấy tổng chi phí theo nhóm loại chi phí
-
-  /**
    * Lấy tổng chi phí theo nhóm loại chi phí
    * @returns Tổng chi phí theo từng loại
    */

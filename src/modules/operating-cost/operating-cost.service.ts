@@ -22,26 +22,6 @@ export class OperatingCostService {
   ) {}
 
   /**
-   * Lấy danh sách các loại chi phí gợi ý (Hardcoded List)
-   */
-  getCostTypes() {
-    return [
-      { value: 'labor', label: 'Nhân công' },
-      { value: 'harvesting', label: 'Thu hoạch' }, // Có thể user muốn để đây nếu cửa hàng lo khâu thu mua
-      { value: 'electricity', label: 'Điện' },
-      { value: 'water', label: 'Nước' },
-      { value: 'rent', label: 'Thuê đất/mặt bằng' },
-      { value: 'marketing', label: 'Marketing' },
-      { value: 'packaging', label: 'Bao bì' },
-      { value: 'fuel', label: 'Nhiên liệu' },
-      { value: 'maintenance', label: 'Bảo trì' },
-      { value: 'interest', label: 'Lãi vay' },
-      { value: 'tax', label: 'Thuế' },
-      { value: 'other', label: 'Khác' },
-    ];
-  }
-
-  /**
    * Tạo chi phí vận hành mới
    * @param createOperatingCostDto - Dữ liệu tạo chi phí vận hành mới
    * @returns Thông tin chi phí vận hành đã tạo
@@ -138,6 +118,7 @@ export class OperatingCostService {
 
     queryBuilder.leftJoinAndSelect('operating_cost.season', 'season');
     queryBuilder.leftJoinAndSelect('operating_cost.rice_crop', 'rice_crop');
+    queryBuilder.leftJoinAndSelect('operating_cost.category', 'category');
 
     // 1. Base Search
     const { page, limit } = QueryHelper.applyBaseSearch(
@@ -156,6 +137,7 @@ export class OperatingCostService {
       {
          season_name: 'season.name',
          rice_crop_name: 'rice_crop.field_name',
+         category_name: 'category.name',
       }
     );
 

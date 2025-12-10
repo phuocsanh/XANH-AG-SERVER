@@ -7,6 +7,7 @@ export class SearchOperatingCostDto extends BaseSearchDto {
   @IsString() @IsOptional() code?: string;
   @IsNumber() @IsOptional() @Type(() => Number) season_id?: number;
   @IsNumber() @IsOptional() @Type(() => Number) rice_crop_id?: number;
+  @IsNumber() @IsOptional() @Type(() => Number) category_id?: number;
   @IsNumber() @IsOptional() @Type(() => Number) cost_type_id?: number;
   
   @IsNumber() @IsOptional() @Type(() => Number) amount?: number;
@@ -17,5 +18,6 @@ export class SearchOperatingCostDto extends BaseSearchDto {
   // Relations
   @IsString() @IsOptional() season_name?: string;
   @IsString() @IsOptional() rice_crop_name?: string;
+  @IsString() @IsOptional() category_name?: string;
   @IsString() @IsOptional() cost_type_name?: string;
 }
