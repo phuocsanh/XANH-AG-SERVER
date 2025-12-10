@@ -39,9 +39,9 @@ export class OperatingCostCategoryController {
   }
 
   /**
-   * Lấy tất cả categories (cho dropdown) - Public access
+   * Lấy tất cả categories (cho dropdown) - Dùng POST theo convention của project
    */
-  @Get()
+  @Post()
   findAll() {
     return this.categoryService.findAll();
   }
