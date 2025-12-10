@@ -60,9 +60,9 @@ export class OperatingCost {
 
   /** Thời gian tạo bản ghi */
   @CreateDateColumn({ name: 'created_at' })
-  createdAt!: Date;
+  created_at!: Date;
 
   /** Thời gian cập nhật bản ghi */
   @UpdateDateColumn({ name: 'updated_at' })
-  updatedAt!: Date;
+  updated_at!: Date;
 }

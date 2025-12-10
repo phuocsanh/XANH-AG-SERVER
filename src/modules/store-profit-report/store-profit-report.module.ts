@@ -6,6 +6,7 @@ import { SalesInvoice } from '../../entities/sales-invoices.entity';
 import { Season } from '../../entities/season.entity';
 import { OperatingCost } from '../../entities/operating-costs.entity';
 import { DeliveryLog } from '../../entities/delivery-log.entity';
+import { CostItem } from '../../entities/cost-item.entity';
 
 /**
  * Module quản lý báo cáo lợi nhuận cửa hàng
@@ -17,6 +18,7 @@ import { DeliveryLog } from '../../entities/delivery-log.entity';
       Season,
       OperatingCost,
       DeliveryLog,
+      CostItem,
     ]),
   ],
   controllers: [StoreProfitReportController],

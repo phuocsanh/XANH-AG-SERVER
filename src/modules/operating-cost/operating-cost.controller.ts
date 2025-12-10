@@ -50,12 +50,21 @@ export class OperatingCostController {
    * Lấy tổng tất cả chi phí
    * @returns Tổng tất cả chi phí
    */
-  @Get('total')
-  @RequirePermissions('OPERATING_COST_VIEW')
   async getTotalCost(): Promise<{ total: number }> {
     const total = await this.operatingCostService.getTotalCost();
     return { total };
   }
+
+  /**
+   * Lấy danh sách các loại chi phí gợi ý
+   */
+  @Post('types')
+  getCostTypes() {
+    return this.operatingCostService.getCostTypes();
+  }
+
+  /**
+   * Lấy tổng chi phí theo nhóm loại chi phí
 
   /**
    * Lấy tổng chi phí theo nhóm loại chi phí

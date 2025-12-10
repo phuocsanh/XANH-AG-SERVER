@@ -94,6 +94,10 @@ export async function seedRBAC(dataSource: DataSource) {
     
     // Store Profit Report
     { code: 'store-profit-report:read', name: 'Xem báo cáo lợi nhuận', group: 'Store Profit Report', description: 'Xem báo cáo lợi nhuận cửa hàng' },
+    
+    // Operating Cost Management
+    { code: 'OPERATING_COST_VIEW', name: 'Xem chi phí vận hành', group: 'Operating Cost', description: 'Xem danh sách chi phí vận hành' },
+    { code: 'OPERATING_COST_MANAGE', name: 'Quản lý chi phí vận hành', group: 'Operating Cost', description: 'Thêm sửa xóa chi phí vận hành' },
   ];
 
   const createdPermissions: Permission[] = [];
@@ -134,6 +138,7 @@ export async function seedRBAC(dataSource: DataSource) {
         'growth:read', 'growth:create', 'growth:update', 'growth:delete',
         'area_of_each_plot_of_land:read', 'area_of_each_plot_of_land:create', 'area_of_each_plot_of_land:update', 'area_of_each_plot_of_land:delete',
         'store-profit-report:read',
+        'OPERATING_COST_VIEW', 'OPERATING_COST_MANAGE',
       ],
     },
     {
@@ -155,6 +160,7 @@ export async function seedRBAC(dataSource: DataSource) {
         'growth:read', 'growth:create', 'growth:update',
         'area_of_each_plot_of_land:read', 'area_of_each_plot_of_land:create', 'area_of_each_plot_of_land:update',
         'store-profit-report:read',
+        'OPERATING_COST_VIEW', 'OPERATING_COST_MANAGE',
       ],
     },
     {
