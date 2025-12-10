@@ -44,13 +44,6 @@ export class SeasonService {
     await this.seasonRepository.remove(season);
   }
 
-  async findActive(): Promise<Season[]> {
-    return await this.seasonRepository.find({
-      where: { is_active: true },
-      order: { created_at: 'DESC' },
-    });
-  }
-
   async search(searchDto: SearchSeasonDto): Promise<{
     data: Season[];
     total: number;

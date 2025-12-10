@@ -242,13 +242,7 @@ export class InventoryService {
     return this.inventoryTransactionRepository.save(transaction);
   }
 
-  /**
-   * Lấy danh sách tất cả giao dịch kho
-   * @returns Danh sách giao dịch kho
-   */
-  async findAllTransactions() {
-    return this.inventoryTransactionRepository.find();
-  }
+
 
   /**
    * Tìm giao dịch kho theo ID sản phẩm
@@ -1161,16 +1155,7 @@ export class InventoryService {
     return finalReceipt;
   }
 
-  /**
-   * Lấy danh sách tất cả phiếu nhập kho
-   * @returns Danh sách phiếu nhập kho
-   */
-  async findAllReceipts() {
-    return this.inventoryReceiptRepository.find({
-      order: { created_at: 'DESC' }, // Sắp xếp theo thời gian tạo giảm dần
-      relations: ['supplier', 'creator'],
-    });
-  }
+
 
   /**
    * Tìm phiếu nhập kho theo ID
@@ -1566,15 +1551,7 @@ export class InventoryService {
     });
   }
 
-  /**
-   * Lấy danh sách tất cả phiếu xuất trả hàng
-   * @returns Danh sách phiếu xuất trả hàng
-   */
-  async findAllReturns() {
-    return this.inventoryReturnRepository.find({
-      order: { created_at: 'DESC' },
-    });
-  }
+
 
   /**
    * Tìm phiếu xuất trả hàng theo ID
@@ -1754,15 +1731,7 @@ export class InventoryService {
     });
   }
 
-  /**
-   * Lấy danh sách tất cả phiếu điều chỉnh kho
-   * @returns Danh sách phiếu điều chỉnh kho
-   */
-  async findAllAdjustments() {
-    return this.inventoryAdjustmentRepository.find({
-      order: { created_at: 'DESC' },
-    });
-  }
+
 
   /**
    * Tìm phiếu điều chỉnh kho theo ID

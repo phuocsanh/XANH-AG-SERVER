@@ -127,16 +127,7 @@ export class UserController {
     return this.userService.approveUser(approveUserDto.user_id, approverRoleCode);
   }
 
-  /**
-   * Endpoint lấy danh sách người dùng chờ duyệt
-   * @returns Danh sách người dùng chờ duyệt
-   */
-  @Get('admin/pending')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('USER_VIEW')
-  async getPendingUsers() {
-    return this.userService.getPendingUsers();
-  }
+
 
   /**
    * Endpoint kích hoạt tài khoản người dùng

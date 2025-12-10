@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
 import { CustomerService } from './customer.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
@@ -24,15 +24,7 @@ export class CustomerController {
     return this.customerService.searchCustomers(searchDto);
   }
 
-  @Get('debtors')
-  @RequirePermissions('SALES_VIEW')
-  getDebtors(
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 20,
-    @Query('search') search?: string,
-  ) {
-    return this.customerService.getDebtors(+page, +limit, search);
-  }
+
 
   @Get(':id')
   findOne(@Param('id') id: string) {

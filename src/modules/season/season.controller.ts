@@ -25,11 +25,7 @@ export class SeasonController {
 
 
 
-  @Get('active')
-  @RequirePermissions('PRODUCT_VIEW')
-  findActive() {
-    return this.seasonService.findActive();
-  }
+
 
   @Get(':id')
   @RequirePermissions('PRODUCT_VIEW')

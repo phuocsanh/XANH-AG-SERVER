@@ -495,17 +495,7 @@ export class UserService {
     }
   }
 
-  /**
-   * Lấy danh sách người dùng chờ duyệt
-   * @returns Danh sách người dùng có status PENDING
-   */
-  async getPendingUsers(): Promise<User[]> {
-    return this.userRepository.find({
-      where: { status: BaseStatus.PENDING },
-      relations: ['role'],
-      order: { created_at: 'DESC' },
-    });
-  }
+
 
   /**
    * Xóa tất cả người dùng (chỉ dùng cho mục đích debug)

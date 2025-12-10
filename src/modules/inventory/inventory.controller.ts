@@ -133,14 +133,7 @@ export class InventoryController {
     );
   }
 
-  /**
-   * Lấy danh sách tất cả giao dịch kho
-   * @returns Danh sách giao dịch kho
-   */
-  @Get('transactions')
-  findAllTransactions() {
-    return this.inventoryService.findAllTransactions();
-  }
+
 
   /**
    * Tìm giao dịch kho theo ID sản phẩm
@@ -348,14 +341,7 @@ export class InventoryController {
     return this.inventoryService.createReceipt(createInventoryReceiptDto, userId);
   }
 
-  /**
-   * Lấy danh sách tất cả phiếu nhập kho
-   * @returns Danh sách phiếu nhập kho
-   */
-  @Get('receipts')
-  findAllReceipts() {
-    return this.inventoryService.findAllReceipts();
-  }
+
 
   /**
    * Tìm phiếu nhập kho theo ID
@@ -546,14 +532,7 @@ export class InventoryController {
     return this.inventoryService.createReturn(createInventoryReturnDto, userId);
   }
 
-  /**
-   * Lấy danh sách tất cả phiếu xuất trả hàng
-   * @returns Danh sách phiếu xuất trả hàng
-   */
-  @Get('returns')
-  findAllReturns() {
-    return this.inventoryService.findAllReturns();
-  }
+
 
   /**
    * Tìm phiếu xuất trả hàng theo ID
@@ -629,14 +608,7 @@ export class InventoryController {
     );
   }
 
-  /**
-   * Lấy danh sách tất cả phiếu điều chỉnh kho
-   * @returns Danh sách phiếu điều chỉnh kho
-   */
-  @Get('adjustments')
-  findAllAdjustments() {
-    return this.inventoryService.findAllAdjustments();
-  }
+
 
   /**
    * Tìm phiếu điều chỉnh kho theo ID
