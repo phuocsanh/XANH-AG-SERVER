@@ -24,6 +24,12 @@ export class CustomerController {
     return this.customerService.searchCustomers(searchDto);
   }
 
+  @Post('debtors')
+  @RequirePermissions('SALES_VIEW')
+  getDebtors(@Body() searchDto: SearchCustomerDto) {
+    return this.customerService.getCustomersWithDebt(searchDto);
+  }
+
 
 
   @Get(':id')

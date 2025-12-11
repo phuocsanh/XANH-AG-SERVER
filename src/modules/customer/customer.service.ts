@@ -89,4 +89,43 @@ export class CustomerService {
     const [data, total] = await queryBuilder.getManyAndCount();
     return { data, total, page, limit };
   }
+
+  /**
+   * Lấy danh sách khách hàng có công nợ (chưa thanh toán hết)
+   * @param searchDto - DTO tìm kiếm
+   * @returns Danh sách khách hàng có nợ
+   */
+  async getCustomersWithDebt(searchDto: SearchCustomerDto) {
+    const queryBuilder = this.customerRepository
+      .createQueryBuilder('customer')
+      .leftJoin('debt_notes', 'debt_note', 'debt_note.customer_id = customer.id')
+      .where('debt_note.remaining_amount > 0')
+      .andWhere('debt_note.status IN (:...statuses)', { 
+        statuses: ['active', 'overdue'] 
+      })
+      .groupBy('customer.id');
+
+    // 1. Base Search (Page, Sort, Keyword)
+    const { page, limit } = QueryHelper.applyBaseSearch(
+      queryBuilder,
+      searchDto,
+      'customer',
+      ['name', 'phone', 'code', 'address']
+    );
+
+    // 2. Filters
+    QueryHelper.applyFilters(queryBuilder, searchDto, 'customer', ['search']);
+
+    // 3. Backward compatibility for 'search' field
+    if (!searchDto.keyword && (searchDto as any).search) {
+      const search = (searchDto as any).search;
+      queryBuilder.andWhere(
+        '(customer.name ILIKE :search OR customer.phone ILIKE :search OR customer.code ILIKE :search)',
+        { search: `%${search}%` },
+      );
+    }
+
+    const [data, total] = await queryBuilder.getManyAndCount();
+    return { data, total, page, limit };
+  }
 }
