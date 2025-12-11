@@ -50,8 +50,8 @@ export class SalesService {
   ): Promise<SalesInvoice> {
     try {
       // Tính toán số tiền còn nợ
-      const partialPayment = createSalesInvoiceDto.partial_payment_amount || 0;
-      const remainingAmount = createSalesInvoiceDto.final_amount - partialPayment;
+      const partialPayment = Number(createSalesInvoiceDto.partial_payment_amount || 0);
+      const remainingAmount = Number(createSalesInvoiceDto.final_amount) - partialPayment;
 
       // Tự động sinh mã hóa đơn nếu không có
       const invoiceCode = createSalesInvoiceDto.invoice_code || this.generateInvoiceCode();
@@ -176,7 +176,7 @@ export class SalesService {
       }
     }
 
-    const grossProfit = invoice.final_amount - totalCOGS;
+    const grossProfit = Number(invoice.final_amount) - totalCOGS;
     const margin = invoice.final_amount > 0 
       ? Math.round((grossProfit / invoice.final_amount) * 10000) / 100
       : 0;

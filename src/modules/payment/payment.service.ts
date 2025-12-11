@@ -282,8 +282,8 @@ export class PaymentService {
       }
 
       // 7. Cập nhật phiếu công nợ cũ + Lưu gift
-      oldDebtNote.paid_amount = Number(oldDebtNote.paid_amount || 0) + dto.amount;
-      oldDebtNote.remaining_amount = totalDebt - dto.amount;
+      oldDebtNote.paid_amount = Number(oldDebtNote.paid_amount || 0) + Number(dto.amount);
+      oldDebtNote.remaining_amount = totalDebt - Number(dto.amount);
       
       // Lưu thông tin quà tặng
       if (dto.gift_description) {
@@ -378,8 +378,8 @@ export class PaymentService {
         if (!invoice) continue;
 
         // Trả lại số tiền đã thanh toán
-        invoice.partial_payment_amount = Number(invoice.partial_payment_amount || 0) - allocation.amount;
-        invoice.remaining_amount = Number(invoice.remaining_amount) + allocation.amount;
+        invoice.partial_payment_amount = Number(invoice.partial_payment_amount || 0) - Number(allocation.amount);
+        invoice.remaining_amount = Number(invoice.remaining_amount) + Number(allocation.amount);
 
         // Cập nhật trạng thái
         if (invoice.remaining_amount > 0) {
@@ -406,8 +406,8 @@ export class PaymentService {
 
         if (debtNote) {
           // Trả lại số tiền vào nợ
-          debtNote.paid_amount = Number(debtNote.paid_amount || 0) - payment.amount;
-          debtNote.remaining_amount = Number(debtNote.remaining_amount) + payment.amount;
+          debtNote.paid_amount = Number(debtNote.paid_amount || 0) - Number(payment.amount);
+          debtNote.remaining_amount = Number(debtNote.remaining_amount) + Number(payment.amount);
 
           // Cập nhật trạng thái
           if (debtNote.remaining_amount > 0) {

@@ -198,8 +198,8 @@ export class DebtNoteService {
     }
 
     // Cập nhật số tiền
-    debtNote.amount = Number(debtNote.amount) + invoiceAmount;
-    debtNote.remaining_amount = Number(debtNote.remaining_amount) + invoiceAmount;
+    debtNote.amount = Number(debtNote.amount) + Number(invoiceAmount);
+    debtNote.remaining_amount = Number(debtNote.remaining_amount) + Number(invoiceAmount);
 
     return await this.debtNoteRepository.save(debtNote);
   }

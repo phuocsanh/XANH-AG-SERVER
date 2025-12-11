@@ -128,4 +128,40 @@ export class CustomerService {
     const [data, total] = await queryBuilder.getManyAndCount();
     return { data, total, page, limit };
   }
+
+  /**
+   * Lấy tổng nợ và số phiếu nợ của khách hàng
+   * @param customerId - ID của khách hàng
+   * @returns Tổng nợ và số phiếu nợ
+   */
+  async getCustomerDebtSummary(customerId: number): Promise<{
+    customer_id: number;
+    total_debt: number;
+    debt_note_count: number;
+  }> {
+    const result = await this.customerRepository
+      .createQueryBuilder('customer')
+      .leftJoin('debt_notes', 'debt_note', 'debt_note.customer_id = customer.id')
+      .select('customer.id', 'customer_id')
+      .addSelect('COALESCE(SUM(debt_note.remaining_amount), 0)', 'total_debt')
+      .addSelect('COUNT(CASE WHEN debt_note.remaining_amount > 0 THEN 1 END)', 'debt_note_count')
+      .where('customer.id = :customerId', { customerId })
+      .andWhere('debt_note.status IN (:...statuses)', { statuses: ['active', 'overdue'] })
+      .groupBy('customer.id')
+      .getRawOne();
+
+    if (!result) {
+      return {
+        customer_id: customerId,
+        total_debt: 0,
+        debt_note_count: 0,
+      };
+    }
+
+    return {
+      customer_id: Number(result.customer_id),
+      total_debt: Number(result.total_debt || 0),
+      debt_note_count: Number(result.debt_note_count || 0),
+    };
+  }
 }

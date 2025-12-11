@@ -84,7 +84,7 @@ export class StoreProfitReportService {
         });
       }
 
-      const grossProfit = invoice.final_amount - totalCOGS;
+      const grossProfit = Number(invoice.final_amount) - totalCOGS;
       const margin = invoice.final_amount > 0
         ? (grossProfit / invoice.final_amount) * 100
         : 0;
@@ -191,7 +191,7 @@ export class StoreProfitReportService {
         }
 
         totalCOGS += invoiceCOGS;
-        const invoiceProfit = invoice.final_amount - invoiceCOGS;
+        const invoiceProfit = Number(invoice.final_amount) - invoiceCOGS;
 
         // Track customer profit
         if (invoice.customer_id) {
@@ -429,7 +429,7 @@ export class StoreProfitReportService {
         }
         lifetimeRevenue += invoice.final_amount;
         lifetimeCost += invoiceCOGS;
-        lifetimeProfit += (invoice.final_amount - invoiceCOGS);
+        lifetimeProfit += (Number(invoice.final_amount) - invoiceCOGS);
       }
 
       const lifetimeMargin = lifetimeRevenue > 0 
@@ -478,7 +478,7 @@ export class StoreProfitReportService {
           invoiceCOGS += item.quantity * avgCost;
         }
 
-        const invoiceProfit = invoice.final_amount - invoiceCOGS;
+        const invoiceProfit = Number(invoice.final_amount) - invoiceCOGS;
         const invoiceMargin = invoice.final_amount > 0 
           ? (invoiceProfit / invoice.final_amount) * 100 
           : 0;
@@ -625,7 +625,7 @@ export class StoreProfitReportService {
           invoiceCOGS += item.quantity * avgCost;
         }
 
-        const invoiceProfit = invoice.final_amount - invoiceCOGS;
+        const invoiceProfit = Number(invoice.final_amount) - invoiceCOGS;
         const invoiceMargin = invoice.final_amount > 0 
           ? (invoiceProfit / invoice.final_amount) * 100 
           : 0;

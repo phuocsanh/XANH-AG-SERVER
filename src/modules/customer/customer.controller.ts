@@ -37,6 +37,12 @@ export class CustomerController {
     return this.customerService.findOne(+id);
   }
 
+  @Get(':id/debt-summary')
+  @RequirePermissions('SALES_VIEW')
+  getDebtSummary(@Param('id') id: string) {
+    return this.customerService.getCustomerDebtSummary(+id);
+  }
+
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateCustomerDto: UpdateCustomerDto) {
     return this.customerService.update(+id, updateCustomerDto);

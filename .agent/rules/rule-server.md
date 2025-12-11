@@ -11,3 +11,4 @@ trigger: always_on
 - Hàm, code, hay file nào sau khi thêm chức năng mới hoặc chỉnh sửa xong mà không dùng nữa xóa đi.
 - Không tạo dữ liệu giả , mock data trả về cho font-end nếu source code là của server
 - Database sử dụng supabase, có hai chế độ dev và pro bạn làm việc với chế độ dev nha. Luôn chạy dự án bằng docker ở chế độ dev.
+- Kiểm tra kiểu dữ liệu trước khi thực hiện phép tính các trường là chuỗi nhớ chuyển sang number trước khi tính to
