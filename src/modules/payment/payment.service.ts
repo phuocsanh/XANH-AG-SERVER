@@ -52,29 +52,44 @@ export class PaymentService {
   /**
    * Lấy danh sách phân bổ thanh toán của một payment
    * @param paymentId - ID của payment
-   * @returns Danh sách allocations với thông tin invoice
+   * @returns Danh sách allocations với thông tin invoice hoặc debt_note
    */
   async getPaymentAllocations(paymentId: number) {
     const allocations = await this.paymentAllocationRepository.find({
       where: { payment_id: paymentId },
-      relations: ['invoice', 'invoice.customer'],
+      relations: ['invoice', 'debt_note'],
       order: { id: 'ASC' },
     });
 
-    return allocations
-      .filter(allocation => allocation.invoice) // Chỉ lấy allocations có invoice
-      .map(allocation => ({
+    return allocations.map(allocation => {
+      const result: {
+        id: number;
+        allocation_type: 'invoice' | 'debt_note';
+        amount: number;
+        invoice?: { code: string };
+        debt_note?: { code: string };
+      } = {
         id: allocation.id,
+        allocation_type: allocation.allocation_type,
         amount: allocation.amount,
-        invoice: {
-          id: allocation.invoice!.id,
-          code: allocation.invoice!.code,
-          customer_name: allocation.invoice!.customer_name,
-          final_amount: allocation.invoice!.final_amount,
-          remaining_amount: allocation.invoice!.remaining_amount,
-          payment_status: allocation.invoice!.payment_status,
-        },
-      }));
+      };
+
+      // Thêm thông tin invoice nếu có
+      if (allocation.invoice) {
+        result.invoice = {
+          code: allocation.invoice.code,
+        };
+      }
+
+      // Thêm thông tin debt_note nếu có
+      if (allocation.debt_note) {
+        result.debt_note = {
+          code: allocation.debt_note.code,
+        };
+      }
+
+      return result;
+    });
   }
 
   async search(searchDto: SearchPaymentDto): Promise<{
@@ -249,6 +264,7 @@ export class PaymentService {
         await this.paymentAllocationRepository.save({
           payment_id: savedPayment.id,
           invoice_id: invoice.id,
+          allocation_type: 'invoice', // ✅ Set đúng loại phân bổ
           amount: amountToAllocate,
         });
 
