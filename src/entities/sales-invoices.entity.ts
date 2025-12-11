@@ -94,11 +94,11 @@ export class SalesInvoice {
   warning?: string;
 
   /** Số tiền đã thanh toán (cho trường hợp bán thiếu) */
-  @Column({ name: 'partial_payment_amount', type: 'decimal', precision: 10, scale: 2, default: 0 })
+  @Column({ name: 'partial_payment_amount', type: 'decimal', precision: 15, scale: 2, default: 0 })
   partial_payment_amount!: number;
 
   /** Số tiền còn nợ */
-  @Column({ name: 'remaining_amount', type: 'decimal', precision: 10, scale: 2, default: 0 })
+  @Column({ name: 'remaining_amount', type: 'decimal', precision: 15, scale: 2, default: 0 })
   remaining_amount!: number;
 
   /** ID mùa vụ */

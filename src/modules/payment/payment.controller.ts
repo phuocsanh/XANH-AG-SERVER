@@ -47,6 +47,12 @@ export class PaymentController {
     return this.paymentService.remove(+id);
   }
 
+  @Get(':id/allocations')
+  @RequirePermissions('SALES_VIEW')
+  getPaymentAllocations(@Param('id') id: string) {
+    return this.paymentService.getPaymentAllocations(+id);
+  }
+
   @Post(':id/rollback')
   @RequirePermissions('SALES_MANAGE')
   rollback(@Param('id') id: string) {

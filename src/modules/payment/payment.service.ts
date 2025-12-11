@@ -49,6 +49,34 @@ export class PaymentService {
     await this.paymentRepository.delete(id);
   }
 
+  /**
+   * Lấy danh sách phân bổ thanh toán của một payment
+   * @param paymentId - ID của payment
+   * @returns Danh sách allocations với thông tin invoice
+   */
+  async getPaymentAllocations(paymentId: number) {
+    const allocations = await this.paymentAllocationRepository.find({
+      where: { payment_id: paymentId },
+      relations: ['invoice', 'invoice.customer'],
+      order: { id: 'ASC' },
+    });
+
+    return allocations
+      .filter(allocation => allocation.invoice) // Chỉ lấy allocations có invoice
+      .map(allocation => ({
+        id: allocation.id,
+        amount: allocation.amount,
+        invoice: {
+          id: allocation.invoice!.id,
+          code: allocation.invoice!.code,
+          customer_name: allocation.invoice!.customer_name,
+          final_amount: allocation.invoice!.final_amount,
+          remaining_amount: allocation.invoice!.remaining_amount,
+          payment_status: allocation.invoice!.payment_status,
+        },
+      }));
+  }
+
   async search(searchDto: SearchPaymentDto): Promise<{
     data: Payment[];
     total: number;
