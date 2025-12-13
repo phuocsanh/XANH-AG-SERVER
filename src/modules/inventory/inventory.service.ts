@@ -1057,165 +1057,169 @@ export class InventoryService {
    * @returns Thông tin phiếu nhập kho đã tạo
    */
   async createReceipt(createInventoryReceiptDto: CreateInventoryReceiptDto, userId: number) {
-    // Tạo phiếu nhập kho
-    const receiptData: any = {
-      code: createInventoryReceiptDto.receipt_code,
-      supplier_id: createInventoryReceiptDto.supplier_id,
-      total_amount: createInventoryReceiptDto.total_amount,
-      status: createInventoryReceiptDto.status,
-      created_by: userId, // Lấy từ JWT token
-      updated_by: userId, // Người tạo cũng là người cập nhật đầu tiên
-    };
-
-    // Only add notes if it's not undefined
-    if (createInventoryReceiptDto.notes !== undefined) {
-      receiptData.notes = createInventoryReceiptDto.notes;
-    }
-
-    // Thêm phí vận chuyển chung nếu có
-    if (createInventoryReceiptDto.shared_shipping_cost !== undefined) {
-      receiptData.shared_shipping_cost = createInventoryReceiptDto.shared_shipping_cost;
-    }
-
-    // Thêm phương thức phân bổ phí vận chuyển
-    if (createInventoryReceiptDto.shipping_allocation_method !== undefined) {
-      receiptData.shipping_allocation_method = createInventoryReceiptDto.shipping_allocation_method;
-    }
-
-    const receipt = this.inventoryReceiptRepository.create(receiptData);
-    const savedReceipt = await this.inventoryReceiptRepository.save(receipt);
-
-    // Check if savedReceipt is an array and get the first element if so
-    const receiptEntity = Array.isArray(savedReceipt)
-      ? savedReceipt[0]
-      : savedReceipt;
-
-    // Ensure we have a valid receipt entity with an ID
-    if (!receiptEntity || !receiptEntity.id) {
-      throw new Error('Failed to save receipt');
-    }
-
-    // ===== TÍNH TOÁN PHÍ VẬN CHUYỂN =====
-    const sharedShippingCost = createInventoryReceiptDto.shared_shipping_cost || 0;
-    const allocationMethod = createInventoryReceiptDto.shipping_allocation_method || 'by_value';
+    this.logger.log(`Bắt đầu tạo phiếu nhập kho: ${createInventoryReceiptDto.receipt_code}`);
     
-    // Tính tổng giá trị và số lượng để phân bổ phí chung
-    let totalValue = 0;
-    let totalQuantity = 0;
-    
-    for (const item of createInventoryReceiptDto.items) {
-      totalValue += item.quantity * item.unit_cost;
-      totalQuantity += item.quantity;
-    }
+    const queryRunner = this.inventoryReceiptRepository.manager.connection.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    // Tính phí vận chuyển cho từng item
-    const itemsWithShipping = createInventoryReceiptDto.items.map((item) => {
-      let allocatedShipping = 0;
-      
-      // Phân bổ phí chung nếu có
-      if (sharedShippingCost > 0) {
-        if (allocationMethod === 'by_value') {
-          // Chia theo tỷ lệ giá trị
-          const itemValue = item.quantity * item.unit_cost;
-          allocatedShipping = (itemValue / totalValue) * sharedShippingCost;
-        } else {
-          // Chia đều theo số lượng
-          allocatedShipping = (item.quantity / totalQuantity) * sharedShippingCost;
-        }
-      }
-      
-      // Tính tổng phí vận chuyển cho item
-      const individualShipping = item.individual_shipping_cost || 0;
-      const totalShippingForItem = individualShipping + allocatedShipping;
-      
-      // Tính giá vốn cuối cùng trên đơn vị
-      const shippingPerUnit = totalShippingForItem / item.quantity;
-      const finalUnitCost = item.unit_cost + shippingPerUnit;
-      
-      // DEBUG: Log để kiểm tra
-      this.logger.log('=== TÍNH PHÍ VẬN CHUYỂN ===');
-      this.logger.log('Product ID:', item.product_id);
-      this.logger.log('Unit Cost:', item.unit_cost);
-      this.logger.log('Quantity:', item.quantity);
-      this.logger.log('Individual Shipping:', individualShipping);
-      this.logger.log('Allocated Shipping:', allocatedShipping);
-      this.logger.log('Total Shipping for Item:', totalShippingForItem);
-      this.logger.log('Shipping Per Unit:', shippingPerUnit);
-      this.logger.log('Final Unit Cost:', finalUnitCost);
-      this.logger.log('===========================');
-      
-      return {
-        ...item,
-        allocated_shipping_cost: Math.round(allocatedShipping * 100) / 100,
-        final_unit_cost: Math.round(finalUnitCost * 100) / 100,
-      };
-    });
-
-    // Tạo các item trong phiếu và xử lý nhập kho cho từng sản phẩm
-    const savedItems: any[] = [];
-    for (const item of itemsWithShipping) {
-      const itemData: any = {
-        receipt_id: receiptEntity.id,
-        product_id: item.product_id,
-        quantity: item.quantity,
-        unit_cost: item.unit_cost,
-        total_price: item.total_price,
-        individual_shipping_cost: item.individual_shipping_cost || 0,
-        allocated_shipping_cost: item.allocated_shipping_cost,
-        final_unit_cost: item.final_unit_cost,
+    try {
+      // Tạo phiếu nhập kho
+      const receiptData: any = {
+        code: createInventoryReceiptDto.receipt_code,
+        supplier_id: createInventoryReceiptDto.supplier_id,
+        total_amount: createInventoryReceiptDto.total_amount,
+        status: createInventoryReceiptDto.status,
+        created_by: userId, // Lấy từ JWT token
+        updated_by: userId, // Người tạo cũng là người cập nhật đầu tiên
       };
 
       // Only add notes if it's not undefined
-      if (item.notes !== undefined) {
-        itemData.notes = item.notes;
+      if (createInventoryReceiptDto.notes !== undefined) {
+        receiptData.notes = createInventoryReceiptDto.notes;
       }
 
-      const itemEntity = this.inventoryReceiptItemRepository.create(itemData);
-      const savedItem =
-        await this.inventoryReceiptItemRepository.save(itemEntity);
-      savedItems.push(savedItem);
+      // Thêm phí vận chuyển chung nếu có
+      if (createInventoryReceiptDto.shared_shipping_cost !== undefined) {
+        receiptData.shared_shipping_cost = createInventoryReceiptDto.shared_shipping_cost;
+      }
 
-      // Xử lý nhập kho cho sản phẩm và cập nhật giá vốn trung bình và giá bán
-      // CHỈ THỰC HIỆN KHI TRẠNG THÁI LÀ COMPLETED
-      if (receiptEntity.status === 'completed') {
-        try {
-          // Xử lý trường hợp savedItem là mảng hoặc đối tượng đơn lẻ
-          let itemId: number | undefined;
-          if (Array.isArray(savedItem)) {
-            itemId = savedItem[0]?.id;
-          } else if (savedItem && typeof savedItem === 'object') {
-            itemId = (savedItem as any).id;
+      // Thêm phương thức phân bổ phí vận chuyển
+      if (createInventoryReceiptDto.shipping_allocation_method !== undefined) {
+        receiptData.shipping_allocation_method = createInventoryReceiptDto.shipping_allocation_method;
+      }
+
+      const receipt = queryRunner.manager.create(InventoryReceipt, receiptData);
+      const savedReceipt = await queryRunner.manager.save(receipt);
+
+      // Check if savedReceipt is an array and get the first element if so
+      const receiptEntity = Array.isArray(savedReceipt)
+        ? savedReceipt[0]
+        : savedReceipt;
+
+      // Ensure we have a valid receipt entity with an ID
+      if (!receiptEntity || !receiptEntity.id) {
+        throw new Error('Failed to save receipt');
+      }
+
+      this.logger.log(`Đã lưu phiếu nhập kho với ID: ${receiptEntity.id}`);
+
+      // ===== TÍNH TOÁN PHÍ VẬN CHUYỂN =====
+      const sharedShippingCost = createInventoryReceiptDto.shared_shipping_cost || 0;
+      const allocationMethod = createInventoryReceiptDto.shipping_allocation_method || 'by_value';
+      
+      // Tính tổng giá trị và số lượng để phân bổ phí chung
+      let totalValue = 0;
+      let totalQuantity = 0;
+      
+      for (const item of createInventoryReceiptDto.items) {
+        totalValue += item.quantity * item.unit_cost;
+        totalQuantity += item.quantity;
+      }
+
+      // Tính phí vận chuyển cho từng item
+      const itemsWithShipping = createInventoryReceiptDto.items.map((item) => {
+        let allocatedShipping = 0;
+        
+        // Phân bổ phí chung nếu có
+        if (sharedShippingCost > 0) {
+          if (allocationMethod === 'by_value') {
+            // Chia theo tỷ lệ giá trị
+            const itemValue = item.quantity * item.unit_cost;
+            allocatedShipping = (itemValue / totalValue) * sharedShippingCost;
+          } else {
+            // Chia đều theo số lượng
+            allocatedShipping = (item.quantity / totalQuantity) * sharedShippingCost;
           }
+        }
+        
+        // Tính tổng phí vận chuyển cho item
+        const individualShipping = item.individual_shipping_cost || 0;
+        const totalShippingForItem = individualShipping + allocatedShipping;
+        
+        // Tính giá vốn cuối cùng trên đơn vị
+        const shippingPerUnit = totalShippingForItem / item.quantity;
+        const finalUnitCost = item.unit_cost + shippingPerUnit;
+        
+        // DEBUG: Log để kiểm tra
+        this.logger.log('=== TÍNH PHÍ VẬN CHUYỂN ===');
+        this.logger.log(`Product ID: ${item.product_id}`);
+        this.logger.log(`Final Unit Cost: ${finalUnitCost}`);
+        
+        return {
+          ...item,
+          allocated_shipping_cost: Math.round(allocatedShipping * 100) / 100,
+          final_unit_cost: Math.round(finalUnitCost * 100) / 100,
+        };
+      });
 
-          // Chỉ xử lý nếu có itemId hợp lệ
-          if (itemId) {
-            // SỬ DỤNG final_unit_cost thay vì unit_cost
-            await this.processStockIn(
+      // Tạo các item trong phiếu và xử lý nhập kho cho từng sản phẩm
+      const savedItems: any[] = [];
+      for (const item of itemsWithShipping) {
+        const itemData: any = {
+          receipt_id: receiptEntity.id,
+          product_id: item.product_id,
+          quantity: item.quantity,
+          unit_cost: item.unit_cost,
+          total_price: item.total_price,
+          individual_shipping_cost: item.individual_shipping_cost || 0,
+          allocated_shipping_cost: item.allocated_shipping_cost,
+          final_unit_cost: item.final_unit_cost,
+        };
+
+        // Only add notes if it's not undefined
+        if (item.notes !== undefined) {
+          itemData.notes = item.notes;
+        }
+
+        const itemEntity = queryRunner.manager.create(InventoryReceiptItem, itemData);
+        const savedItem = await queryRunner.manager.save(itemEntity);
+        savedItems.push(savedItem);
+
+        // Xử lý nhập kho cho sản phẩm và cập nhật giá vốn trung
+        if (receiptEntity.status === 'completed') {
+          // Nếu tạo phiếu với trạng thái completed thì tiến hành nhập kho luôn
+          try {
+             await this.processStockIn(
               item.product_id,
               item.quantity,
-              item.final_unit_cost,
+              item.final_unit_cost, // Sử dụng giá vốn đã bao gồm phí vận chuyển
               userId,
-              itemId,
-              `RECEIPT_${receiptEntity.id}_ITEM_${itemId}`,
+              savedItem.id, // Reference to receipt item
+              receiptEntity.code, // Batch code could be receipt code for now
+              undefined // Expiry date (cần bổ sung nếu có)
             );
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            this.logger.error(
+              `Lỗi khi xử lý nhập kho cho sản phẩm ${item.product_id}:`,
+              errorMessage,
+            );
+            throw new Error(`Lỗi nhập kho: ${errorMessage}`);
           }
-        } catch (error) {
-          this.logger.error(
-            `Lỗi khi xử lý nhập kho cho sản phẩm ${item.product_id}:`,
-            error,
-          );
-          // Không throw error để không làm gián đoạn quá trình tạo phiếu nhập kho
         }
       }
+
+      await queryRunner.commitTransaction();
+      this.logger.log(`Đã commit transaction cho phiếu nhập kho ${receiptEntity.id}`);
+
+      // Trả về phiếu nhập kho với thông tin nhà cung cấp
+      const finalReceipt = await this.inventoryReceiptRepository.findOne({
+        where: { id: receiptEntity.id },
+        relations: ['supplier'], // Bao gồm thông tin nhà cung cấp
+      });
+
+      return finalReceipt;
+
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : '';
+      this.logger.error(`Lỗi khi tạo phiếu nhập kho: ${errorMessage}`, errorStack);
+      throw new Error(`Không thể tạo phiếu nhập kho: ${errorMessage}`);
+    } finally {
+      await queryRunner.release();
     }
-
-    // Trả về phiếu nhập kho với thông tin nhà cung cấp
-    const finalReceipt = await this.inventoryReceiptRepository.findOne({
-      where: { id: receiptEntity.id },
-      relations: ['supplier'], // Bao gồm thông tin nhà cung cấp
-    });
-
-    return finalReceipt;
   }
 
 
@@ -1692,58 +1696,90 @@ export class InventoryService {
    * @returns Thông tin phiếu xuất trả hàng đã tạo
    */
   async createReturn(createInventoryReturnDto: CreateInventoryReturnDto, userId: number) {
-    const returnData: any = {
-      code: createInventoryReturnDto.return_code,
-      receipt_id: createInventoryReturnDto.receipt_id,
-      supplier_id: createInventoryReturnDto.supplier_id,
-      total_amount: createInventoryReturnDto.total_amount,
-      reason: createInventoryReturnDto.reason,
-      status: createInventoryReturnDto.status || 'draft',
-      created_by: userId,
-      updated_by: userId,
-    };
+    this.logger.log(`Bắt đầu tạo phiếu trả hàng: ${createInventoryReturnDto.return_code}`);
+    
+    // Sử dụng transaction để đảm bảo dữ liệu được lưu đồng bộ
+    const queryRunner = this.inventoryReturnRepository.manager.connection.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    if (createInventoryReturnDto.notes !== undefined) {
-      returnData.notes = createInventoryReturnDto.notes;
-    }
-
-    const returnDoc = this.inventoryReturnRepository.create(returnData);
-    const savedReturn = await this.inventoryReturnRepository.save(returnDoc);
-
-    const returnEntity = Array.isArray(savedReturn)
-      ? savedReturn[0]
-      : savedReturn;
-
-    if (!returnEntity || !returnEntity.id) {
-      throw new Error('Failed to save return');
-    }
-
-    // Tạo các item trong phiếu
-    const savedItems: any[] = [];
-    for (const item of createInventoryReturnDto.items) {
-      const itemData: any = {
-        return_id: returnEntity.id,
-        product_id: item.product_id,
-        quantity: item.quantity,
-        unit_cost: item.unit_cost,
-        total_price: item.total_price,
-        reason: item.reason,
+    try {
+      // Tạo phiếu trả hàng
+      const returnData: any = {
+        code: createInventoryReturnDto.return_code,
+        receipt_id: createInventoryReturnDto.receipt_id,
+        supplier_id: createInventoryReturnDto.supplier_id,
+        total_amount: createInventoryReturnDto.total_amount,
+        reason: createInventoryReturnDto.reason,
+        status: createInventoryReturnDto.status || 'draft',
+        created_by: userId,
+        updated_by: userId,
       };
 
-      if (item.notes !== undefined) {
-        itemData.notes = item.notes;
+      if (createInventoryReturnDto.notes !== undefined) {
+        returnData.notes = createInventoryReturnDto.notes;
       }
 
-      const itemEntity = this.inventoryReturnItemRepository.create(itemData);
-      const savedItem =
-        await this.inventoryReturnItemRepository.save(itemEntity);
-      savedItems.push(savedItem);
-    }
+      this.logger.log(`Đang lưu phiếu trả hàng với dữ liệu: ${JSON.stringify(returnData)}`);
+      const returnDoc = queryRunner.manager.create(InventoryReturn, returnData);
+      const savedReturn = await queryRunner.manager.save(returnDoc);
 
-    return this.inventoryReturnRepository.findOne({
-      where: { id: returnEntity.id },
-      relations: ['supplier'],
-    });
+      const returnEntity = Array.isArray(savedReturn)
+        ? savedReturn[0]
+        : savedReturn;
+
+      if (!returnEntity || !returnEntity.id) {
+        throw new Error('Không thể lưu phiếu trả hàng');
+      }
+
+      this.logger.log(`Đã lưu phiếu trả hàng với ID: ${returnEntity.id}`);
+
+      // Tạo các item trong phiếu
+      const savedItems: any[] = [];
+      for (const item of createInventoryReturnDto.items) {
+        const itemData: any = {
+          return_id: returnEntity.id,
+          product_id: item.product_id,
+          quantity: item.quantity,
+          unit_cost: item.unit_cost,
+          total_price: item.total_price,
+          reason: item.reason,
+        };
+
+        if (item.notes !== undefined) {
+          itemData.notes = item.notes;
+        }
+
+        this.logger.log(`Đang lưu item: ${JSON.stringify(itemData)}`);
+        const itemEntity = queryRunner.manager.create(InventoryReturnItem, itemData);
+        const savedItem = await queryRunner.manager.save(itemEntity);
+        savedItems.push(savedItem);
+        this.logger.log(`Đã lưu item với ID: ${savedItem.id}`);
+      }
+
+      // Commit transaction
+      await queryRunner.commitTransaction();
+      this.logger.log(`Đã commit transaction cho phiếu trả hàng ${returnEntity.id}`);
+
+      // Trả về kết quả với relations
+      const result = await this.inventoryReturnRepository.findOne({
+        where: { id: returnEntity.id },
+        relations: ['supplier', 'items'],
+      });
+
+      this.logger.log(`Hoàn thành tạo phiếu trả hàng ${returnEntity.id}`);
+      return result;
+    } catch (error) {
+      // Rollback transaction nếu có lỗi
+      await queryRunner.rollbackTransaction();
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : '';
+      this.logger.error(`Lỗi khi tạo phiếu trả hàng: ${errorMessage}`, errorStack);
+      throw new Error(`Không thể tạo phiếu trả hàng: ${errorMessage}`);
+    } finally {
+      // Release query runner
+      await queryRunner.release();
+    }
   }
 
 
@@ -1922,53 +1958,71 @@ export class InventoryService {
     createInventoryAdjustmentDto: CreateInventoryAdjustmentDto,
     userId: number,
   ) {
-    const adjustmentData: any = {
-      code: createInventoryAdjustmentDto.adjustment_code,
-      adjustment_type: createInventoryAdjustmentDto.adjustment_type,
-      reason: createInventoryAdjustmentDto.reason,
-      status: createInventoryAdjustmentDto.status || 'draft',
-      created_by: userId,
-      updated_by: userId,
-    };
+    this.logger.log(`Bắt đầu tạo phiếu điều chỉnh: ${createInventoryAdjustmentDto.adjustment_code}`);
+    
+    const queryRunner = this.inventoryAdjustmentRepository.manager.connection.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    if (createInventoryAdjustmentDto.notes !== undefined) {
-      adjustmentData.notes = createInventoryAdjustmentDto.notes;
-    }
-
-    const adjustment =
-      this.inventoryAdjustmentRepository.create(adjustmentData);
-    const savedAdjustment =
-      await this.inventoryAdjustmentRepository.save(adjustment);
-
-    const adjustmentEntity = Array.isArray(savedAdjustment)
-      ? savedAdjustment[0]
-      : savedAdjustment;
-
-    if (!adjustmentEntity || !adjustmentEntity.id) {
-      throw new Error('Failed to save adjustment');
-    }
-
-    // Tạo các item trong phiếu
-    for (const item of createInventoryAdjustmentDto.items) {
-      const itemData: any = {
-        adjustment_id: adjustmentEntity.id,
-        product_id: item.product_id,
-        quantity_change: item.quantity_change,
-        reason: item.reason,
+    try {
+      const adjustmentData: any = {
+        code: createInventoryAdjustmentDto.adjustment_code,
+        adjustment_type: createInventoryAdjustmentDto.adjustment_type,
+        reason: createInventoryAdjustmentDto.reason,
+        status: createInventoryAdjustmentDto.status || 'draft',
+        created_by: userId,
+        updated_by: userId,
       };
 
-      if (item.notes !== undefined) {
-        itemData.notes = item.notes;
+      if (createInventoryAdjustmentDto.notes !== undefined) {
+        adjustmentData.notes = createInventoryAdjustmentDto.notes;
       }
 
-      const itemEntity =
-        this.inventoryAdjustmentItemRepository.create(itemData);
-      await this.inventoryAdjustmentItemRepository.save(itemEntity);
-    }
+      const adjustment = queryRunner.manager.create(InventoryAdjustment, adjustmentData);
+      const savedAdjustment = await queryRunner.manager.save(adjustment);
 
-    return this.inventoryAdjustmentRepository.findOne({
-      where: { id: adjustmentEntity.id },
-    });
+      const adjustmentEntity = Array.isArray(savedAdjustment)
+        ? savedAdjustment[0]
+        : savedAdjustment;
+
+      if (!adjustmentEntity || !adjustmentEntity.id) {
+        throw new Error('Failed to save adjustment');
+      }
+      
+      this.logger.log(`Đã lưu phiếu điều chỉnh với ID: ${adjustmentEntity.id}`);
+
+      // Tạo các item trong phiếu
+      for (const item of createInventoryAdjustmentDto.items) {
+        const itemData: any = {
+          adjustment_id: adjustmentEntity.id,
+          product_id: item.product_id,
+          quantity_change: item.quantity_change,
+          reason: item.reason,
+        };
+
+        if (item.notes !== undefined) {
+          itemData.notes = item.notes;
+        }
+
+        const itemEntity = queryRunner.manager.create(InventoryAdjustmentItem, itemData);
+        await queryRunner.manager.save(itemEntity);
+      }
+      
+      await queryRunner.commitTransaction();
+      this.logger.log(`Đã commit transaction cho phiếu điều chỉnh ${adjustmentEntity.id}`);
+
+      return this.inventoryAdjustmentRepository.findOne({
+        where: { id: adjustmentEntity.id },
+      });
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : '';
+      this.logger.error(`Lỗi khi tạo phiếu điều chỉnh: ${errorMessage}`, errorStack);
+      throw new Error(`Không thể tạo phiếu điều chỉnh: ${errorMessage}`);
+    } finally {
+      await queryRunner.release();
+    }
   }
 
 

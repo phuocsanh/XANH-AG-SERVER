@@ -134,9 +134,12 @@ export class DebtNoteService {
     customer_id: number,
     season_id: number | undefined,
     created_by: number,
+    manager?: any, // Optional EntityManager
   ): Promise<DebtNote> {
+    const repo = manager ? manager.getRepository(DebtNote) : this.debtNoteRepository;
+
     // Tìm phiếu nợ hiện có
-    const queryBuilder = this.debtNoteRepository
+    const queryBuilder = repo
       .createQueryBuilder('dn')
       .where('dn.customer_id = :customer_id', { customer_id })
       .andWhere('dn.status IN (:...statuses)', { statuses: ['active', 'overdue'] });
@@ -152,7 +155,7 @@ export class DebtNoteService {
     // Nếu chưa có, tạo mới
     if (!debtNote) {
       const code = this.generateDebtNoteCode();
-      debtNote = this.debtNoteRepository.create({
+      const newDebtNote = repo.create({
         code,
         customer_id,
         ...(season_id && { season_id }),
@@ -163,7 +166,7 @@ export class DebtNoteService {
         source_invoices: [],
         created_by,
       });
-      debtNote = await this.debtNoteRepository.save(debtNote);
+      debtNote = await repo.save(newDebtNote);
       this.logger.log(`✅ Tạo phiếu công nợ mới: ${code} cho customer #${customer_id}`);
     }
 
@@ -178,8 +181,11 @@ export class DebtNoteService {
     debtNoteId: number,
     invoiceId: number,
     invoiceAmount: number,
+    manager?: any, // Optional EntityManager
   ): Promise<DebtNote> {
-    const debtNote = await this.debtNoteRepository.findOne({
+    const repo = manager ? manager.getRepository(DebtNote) : this.debtNoteRepository;
+
+    const debtNote = await repo.findOne({
       where: { id: debtNoteId },
     });
 
@@ -201,7 +207,7 @@ export class DebtNoteService {
     debtNote.amount = Number(debtNote.amount) + Number(invoiceAmount);
     debtNote.remaining_amount = Number(debtNote.remaining_amount) + Number(invoiceAmount);
 
-    return await this.debtNoteRepository.save(debtNote);
+    return await repo.save(debtNote);
   }
 
   /**

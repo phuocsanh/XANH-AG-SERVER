@@ -33,8 +33,6 @@ export class SalesService {
     private salesInvoiceRepository: Repository<SalesInvoice>,
     @InjectRepository(SalesInvoiceItem)
     private salesInvoiceItemRepository: Repository<SalesInvoiceItem>,
-    @InjectRepository(Product)
-    private productRepository: Repository<Product>,
     private debtNoteService: DebtNoteService,
   ) {}
 
@@ -48,6 +46,12 @@ export class SalesService {
     createSalesInvoiceDto: CreateSalesInvoiceDto,
     userId: number,
   ): Promise<SalesInvoice> {
+    this.logger.log(`Bắt đầu tạo hóa đơn bán hàng: ${createSalesInvoiceDto.invoice_code || 'AUTO-GEN'}`);
+    
+    const queryRunner = this.salesInvoiceRepository.manager.connection.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
     try {
       // Tính toán số tiền còn nợ
       const partialPayment = Number(createSalesInvoiceDto.partial_payment_amount || 0);
@@ -78,8 +82,10 @@ export class SalesService {
         season_id: createSalesInvoiceDto.season_id,
       };
       
-      // Save invoice directly
-      const savedInvoice = await this.salesInvoiceRepository.save(invoiceData);
+      const invoice = queryRunner.manager.create(SalesInvoice, invoiceData);
+      const savedInvoice = await queryRunner.manager.save(invoice);
+      
+      this.logger.log(`Đã lưu hóa đơn với ID: ${savedInvoice.id}`);
 
       // Tạo các item trong phiếu với tính toán totalPrice
       if (createSalesInvoiceDto.items && Array.isArray(createSalesInvoiceDto.items) && createSalesInvoiceDto.items.length > 0) {
@@ -88,105 +94,95 @@ export class SalesService {
           const totalPrice =
             item.unit_price * item.quantity - (item.discount_amount || 0);
 
-          return this.salesInvoiceItemRepository.create({
+          return queryRunner.manager.create(SalesInvoiceItem, {
             ...item,
             invoice_id: savedInvoice.id,
             total_price: totalPrice,
           });
         });
-        await this.salesInvoiceItemRepository.save(items);
+        await queryRunner.manager.save(items);
 
-        // 🆕 Tự động tính lợi nhuận sau khi save items
+        // 🆕 Tự động tính lợi nhuận ngay trong transaction
         try {
-          const profitData = await this.calculateInvoiceProfit(savedInvoice.id);
-          savedInvoice.cost_of_goods_sold = profitData.cogs;
-          savedInvoice.gross_profit = profitData.profit;
-          savedInvoice.gross_profit_margin = profitData.margin;
-          await this.salesInvoiceRepository.save(savedInvoice);
+          let totalCOGS = 0;
+          for (const item of items) {
+             const product = await queryRunner.manager.findOne(Product, {
+               where: { id: item.product_id },
+             });
+             
+             if (product) {
+               const avgCost = Number(product.average_cost_price || 0);
+               totalCOGS += item.quantity * avgCost;
+             }
+          }
+
+          const grossProfit = Number(savedInvoice.final_amount) - totalCOGS;
+          const margin = savedInvoice.final_amount > 0 
+            ? Math.round((grossProfit / savedInvoice.final_amount) * 10000) / 100
+            : 0;
+
+          savedInvoice.cost_of_goods_sold = totalCOGS;
+          savedInvoice.gross_profit = grossProfit;
+          savedInvoice.gross_profit_margin = margin;
           
-          this.logger.log(`✅ Đã tính lợi nhuận cho đơn #${savedInvoice.id}: ${profitData.profit.toLocaleString()} đ (${profitData.margin}%)`);
+          await queryRunner.manager.save(savedInvoice);
+          
+          this.logger.log(`✅ Đã tính lợi nhuận cho đơn #${savedInvoice.id}: ${grossProfit.toLocaleString()} đ (${margin}%)`);
         } catch (error) {
-          this.logger.warn(`⚠️  Không thể tính lợi nhuận cho đơn #${savedInvoice.id}:`, error);
-          // Không throw error để không làm gián đoạn luồng tạo đơn
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          this.logger.warn(`⚠️  Không thể tính lợi nhuận cho đơn #${savedInvoice.id}:`, errorMessage);
+          // Không throw error để không làm gián đoạn luồng tạo đơn (nhưng vẫn nằm trong transaction)
         }
       }
 
       // 🆕 Tự động tạo/cập nhật phiếu công nợ nếu có remaining_amount > 0
       if (savedInvoice.remaining_amount > 0 && savedInvoice.customer_id) {
         try {
-          // Tìm hoặc tạo phiếu công nợ cho mùa vụ
+          // Tìm hoặc tạo phiếu công nợ cho mùa vụ (PASS MANAGER)
           const debtNote = await this.debtNoteService.findOrCreateForSeason(
             savedInvoice.customer_id,
             savedInvoice.season_id,
             savedInvoice.created_by,
+            queryRunner.manager, // Pass transaction manager
           );
 
-          // Thêm hóa đơn vào phiếu công nợ
+          // Thêm hóa đơn vào phiếu công nợ (PASS MANAGER)
           await this.debtNoteService.addInvoiceToDebtNote(
             debtNote.id,
             savedInvoice.id,
             savedInvoice.remaining_amount,
+            queryRunner.manager, // Pass transaction manager
           );
 
           this.logger.log(
             `✅ Đã cập nhật phiếu công nợ #${debtNote.code} cho hóa đơn #${savedInvoice.code}`,
           );
         } catch (error) {
-          this.logger.warn(
-            `⚠️  Không thể cập nhật phiếu công nợ cho hóa đơn #${savedInvoice.code}:`,
-            error,
-          );
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          // Nếu lỗi cập nhật công nợ, đây là lỗi NGHIÊM TRỌNG liên quan tiền bạc -> NÊN ROLLBACK
+          // Khác với tính lợi nhuận (chỉ là report), công nợ sai là vấn đề lớn.
+          throw new Error(`Lỗi cập nhật công nợ: ${errorMessage}`);
         }
       }
 
+      await queryRunner.commitTransaction();
+      this.logger.log(`Đã commit transaction cho hóa đơn ${savedInvoice.id}`);
+
       return savedInvoice;
     } catch (error) {
-      ErrorHandler.handleCreateError(error, 'hóa đơn bán hàng');
+      await queryRunner.rollbackTransaction();
+       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+       const errorStack = error instanceof Error ? error.stack : '';
+       this.logger.error(`Lỗi khi tạo hóa đơn bán hàng: ${errorMessage}`, errorStack);
+       // Re-throw để Global Filter bắt được hoặc trả về error
+       ErrorHandler.handleCreateError(error, 'hóa đơn bán hàng');
+       throw error; // Make sure to throw after handling/logging
+    } finally {
+      await queryRunner.release();
     }
   }
 
-  /**
-   * Tính lợi nhuận cho hóa đơn
-   * @private
-   */
-  private async calculateInvoiceProfit(invoiceId: number): Promise<{
-    cogs: number;
-    profit: number;
-    margin: number;
-  }> {
-    const invoice = await this.salesInvoiceRepository.findOne({
-      where: { id: invoiceId },
-      relations: ['items'],
-    });
 
-    if (!invoice || !invoice.items) {
-      return { cogs: 0, profit: 0, margin: 0 };
-    }
-
-    let totalCOGS = 0;
-
-    for (const item of invoice.items) {
-      const product = await this.productRepository.findOne({
-        where: { id: item.product_id },
-      });
-      
-      if (product) {
-        const avgCost = Number(product.average_cost_price || 0);
-        totalCOGS += item.quantity * avgCost;
-      }
-    }
-
-    const grossProfit = Number(invoice.final_amount) - totalCOGS;
-    const margin = invoice.final_amount > 0 
-      ? Math.round((grossProfit / invoice.final_amount) * 10000) / 100
-      : 0;
-
-    return {
-      cogs: totalCOGS,
-      profit: grossProfit,
-      margin,
-    };
-  }
 
   /**
    * Lấy danh sách tất cả hóa đơn bán hàng (không bao gồm đã xóa mềm)
