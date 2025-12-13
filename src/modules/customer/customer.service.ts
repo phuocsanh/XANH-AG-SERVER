@@ -75,16 +75,7 @@ export class CustomerService {
     );
 
     // 2. Filters (type, phone, code...)
-    QueryHelper.applyFilters(queryBuilder, searchDto, 'customer', ['search']);
-
-    // 3. Backward compatibility for 'search' field
-    if (!searchDto.keyword && (searchDto as any).search) {
-       const search = (searchDto as any).search;
-       queryBuilder.andWhere(
-        '(customer.name ILIKE :search OR customer.phone ILIKE :search OR customer.code ILIKE :search)',
-        { search: `%${search}%` },
-      );
-    }
+    QueryHelper.applyFilters(queryBuilder, searchDto, 'customer', []);
 
     const [data, total] = await queryBuilder.getManyAndCount();
     return { data, total, page, limit };
@@ -114,16 +105,7 @@ export class CustomerService {
     );
 
     // 2. Filters
-    QueryHelper.applyFilters(queryBuilder, searchDto, 'customer', ['search']);
-
-    // 3. Backward compatibility for 'search' field
-    if (!searchDto.keyword && (searchDto as any).search) {
-      const search = (searchDto as any).search;
-      queryBuilder.andWhere(
-        '(customer.name ILIKE :search OR customer.phone ILIKE :search OR customer.code ILIKE :search)',
-        { search: `%${search}%` },
-      );
-    }
+    QueryHelper.applyFilters(queryBuilder, searchDto, 'customer', []);
 
     const [data, total] = await queryBuilder.getManyAndCount();
     return { data, total, page, limit };
