@@ -1,4 +1,4 @@
-import { Injectable, Inject, forwardRef, Logger } from '@nestjs/common';
+import { Injectable, Inject, forwardRef, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan, In } from 'typeorm';
 
@@ -1697,6 +1697,47 @@ export class InventoryService {
    */
   async createReturn(createInventoryReturnDto: CreateInventoryReturnDto, userId: number) {
     this.logger.log(`Bắt đầu tạo phiếu trả hàng: ${createInventoryReturnDto.return_code}`);
+    
+    // Validate: Nếu trả hàng từ phiếu nhập, kiểm tra số lượng trả không vượt quá số lượng nhập
+    if (createInventoryReturnDto.receipt_id) {
+       const receiptItems = await this.getReceiptItems(createInventoryReturnDto.receipt_id);
+       
+       // Lấy các phiếu trả hàng CŨ của phiếu nhập này (nếu có) để tính tổng đã trả
+       const existingReturns = await this.inventoryReturnRepository.find({
+          where: { receipt_id: createInventoryReturnDto.receipt_id },
+          relations: ['items']
+       });
+       
+       // Map tổng số lượng đã trả theo sản phẩm
+       const returnedQuantityMap = new Map<number, number>();
+       for (const ret of existingReturns) {
+          // Bỏ qua nếu phiếu đã bị hủy
+          if (ret.status === 'cancelled') continue;
+          
+          for (const item of ret.items) {
+             const currentQty = returnedQuantityMap.get(item.product_id) || 0;
+             returnedQuantityMap.set(item.product_id, currentQty + Number(item.quantity));
+          }
+       }
+       
+       // Kiểm tra từng item trong phiếu trả mới
+       for (const newItem of createInventoryReturnDto.items) {
+          const receiptItem = receiptItems.find(ri => ri.product_id === newItem.product_id);
+          
+          if (!receiptItem) {
+             throw new BadRequestException(`Sản phẩm ID ${newItem.product_id} không có trong phiếu nhập gốc.`);
+          }
+          
+          const alreadyReturned = returnedQuantityMap.get(newItem.product_id) || 0;
+          const totalAfterReturn = alreadyReturned + newItem.quantity;
+          
+          if (totalAfterReturn > receiptItem.quantity) {
+             throw new BadRequestException(
+                `Sản phẩm ID ${newItem.product_id}: Tổng số lượng trả (${totalAfterReturn}) vượt quá số lượng nhập (${receiptItem.quantity}). Đã trả trước đó: ${alreadyReturned}.`
+             );
+          }
+       }
+    }
     
     // Sử dụng transaction để đảm bảo dữ liệu được lưu đồng bộ
     const queryRunner = this.inventoryReturnRepository.manager.connection.createQueryRunner();
