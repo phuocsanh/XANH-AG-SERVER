@@ -21,6 +21,8 @@ export interface Response<T> {
     limit: number;
     totalPages: number;
   };
+  summary?: any; // Field tùy chọn để chứa thông tin tổng hợp từ service
+  [key: string]: any; // Cho phép các field bổ sung như summary, statistics, v.v.
 }
 
 @Injectable()
@@ -53,15 +55,19 @@ export class ResponseInterceptor<T> implements NestInterceptor<T, Response<T>> {
             totalPages: Math.ceil(data.total / data.limit),
           };
 
+          // Tách các field chuẩn ra và giữ lại các field bổ sung (summary, statistics, v.v.)
+          const { data: responseData, total, page, limit, ...additionalFields } = data;
+
           return {
             success: true,
-            data: data.data,
+            data: responseData,
             meta: {
               timestamp: new Date().toISOString(),
               path: request.url,
               method: request.method,
             },
             pagination,
+            ...additionalFields, // Spread các field bổ sung như summary, statistics, v.v.
           };
         }
 
