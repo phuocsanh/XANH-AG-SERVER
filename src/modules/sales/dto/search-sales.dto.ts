@@ -70,11 +70,10 @@ export class SearchSalesDto extends BaseSearchDto {
 
   @IsString()
   @IsOptional()
-  payment_status?: string;
+  payment_status?: string | string[]; // Hỗ trợ filter nhiều payment_status
 
-  @IsString()
   @IsOptional()
-  status?: string;
+  status?: string | string[]; // Hỗ trợ filter nhiều status: "confirmed" hoặc ["confirmed", "paid"]
 
   @IsString()
   @IsOptional()

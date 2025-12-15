@@ -90,10 +90,11 @@ export class QueryHelper {
       const paramName = key.replace(/\.|:/g, '_'); // Replace dots and colons
       
       if (Array.isArray(value)) {
+        // Xử lý array: sử dụng IN operator
         query.andWhere(`${field} IN (:...${paramName})`, { [paramName]: value });
       } else if (typeof value === 'string') {
         // Enums (like status) don't support ILIKE in Postgres
-        if (key === 'status' || field.endsWith('.status')) {
+        if (key === 'status' || key === 'payment_status' || field.endsWith('.status') || field.endsWith('.payment_status')) {
           query.andWhere(`${field}::text = :${paramName}`, { [paramName]: value });
         } else {
           query.andWhere(`${field} ILIKE :${paramName}`, {
