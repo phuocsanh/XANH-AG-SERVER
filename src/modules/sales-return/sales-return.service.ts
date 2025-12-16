@@ -93,11 +93,16 @@ export class SalesReturnService {
       }
 
       // 5. Tạo phiếu trả hàng
+      // Tự động sinh mã nếu không có
+      const returnCode = createDto.code || this.generateReturnCode();
+      
       const salesReturnData: any = {
-        code: createDto.code,
+        code: returnCode,
         invoice_id: createDto.invoice_id,
         total_refund_amount: totalRefund,
+        refund_method: createDto.refund_method || 'debt_credit', // Mặc định trừ công nợ
         reason: createDto.reason || '',
+        notes: createDto.notes || '',
         status: SalesReturnStatus.COMPLETED,
         created_by: userId,
         items: returnItems,
@@ -110,46 +115,96 @@ export class SalesReturnService {
       const salesReturn = this.salesReturnRepository.create(salesReturnData);
       const savedReturn = await queryRunner.manager.save(salesReturn) as unknown as SalesReturn;
 
-      // 6. Xử lý công nợ
-      // Logic:
-      // - Nếu còn nợ: Trừ vào công nợ
-      // - Nếu đã trả đủ (nợ = 0): Tạo Payment âm (Refund)
+      // 6. ✅ XỬ LÝ TÀI CHÍNH - LOGIC MỚI ĐÚNG
       const currentRemaining = parseFloat(invoice.remaining_amount?.toString() || '0');
+      const currentPaid = parseFloat(invoice.partial_payment_amount?.toString() || '0');
       
       if (currentRemaining > 0) {
+        // ========================================
         // CASE 1: Khách còn nợ → Trừ vào công nợ
-        const newRemaining = Math.max(0, currentRemaining - totalRefund);
-        invoice.remaining_amount = newRemaining;
+        // ========================================
+        // Trả hàng = "Thanh toán bằng hàng hóa"
+        
+        const amountToDeduct = Math.min(totalRefund, currentRemaining);
+        
+        // ✅ Giảm công nợ
+        invoice.remaining_amount = currentRemaining - amountToDeduct;
+        
+        // ✅ QUAN TRỌNG: Tăng số tiền đã trả
+        // Vì khách đã "trả" bằng cách trả hàng
+        invoice.partial_payment_amount = currentPaid + amountToDeduct;
         
         this.logger.log(
-          `[Trả hàng ${createDto.code}] Hóa đơn ${invoice.code}: ` +
+          `[Trả hàng ${returnCode}] Hóa đơn ${invoice.code}: ` +
           `Công nợ cũ: ${currentRemaining.toLocaleString()}đ, ` +
           `Trả hàng: ${totalRefund.toLocaleString()}đ, ` +
-          `Công nợ mới: ${newRemaining.toLocaleString()}đ`
+          `Công nợ mới: ${invoice.remaining_amount.toLocaleString()}đ, ` +
+          `Đã trả mới: ${invoice.partial_payment_amount.toLocaleString()}đ`
         );
+        
+        // Nếu trả hàng nhiều hơn nợ → Tạo Payment âm cho phần dư
+        if (totalRefund > currentRemaining) {
+          const excessAmount = totalRefund - currentRemaining;
+          
+          if (!invoice.customer_id) {
+            throw new BadRequestException('Không thể hoàn tiền cho hóa đơn không có thông tin khách hàng');
+          }
+          
+          const refundCode = this.generateRefundCode();
+          
+          const refundPayment = queryRunner.manager.create(Payment, {
+            code: refundCode,
+            customer_id: invoice.customer_id,
+            amount: -excessAmount, // Số âm = Hoàn tiền
+            payment_date: new Date(),
+            payment_method: 'REFUND',
+            notes: `Hoàn tiền phần dư - Phiếu ${returnCode} - Hóa đơn ${invoice.code}`,
+            created_by: userId,
+          });
+          
+          await queryRunner.manager.save(refundPayment);
+          
+          this.logger.log(
+            `[Trả hàng ${returnCode}] Hoàn tiền phần dư: ${excessAmount.toLocaleString()}đ`
+          );
+        }
+        
       } else {
-        // CASE 2: Khách đã trả đủ → Tạo Payment Record âm (Refund)
+        // ========================================
+        // CASE 2: Khách đã trả đủ → Hoàn tiền
+        // ========================================
+        
         if (!invoice.customer_id) {
           throw new BadRequestException('Không thể hoàn tiền cho hóa đơn không có thông tin khách hàng');
         }
         
         const refundCode = this.generateRefundCode();
         
+        // ✅ Tạo Payment âm (Refund)
         const refundPayment = queryRunner.manager.create(Payment, {
           code: refundCode,
           customer_id: invoice.customer_id,
           amount: -totalRefund, // ⚠️ Số âm = Hoàn tiền
           payment_date: new Date(),
-          payment_method: 'REFUND', // Phương thức: Hoàn tiền
-          notes: `Hoàn tiền do trả hàng - Phiếu ${createDto.code} - Hóa đơn ${invoice.code}`,
+          payment_method: 'REFUND',
+          notes: `Hoàn tiền do trả hàng - Phiếu ${returnCode} - Hóa đơn ${invoice.code}`,
           created_by: userId,
         });
         
         await queryRunner.manager.save(refundPayment);
         
+        // ✅ QUAN TRỌNG: Giảm số tiền đã trả
+        // Vì đã hoàn lại cho khách
+        invoice.partial_payment_amount = Math.max(0, currentPaid - totalRefund);
+        
+        // ✅ Tăng công nợ (vì đã hoàn tiền)
+        invoice.remaining_amount = currentRemaining + totalRefund;
+        
         this.logger.log(
-          `[Trả hàng ${createDto.code}] Hóa đơn ${invoice.code}: ` +
-          `Khách đã trả đủ tiền → Tạo phiếu hoàn tiền ${refundCode}: ${totalRefund.toLocaleString()}đ`
+          `[Trả hàng ${returnCode}] Hóa đơn ${invoice.code}: ` +
+          `Khách đã trả đủ → Tạo phiếu hoàn tiền ${refundCode}: ${totalRefund.toLocaleString()}đ, ` +
+          `Đã trả mới: ${invoice.partial_payment_amount.toLocaleString()}đ, ` +
+          `Công nợ mới: ${invoice.remaining_amount.toLocaleString()}đ`
         );
       }
       
@@ -172,29 +227,29 @@ export class SalesReturnService {
           await queryRunner.manager.save(inventoryBatch);
           
           this.logger.log(
-            `[Trả hàng ${createDto.code}] Tăng tồn kho sản phẩm ID ${item.product_id}: +${item.quantity}`
+            `[Trả hàng ${returnCode}] Tăng tồn kho sản phẩm ID ${item.product_id}: +${item.quantity}`
           );
         } else {
           // Nếu không có batch, tạo batch mới từ hàng trả
           const newBatch = queryRunner.manager.create(InventoryBatch, {
             product_id: item.product_id,
-            code: `RETURN-${createDto.code}`,
+            code: `RETURN-${returnCode}`,
             unit_cost_price: item.unit_price.toString(),
             original_quantity: item.quantity,
             remaining_quantity: item.quantity,
-            notes: `Hàng trả từ phiếu ${createDto.code}`,
+            notes: `Hàng trả từ phiếu ${returnCode}`,
           });
           await queryRunner.manager.save(newBatch);
           
           this.logger.log(
-            `[Trả hàng ${createDto.code}] Tạo batch mới cho sản phẩm ID ${item.product_id}: ${item.quantity}`
+            `[Trả hàng ${returnCode}] Tạo batch mới cho sản phẩm ID ${item.product_id}: ${item.quantity}`
           );
         }
       }
 
       await queryRunner.commitTransaction();
       
-      this.logger.log(`[Trả hàng ${createDto.code}] Hoàn thành thành công`);
+      this.logger.log(`[Trả hàng ${returnCode}] Hoàn thành thành công`);
       
       return savedReturn;
 
@@ -274,5 +329,22 @@ export class SalesReturnService {
     const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
     
     return `RF${year}${month}${day}${hours}${minutes}${seconds}${random}`;
+  }
+
+  /**
+   * Sinh mã phiếu trả hàng tự động
+   * Format: TR + YYYYMMDDHHmmssSSS
+   */
+  private generateReturnCode(): string {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    
+    return `TR${year}${month}${day}${hours}${minutes}${seconds}${random}`;
   }
 }

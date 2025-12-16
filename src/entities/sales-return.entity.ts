@@ -44,8 +44,18 @@ export class SalesReturn {
   @Column({ type: 'decimal', precision: 15, scale: 2 })
   total_refund_amount!: number;
 
+  @Column({ 
+    type: 'varchar',
+    length: 20,
+    default: 'debt_credit'
+  })
+  refund_method!: string; // 'cash' hoặc 'debt_credit'
+
   @Column({ type: 'text', nullable: true })
   reason?: string;
+
+  @Column({ type: 'text', nullable: true })
+  notes?: string;
 
   @Column({
     type: 'enum',

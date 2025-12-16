@@ -18,8 +18,8 @@ export class CreateSalesReturnItemDto {
 
 export class CreateSalesReturnDto {
   @IsString()
-  @IsNotEmpty()
-  code!: string;
+  @IsOptional()
+  code?: string; // Optional - Backend sẽ tự động sinh nếu không có
 
   @IsNumber()
   @IsNotEmpty()
@@ -27,7 +27,15 @@ export class CreateSalesReturnDto {
 
   @IsString()
   @IsOptional()
+  refund_method?: string; // 'cash' hoặc 'debt_credit', mặc định 'debt_credit'
+
+  @IsString()
+  @IsOptional()
   reason?: string;
+
+  @IsString()
+  @IsOptional()
+  notes?: string;
 
   @IsArray()
   @ValidateNested({ each: true })

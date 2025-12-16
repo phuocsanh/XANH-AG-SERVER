@@ -170,9 +170,15 @@ export class HttpExceptionFilter implements ExceptionFilter {
       );
     }
 
-    // Log request info cho debugging (chỉ log lỗi 5xx)
+    // Log request info cho debugging
     if (status >= 500) {
       this.logger.error(
+        `${request.method} ${request.url} - ${status}`,
+        JSON.stringify(errorResponse),
+      );
+    } else if (status >= 400) {
+      // Tạm thời log lỗi 4xx để debug
+      this.logger.warn(
         `${request.method} ${request.url} - ${status}`,
         JSON.stringify(errorResponse),
       );
