@@ -9,6 +9,7 @@ import { SearchSalesReturnDto } from './dto/search-sales-return.dto';
 import { InventoryBatch } from '../../entities/inventories.entity';
 import { QueryHelper } from '../../common/helpers/query-helper';
 import { Payment } from '../../entities/payment.entity';
+import { DebtNote, DebtNoteStatus } from '../../entities/debt-note.entity'; // ✅ Thêm import DebtNote và DebtNoteStatus
 
 @Injectable()
 export class SalesReturnService {
@@ -209,6 +210,60 @@ export class SalesReturnService {
       }
       
       await queryRunner.manager.save(invoice);
+
+      // ✅ 6.5. Cập nhật DEBT_NOTE nếu có
+      if (invoice.customer_id) {
+        // Tìm debt_note chứa hóa đơn này
+        // Lưu ý: source_invoices là JSON (không phải JSONB), cần cast trước
+        const debtNote = await queryRunner.manager
+          .createQueryBuilder(DebtNote, 'debt_note')
+          .where('debt_note.customer_id = :customerId', { customerId: invoice.customer_id })
+          .andWhere(`:invoiceId::text IN (SELECT jsonb_array_elements_text(debt_note.source_invoices::jsonb))`, { invoiceId: invoice.id })
+          .andWhere('debt_note.status != :cancelledStatus', { cancelledStatus: DebtNoteStatus.CANCELLED })
+          .getOne();
+
+        if (debtNote) {
+          // Tính lại tổng công nợ từ tất cả hóa đơn trong debt_note
+          const invoiceIds = debtNote.source_invoices || [];
+          
+          const invoices = await queryRunner.manager
+            .createQueryBuilder(SalesInvoice, 'invoice')
+            .where('invoice.id IN (:...ids)', { ids: invoiceIds })
+            .getMany();
+
+          // Tính tổng remaining từ tất cả invoices
+          const totalRemaining = invoices.reduce(
+            (sum, inv) => sum + parseFloat(inv.remaining_amount?.toString() || '0'),
+            0
+          );
+
+          // Tính tổng paid từ tất cả invoices
+          const totalPaid = invoices.reduce(
+            (sum, inv) => sum + parseFloat(inv.partial_payment_amount?.toString() || '0'),
+            0
+          );
+
+          // Cập nhật debt_note
+          debtNote.remaining_amount = totalRemaining;
+          debtNote.paid_amount = totalPaid;
+          
+          // Cập nhật status
+          if (totalRemaining <= 0) {
+            debtNote.status = DebtNoteStatus.PAID;
+          } else if (totalPaid > 0) {
+            debtNote.status = DebtNoteStatus.ACTIVE; // Vẫn còn nợ nhưng đã trả 1 phần
+          }
+
+          await queryRunner.manager.save(debtNote);
+
+          this.logger.log(
+            `[Trả hàng ${returnCode}] Cập nhật debt_note ${debtNote.code}: ` +
+            `Đã trả: ${totalPaid.toLocaleString()}đ, ` +
+            `Còn nợ: ${totalRemaining.toLocaleString()}đ, ` +
+            `Status: ${debtNote.status}`
+          );
+        }
+      }
 
       // 7. Cập nhật tồn kho (Tăng lại số lượng cho sản phẩm trả)
       for (const item of returnItems) {
