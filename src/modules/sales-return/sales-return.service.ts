@@ -281,6 +281,7 @@ export class SalesReturnService {
     queryBuilder.leftJoinAndSelect('sales_return.invoice', 'invoice');
     queryBuilder.leftJoinAndSelect('sales_return.customer', 'customer');
     queryBuilder.leftJoinAndSelect('sales_return.items', 'items');
+    queryBuilder.leftJoinAndSelect('items.product', 'product'); // ✅ Thêm join product để lấy tên
     queryBuilder.leftJoinAndSelect('sales_return.creator', 'creator');
 
     // 1. Base Search

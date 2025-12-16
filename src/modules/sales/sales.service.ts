@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull, Not } from 'typeorm';
+import { Repository, IsNull, Not, DataSource } from 'typeorm';
 import {
   SalesInvoice,
   SalesInvoiceStatus,
@@ -26,7 +26,8 @@ export class SalesService {
    * Constructor injection các repository cần thiết
    * @param salesInvoiceRepository - Repository để thao tác với entity SalesInvoice
    * @param salesInvoiceItemRepository - Repository để thao tác với entity SalesInvoiceItem
-   * @param productRepository - Repository để lấy thông tin sản phẩm
+   * @param debtNoteService - Service xử lý công nợ
+   * @param dataSource - DataSource để tạo raw query builder
    */
   constructor(
     @InjectRepository(SalesInvoice)
@@ -34,6 +35,7 @@ export class SalesService {
     @InjectRepository(SalesInvoiceItem)
     private salesInvoiceItemRepository: Repository<SalesInvoiceItem>,
     private debtNoteService: DebtNoteService,
+    private dataSource: DataSource,
   ) {}
 
   /**
@@ -234,10 +236,11 @@ export class SalesService {
   /**
    * Tìm hóa đơn bán hàng theo ID
    * @param id - ID của hóa đơn bán hàng cần tìm
-   * @returns Thông tin hóa đơn bán hàng
+   * @returns Thông tin hóa đơn bán hàng với thông tin số lượng đã trả và có thể trả
    */
   async findOne(id: number): Promise<SalesInvoice | null> {
-    return this.salesInvoiceRepository.createQueryBuilder('invoice')
+    // Lấy hóa đơn với các relations
+    const invoice = await this.salesInvoiceRepository.createQueryBuilder('invoice')
       .leftJoinAndSelect('invoice.items', 'items')
       .leftJoinAndSelect('items.product', 'product')
       .leftJoinAndSelect('invoice.customer', 'customer')
@@ -248,15 +251,43 @@ export class SalesService {
       .where('invoice.id = :id', { id })
       .andWhere('invoice.deleted_at IS NULL')
       .getOne();
+
+    if (!invoice) {
+      return null;
+    }
+
+    // ✅ Tính số lượng đã trả cho mỗi item
+    if (invoice.items && invoice.items.length > 0) {
+      for (const item of invoice.items) {
+        // Query tổng số lượng đã trả của sản phẩm này trong hóa đơn
+        const returnedData = await this.dataSource
+          .createQueryBuilder()
+          .select('COALESCE(SUM(return_item.quantity), 0)', 'total_returned')
+          .from('sales_return_items', 'return_item')
+          .innerJoin('sales_returns', 'sales_return', 'sales_return.id = return_item.sales_return_id')
+          .where('sales_return.invoice_id = :invoiceId', { invoiceId: id })
+          .andWhere('sales_return.status = :status', { status: 'completed' })
+          .andWhere('return_item.product_id = :productId', { productId: item.product_id })
+          .getRawOne();
+
+        // Gán vào item
+        const returnedQty = parseFloat(returnedData?.total_returned || '0');
+        (item as any).returned_quantity = returnedQty;
+        (item as any).returnable_quantity = item.quantity - returnedQty;
+      }
+    }
+
+    return invoice;
   }
 
   /**
    * Tìm hóa đơn bán hàng theo mã
-   * @param invoiceCode - Mã của hóa đơn bán hàng cần tìm
-   * @returns Thông tin hóa đơn bán hàng
+   * @param code - Mã của hóa đơn bán hàng cần tìm
+   * @returns Thông tin hóa đơn bán hàng với thông tin số lượng đã trả và có thể trả
    */
   async findByCode(code: string): Promise<SalesInvoice | null> {
-    return this.salesInvoiceRepository.createQueryBuilder('invoice')
+    // Lấy hóa đơn với các relations
+    const invoice = await this.salesInvoiceRepository.createQueryBuilder('invoice')
       .leftJoinAndSelect('invoice.items', 'items')
       .leftJoinAndSelect('items.product', 'product')
       .leftJoinAndSelect('invoice.customer', 'customer')
@@ -267,6 +298,33 @@ export class SalesService {
       .where('invoice.code = :code', { code })
       .andWhere('invoice.deleted_at IS NULL')
       .getOne();
+
+    if (!invoice) {
+      return null;
+    }
+
+    // ✅ Tính số lượng đã trả cho mỗi item
+    if (invoice.items && invoice.items.length > 0) {
+      for (const item of invoice.items) {
+        // Query tổng số lượng đã trả của sản phẩm này trong hóa đơn
+        const returnedData = await this.dataSource
+          .createQueryBuilder()
+          .select('COALESCE(SUM(return_item.quantity), 0)', 'total_returned')
+          .from('sales_return_items', 'return_item')
+          .innerJoin('sales_returns', 'sales_return', 'sales_return.id = return_item.sales_return_id')
+          .where('sales_return.invoice_id = :invoiceId', { invoiceId: invoice.id })
+          .andWhere('sales_return.status = :status', { status: 'completed' })
+          .andWhere('return_item.product_id = :productId', { productId: item.product_id })
+          .getRawOne();
+
+        // Gán vào item
+        const returnedQty = parseFloat(returnedData?.total_returned || '0');
+        (item as any).returned_quantity = returnedQty;
+        (item as any).returnable_quantity = item.quantity - returnedQty;
+      }
+    }
+
+    return invoice;
   }
 
   /**
