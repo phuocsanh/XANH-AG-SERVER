@@ -154,4 +154,8 @@ export class Product {
   /** Thành phần nguyên liệu của sản phẩm (mảng chuỗi) */
   @Column({ name: 'ingredient', type: 'text', array: true, default: [] })
   ingredient!: string[];
+
+  /** Ghi chú về sản phẩm */
+  @Column({ name: 'notes', type: 'text', nullable: true })
+  notes?: string;
 }

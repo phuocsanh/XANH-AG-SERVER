@@ -115,4 +115,9 @@ export class CreateProductDto {
   @IsArray()
   @IsString({ each: true })
   ingredient?: string[];
+
+  /** Ghi chú về sản phẩm (tùy chọn) */
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }
