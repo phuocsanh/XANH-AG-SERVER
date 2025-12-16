@@ -12,6 +12,11 @@ import { BaseStatus } from '../../../entities/base-status.enum';
  * Chứa các trường cần thiết để tạo một sản phẩm
  */
 export class CreateProductDto {
+  /** Mã sản phẩm (tùy chọn, BE sẽ tự động tạo nếu không có) */
+  @IsOptional()
+  @IsString()
+  code?: string;
+
   /** Tên sản phẩm (bắt buộc) */
   @IsString()
   name!: string;

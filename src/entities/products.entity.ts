@@ -22,6 +22,10 @@ export class Product {
   @PrimaryGeneratedColumn()
   id!: number;
 
+  /** Mã sản phẩm (tự động tạo, unique) */
+  @Column({ name: 'code', unique: true, length: 50 })
+  code!: string;
+
   /** Tên sản phẩm */
   @Column({ name: 'name' })
   name!: string;

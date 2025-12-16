@@ -42,6 +42,24 @@ export class ProductService extends BaseSearchService<Product> {
   }
 
   /**
+   * Tạo mã sản phẩm tự động
+   * Format: SP + YYYYMMDDHHmmssSSS
+   * @returns Mã sản phẩm unique
+   */
+  private generateProductCode(): string {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    const milliseconds = String(now.getMilliseconds()).padStart(3, '0');
+    
+    return `SP${year}${month}${day}${hours}${minutes}${seconds}${milliseconds}`;
+  }
+
+  /**
    * Tạo sản phẩm mới
    * @param createProductDto - Dữ liệu tạo sản phẩm mới
    * @returns Thông tin sản phẩm đã tạo
@@ -52,6 +70,11 @@ export class ProductService extends BaseSearchService<Product> {
       const product = new Product();
       Object.assign(product, createProductDto);
       product.status = createProductDto.status || BaseStatus.ACTIVE;
+      
+      // Tự động tạo code nếu không có
+      if (!product.code) {
+        product.code = this.generateProductCode();
+      }
       
       return await this.productRepository.save(product);
     } catch (error) {
@@ -72,6 +95,11 @@ export class ProductService extends BaseSearchService<Product> {
       const product = new Product();
       Object.assign(product, createProductDto);
       product.status = createProductDto.status || BaseStatus.ACTIVE;
+
+      // Tự động tạo code nếu không có
+      if (!product.code) {
+        product.code = this.generateProductCode();
+      }
 
       // Nếu không có giá bán đề xuất, tính toán dựa trên giá vốn trung bình
       if (!product.suggested_price) {
@@ -334,7 +362,7 @@ export class ProductService extends BaseSearchService<Product> {
       queryBuilder,
       searchDto,
       'product',
-      ['name', 'code', 'description']
+      ['name', 'code'] // Chỉ tìm kiếm theo tên và mã sản phẩm
     );
 
     // Fix: Handle sorting for price fields (stored as string in DB)
