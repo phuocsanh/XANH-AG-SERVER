@@ -145,4 +145,7 @@ export class SeasonStoreProfitDto {
 
   @ApiProperty({ description: 'Top sản phẩm theo lợi nhuận', type: [TopProductProfitDto] })
   top_products!: TopProductProfitDto[];
+
+  @ApiProperty({ description: 'Debug version string', required: false })
+  debug_version?: string;
 }

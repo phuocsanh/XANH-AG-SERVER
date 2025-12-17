@@ -116,31 +116,69 @@ export class SalesReturnService {
       const salesReturn = this.salesReturnRepository.create(salesReturnData);
       const savedReturn = await queryRunner.manager.save(salesReturn) as unknown as SalesReturn;
 
-      // 6. ✅ XỬ LÝ TÀI CHÍNH - LOGIC MỚI ĐÚNG
+      // 6. ✅ XỬ LÝ TÀI CHÍNH - LOGIC ĐÚNG NGHIỆP VỤ
+      // Khi khách trả hàng:
+      // - Giảm final_amount của hóa đơn (vì hàng bị trả lại)
+      // - Nếu khách còn nợ: Giảm công nợ
+      // - Nếu khách đã trả đủ: Tạo phiếu hoàn tiền
+      // - KHÔNG tăng partial_payment_amount (vì trả hàng ≠ thanh toán)
+      
+      const currentFinalAmount = parseFloat(invoice.final_amount?.toString() || '0');
       const currentRemaining = parseFloat(invoice.remaining_amount?.toString() || '0');
       const currentPaid = parseFloat(invoice.partial_payment_amount?.toString() || '0');
       
+      // Giảm tổng tiền hóa đơn
+      invoice.final_amount = Math.max(0, currentFinalAmount - totalRefund);
+      
+      // Tính COGS của hàng trả lại và cập nhật cost_of_goods_sold
+      let returnedCOGS = 0;
+      for (const returnItem of returnItems) {
+        // Tìm sản phẩm tương ứng trong invoice.items để lấy average_cost_price
+        const invoiceItem = invoice.items?.find(item => item.product_id === returnItem.product_id);
+        const avgCost = invoiceItem?.product?.average_cost_price 
+          ? Number(invoiceItem.product.average_cost_price) 
+          : 0;
+        
+        const itemCOGS = returnItem.quantity * avgCost;
+        returnedCOGS += itemCOGS;
+        
+        this.logger.log(
+          `[Trả hàng ${returnCode}] Sản phẩm ID ${returnItem.product_id}: ` +
+          `${returnItem.quantity} x ${avgCost.toLocaleString()}đ = ${itemCOGS.toLocaleString()}đ COGS`
+        );
+      }
+      
+      const currentCOGS = parseFloat(invoice.cost_of_goods_sold?.toString() || '0');
+      invoice.cost_of_goods_sold = Math.max(0, currentCOGS - returnedCOGS);
+      
+      // Cập nhật gross_profit
+      invoice.gross_profit = invoice.final_amount - invoice.cost_of_goods_sold;
+      invoice.gross_profit_margin = invoice.final_amount > 0 
+        ? (invoice.gross_profit / invoice.final_amount) * 100 
+        : 0;
+      
+      this.logger.log(
+        `[Trả hàng ${returnCode}] Cập nhật COGS: ` +
+        `${currentCOGS.toLocaleString()}đ → ${invoice.cost_of_goods_sold.toLocaleString()}đ ` +
+        `(Trả: -${returnedCOGS.toLocaleString()}đ), ` +
+        `Gross Profit: ${invoice.gross_profit.toLocaleString()}đ`
+      );
+      
       if (currentRemaining > 0) {
         // ========================================
-        // CASE 1: Khách còn nợ → Trừ vào công nợ
+        // CASE 1: Khách còn nợ → Giảm công nợ
         // ========================================
-        // Trả hàng = "Thanh toán bằng hàng hóa"
-        
         const amountToDeduct = Math.min(totalRefund, currentRemaining);
         
-        // ✅ Giảm công nợ
+        // Giảm công nợ
         invoice.remaining_amount = currentRemaining - amountToDeduct;
         
-        // ✅ QUAN TRỌNG: Tăng số tiền đã trả
-        // Vì khách đã "trả" bằng cách trả hàng
-        invoice.partial_payment_amount = currentPaid + amountToDeduct;
+        // KHÔNG tăng partial_payment_amount (vì trả hàng ≠ thanh toán)
         
         this.logger.log(
           `[Trả hàng ${returnCode}] Hóa đơn ${invoice.code}: ` +
-          `Công nợ cũ: ${currentRemaining.toLocaleString()}đ, ` +
-          `Trả hàng: ${totalRefund.toLocaleString()}đ, ` +
-          `Công nợ mới: ${invoice.remaining_amount.toLocaleString()}đ, ` +
-          `Đã trả mới: ${invoice.partial_payment_amount.toLocaleString()}đ`
+          `Tổng tiền: ${currentFinalAmount.toLocaleString()}đ → ${invoice.final_amount.toLocaleString()}đ, ` +
+          `Công nợ: ${currentRemaining.toLocaleString()}đ → ${invoice.remaining_amount.toLocaleString()}đ`
         );
         
         // Nếu trả hàng nhiều hơn nợ → Tạo Payment âm cho phần dư
@@ -181,11 +219,11 @@ export class SalesReturnService {
         
         const refundCode = this.generateRefundCode();
         
-        // ✅ Tạo Payment âm (Refund)
+        // Tạo Payment âm (Refund)
         const refundPayment = queryRunner.manager.create(Payment, {
           code: refundCode,
           customer_id: invoice.customer_id,
-          amount: -totalRefund, // ⚠️ Số âm = Hoàn tiền
+          amount: -totalRefund, // Số âm = Hoàn tiền
           payment_date: new Date(),
           payment_method: 'REFUND',
           notes: `Hoàn tiền do trả hàng - Phiếu ${returnCode} - Hóa đơn ${invoice.code}`,
@@ -194,19 +232,24 @@ export class SalesReturnService {
         
         await queryRunner.manager.save(refundPayment);
         
-        // ✅ QUAN TRỌNG: Giảm số tiền đã trả
-        // Vì đã hoàn lại cho khách
+        // Giảm số tiền đã trả (vì đã hoàn lại cho khách)
         invoice.partial_payment_amount = Math.max(0, currentPaid - totalRefund);
         
-        // ✅ Tăng công nợ (vì đã hoàn tiền)
-        invoice.remaining_amount = currentRemaining + totalRefund;
+        // Tăng công nợ (vì đã hoàn tiền nhưng hàng đã trả)
+        // Lưu ý: Công nợ mới = final_amount mới - partial_payment mới
+        invoice.remaining_amount = invoice.final_amount - invoice.partial_payment_amount;
         
         this.logger.log(
           `[Trả hàng ${returnCode}] Hóa đơn ${invoice.code}: ` +
-          `Khách đã trả đủ → Tạo phiếu hoàn tiền ${refundCode}: ${totalRefund.toLocaleString()}đ, ` +
-          `Đã trả mới: ${invoice.partial_payment_amount.toLocaleString()}đ, ` +
-          `Công nợ mới: ${invoice.remaining_amount.toLocaleString()}đ`
+          `Tổng tiền: ${currentFinalAmount.toLocaleString()}đ → ${invoice.final_amount.toLocaleString()}đ, ` +
+          `Đã trả: ${currentPaid.toLocaleString()}đ → ${invoice.partial_payment_amount.toLocaleString()}đ, ` +
+          `Công nợ: ${currentRemaining.toLocaleString()}đ → ${invoice.remaining_amount.toLocaleString()}đ`
         );
+      }
+      
+      // Cập nhật status nếu trả toàn bộ hàng
+      if (invoice.final_amount <= 0) {
+        invoice.status = 'refunded' as any; // Đã hoàn trả toàn bộ
       }
       
       await queryRunner.manager.save(invoice);

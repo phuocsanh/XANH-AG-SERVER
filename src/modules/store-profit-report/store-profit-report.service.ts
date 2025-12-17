@@ -6,6 +6,7 @@ import { Season } from '../../entities/season.entity';
 import { OperatingCost } from '../../entities/operating-costs.entity';
 import { DeliveryLog } from '../../entities/delivery-log.entity';
 import { CostItem } from '../../entities/cost-item.entity';
+
 import { 
   InvoiceProfitDto, 
   InvoiceItemProfitDto 
@@ -42,6 +43,7 @@ export class StoreProfitReportService {
     private deliveryLogRepository: Repository<DeliveryLog>,
     @InjectRepository(CostItem)
     private costItemRepository: Repository<CostItem>,
+
   ) {}
 
   /**
@@ -142,7 +144,16 @@ export class StoreProfitReportService {
         relations: ['items', 'items.product', 'customer'],
       });
 
+      this.logger.log(`📊 [DEBUG_v3] Executing getSeasonStoreProfitReport for season ${seasonId}`);
       this.logger.log(`📊 Tìm thấy ${invoices.length} hóa đơn trong mùa ${season.name}`);
+      
+      // Log chi tiết từng hóa đơn
+      invoices.forEach(inv => {
+        this.logger.log(
+          `  📄 ${inv.code}: final_amount=${inv.final_amount}, ` +
+          `cost_of_goods_sold=${inv.cost_of_goods_sold}, status=${inv.status}`
+        );
+      });
 
       // Tính tổng doanh thu, giá vốn, lợi nhuận
       let totalRevenue = 0;
@@ -163,35 +174,55 @@ export class StoreProfitReportService {
       }>();
 
       for (const invoice of invoices) {
-        totalRevenue += invoice.final_amount;
+        // Explicitly cast to number to handle TypeORM decimal strings
+        let finalAmount = Number(invoice.final_amount);
+        totalRevenue += finalAmount;
 
+        // Ưu tiên dùng cost_of_goods_sold đã lưu (chính xác tại thời điểm bán)
         let invoiceCOGS = 0;
-        for (const item of invoice.items || []) {
-          const avgCost = Number(item.product?.average_cost_price || 0);
-          const itemCOGS = item.quantity * avgCost;
-          const itemProfit = item.total_price - itemCOGS;
-
-          invoiceCOGS += itemCOGS;
-
-          // Track product profit
-          const productId = item.product_id;
-          if (!productProfitMap.has(productId)) {
-            productProfitMap.set(productId, {
-              id: productId,
-              name: item.product?.name || 'Unknown',
-              quantity: 0,
-              revenue: 0,
-              profit: 0,
-            });
+        
+        // Check for non-null/undefined. Note: cost_of_goods_sold can be "0.00" (string) or 0 (number) or null
+        if (invoice.cost_of_goods_sold !== null && invoice.cost_of_goods_sold !== undefined) {
+          // Dùng cost_of_goods_sold đã lưu (chắc chắn dùng cái này nếu có)
+          invoiceCOGS = Number(invoice.cost_of_goods_sold);
+          
+          // Double check logic: if we just used the saved value, we DO NOT calculate from items
+        } else if (invoice.items && invoice.items.length > 0) {
+          // Fallback: Tính từ average_cost_price CHỈ KHI cost_of_goods_sold = null
+          this.logger.warn(`⚠️ Invoice ${invoice.code} has no cost_of_goods_sold. Calculating from items.`);
+          for (const item of invoice.items) {
+            const avgCost = Number(item.product?.average_cost_price || 0);
+            invoiceCOGS += item.quantity * avgCost;
           }
-          const productData = productProfitMap.get(productId)!;
-          productData.quantity += item.quantity;
-          productData.revenue += item.total_price;
-          productData.profit += itemProfit;
+        }
+        
+        // Track product profit (chỉ khi hóa đơn còn giá trị, không phải đã trả toàn bộ)
+        if (finalAmount > 0 && invoice.items && invoice.items.length > 0) {
+          for (const item of invoice.items) {
+            const avgCost = Number(item.product?.average_cost_price || 0);
+            const itemCOGS = item.quantity * avgCost;
+            const itemProfit = item.total_price - itemCOGS;
+
+            // Track product profit
+            const productId = item.product_id;
+            if (!productProfitMap.has(productId)) {
+              productProfitMap.set(productId, {
+                id: productId,
+                name: item.product?.name || 'Unknown',
+                quantity: 0,
+                revenue: 0,
+                profit: 0,
+              });
+            }
+            const productData = productProfitMap.get(productId)!;
+            productData.quantity += item.quantity;
+            productData.revenue += item.total_price;
+            productData.profit += itemProfit;
+          }
         }
 
         totalCOGS += invoiceCOGS;
-        const invoiceProfit = Number(invoice.final_amount) - invoiceCOGS;
+        const invoiceProfit = finalAmount - invoiceCOGS;
 
         // Track customer profit
         if (invoice.customer_id) {
@@ -285,7 +316,9 @@ export class StoreProfitReportService {
         operating_costs_breakdown: operatingCosts,
         delivery_stats: deliveryStats,
         top_customers: topCustomers,
+
         top_products: topProducts,
+        debug_version: 'v4_fix_all',
       };
     } catch (error) {
       const err = error as Error;
@@ -422,14 +455,25 @@ export class StoreProfitReportService {
       let lifetimeProfit = 0;
 
       for (const invoice of allInvoices) {
+        // Explicitly cast to number to handle TypeORM decimal strings
+        let finalAmount = Number(invoice.final_amount);
         let invoiceCOGS = 0;
-        for (const item of invoice.items || []) {
-          const avgCost = Number(item.product?.average_cost_price || 0);
-          invoiceCOGS += item.quantity * avgCost;
+        
+        // Check for non-null/undefined. Note: cost_of_goods_sold can be "0.00" (string) or 0 (number) or null
+        if (invoice.cost_of_goods_sold !== null && invoice.cost_of_goods_sold !== undefined) {
+          // Dùng cost_of_goods_sold đã lưu (chắc chắn dùng cái này nếu có)
+          invoiceCOGS = Number(invoice.cost_of_goods_sold);
+        } else if (invoice.items && invoice.items.length > 0) {
+          // Fallback only if null/undefined
+          for (const item of invoice.items) {
+            const avgCost = Number(item.product?.average_cost_price || 0);
+            invoiceCOGS += item.quantity * avgCost;
+          }
         }
-        lifetimeRevenue += invoice.final_amount;
+        
+        lifetimeRevenue += finalAmount;
         lifetimeCost += invoiceCOGS;
-        lifetimeProfit += (Number(invoice.final_amount) - invoiceCOGS);
+        lifetimeProfit += (finalAmount - invoiceCOGS);
       }
 
       const lifetimeMargin = lifetimeRevenue > 0 
@@ -472,10 +516,20 @@ export class StoreProfitReportService {
       }>();
 
       for (const invoice of invoices) {
+        // Explicitly cast to number to handle TypeORM decimal strings
+        let finalAmount = Number(invoice.final_amount);
         let invoiceCOGS = 0;
-        for (const item of invoice.items || []) {
-          const avgCost = Number(item.product?.average_cost_price || 0);
-          invoiceCOGS += item.quantity * avgCost;
+
+        // Check for non-null/undefined. Note: cost_of_goods_sold can be "0.00" (string) or 0 (number) or null
+        if (invoice.cost_of_goods_sold !== null && invoice.cost_of_goods_sold !== undefined) {
+          // Dùng cost_of_goods_sold đã lưu (chắc chắn dùng cái này nếu có)
+          invoiceCOGS = Number(invoice.cost_of_goods_sold);
+        } else if (invoice.items && invoice.items.length > 0) {
+          // Fallback only if null/undefined
+          for (const item of invoice.items) {
+            const avgCost = Number(item.product?.average_cost_price || 0);
+            invoiceCOGS += item.quantity * avgCost;
+          }
         }
 
         const invoiceProfit = Number(invoice.final_amount) - invoiceCOGS;
@@ -491,7 +545,8 @@ export class StoreProfitReportService {
           invoice_id: invoice.id,
           invoice_code: invoice.code,
           date: invoice.created_at,
-          revenue: invoice.final_amount,
+
+          revenue: finalAmount,
           cost: invoiceCOGS,
           profit: invoiceProfit,
           margin: Math.round(invoiceMargin * 100) / 100,
@@ -578,7 +633,9 @@ export class StoreProfitReportService {
           avg_margin: Math.round(avgMargin * 100) / 100,
         },
         invoices: invoiceDetails,
+
         by_season: seasonSummary,
+        debug_version: 'v4_fix_all',
       };
     } catch (error) {
       const err = error as Error;
@@ -611,7 +668,7 @@ export class StoreProfitReportService {
       const customerName = firstInvoice.customer?.name || firstInvoice.customer_name;
       const seasonName = firstInvoice.season?.name;
 
-      // 2. Tính toán doanh thu & COGS
+      // 2. Tính toán doanh thu & COGS ban đầu
       let totalRevenue = 0;
       let totalCost = 0;
       let totalProfit = 0;
@@ -619,10 +676,28 @@ export class StoreProfitReportService {
       const invoiceDetails: any[] = [];
 
       for (const invoice of invoices) {
+        // Ưu tiên dùng cost_of_goods_sold đã lưu trong invoice (chính xác tại thời điểm bán)
+        // Nếu không có thì mới tính lại từ average_cost_price hiện tại
         let invoiceCOGS = 0;
-        for (const item of invoice.items || []) {
-          const avgCost = Number(item.product?.average_cost_price || 0);
-          invoiceCOGS += item.quantity * avgCost;
+        
+        this.logger.log(
+          `🔍 Invoice ${invoice.code}: ` +
+          `cost_of_goods_sold = ${invoice.cost_of_goods_sold} ` +
+          `(type: ${typeof invoice.cost_of_goods_sold}), ` +
+          `final_amount = ${invoice.final_amount}`
+        );
+        
+        if (invoice.cost_of_goods_sold !== null && invoice.cost_of_goods_sold !== undefined) {
+          // Dùng cost_of_goods_sold đã lưu (có thể = 0 nếu đã trả hàng)
+          invoiceCOGS = Number(invoice.cost_of_goods_sold);
+          this.logger.log(`  ✅ Dùng cost_of_goods_sold: ${invoiceCOGS}`);
+        } else if (invoice.items && invoice.items.length > 0) {
+          // Fallback: Tính từ average_cost_price nếu cost_of_goods_sold = null
+          for (const item of invoice.items) {
+            const avgCost = Number(item.product?.average_cost_price || 0);
+            invoiceCOGS += item.quantity * avgCost;
+          }
+          this.logger.log(`  ⚠️ Fallback tính lại: ${invoiceCOGS}`);
         }
 
         const invoiceProfit = Number(invoice.final_amount) - invoiceCOGS;
@@ -631,7 +706,7 @@ export class StoreProfitReportService {
           : 0;
         const invoiceGiftValue = Number(invoice.gift_value || 0);
 
-        totalRevenue += invoice.final_amount;
+        totalRevenue += Number(invoice.final_amount);
         totalCost += invoiceCOGS;
         totalProfit += invoiceProfit;
         totalGiftFromInvoices += invoiceGiftValue;
@@ -692,7 +767,7 @@ export class StoreProfitReportService {
 
           // Lợi nhuận ròng
           net_profit: Math.round(netProfit * 100) / 100,
-          net_margin: Math.round(netMargin * 100) / 100
+          net_margin: Math.round(netMargin * 100) / 100,
         },
         operating_costs_breakdown: operatingCosts.map(c => ({
             name: c.name,
@@ -710,6 +785,7 @@ export class StoreProfitReportService {
             type: 'production'
         })),
         invoices: invoiceDetails,
+        debug_version: 'v4_fix_all',
       };
     } catch (error) {
       const err = error as Error;

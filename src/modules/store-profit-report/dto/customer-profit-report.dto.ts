@@ -138,4 +138,7 @@ export class CustomerProfitReportDto {
 
   @ApiProperty({ description: 'Tổng hợp theo mùa vụ', type: [CustomerSeasonSummaryDto] })
   by_season!: CustomerSeasonSummaryDto[];
+
+  @ApiProperty({ description: 'Debug version string', required: false })
+  debug_version?: string;
 }
