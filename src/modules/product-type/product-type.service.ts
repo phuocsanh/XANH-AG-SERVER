@@ -10,6 +10,7 @@ import { SearchProductTypeDto } from './dto/search-product-type.dto';
 import { FilterConditionDto } from './dto/filter-condition.dto';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 import { QueryHelper } from '../../common/helpers/query-helper';
+import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến loại sản phẩm
@@ -37,6 +38,11 @@ export class ProductTypeService {
     createProductTypeDto: CreateProductTypeDto,
   ): Promise<ProductType> {
     try {
+      // Auto-generate code nếu không được cung cấp
+      if (!createProductTypeDto.code) {
+        createProductTypeDto.code = CodeGeneratorHelper.generateCode('PT');
+      }
+
       // Vì tên field đã giống nhau giữa DTO và Entity nên có thể dùng Object.assign
       const productType = new ProductType();
       Object.assign(productType, createProductTypeDto);

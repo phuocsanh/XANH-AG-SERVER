@@ -6,6 +6,7 @@ import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 import { SearchSymbolDto } from './dto/search-symbol.dto';
 import { BaseStatus } from '../../entities/base-status.enum';
 import { QueryHelper } from '../../common/helpers/query-helper';
+import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến ký hiệu
@@ -29,6 +30,11 @@ export class SymbolService {
    */
   async create(symbolData: Partial<Symbol>): Promise<Symbol> {
     try {
+      // Auto-generate code nếu không được cung cấp
+      if (!symbolData.code) {
+        symbolData.code = CodeGeneratorHelper.generateCode('SYM');
+      }
+
       const symbol = this.symbolRepository.create(symbolData);
       return this.symbolRepository.save(symbol);
     } catch (error) {

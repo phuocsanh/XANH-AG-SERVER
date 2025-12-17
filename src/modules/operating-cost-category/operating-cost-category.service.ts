@@ -6,6 +6,7 @@ import { CreateOperatingCostCategoryDto } from './dto/create-operating-cost-cate
 import { UpdateOperatingCostCategoryDto } from './dto/update-operating-cost-category.dto';
 import { SearchOperatingCostCategoryDto } from './dto/search-operating-cost-category.dto';
 import { QueryHelper } from '../../common/helpers/query-helper';
+import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 
 /**
  * Service xử lý logic nghiệp vụ cho Operating Cost Category
@@ -21,13 +22,9 @@ export class OperatingCostCategoryService {
    * Tạo loại chi phí mới
    */
   async create(createDto: CreateOperatingCostCategoryDto): Promise<OperatingCostCategory> {
-    // Kiểm tra code đã tồn tại chưa
-    const existing = await this.categoryRepository.findOne({
-      where: { code: createDto.code },
-    });
-
-    if (existing) {
-      throw new ConflictException(`Mã loại chi phí "${createDto.code}" đã tồn tại`);
+    // Auto-generate code nếu không được cung cấp
+    if (!createDto.code) {
+      createDto.code = CodeGeneratorHelper.generateCode('OCC');
     }
 
     const category = this.categoryRepository.create(createDto);

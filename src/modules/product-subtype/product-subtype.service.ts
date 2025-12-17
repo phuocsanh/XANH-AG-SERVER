@@ -10,6 +10,7 @@ import { SearchProductSubtypeDto } from './dto/search-product-subtype.dto';
 import { FilterConditionDto } from './dto/filter-condition.dto';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 import { QueryHelper } from '../../common/helpers/query-helper';
+import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến nhóm sản phẩm
@@ -37,6 +38,11 @@ export class ProductSubtypeService {
     createProductSubtypeDto: CreateProductSubtypeDto,
   ): Promise<ProductSubtype> {
     try {
+      // Auto-generate code nếu không được cung cấp
+      if (!createProductSubtypeDto.code) {
+        createProductSubtypeDto.code = CodeGeneratorHelper.generateCode('PST');
+      }
+
       const productSubtype = new ProductSubtype();
       Object.assign(productSubtype, createProductSubtypeDto);
       const savedProductSubtype =

@@ -7,6 +7,7 @@ import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { SearchCustomerDto } from './dto/search-customer.dto';
 import { QueryHelper } from '../../common/helpers/query-helper';
+import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 
 @Injectable()
 export class CustomerService {
@@ -16,6 +17,11 @@ export class CustomerService {
   ) {}
 
   async create(createCustomerDto: CreateCustomerDto): Promise<Customer> {
+    // Auto-generate code nếu không được cung cấp
+    if (!createCustomerDto.code) {
+      createCustomerDto.code = CodeGeneratorHelper.generateCode('CUS');
+    }
+
     const customer = this.customerRepository.create(createCustomerDto);
     return await this.customerRepository.save(customer);
   }

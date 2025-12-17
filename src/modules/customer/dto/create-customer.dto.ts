@@ -3,8 +3,9 @@ import { CustomerType } from '../../../entities/customer.entity';
 
 export class CreateCustomerDto {
   @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  code!: string;
+  code?: string;
 
   @IsNotEmpty()
   @IsString()

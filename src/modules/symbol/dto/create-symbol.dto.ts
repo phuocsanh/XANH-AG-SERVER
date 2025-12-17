@@ -3,8 +3,8 @@ import { BaseStatus } from '../../../entities/base-status.enum';
 
 export class CreateSymbolDto {
   @IsString()
-  @IsNotEmpty()
-  code!: string;
+  @IsOptional()
+  code?: string;
 
   @IsString()
   @IsNotEmpty()

@@ -6,6 +6,7 @@ import { CreateSeasonDto } from './dto/create-season.dto';
 import { UpdateSeasonDto } from './dto/update-season.dto';
 import { QueryHelper } from '../../common/helpers/query-helper';
 import { SearchSeasonDto } from './dto/search-season.dto';
+import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 
 @Injectable()
 export class SeasonService {
@@ -15,6 +16,11 @@ export class SeasonService {
   ) {}
 
   async create(createSeasonDto: CreateSeasonDto): Promise<Season> {
+    // Auto-generate code nếu không được cung cấp
+    if (!createSeasonDto.code) {
+      createSeasonDto.code = CodeGeneratorHelper.generateCode('SS');
+    }
+
     const season = this.seasonRepository.create(createSeasonDto);
     return await this.seasonRepository.save(season);
   }

@@ -8,6 +8,7 @@ import { SearchUnitDto } from './dto/search-unit.dto';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 import { BaseStatus } from '../../entities/base-status.enum';
 import { QueryHelper } from '../../common/helpers/query-helper';
+import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến đơn vị tính
@@ -31,6 +32,11 @@ export class UnitService {
    */
   async create(createUnitDto: CreateUnitDto): Promise<Unit> {
     try {
+      // Auto-generate code nếu không được cung cấp
+      if (!createUnitDto.code) {
+        createUnitDto.code = CodeGeneratorHelper.generateCode('UNIT');
+      }
+
       const unit = this.unitRepository.create(createUnitDto);
       return this.unitRepository.save(unit);
     } catch (error) {

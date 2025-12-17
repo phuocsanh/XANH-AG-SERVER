@@ -11,8 +11,9 @@ export class CreateUnitDto {
   name!: string;
 
   /** Mã đơn vị tính (bắt buộc) */
+  @IsOptional()
   @IsString()
-  code!: string;
+  code?: string;
 
   /** Mô tả đơn vị tính (tùy chọn) */
   @IsOptional()

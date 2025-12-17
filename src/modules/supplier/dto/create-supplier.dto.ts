@@ -11,8 +11,9 @@ export class CreateSupplierDto {
   name!: string;
 
   /** Mã nhà cung cấp (bắt buộc) */
+  @IsOptional()
   @IsString()
-  code!: string;
+  code?: string;
 
   /** Địa chỉ nhà cung cấp (tùy chọn) */
   @IsString()

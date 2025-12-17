@@ -13,10 +13,10 @@ export class CreateAreaOfEachPlotOfLandDto {
   name!: string;
 
   @ApiProperty({ description: 'Mã vùng/lô đất', example: 'LA1' })
-  @IsNotEmpty({ message: 'Mã vùng/lô đất không được để trống' })
+  @IsOptional()
   @IsString({ message: 'Mã phải là chuỗi' })
   @MaxLength(50, { message: 'Mã không được vượt quá 50 ký tự' })
-  code!: string;
+  code?: string;
 
   @ApiProperty({ description: 'Diện tích (m2)', example: 1000 })
   @IsNotEmpty({ message: 'Diện tích không được để trống' })

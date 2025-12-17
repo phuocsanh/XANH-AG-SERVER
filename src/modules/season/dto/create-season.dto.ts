@@ -6,8 +6,9 @@ export class CreateSeasonDto {
   name!: string;
 
   @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  code!: string;
+  code?: string;
 
   @IsNotEmpty()
   @IsInt()

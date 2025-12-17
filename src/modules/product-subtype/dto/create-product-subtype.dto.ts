@@ -18,9 +18,9 @@ export class CreateProductSubtypeDto {
   name!: string;
 
   /** Mã loại phụ sản phẩm (duy nhất) */
-  @IsString({ message: 'Mã loại phụ sản phẩm phải là chuỗi ký tự' })
-  @IsNotEmpty({ message: 'Mã loại phụ sản phẩm không được để trống' })
-  code!: string;
+  @IsOptional()
+  @IsString()
+  code?: string;
 
   /** ID loại sản phẩm mà loại phụ sản phẩm này thuộc về */
   @IsNumber({}, { message: 'ID loại sản phẩm phải là số' })

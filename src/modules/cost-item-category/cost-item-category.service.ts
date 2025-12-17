@@ -6,6 +6,7 @@ import { CreateCostItemCategoryDto } from './dto/create-cost-item-category.dto';
 import { UpdateCostItemCategoryDto } from './dto/update-cost-item-category.dto';
 import { SearchCostItemCategoryDto } from './dto/search-cost-item-category.dto';
 import { QueryHelper } from '../../common/helpers/query-helper';
+import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 
 /**
  * Service xử lý logic nghiệp vụ cho Cost Item Category
@@ -21,12 +22,9 @@ export class CostItemCategoryService {
    * Tạo loại chi phí mới
    */
   async create(createDto: CreateCostItemCategoryDto): Promise<CostItemCategory> {
-    const existing = await this.categoryRepository.findOne({
-      where: { code: createDto.code },
-    });
-
-    if (existing) {
-      throw new ConflictException(`Mã loại chi phí "${createDto.code}" đã tồn tại`);
+    // Auto-generate code nếu không được cung cấp
+    if (!createDto.code) {
+      createDto.code = CodeGeneratorHelper.generateCode('CIC');
     }
 
     const category = this.categoryRepository.create(createDto);

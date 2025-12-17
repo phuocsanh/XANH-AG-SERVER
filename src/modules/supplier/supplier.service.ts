@@ -7,6 +7,7 @@ import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { SearchSupplierDto } from './dto/search-supplier.dto';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 import { QueryHelper } from '../../common/helpers/query-helper';
+import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến nhà cung cấp
@@ -26,6 +27,11 @@ export class SupplierService {
    */
   async create(createSupplierDto: CreateSupplierDto, userId: number) {
     try {
+      // Auto-generate code nếu không được cung cấp
+      if (!createSupplierDto.code) {
+        createSupplierDto.code = CodeGeneratorHelper.generateCode('SUP');
+      }
+
       const supplier = this.supplierRepository.create({
         ...createSupplierDto,
         created_by: userId,

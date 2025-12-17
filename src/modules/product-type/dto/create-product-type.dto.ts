@@ -10,9 +10,10 @@ export class CreateProductTypeDto {
   @IsString()
   name!: string;
 
-  /** Mã loại sản phẩm (duy nhất) */
+  /** Mã loại sản phẩm (tự động generate nếu không cung cấp) */
+  @IsOptional()
   @IsString()
-  code!: string;
+  code?: string;
 
   /** Mô tả loại sản phẩm */
   @IsOptional()

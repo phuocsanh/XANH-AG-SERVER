@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AreaOfEachPlotOfLand } from '../../entities/area-of-each-plot-of-land.entity';
 import { CreateAreaOfEachPlotOfLandDto, UpdateAreaOfEachPlotOfLandDto } from './area-of-each-plot-of-land.dto';
+import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 
 /**
  * Service quản lý các vùng/lô đất
@@ -23,13 +24,9 @@ export class AreaOfEachPlotOfLandService {
     try {
       this.logger.log(`Tạo vùng/lô đất mới: ${createDto.name}`);
       
-      // Kiểm tra mã đã tồn tại chưa
-      const existingArea = await this.areaRepository.findOne({ 
-        where: { code: createDto.code } 
-      });
-      
-      if (existingArea) {
-        throw new BadRequestException(`Mã vùng/lô đất "${createDto.code}" đã tồn tại`);
+      // Auto-generate code nếu không được cung cấp
+      if (!createDto.code) {
+        createDto.code = CodeGeneratorHelper.generateCode('AREA');
       }
 
       const area = this.areaRepository.create(createDto);
