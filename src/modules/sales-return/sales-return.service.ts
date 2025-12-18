@@ -44,6 +44,40 @@ export class SalesReturnService {
         throw new BadRequestException('Không thể trả hàng cho hóa đơn đã hủy');
       }
 
+      // ✅ 2.5. VALIDATION: Kiểm tra phương thức hoàn tiền phải khớp với phương thức thanh toán
+      const refundMethod = createDto.refund_method || 'debt_credit';
+      const invoicePaymentMethod = invoice.payment_method?.toLowerCase() || 'debt';
+      
+      // Map payment method của invoice sang refund method tương ứng
+      const validRefundMethods: Record<string, string[]> = {
+        'debt': ['debt_credit'],
+        'cash': ['cash'],
+        'bank_transfer': ['bank_transfer'],
+      };
+      
+      // Tìm valid methods cho payment method của invoice
+      const allowedMethods = validRefundMethods[invoicePaymentMethod] || ['debt_credit'];
+      
+      if (!allowedMethods.includes(refundMethod)) {
+        const methodNames: Record<string, string> = {
+          'debt': 'Công nợ',
+          'cash': 'Tiền mặt',
+          'bank_transfer': 'Chuyển khoản',
+          'debt_credit': 'Trừ công nợ',
+        };
+        
+        throw new BadRequestException(
+          `Hóa đơn thanh toán bằng "${methodNames[invoicePaymentMethod] || invoicePaymentMethod}" ` +
+          `chỉ có thể hoàn tiền bằng "${allowedMethods.map(m => methodNames[m] || m).join(', ')}". ` +
+          `Không thể chọn "${methodNames[refundMethod] || refundMethod}".`
+        );
+      }
+      
+      this.logger.log(
+        `[Trả hàng] Hóa đơn ${invoice.code}: ` +
+        `Payment method: ${invoicePaymentMethod}, Refund method: ${refundMethod} ✅`
+      );
+
       // 3. Kiểm tra số lượng trả hợp lệ
       for (const itemDto of createDto.items) {
         const invoiceItem = invoice.items?.find(
@@ -274,6 +308,12 @@ export class SalesReturnService {
             .where('invoice.id IN (:...ids)', { ids: invoiceIds })
             .getMany();
 
+          // ✅ Tính tổng final_amount từ tất cả invoices (Giá trị đơn HIỆN TẠI sau khi trừ trả hàng)
+          const totalAmount = invoices.reduce(
+            (sum, inv) => sum + parseFloat(inv.final_amount?.toString() || '0'),
+            0
+          );
+
           // Tính tổng remaining từ tất cả invoices
           const totalRemaining = invoices.reduce(
             (sum, inv) => sum + parseFloat(inv.remaining_amount?.toString() || '0'),
@@ -287,6 +327,7 @@ export class SalesReturnService {
           );
 
           // Cập nhật debt_note
+          debtNote.amount = totalAmount; // ✅ Cập nhật giá trị đơn hiện tại
           debtNote.remaining_amount = totalRemaining;
           debtNote.paid_amount = totalPaid;
           
@@ -301,6 +342,7 @@ export class SalesReturnService {
 
           this.logger.log(
             `[Trả hàng ${returnCode}] Cập nhật debt_note ${debtNote.code}: ` +
+            `Giá trị đơn: ${totalAmount.toLocaleString()}đ, ` +
             `Đã trả: ${totalPaid.toLocaleString()}đ, ` +
             `Còn nợ: ${totalRemaining.toLocaleString()}đ, ` +
             `Status: ${debtNote.status}`

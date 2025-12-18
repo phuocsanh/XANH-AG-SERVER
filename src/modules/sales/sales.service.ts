@@ -55,9 +55,11 @@ export class SalesService {
     await queryRunner.startTransaction();
 
     try {
-      // Tính toán số tiền còn nợ
+      // ✅ Tính toán số tiền còn nợ
+      // Sử dụng giá trị partial_payment_amount từ form (người dùng nhập)
       const partialPayment = Number(createSalesInvoiceDto.partial_payment_amount || 0);
-      const remainingAmount = Number(createSalesInvoiceDto.final_amount) - partialPayment;
+      const finalAmount = Number(createSalesInvoiceDto.final_amount);
+      const remainingAmount = finalAmount - partialPayment;
 
       // Tự động sinh mã hóa đơn nếu không có
       const invoiceCode = createSalesInvoiceDto.invoice_code || this.generateInvoiceCode();
