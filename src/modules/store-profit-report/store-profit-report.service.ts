@@ -128,6 +128,21 @@ export class StoreProfitReportService {
   }
 
   /**
+   * Tính lợi nhuận chi tiết cho 1 đơn hàng theo mã (code)
+   */
+  async calculateInvoiceProfitByCode(code: string): Promise<InvoiceProfitDto> {
+    const invoice = await this.salesInvoiceRepository.findOne({
+      where: { code },
+    });
+
+    if (!invoice) {
+        throw new NotFoundException(`Không tìm thấy hóa đơn với mã: ${code}`);
+    }
+
+    return this.calculateInvoiceProfit(invoice.id);
+  }
+
+  /**
    * Báo cáo lợi nhuận tổng hợp theo Season
    */
   async getSeasonStoreProfitReport(seasonId: number): Promise<SeasonStoreProfitDto> {
@@ -141,6 +156,12 @@ export class StoreProfitReportService {
         throw new NotFoundException(`Không tìm thấy mùa vụ với ID: ${seasonId}`);
       }
 
+      const fs = require('fs');
+      const logMsg = `[${new Date().toISOString()}] seasonId: ${seasonId}, type: ${typeof seasonId}\n`;
+      fs.appendFileSync('report_debug.log', logMsg);
+      
+      this.logger.log(`📊 [DEBUG_REPORT] getSeasonStoreProfitReport called with seasonId: ${seasonId} (type: ${typeof seasonId})`);
+      
       // Lấy tất cả hóa đơn trong season (không bao gồm cancelled)
       const invoices = await this.salesInvoiceRepository.find({
         where: {
@@ -150,8 +171,7 @@ export class StoreProfitReportService {
         relations: ['items', 'items.product', 'customer'],
       });
 
-      this.logger.log(`📊 [DEBUG_v3] Executing getSeasonStoreProfitReport for season ${seasonId}`);
-      this.logger.log(`📊 Tìm thấy ${invoices.length} hóa đơn trong mùa ${season.name}`);
+      this.logger.log(`📊 [DEBUG_REPORT] Found ${invoices.length} invoices for seasonId ${seasonId}`);
       
       // Log chi tiết từng hóa đơn
       invoices.forEach(inv => {

@@ -35,6 +35,23 @@ export class StoreProfitReportController {
     return this.service.calculateInvoiceProfit(id);
   }
 
+  @Get('invoice/code/:code')
+  @RequirePermissions('store-profit-report:read')
+  @ApiOperation({ 
+    summary: 'Xem lợi nhuận chi tiết của 1 đơn hàng qua mã (code)',
+    description: 'Trả về thông tin lợi nhuận gộp và chi tiết từng sản phẩm trong đơn hàng'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Thông tin lợi nhuận đơn hàng',
+    type: InvoiceProfitDto 
+  })
+  async getInvoiceProfitByCode(
+    @Param('code') code: string,
+  ): Promise<InvoiceProfitDto> {
+    return this.service.calculateInvoiceProfitByCode(code);
+  }
+
   @Get('season/:seasonId')
   @RequirePermissions('store-profit-report:read')
   @ApiOperation({
