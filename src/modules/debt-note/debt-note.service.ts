@@ -6,6 +6,7 @@ import { CreateDebtNoteDto } from './dto/create-debt-note.dto';
 import { UpdateDebtNoteDto } from './dto/update-debt-note.dto';
 import { SearchDebtNoteDto } from './dto/search-debt-note.dto';
 import { QueryHelper } from '../../common/helpers/query-helper';
+import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 
 @Injectable()
@@ -19,8 +20,12 @@ export class DebtNoteService {
 
   async create(createDto: CreateDebtNoteDto, userId: number): Promise<DebtNote> {
     try {
+      // Tự sinh mã nếu không có
+      const code = createDto.code || CodeGeneratorHelper.generateUniqueCode('DN');
+      
       const debtNote = this.debtNoteRepository.create({
         ...createDto,
+        code,
         remaining_amount: createDto.amount, // Initially remaining = amount
         paid_amount: 0,
         status: DebtNoteStatus.ACTIVE,
@@ -154,7 +159,7 @@ export class DebtNoteService {
 
     // Nếu chưa có, tạo mới
     if (!debtNote) {
-      const code = this.generateDebtNoteCode();
+      const code = CodeGeneratorHelper.generateUniqueCode('DN');
       const newDebtNote = repo.create({
         code,
         customer_id,
@@ -210,19 +215,4 @@ export class DebtNoteService {
     return await repo.save(debtNote);
   }
 
-  /**
-   * Sinh mã phiếu công nợ tự động
-   */
-  private generateDebtNoteCode(): string {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const seconds = String(now.getSeconds()).padStart(2, '0');
-    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-    
-    return `DN${year}${month}${day}${hours}${minutes}${seconds}${random}`;
-  }
 }

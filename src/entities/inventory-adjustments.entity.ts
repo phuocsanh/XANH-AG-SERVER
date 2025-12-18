@@ -31,7 +31,7 @@ export class InventoryAdjustment {
   @Column({ name: 'reason', type: 'text' })
   reason!: string;
 
-  /** Trạng thái phiếu điều chỉnh kho (draft, approved, completed, cancelled) */
+  /** Trạng thái phiếu điều chỉnh kho (draft, approved, cancelled) */
   @Column({ name: 'status', default: 'draft' })
   status!: string;
 

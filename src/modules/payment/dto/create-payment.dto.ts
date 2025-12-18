@@ -2,8 +2,8 @@ import { IsString, IsNumber, IsDateString, IsOptional, IsNotEmpty } from 'class-
 
 export class CreatePaymentDto {
   @IsString()
-  @IsNotEmpty()
-  code!: string;
+  @IsOptional()
+  code?: string;
 
   @IsNumber()
   @IsNotEmpty()

@@ -15,7 +15,7 @@ import { User } from './users.entity';
 
 export enum SalesReturnStatus {
   DRAFT = 'draft',
-  COMPLETED = 'completed',
+  APPROVED = 'approved',
   CANCELLED = 'cancelled',
 }
 

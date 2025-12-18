@@ -2,8 +2,8 @@ import { IsString, IsNumber, IsOptional, IsNotEmpty, IsDateString, IsArray } fro
 
 export class CreateDebtNoteDto {
   @IsString()
-  @IsNotEmpty()
-  code!: string;
+  @IsOptional()
+  code?: string;
 
   @IsNumber()
   @IsNotEmpty()

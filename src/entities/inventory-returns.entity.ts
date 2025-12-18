@@ -53,7 +53,7 @@ export class InventoryReturn {
   @Column({ name: 'reason', type: 'text' })
   reason!: string;
 
-  /** Trạng thái phiếu xuất trả hàng (draft, approved, completed, cancelled) */
+  /** Trạng thái phiếu xuất trả hàng (draft, approved, cancelled) */
   @Column({ name: 'status', default: 'draft' })
   status!: string;
 

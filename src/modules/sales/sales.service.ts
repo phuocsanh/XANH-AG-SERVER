@@ -11,6 +11,7 @@ import { CreateSalesInvoiceDto } from './dto/create-sales-invoice.dto';
 import { UpdateSalesInvoiceDto } from './dto/update-sales-invoice.dto';
 import { SearchSalesDto } from './dto/search-sales.dto';
 import { QueryHelper } from '../../common/helpers/query-helper';
+import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 import { DebtNoteService } from '../debt-note/debt-note.service';
 
@@ -62,7 +63,7 @@ export class SalesService {
       const remainingAmount = finalAmount - partialPayment;
 
       // Tự động sinh mã hóa đơn nếu không có
-      const invoiceCode = createSalesInvoiceDto.invoice_code || this.generateInvoiceCode();
+      const invoiceCode = createSalesInvoiceDto.invoice_code || CodeGeneratorHelper.generateUniqueCode('HD');
 
       // Tạo phiếu bán hàng với trạng thái mặc định là DRAFT
       const invoiceData: any = {
@@ -655,16 +656,4 @@ export class SalesService {
    * Định dạng: HD{YYYYMMDD}{HHMMSS}{RANDOM}
    * Ví dụ: HD20231127103045123
    */
-  private generateInvoiceCode(): string {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const seconds = String(now.getSeconds()).padStart(2, '0');
-    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-    
-    return `HD${year}${month}${day}${hours}${minutes}${seconds}${random}`;
-  }
 }

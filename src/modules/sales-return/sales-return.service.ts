@@ -8,6 +8,7 @@ import { CreateSalesReturnDto } from './dto/create-sales-return.dto';
 import { SearchSalesReturnDto } from './dto/search-sales-return.dto';
 import { InventoryBatch } from '../../entities/inventories.entity';
 import { QueryHelper } from '../../common/helpers/query-helper';
+import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 import { Payment } from '../../entities/payment.entity';
 import { DebtNote, DebtNoteStatus } from '../../entities/debt-note.entity'; // ✅ Thêm import DebtNote và DebtNoteStatus
 
@@ -129,7 +130,7 @@ export class SalesReturnService {
 
       // 5. Tạo phiếu trả hàng
       // Tự động sinh mã nếu không có
-      const returnCode = createDto.code || this.generateReturnCode();
+      const returnCode = createDto.code || CodeGeneratorHelper.generateUniqueCode('SR');
       
       const salesReturnData: any = {
         code: returnCode,
@@ -138,7 +139,7 @@ export class SalesReturnService {
         refund_method: createDto.refund_method || 'debt_credit', // Mặc định trừ công nợ
         reason: createDto.reason || '',
         notes: createDto.notes || '',
-        status: SalesReturnStatus.COMPLETED,
+        status: SalesReturnStatus.APPROVED, // Tự động duyệt khi tạo
         created_by: userId,
         items: returnItems,
       };
@@ -472,20 +473,4 @@ export class SalesReturnService {
     return `RF${year}${month}${day}${hours}${minutes}${seconds}${random}`;
   }
 
-  /**
-   * Sinh mã phiếu trả hàng tự động
-   * Format: TR + YYYYMMDDHHmmssSSS
-   */
-  private generateReturnCode(): string {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const seconds = String(now.getSeconds()).padStart(2, '0');
-    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-    
-    return `TR${year}${month}${day}${hours}${minutes}${seconds}${random}`;
-  }
 }

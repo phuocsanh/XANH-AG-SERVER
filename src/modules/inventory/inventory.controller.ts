@@ -599,26 +599,31 @@ export class InventoryController {
   }
 
   /**
-   * Duyệt phiếu xuất trả hàng
+   * Cập nhật thông tin phiếu xuất trả hàng
+   */
+  @Patch('return/:id')
+  @RequirePermissions('INVENTORY_MANAGE')
+  updateReturn(
+    @Param('id') id: string,
+    @Body() updateDto: any,
+    @CurrentUser('id') userId: number,
+  ) {
+    return this.inventoryService.updateReturn(+id, updateDto, userId);
+  }
+
+  /**
+   * Duyệt phiếu xuất trả hàng (và tự động trừ kho)
    * @param id - ID của phiếu xuất trả hàng cần duyệt
+   * @param userId - ID người duyệt
    * @returns Kết quả duyệt phiếu xuất trả hàng
    */
   @Post('return/:id/approve')
   @RequirePermissions('INVENTORY_MANAGE')
-  approveReturn(@Param('id') id: string) {
-    return this.inventoryService.approveReturn(+id);
+  approveReturn(@Param('id') id: string, @CurrentUser('id') userId: number) {
+    return this.inventoryService.approveReturn(+id, userId);
   }
 
-  /**
-   * Hoàn thành phiếu xuất trả hàng
-   * @param id - ID của phiếu xuất trả hàng cần hoàn thành
-   * @returns Kết quả hoàn thành phiếu xuất trả hàng
-   */
-  @Post('return/:id/complete')
-  @RequirePermissions('INVENTORY_MANAGE')
-  completeReturn(@Param('id') id: string, @CurrentUser('id') userId: number) {
-    return this.inventoryService.completeReturn(+id, userId);
-  }
+
 
   /**
    * Hủy phiếu xuất trả hàng
@@ -641,6 +646,40 @@ export class InventoryController {
   @RequirePermissions('INVENTORY_MANAGE')
   removeReturn(@Param('id') id: string) {
     return this.inventoryService.removeReturn(+id);
+  }
+
+  /**
+   * Upload hình ảnh cho phiếu xuất trả hàng
+   * @param id - ID của phiếu xuất trả hàng
+   * @param body - Thông tin file
+   * @returns Thông tin file đã upload
+   */
+  @Post('return/:id/upload-image')
+  @RequirePermissions('INVENTORY_MANAGE')
+  uploadReturnImage(
+    @Param('id') id: string,
+    @Body() body: { fileId: number; fieldName?: string },
+  ) {
+    return this.inventoryService.uploadReturnImage(
+      +id,
+      body.fileId,
+      body.fieldName,
+    );
+  }
+
+  /**
+   * Xóa hình ảnh khỏi phiếu xuất trả hàng
+   * @param id - ID của phiếu xuất trả hàng
+   * @param fileId - ID của file cần xóa
+   * @returns Kết quả xóa
+   */
+  @Delete('return/:id/image/:fileId')
+  @RequirePermissions('INVENTORY_MANAGE')
+  deleteReturnImage(
+    @Param('id') id: string,
+    @Param('fileId') fileId: string,
+  ) {
+    return this.inventoryService.deleteReturnImage(+id, +fileId);
   }
 
   // ===== ADJUSTMENT ENDPOINTS =====
@@ -692,29 +731,17 @@ export class InventoryController {
   }
 
   /**
-   * Duyệt phiếu điều chỉnh kho
+   * Duyệt phiếu điều chỉnh kho (và tự động tác động kho)
    * @param id - ID của phiếu điều chỉnh kho cần duyệt
+   * @param userId - ID người duyệt
    * @returns Kết quả duyệt phiếu điều chỉnh kho
    */
   @Post('adjustment/:id/approve')
   @RequirePermissions('INVENTORY_MANAGE')
-  approveAdjustment(@Param('id') id: string) {
-    return this.inventoryService.approveAdjustment(+id);
+  approveAdjustment(@Param('id') id: string, @CurrentUser('id') userId: number) {
+    return this.inventoryService.approveAdjustment(+id, userId);
   }
 
-  /**
-   * Hoàn thành phiếu điều chỉnh kho
-   * @param id - ID của phiếu điều chỉnh kho cần hoàn thành
-   * @returns Kết quả hoàn thành phiếu điều chỉnh kho
-   */
-  @Post('adjustment/:id/complete')
-  @RequirePermissions('INVENTORY_MANAGE')
-  completeAdjustment(
-    @Param('id') id: string,
-    @CurrentUser('id') userId: number,
-  ) {
-    return this.inventoryService.completeAdjustment(+id, userId);
-  }
 
   /**
    * Hủy phiếu điều chỉnh kho

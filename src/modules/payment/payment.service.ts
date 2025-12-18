@@ -9,6 +9,7 @@ import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { SearchPaymentDto } from './dto/search-payment.dto';
 import { SettleDebtDto } from './dto/settle-debt.dto';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
+import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 import { QueryHelper } from '../../common/helpers/query-helper';
 
 @Injectable()
@@ -237,7 +238,7 @@ export class PaymentService {
       }
 
       // 5. Tạo Payment record với debt_note_code
-      const paymentCode = this.generatePaymentCode();
+      const paymentCode = CodeGeneratorHelper.generateUniqueCode('PAY');
       const payment = this.paymentRepository.create({
         code: paymentCode,
         customer_id: dto.customer_id,
@@ -323,21 +324,6 @@ export class PaymentService {
     }
   }
 
-  /**
-   * Sinh mã phiếu thu tự động
-   */
-  private generatePaymentCode(): string {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const seconds = String(now.getSeconds()).padStart(2, '0');
-    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-    
-    return `PT${year}${month}${day}${hours}${minutes}${seconds}${random}`;
-  }
 
   /**
    * Rollback payment (hoàn tác thanh toán)

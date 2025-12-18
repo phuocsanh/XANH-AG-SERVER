@@ -1,4 +1,4 @@
-import { Injectable, Inject, forwardRef, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Inject, forwardRef, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan, In } from 'typeorm';
 
@@ -12,6 +12,7 @@ import { InventoryAdjustment } from '../../entities/inventory-adjustments.entity
 import { InventoryAdjustmentItem } from '../../entities/inventory-adjustment-items.entity';
 import { CreateInventoryBatchDto } from './dto/create-inventory-batch.dto';
 import { QueryHelper } from '../../common/helpers/query-helper';
+import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 import { CreateInventoryTransactionDto } from './dto/create-inventory-transaction.dto';
 import {
   CreateInventoryReceiptDto,
@@ -1057,16 +1058,23 @@ export class InventoryService {
    * @returns Thông tin phiếu nhập kho đã tạo
    */
   async createReceipt(createInventoryReceiptDto: CreateInventoryReceiptDto, userId: number) {
-    this.logger.log(`Bắt đầu tạo phiếu nhập kho: ${createInventoryReceiptDto.receipt_code}`);
+    this.logger.log(`Bắt đầu tạo phiếu nhập kho: ${createInventoryReceiptDto.receipt_code || 'auto-generate'}`);
     
     const queryRunner = this.inventoryReceiptRepository.manager.connection.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
+      // Tự sinh mã nếu không được cung cấp
+      let receiptCode = createInventoryReceiptDto.receipt_code;
+      if (!receiptCode) {
+        receiptCode = CodeGeneratorHelper.generateUniqueCode('REC');
+        this.logger.log(`Tự sinh mã phiếu nhập kho: ${receiptCode}`);
+      }
+
       // Tạo phiếu nhập kho
       const receiptData: any = {
-        code: createInventoryReceiptDto.receipt_code,
+        code: receiptCode,
         supplier_id: createInventoryReceiptDto.supplier_id,
         total_amount: createInventoryReceiptDto.total_amount,
         status: createInventoryReceiptDto.status,
@@ -1745,9 +1753,16 @@ export class InventoryService {
     await queryRunner.startTransaction();
 
     try {
+      // Tự sinh mã nếu không được cung cấp
+      let returnCode = createInventoryReturnDto.return_code;
+      if (!returnCode) {
+        returnCode = CodeGeneratorHelper.generateUniqueCode('RET');
+        this.logger.log(`Tự sinh mã phiếu trả hàng: ${returnCode}`);
+      }
+
       // Tạo phiếu trả hàng
       const returnData: any = {
-        code: createInventoryReturnDto.return_code,
+        code: returnCode,
         receipt_id: createInventoryReturnDto.receipt_id,
         supplier_id: createInventoryReturnDto.supplier_id,
         total_amount: createInventoryReturnDto.total_amount,
@@ -1823,6 +1838,73 @@ export class InventoryService {
     }
   }
 
+  /**
+   * Cập nhật thông tin phiếu xuất trả hàng (chỉ khi ở trạng thái draft)
+   * @param id - ID của phiếu cần cập nhật
+   * @param updateDto - Dữ liệu cập nhật
+   * @param userId - ID người thực hiện
+   */
+  async updateReturn(id: number, updateDto: Partial<CreateInventoryReturnDto>, userId: number) {
+    const returnDoc = await this.findReturnById(id);
+    if (!returnDoc) {
+      throw new NotFoundException('Không tìm thấy phiếu trả hàng');
+    }
+
+    if (returnDoc.status !== 'draft') {
+      throw new BadRequestException('Chỉ có thể sửa phiếu ở trạng thái nháp');
+    }
+
+    const queryRunner = this.inventoryReturnRepository.manager.connection.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // Cập nhật thông tin chung
+      const updateData: any = {
+        updated_by: userId,
+      };
+      if (updateDto.return_code) updateData.code = updateDto.return_code;
+      if (updateDto.supplier_id) updateData.supplier_id = updateDto.supplier_id;
+      if (updateDto.receipt_id) updateData.receipt_id = updateDto.receipt_id;
+      if (updateDto.total_amount !== undefined) updateData.total_amount = updateDto.total_amount;
+      if (updateDto.reason) updateData.reason = updateDto.reason;
+      if (updateDto.status) updateData.status = updateDto.status;
+      if (updateDto.notes !== undefined) updateData.notes = updateDto.notes;
+
+      await queryRunner.manager.update(InventoryReturn, id, updateData);
+
+      // Cập nhật danh sách items nếu có
+      if (updateDto.items) {
+        // Xóa items cũ
+        await queryRunner.manager.delete(InventoryReturnItem, { return_id: id });
+        
+        // Thêm items mới
+        for (const item of updateDto.items) {
+          const itemData: any = {
+            return_id: id,
+            product_id: item.product_id,
+            quantity: item.quantity,
+            unit_cost: item.unit_cost,
+            total_price: item.total_price,
+          };
+          if (item.reason) itemData.reason = item.reason;
+          if (item.notes) itemData.notes = item.notes;
+
+          const itemDoc = queryRunner.manager.create(InventoryReturnItem, itemData);
+          await queryRunner.manager.save(itemDoc);
+        }
+      }
+
+      await queryRunner.commitTransaction();
+      return this.findReturnById(id);
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
 
 
   /**
@@ -1831,10 +1913,20 @@ export class InventoryService {
    * @returns Thông tin phiếu xuất trả hàng
    */
   async findReturnById(id: number): Promise<InventoryReturn | null> {
-    return this.inventoryReturnRepository.findOne({
+    const returnDoc = await this.inventoryReturnRepository.findOne({
       where: { id },
-      relations: ['items'],
+      relations: ['items', 'items.product', 'supplier'],
     });
+
+    if (!returnDoc) {
+      return null;
+    }
+
+    // Load images và gắn vào returnDoc
+    const images = await this.getReturnImages(id);
+    (returnDoc as any).images = images;
+
+    return returnDoc;
   }
 
   /**
@@ -1883,15 +1975,53 @@ export class InventoryService {
   }
 
   /**
-   * Duyệt phiếu xuất trả hàng
+   * Duyệt phiếu xuất trả hàng (và tự động trừ kho)
    * @param id - ID của phiếu xuất trả hàng cần duyệt
+   * @param userId - ID người duyệt
    * @returns Kết quả duyệt phiếu xuất trả hàng
    */
-  async approveReturn(id: number): Promise<InventoryReturn | null> {
+  async approveReturn(id: number, userId: number): Promise<InventoryReturn | null> {
     const returnDoc = await this.findReturnById(id);
     if (!returnDoc) {
       return null;
     }
+
+    // Kiểm tra trạng thái
+    if (returnDoc.status === 'approved') {
+      return returnDoc; // Đã duyệt rồi
+    }
+
+    if (returnDoc.status === 'cancelled') {
+      throw new Error('Không thể duyệt phiếu đã bị hủy');
+    }
+
+    // Lấy danh sách chi tiết phiếu xuất trả
+    const items = await this.inventoryReturnItemRepository.find({
+      where: { return_id: id },
+    });
+
+    // Xử lý xuất kho cho từng sản phẩm
+    for (const item of items) {
+      try {
+        await this.processStockOut(
+          item.product_id,
+          item.quantity,
+          'RETURN',
+          userId,
+          id,
+          `Trả hàng cho nhà cung cấp - Phiếu ${returnDoc.code}`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Lỗi khi xử lý xuất kho cho sản phẩm ${item.product_id} trong phiếu trả hàng ${id}:`,
+          error,
+        );
+        throw new Error(
+          `Không thể duyệt phiếu trả hàng do lỗi xử lý tồn kho sản phẩm ${item.product_id}`,
+        );
+      }
+    }
+
     returnDoc.status = 'approved';
     returnDoc.approved_at = new Date();
     return this.inventoryReturnRepository.save(returnDoc);
@@ -1988,6 +2118,105 @@ export class InventoryService {
     await this.inventoryReturnRepository.delete(id);
   }
 
+  /**
+   * Upload hình ảnh cho phiếu xuất trả hàng
+   * @param returnId - ID của phiếu xuất trả hàng
+   * @param fileId - ID của file đã upload
+   * @param fieldName - Tên trường (mặc định: 'return_images')
+   * @returns Thông tin tham chiếu file đã tạo
+   */
+  async uploadReturnImage(
+    returnId: number,
+    fileId: number,
+    fieldName: string = 'return_images',
+  ) {
+    // Kiểm tra phiếu trả hàng có tồn tại không
+    const returnDoc = await this.findReturnById(returnId);
+    if (!returnDoc) {
+      throw new Error('Không tìm thấy phiếu trả hàng');
+    }
+
+    // Lấy thông tin file
+    const fileUpload = await this.fileTrackingService.findOne(fileId);
+    if (!fileUpload) {
+      throw new Error('Không tìm thấy file');
+    }
+
+    // Tạo tham chiếu file
+    const fileReference = await this.fileTrackingService.createFileReference(
+      fileUpload,
+      'inventory_return',
+      returnId,
+      fieldName,
+    );
+
+    return fileReference;
+  }
+
+  /**
+   * Lấy danh sách hình ảnh của phiếu xuất trả hàng
+   * @param returnId - ID của phiếu xuất trả hàng
+   * @returns Danh sách hình ảnh
+   */
+  async getReturnImages(returnId: number) {
+    const fileReferences =
+      await this.fileTrackingService.findFileReferencesByEntity(
+        'inventory_return',
+        returnId,
+      );
+
+    // Lấy thông tin chi tiết của từng file
+    const images: Array<{
+      id: number;
+      url: string;
+      name: string;
+      type: string;
+      size: number;
+      created_at: Date;
+    }> = [];
+    for (const ref of fileReferences) {
+      const file = await this.fileTrackingService.findOne(ref.file_id);
+      if (file) {
+        images.push({
+          id: file.id,
+          url: file.url,
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          created_at: ref.created_at,
+        });
+      }
+    }
+
+    return images;
+  }
+
+  /**
+   * Xóa hình ảnh khỏi phiếu xuất trả hàng
+   * @param returnId - ID của phiếu xuất trả hàng
+   * @param fileId - ID của file cần xóa
+   * @returns Kết quả xóa
+   */
+  async deleteReturnImage(returnId: number, fileId: number) {
+    // Kiểm tra phiếu trả hàng có tồn tại không
+    const returnDoc = await this.findReturnById(returnId);
+    if (!returnDoc) {
+      throw new Error('Không tìm thấy phiếu trả hàng');
+    }
+
+    // Xóa tham chiếu file
+    await this.fileTrackingService.removeFileReference(
+      fileId,
+      'inventory_return',
+      returnId,
+    );
+
+    return {
+      success: true,
+      message: 'Đã xóa hình ảnh thành công',
+    };
+  }
+
   // ===== ADJUSTMENT FEATURE METHODS =====
 
   /**
@@ -1999,15 +2228,22 @@ export class InventoryService {
     createInventoryAdjustmentDto: CreateInventoryAdjustmentDto,
     userId: number,
   ) {
-    this.logger.log(`Bắt đầu tạo phiếu điều chỉnh: ${createInventoryAdjustmentDto.adjustment_code}`);
+    this.logger.log(`Bắt đầu tạo phiếu điều chỉnh: ${createInventoryAdjustmentDto.adjustment_code || 'auto-generate'}`);
     
     const queryRunner = this.inventoryAdjustmentRepository.manager.connection.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
+      // Tự sinh mã nếu không được cung cấp
+      let adjustmentCode = createInventoryAdjustmentDto.adjustment_code;
+      if (!adjustmentCode) {
+        adjustmentCode = CodeGeneratorHelper.generateUniqueCode('ADJ');
+        this.logger.log(`Tự sinh mã phiếu điều chỉnh: ${adjustmentCode}`);
+      }
+
       const adjustmentData: any = {
-        code: createInventoryAdjustmentDto.adjustment_code,
+        code: adjustmentCode,
         adjustment_type: createInventoryAdjustmentDto.adjustment_type,
         reason: createInventoryAdjustmentDto.reason,
         status: createInventoryAdjustmentDto.status || 'draft',
@@ -2122,15 +2358,71 @@ export class InventoryService {
   }
 
   /**
-   * Duyệt phiếu điều chỉnh kho
+   * Duyệt phiếu điều chỉnh kho (và tự động tác động kho)
    * @param id - ID của phiếu điều chỉnh kho cần duyệt
+   * @param userId - ID người duyệt
    * @returns Kết quả duyệt phiếu điều chỉnh kho
    */
-  async approveAdjustment(id: number): Promise<InventoryAdjustment | null> {
+  async approveAdjustment(id: number, userId: number): Promise<InventoryAdjustment | null> {
     const adjustment = await this.findAdjustmentById(id);
     if (!adjustment) {
       return null;
     }
+
+    // Kiểm tra trạng thái
+    if (adjustment.status === 'approved') {
+      return adjustment; // Đã duyệt rồi
+    }
+
+    if (adjustment.status === 'cancelled') {
+      throw new Error('Không thể duyệt phiếu đã bị hủy');
+    }
+
+    // Lấy danh sách chi tiết phiếu điều chỉnh
+    const items = await this.inventoryAdjustmentItemRepository.find({
+      where: { adjustment_id: id },
+    });
+
+    // Xử lý điều chỉnh kho cho từng sản phẩm
+    for (const item of items) {
+      try {
+        const quantityChange = item.quantity_change;
+
+        if (quantityChange > 0) {
+          // Tăng tồn kho
+          const currentAverageCost = await this.getWeightedAverageCost(
+            item.product_id,
+          );
+          await this.processStockIn(
+            item.product_id,
+            quantityChange,
+            currentAverageCost, // Sử dụng giá vốn hiện tại
+            userId,
+            undefined,
+            `Điều chỉnh tăng kho - Phiếu ${adjustment.code}`,
+          );
+        } else if (quantityChange < 0) {
+          // Giảm tồn kho
+          await this.processStockOut(
+            item.product_id,
+            Math.abs(quantityChange),
+            'ADJUSTMENT',
+            userId,
+            id,
+            `Điều chỉnh giảm kho - Phiếu ${adjustment.code}`,
+          );
+        }
+      } catch (error) {
+        this.logger.error(
+          `Lỗi khi xử lý điều chỉnh kho cho sản phẩm ${item.product_id} trong phiếu ${id}:`,
+          error,
+        );
+        throw new Error(
+          `Không thể duyệt phiếu điều chỉnh kho do lỗi xử lý tồn kho sản phẩm ${item.product_id}`,
+        );
+      }
+    }
+
     adjustment.status = 'approved';
     adjustment.approved_at = new Date();
     return this.inventoryAdjustmentRepository.save(adjustment);

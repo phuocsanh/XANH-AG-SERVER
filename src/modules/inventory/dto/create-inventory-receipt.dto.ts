@@ -45,9 +45,10 @@ export class CreateInventoryReceiptItemDto {
  * Chứa các trường cần thiết để tạo một phiếu nhập kho cùng với các chi tiết
  */
 export class CreateInventoryReceiptDto {
-  /** Mã phiếu nhập kho (bắt buộc) */
+  /** Mã phiếu nhập kho (tùy chọn - tự sinh nếu không có) */
   @IsString()
-  receipt_code!: string;
+  @IsOptional()
+  receipt_code?: string;
 
   /** ID của nhà cung cấp (bắt buộc) */
   @IsNumber()
