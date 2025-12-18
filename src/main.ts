@@ -116,6 +116,7 @@ async function bootstrap() {
   logger.log(`🚀 Application is running on: ${url}`);
   logger.log(`📚 API Documentation: ${url}/api`);
   logger.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  logger.log(`🔄 Force Rebuild V5 (Clean PUT) Triggered at ${new Date().toISOString()}`);
 }
 
 // Gọi hàm bootstrap để khởi động ứng dụng

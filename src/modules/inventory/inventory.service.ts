@@ -2211,7 +2211,68 @@ export class InventoryService {
     }
   }
 
+  /**
+   * Cập nhật thông tin phiếu điều chỉnh kho (chỉ khi ở trạng thái draft)
+   * @param id - ID của phiếu cần cập nhật
+   * @param updateDto - Dữ liệu cập nhật
+   * @param userId - ID người thực hiện
+   */
+  async updateAdjustment(id: number, updateDto: any, userId: number) {
+    const adjustment = await this.findAdjustmentById(id);
+    if (!adjustment) {
+      throw new NotFoundException('Không tìm thấy phiếu điều chỉnh kho');
+    }
 
+    if (adjustment.status !== AdjustmentStatus.DRAFT) {
+      throw new BadRequestException('Chỉ có thể sửa phiếu ở trạng thái nháp');
+    }
+
+    const queryRunner = this.inventoryAdjustmentRepository.manager.connection.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // Cập nhật thông tin chung
+      const updateData: any = {
+        updated_by: userId,
+      };
+      if (updateDto.adjustment_code) updateData.code = updateDto.adjustment_code;
+      if (updateDto.adjustment_type) updateData.adjustment_type = updateDto.adjustment_type;
+      if (updateDto.reason) updateData.reason = updateDto.reason;
+      if (updateDto.notes !== undefined) updateData.notes = updateDto.notes;
+      if (updateDto.status) updateData.status = updateDto.status;
+
+      await queryRunner.manager.update(InventoryAdjustment, id, updateData);
+
+      // Cập nhật danh sách items nếu có
+      if (updateDto.items) {
+        // Xóa items cũ
+        await queryRunner.manager.delete(InventoryAdjustmentItem, { adjustment_id: id });
+        
+        // Thêm items mới
+        for (const item of updateDto.items) {
+          const itemData: any = {
+            adjustment_id: id,
+            product_id: item.product_id,
+            quantity_change: item.quantity_change,
+            reason: item.reason,
+          };
+          if (item.notes !== undefined) itemData.notes = item.notes;
+
+          const itemDoc = queryRunner.manager.create(InventoryAdjustmentItem, itemData);
+          await queryRunner.manager.save(itemDoc);
+        }
+      }
+
+      await queryRunner.commitTransaction();
+      return this.findAdjustmentById(id);
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
 
   /**
    * Tìm phiếu điều chỉnh kho theo ID

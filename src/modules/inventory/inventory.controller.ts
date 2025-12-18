@@ -4,6 +4,7 @@ import {
   Post,
   Body,
   Patch,
+  Put,
   Param,
   Delete,
   Query,
@@ -681,7 +682,7 @@ export class InventoryController {
    * @param createInventoryAdjustmentDto - Dữ liệu tạo phiếu điều chỉnh kho mới
    * @returns Thông tin phiếu điều chỉnh kho đã tạo
    */
-  @Post('adjustment')
+  @Post('adjustments')
   @RequirePermissions('INVENTORY_MANAGE')
   createAdjustment(
     @Body() createInventoryAdjustmentDto: any,
@@ -717,9 +718,25 @@ export class InventoryController {
    * @param id - ID của phiếu điều chỉnh kho cần tìm
    * @returns Thông tin phiếu điều chỉnh kho
    */
-  @Get('adjustment/:id')
-  findAdjustmentById(@Param('id') id: string) {
-    return this.inventoryService.findAdjustmentById(+id);
+  @Get('adjustments/:id')
+  async findAdjustmentById(@Param('id') id: string) {
+    console.log('🔍 [DEBUG] findAdjustmentById called for ID:', id);
+    const result = await this.inventoryService.findAdjustmentById(+id);
+    return { ...result, test_server: 'RELOADED_V3' };
+  }
+
+  /**
+   * Cập nhật thông tin phiếu điều chỉnh kho
+   */
+  @Put('adjustments/:id')
+  @RequirePermissions('INVENTORY_MANAGE')
+  updateAdjustment(
+    @Param('id') id: string,
+    @Body() updateDto: any,
+    @CurrentUser('id') userId: number,
+  ) {
+    console.log('🚀 [DEBUG] updateAdjustment (POST) called for ID:', id);
+    return this.inventoryService.updateAdjustment(+id, updateDto, userId);
   }
 
   /**
@@ -728,9 +745,10 @@ export class InventoryController {
    * @param userId - ID người duyệt
    * @returns Kết quả duyệt phiếu điều chỉnh kho
    */
-  @Post('adjustment/:id/approve')
+  @Post('adjustments/:id/approve')
   @RequirePermissions('INVENTORY_MANAGE')
   approveAdjustment(@Param('id') id: string, @CurrentUser('id') userId: number) {
+    console.log('🚀 [DEBUG] approveAdjustment called for ID:', id);
     return this.inventoryService.approveAdjustment(+id, userId);
   }
 
@@ -741,7 +759,7 @@ export class InventoryController {
    * @param reason - Lý do hủy phiếu điều chỉnh kho
    * @returns Kết quả hủy phiếu điều chỉnh kho
    */
-  @Post('adjustment/:id/cancel')
+  @Post('adjustments/:id/cancel')
   @RequirePermissions('INVENTORY_MANAGE')
   cancelAdjustment(@Param('id') id: string, @Body('reason') reason: string) {
     return this.inventoryService.cancelAdjustment(+id, reason);
@@ -752,7 +770,7 @@ export class InventoryController {
    * @param id - ID của phiếu điều chỉnh kho cần xóa
    * @returns Kết quả xóa phiếu điều chỉnh kho
    */
-  @Delete('adjustment/:id')
+  @Delete('adjustments/:id')
   @RequirePermissions('INVENTORY_MANAGE')
   removeAdjustment(@Param('id') id: string) {
     return this.inventoryService.removeAdjustment(+id);

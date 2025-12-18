@@ -4,7 +4,7 @@ import { Repository } from 'typeorm';
 import { Payment } from '../../entities/payment.entity';
 import { PaymentAllocation } from '../../entities/payment-allocation.entity';
 import { DebtNote, DebtNoteStatus } from '../../entities/debt-note.entity';
-import { SalesInvoice } from '../../entities/sales-invoices.entity';
+import { SalesInvoice, SalesPaymentStatus } from '../../entities/sales-invoices.entity';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { SearchPaymentDto } from './dto/search-payment.dto';
 import { SettleDebtDto } from './dto/settle-debt.dto';
@@ -274,7 +274,7 @@ export class PaymentService {
         invoice.remaining_amount = invoiceDebt - amountToAllocate;
         
         if (invoice.remaining_amount <= 0) {
-          invoice.payment_status = 'paid';
+          invoice.payment_status = SalesPaymentStatus.PAID;
         }
 
         await this.salesInvoiceRepository.save(invoice);
@@ -369,7 +369,7 @@ export class PaymentService {
 
         // Cập nhật trạng thái
         if (invoice.remaining_amount > 0) {
-          invoice.payment_status = invoice.partial_payment_amount > 0 ? 'partial' : 'unpaid';
+          invoice.payment_status = invoice.partial_payment_amount > 0 ? SalesPaymentStatus.PARTIAL : SalesPaymentStatus.PENDING;
         }
 
         await this.salesInvoiceRepository.save(invoice);

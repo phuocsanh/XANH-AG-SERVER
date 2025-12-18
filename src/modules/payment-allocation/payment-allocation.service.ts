@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { PaymentAllocation } from '../../entities/payment-allocation.entity';
 import { Payment } from '../../entities/payment.entity';
-import { SalesInvoice, SalesInvoiceStatus } from '../../entities/sales-invoices.entity';
+import { SalesInvoice, SalesInvoiceStatus, SalesPaymentStatus } from '../../entities/sales-invoices.entity';
 import { DebtNote, DebtNoteStatus } from '../../entities/debt-note.entity';
 import { CreatePaymentAllocationDto } from './dto/create-payment-allocation.dto';
 import { SearchPaymentAllocationDto } from './dto/search-payment-allocation.dto';
@@ -66,10 +66,10 @@ export class PaymentAllocationService {
         
         if (newRemaining <= 0) {
             invoice.status = SalesInvoiceStatus.PAID;
-            invoice.payment_status = 'paid';
+            invoice.payment_status = SalesPaymentStatus.PAID;
             invoice.remaining_amount = 0; // Clamp to 0
         } else {
-            invoice.payment_status = 'partial';
+            invoice.payment_status = SalesPaymentStatus.PARTIAL;
         }
 
         await queryRunner.manager.save(invoice);

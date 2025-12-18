@@ -18,7 +18,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
-import { SalesInvoiceStatus } from '../../entities/sales-invoices.entity';
+import { SalesInvoiceStatus, SalesPaymentStatus } from '../../entities/sales-invoices.entity';
 import { SearchSalesDto } from './dto/search-sales.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -205,7 +205,7 @@ export class SalesController {
   @Patch('invoice/:id/payment-status')
   updatePaymentStatus(
     @Param('id') id: string,
-    @Body('paymentStatus') paymentStatus: string,
+    @Body('paymentStatus') paymentStatus: SalesPaymentStatus,
   ) {
     return this.salesService.updatePaymentStatus(+id, paymentStatus);
   }
