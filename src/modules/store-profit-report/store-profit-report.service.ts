@@ -6,6 +6,8 @@ import { Season } from '../../entities/season.entity';
 import { OperatingCost } from '../../entities/operating-costs.entity';
 import { DeliveryLog } from '../../entities/delivery-log.entity';
 import { CostItem } from '../../entities/cost-item.entity';
+import { RiceCrop } from '../../entities/rice-crop.entity';
+import { Customer } from '../../entities/customer.entity';
 
 import { 
   InvoiceProfitDto, 
@@ -43,6 +45,10 @@ export class StoreProfitReportService {
     private deliveryLogRepository: Repository<DeliveryLog>,
     @InjectRepository(CostItem)
     private costItemRepository: Repository<CostItem>,
+    @InjectRepository(RiceCrop)
+    private riceCropRepository: Repository<RiceCrop>,
+    @InjectRepository(Customer)
+    private customerRepository: Repository<Customer>,
 
   ) {}
 
@@ -441,7 +447,35 @@ export class StoreProfitReportService {
       });
 
       if (allInvoices.length === 0) {
-        throw new NotFoundException(`Không tìm thấy đơn hàng nào của khách hàng ID: ${customerId}`);
+        // Nếu không có hóa đơn, vẫn trả về thông tin khách hàng với các số liệu bằng 0
+        const customer = await this.customerRepository.findOne({ where: { id: customerId } });
+        if (!customer) {
+          throw new NotFoundException(`Không tìm thấy khách hàng ID: ${customerId}`);
+        }
+
+        return {
+          customer_id: customer.id,
+          customer_name: customer.name,
+          customer_phone: customer.phone,
+          customer_email: customer.email,
+          lifetime_summary: {
+            total_invoices: 0,
+            total_revenue: 0,
+            total_cost: 0,
+            total_profit: 0,
+            avg_margin: 0,
+          },
+          summary: {
+            total_invoices: 0,
+            total_revenue: 0,
+            total_cost: 0,
+            total_profit: 0,
+            avg_margin: 0,
+          },
+          invoices: [],
+          by_season: [],
+          debug_version: 'v5_empty_data',
+        };
       }
 
       const firstInvoice = allInvoices[0]!;
@@ -660,7 +694,65 @@ export class StoreProfitReportService {
       });
 
       if (invoices.length === 0) {
-        throw new NotFoundException(`Không tìm thấy hóa đơn nào cho mảnh ruộng ID: ${riceCropId}`);
+        // Nếu không có hóa đơn, vẫn trả về thông tin ruộng lúa với số liệu bằng 0
+        const riceCrop = await this.riceCropRepository.findOne({
+          where: { id: riceCropId },
+          relations: ['customer', 'season'],
+        });
+
+        if (!riceCrop) {
+          throw new NotFoundException(`Không tìm thấy mảnh ruộng ID: ${riceCropId}`);
+        }
+
+        // Lấy chi phí vận hành & canh tác ngay cả khi chưa có hóa đơn bán
+        const operatingCosts = await this.operatingCostRepository.find({
+          where: { rice_crop_id: riceCropId }
+        });
+        const totalOperatingCosts = operatingCosts.reduce((sum, cost) => sum + Number(cost.value), 0);
+
+        const productionCosts = await this.costItemRepository.find({
+          where: { rice_crop_id: riceCropId }
+        });
+        const totalProductionCosts = productionCosts.reduce((sum, item) => sum + Number(item.total_cost || 0), 0);
+
+        const totalExpenses = totalOperatingCosts + totalProductionCosts;
+
+        return {
+          rice_crop_id: riceCropId,
+          field_name: riceCrop.field_name,
+          customer_name: riceCrop.customer?.name,
+          season_name: riceCrop.season?.name,
+          summary: {
+            total_invoices: 0,
+            total_revenue: 0,
+            cost_of_goods_sold: 0,
+            gross_profit: 0,
+            avg_margin: 0,
+            gift_value_from_invoices: 0,
+            operating_costs: totalOperatingCosts,
+            production_costs: totalProductionCosts,
+            total_expenses: totalExpenses,
+            net_profit: -totalExpenses, // Lợi nhuận âm vì có chi phí mà chưa có doanh thu
+            net_margin: 0,
+          },
+          operating_costs_breakdown: operatingCosts.map(c => ({
+            name: c.name,
+            amount: Number(c.value),
+            date: c.expense_date || c.created_at,
+            type: 'operating'
+          })),
+          production_costs_breakdown: productionCosts.map(c => ({
+            name: c.item_name,
+            amount: Number(c.total_cost),
+            date: c.purchase_date || c.created_at,
+            category: c.category,
+            quantity: c.quantity,
+            unit: c.unit,
+            type: 'production'
+          })),
+          invoices: [],
+          debug_version: 'v5_empty_data',
+        };
       }
 
       const firstInvoice = invoices[0]!;

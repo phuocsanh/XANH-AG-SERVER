@@ -8,6 +8,8 @@ import { OperatingCost } from '../../entities/operating-costs.entity';
 import { DeliveryLog } from '../../entities/delivery-log.entity';
 import { CostItem } from '../../entities/cost-item.entity';
 import { SalesReturn } from '../../entities/sales-return.entity';
+import { RiceCrop } from '../../entities/rice-crop.entity';
+import { Customer } from '../../entities/customer.entity';
 
 /**
  * Module quản lý báo cáo lợi nhuận cửa hàng
@@ -21,6 +23,8 @@ import { SalesReturn } from '../../entities/sales-return.entity';
       DeliveryLog,
       CostItem,
       SalesReturn,
+      RiceCrop,
+      Customer,
     ]),
   ],
   controllers: [StoreProfitReportController],
