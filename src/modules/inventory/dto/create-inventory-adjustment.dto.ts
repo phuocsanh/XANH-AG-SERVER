@@ -8,6 +8,7 @@ import {
   IsIn,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { AdjustmentStatus } from '../enums/adjustment-status.enum';
 
 /**
  * DTO cho chi tiết sản phẩm trong phiếu điều chỉnh kho
@@ -57,6 +58,7 @@ export class CreateInventoryAdjustmentDto {
   /** Trạng thái phiếu điều chỉnh kho */
   @IsOptional()
   @IsString({ message: 'Trạng thái phải là chuỗi' })
+  @IsIn(Object.values(AdjustmentStatus), { message: 'Trạng thái không hợp lệ' })
   status?: string;
 
   /** Ghi chú */

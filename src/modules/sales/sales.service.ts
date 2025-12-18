@@ -4,6 +4,7 @@ import { Repository, IsNull, Not, DataSource } from 'typeorm';
 import {
   SalesInvoice,
   SalesInvoiceStatus,
+  SalesPaymentStatus,
 } from '../../entities/sales-invoices.entity';
 import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
 import { Product } from '../../entities/products.entity';
@@ -507,7 +508,7 @@ export class SalesService {
    */
   async updatePaymentStatus(
     id: number,
-    payment_status: string,
+    payment_status: SalesPaymentStatus,
   ): Promise<SalesInvoice | null> {
     const invoice = await this.findOne(id);
     if (!invoice) {
@@ -543,13 +544,13 @@ export class SalesService {
     // Nếu thanh toán đủ, cập nhật trạng thái
     if (newRemainingAmount <= 0) {
       invoice.status = SalesInvoiceStatus.PAID;
-      invoice.payment_status = 'paid';
+      invoice.payment_status = SalesPaymentStatus.PAID;
       invoice.partial_payment_amount = finalAmount;
       invoice.remaining_amount = 0;
     } else {
       invoice.partial_payment_amount = newPartialPayment;
       invoice.remaining_amount = newRemainingAmount;
-      invoice.payment_status = 'partial';
+      invoice.payment_status = SalesPaymentStatus.PARTIAL;
     }
 
     return this.salesInvoiceRepository.save(invoice);

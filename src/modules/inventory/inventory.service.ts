@@ -28,6 +28,9 @@ import {
   LowStockProduct,
 } from './interfaces/inventory-report.interface';
 import { SearchInventoryDto } from './dto/search-inventory.dto';
+import { AdjustmentStatus } from './enums/adjustment-status.enum';
+import { ReturnStatus } from './enums/return-status.enum';
+import { ReceiptStatus } from './enums/receipt-status.enum';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 
 /**
@@ -1185,7 +1188,7 @@ export class InventoryService {
         savedItems.push(savedItem);
 
         // Xử lý nhập kho cho sản phẩm và cập nhật giá vốn trung
-        if (receiptEntity.status === 'completed') {
+        if (receiptEntity.status === ReceiptStatus.COMPLETED) {
           // Nếu tạo phiếu với trạng thái completed thì tiến hành nhập kho luôn
           try {
              await this.processStockIn(
@@ -1319,7 +1322,7 @@ export class InventoryService {
     }
 
     // Chỉ cho phép sửa phiếu ở trạng thái 'draft'
-    if (receipt.status !== 'draft') {
+    if (receipt.status !== ReceiptStatus.DRAFT) {
       throw new Error('Chỉ có thể chỉnh sửa phiếu nhập kho ở trạng thái nháp (draft)');
     }
 
@@ -1354,8 +1357,8 @@ export class InventoryService {
 
     // Chỉ cho phép xóa phiếu ở trạng thái 'draft'
     // KHÔNG cho phép xóa phiếu 'cancelled' nếu đã từng 'completed' (để giữ audit trail)
-    if (receipt.status !== 'draft') {
-      if (receipt.status === 'cancelled') {
+    if (receipt.status !== ReceiptStatus.DRAFT) {
+      if (receipt.status === ReceiptStatus.CANCELLED) {
         // Kiểm tra xem phiếu này có completed_at không (tức là đã từng completed)
         if (receipt.completed_at) {
            throw new Error('Không thể xóa phiếu đã từng hoàn thành và bị hủy. Dữ liệu cần được giữ lại để đối soát.');
@@ -1386,11 +1389,11 @@ export class InventoryService {
       return null;
     }
     
-    if (receipt.status !== 'draft') {
+    if (receipt.status !== ReceiptStatus.DRAFT) {
        throw new Error('Chỉ có thể duyệt phiếu ở trạng thái nháp');
     }
 
-    receipt.status = 'approved'; // Cập nhật trạng thái thành đã duyệt
+    receipt.status = ReceiptStatus.APPROVED; // Cập nhật trạng thái thành đã duyệt
     receipt.approved_at = new Date(); // Ghi nhận thời gian duyệt
     return this.inventoryReceiptRepository.save(receipt);
   }
@@ -1406,11 +1409,11 @@ export class InventoryService {
       return null;
     }
 
-    if (receipt.status === 'completed') {
+    if (receipt.status === ReceiptStatus.COMPLETED) {
       return receipt; // Đã hoàn thành rồi thì không làm gì
     }
     
-    if (receipt.status === 'cancelled') {
+    if (receipt.status === ReceiptStatus.CANCELLED) {
       throw new Error('Không thể hoàn thành phiếu đã bị hủy');
     }
 
@@ -1446,7 +1449,7 @@ export class InventoryService {
       }
     }
 
-    receipt.status = 'completed'; // Cập nhật trạng thái thành đã hoàn thành
+    receipt.status = ReceiptStatus.COMPLETED; // Cập nhật trạng thái thành đã hoàn thành
     receipt.completed_at = new Date(); // Ghi nhận thời gian hoàn thành
     return this.inventoryReceiptRepository.save(receipt);
   }
@@ -1469,16 +1472,16 @@ export class InventoryService {
     }
     
     // Validate: Không cho phép cancel phiếu đã cancelled
-    if (receipt.status === 'cancelled') {
+    if (receipt.status === ReceiptStatus.CANCELLED) {
         throw new Error('Phiếu nhập kho đã bị hủy trước đó');
     }
     
     // Nếu phiếu đã completed → Cần rollback inventory
-    if (receipt.status === 'completed') {
+    if (receipt.status === ReceiptStatus.COMPLETED) {
         await this.rollbackReceiptInventory(id, userId, reason);
     }
     
-    receipt.status = 'cancelled'; // Cập nhật trạng thái thành đã hủy
+    receipt.status = ReceiptStatus.CANCELLED; // Cập nhật trạng thái thành đã hủy
     receipt.cancelled_at = new Date(); // Ghi nhận thời gian hủy
     receipt.cancelled_reason = reason; // Ghi nhận lý do hủy
     return this.inventoryReceiptRepository.save(receipt);
@@ -1767,7 +1770,7 @@ export class InventoryService {
         supplier_id: createInventoryReturnDto.supplier_id,
         total_amount: createInventoryReturnDto.total_amount,
         reason: createInventoryReturnDto.reason,
-        status: createInventoryReturnDto.status || 'draft',
+        status: createInventoryReturnDto.status || ReturnStatus.DRAFT,
         created_by: userId,
         updated_by: userId,
       };
@@ -1850,7 +1853,7 @@ export class InventoryService {
       throw new NotFoundException('Không tìm thấy phiếu trả hàng');
     }
 
-    if (returnDoc.status !== 'draft') {
+    if (returnDoc.status !== ReturnStatus.DRAFT) {
       throw new BadRequestException('Chỉ có thể sửa phiếu ở trạng thái nháp');
     }
 
@@ -1987,11 +1990,11 @@ export class InventoryService {
     }
 
     // Kiểm tra trạng thái
-    if (returnDoc.status === 'approved') {
+    if (returnDoc.status === ReturnStatus.APPROVED) {
       return returnDoc; // Đã duyệt rồi
     }
 
-    if (returnDoc.status === 'cancelled') {
+    if (returnDoc.status === ReturnStatus.CANCELLED) {
       throw new Error('Không thể duyệt phiếu đã bị hủy');
     }
 
@@ -2022,7 +2025,7 @@ export class InventoryService {
       }
     }
 
-    returnDoc.status = 'approved';
+    returnDoc.status = ReturnStatus.APPROVED;
     returnDoc.approved_at = new Date();
     return this.inventoryReturnRepository.save(returnDoc);
   }
@@ -2038,7 +2041,7 @@ export class InventoryService {
       return null;
     }
 
-    if (returnDoc.status === 'completed') {
+    if (returnDoc.status === ReturnStatus.COMPLETED) {
       return returnDoc;
     }
 
@@ -2069,7 +2072,7 @@ export class InventoryService {
       }
     }
 
-    returnDoc.status = 'completed';
+    returnDoc.status = ReturnStatus.COMPLETED;
     returnDoc.completed_at = new Date();
     return this.inventoryReturnRepository.save(returnDoc);
   }
@@ -2088,7 +2091,7 @@ export class InventoryService {
     if (!returnDoc) {
       return null;
     }
-    returnDoc.status = 'cancelled';
+    returnDoc.status = ReturnStatus.CANCELLED;
     returnDoc.cancelled_at = new Date();
     returnDoc.cancelled_reason = reason;
     return this.inventoryReturnRepository.save(returnDoc);
@@ -2105,7 +2108,7 @@ export class InventoryService {
     }
 
     // Chỉ cho phép xóa phiếu ở trạng thái nháp hoặc đã hủy
-    if (returnDoc.status !== 'draft' && returnDoc.status !== 'cancelled') {
+    if (returnDoc.status !== ReturnStatus.DRAFT && returnDoc.status !== ReturnStatus.CANCELLED) {
       throw new Error(
         'Không thể xóa phiếu xuất trả hàng đã duyệt hoặc hoàn thành.',
       );
@@ -2246,7 +2249,7 @@ export class InventoryService {
         code: adjustmentCode,
         adjustment_type: createInventoryAdjustmentDto.adjustment_type,
         reason: createInventoryAdjustmentDto.reason,
-        status: createInventoryAdjustmentDto.status || 'draft',
+        status: createInventoryAdjustmentDto.status || AdjustmentStatus.DRAFT,
         created_by: userId,
         updated_by: userId,
       };
@@ -2370,11 +2373,11 @@ export class InventoryService {
     }
 
     // Kiểm tra trạng thái
-    if (adjustment.status === 'approved') {
+    if (adjustment.status === AdjustmentStatus.APPROVED) {
       return adjustment; // Đã duyệt rồi
     }
 
-    if (adjustment.status === 'cancelled') {
+    if (adjustment.status === AdjustmentStatus.CANCELLED) {
       throw new Error('Không thể duyệt phiếu đã bị hủy');
     }
 
@@ -2423,7 +2426,7 @@ export class InventoryService {
       }
     }
 
-    adjustment.status = 'approved';
+    adjustment.status = AdjustmentStatus.APPROVED;
     adjustment.approved_at = new Date();
     return this.inventoryAdjustmentRepository.save(adjustment);
   }
@@ -2439,7 +2442,7 @@ export class InventoryService {
       return null;
     }
 
-    if (adjustment.status === 'completed') {
+    if (adjustment.status === AdjustmentStatus.COMPLETED) {
       return adjustment;
     }
 
@@ -2488,7 +2491,7 @@ export class InventoryService {
       }
     }
 
-    adjustment.status = 'completed';
+    adjustment.status = AdjustmentStatus.COMPLETED;
     adjustment.completed_at = new Date();
     return this.inventoryAdjustmentRepository.save(adjustment);
   }
@@ -2507,7 +2510,7 @@ export class InventoryService {
     if (!adjustment) {
       return null;
     }
-    adjustment.status = 'cancelled';
+    adjustment.status = AdjustmentStatus.CANCELLED;
     adjustment.cancelled_at = new Date();
     adjustment.cancelled_reason = reason;
     return this.inventoryAdjustmentRepository.save(adjustment);
@@ -2524,7 +2527,7 @@ export class InventoryService {
     }
 
     // Chỉ cho phép xóa phiếu ở trạng thái nháp hoặc đã hủy
-    if (adjustment.status !== 'draft' && adjustment.status !== 'cancelled') {
+    if (adjustment.status !== AdjustmentStatus.DRAFT && adjustment.status !== AdjustmentStatus.CANCELLED) {
       throw new Error(
         'Không thể xóa phiếu điều chỉnh kho đã duyệt hoặc hoàn thành.',
       );

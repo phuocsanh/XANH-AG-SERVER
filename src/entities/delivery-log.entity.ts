@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 import { SalesInvoice } from './sales-invoices.entity';
+import { DeliveryStatus } from '../modules/sales/enums/delivery-status.enum';
 
 /**
  * Entity biểu diễn lịch sử giao hàng
@@ -80,11 +81,16 @@ export class DeliveryLog {
   /** Trạng thái giao hàng */
   @ApiProperty({ 
     description: 'Trạng thái giao hàng', 
-    example: 'completed',
-    enum: ['pending', 'in_transit', 'completed', 'failed']
+    example: DeliveryStatus.COMPLETED,
+    enum: DeliveryStatus
   })
-  @Column({ name: 'status', length: 50, default: 'completed' })
-  status!: string;
+  @Column({ 
+    name: 'status', 
+    type: 'enum',
+    enum: DeliveryStatus,
+    default: DeliveryStatus.COMPLETED 
+  })
+  status!: DeliveryStatus;
 
   /** Ghi chú */
   @ApiProperty({ description: 'Ghi chú', required: false })

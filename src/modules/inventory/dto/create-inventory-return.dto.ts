@@ -6,8 +6,10 @@ import {
   IsArray,
   ValidateNested,
   Min,
+  IsIn,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { ReturnStatus } from '../enums/return-status.enum';
 
 /**
  * DTO cho chi tiết sản phẩm trong phiếu xuất trả hàng
@@ -80,6 +82,7 @@ export class CreateInventoryReturnDto {
   /** Trạng thái phiếu xuất trả hàng */
   @IsOptional()
   @IsString({ message: 'Trạng thái phải là chuỗi' })
+  @IsIn(Object.values(ReturnStatus), { message: 'Trạng thái không hợp lệ' })
   status?: string;
 
   /** Ghi chú */

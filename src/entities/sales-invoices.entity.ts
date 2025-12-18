@@ -19,11 +19,19 @@ import { User } from './users.entity';
  * Enum định nghĩa các trạng thái của hóa đơn bán hàng
  */
 export enum SalesInvoiceStatus {
-  DRAFT = 'draft', // Bản nháp
-  CONFIRMED = 'confirmed', // Đã xác nhận
-  PAID = 'paid', // Đã thanh toán
-  CANCELLED = 'cancelled', // Đã hủy
-  REFUNDED = 'refunded', // Đã hoàn tiền
+  DRAFT = 'draft',
+  CONFIRMED = 'confirmed',
+  PAID = 'paid',
+  CANCELLED = 'cancelled',
+  REFUNDED = 'refunded',
+}
+
+export enum SalesPaymentStatus {
+  PENDING = 'pending',
+  PARTIAL = 'partial',
+  PAID = 'paid',
+  REFUNDED = 'refunded',
+  CANCELLED = 'cancelled',
 }
 
 /**
@@ -82,8 +90,13 @@ export class SalesInvoice {
   payment_method!: string;
 
   /** Trạng thái thanh toán */
-  @Column({ name: 'payment_status', default: 'pending' })
-  payment_status!: string;
+  @Column({
+    name: 'payment_status',
+    type: 'enum',
+    enum: SalesPaymentStatus,
+    default: SalesPaymentStatus.PENDING,
+  })
+  payment_status!: SalesPaymentStatus;
 
   /** Ghi chú */
   @Column({ name: 'notes', nullable: true, type: 'text' })
