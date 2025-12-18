@@ -426,19 +426,11 @@ export class InventoryController {
    * @returns Kết quả duyệt phiếu nhập kho
    */
   @Post('receipt/:id/approve')
-  approveReceipt(@Param('id') id: string) {
-    return this.inventoryService.approveReceipt(+id);
+  approveReceipt(@Param('id') id: string, @CurrentUser('id') userId: number) {
+    return this.inventoryService.approveReceipt(+id, userId);
   }
 
-  /**
-   * Hoàn thành phiếu nhập kho
-   * @param id - ID của phiếu nhập kho cần hoàn thành
-   * @returns Kết quả hoàn thành phiếu nhập kho
-   */
-  @Post('receipt/:id/complete')
-  completeReceipt(@Param('id') id: string, @CurrentUser('id') userId: number) {
-    return this.inventoryService.completeReceipt(+id, userId);
-  }
+
 
   /**
    * Hủy phiếu nhập kho

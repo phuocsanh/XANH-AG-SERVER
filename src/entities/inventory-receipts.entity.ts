@@ -40,7 +40,7 @@ export class InventoryReceipt {
   @Column({ name: 'total_amount' })
   total_amount!: number;
 
-  /** Trạng thái phiếu nhập kho (draft, approved, completed, cancelled) */
+  /** Trạng thái phiếu nhập kho (draft, approved, cancelled) */
   @Column({ name: 'status', default: 'draft' })
   status!: string;
 
@@ -77,9 +77,6 @@ export class InventoryReceipt {
   @Column({ name: 'approved_at', nullable: true })
   approved_at?: Date;
 
-  /** Thời gian hoàn thành phiếu nhập kho */
-  @Column({ name: 'completed_at', nullable: true })
-  completed_at?: Date;
 
   /** Thời gian hủy phiếu nhập kho */
   @Column({ name: 'cancelled_at', nullable: true })

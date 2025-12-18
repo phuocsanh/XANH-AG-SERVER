@@ -59,10 +59,8 @@ export class CodeGeneratorHelper {
    * @returns Code tuyệt đối duy nhất
    */
   static generateUniqueCode(prefix: string): string {
-    const today = new Date();
-    const dateStr = today.toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
-    const timestamp = Date.now().toString().slice(-10); // 10 chữ số cuối của timestamp
-    const shortId = uuidv4().replace(/-/g, '').substring(0, 6).toUpperCase(); // 6 ký tự UUID
-    return `${prefix}-${dateStr}-${timestamp}-${shortId}`;
+    const timestamp = Date.now().toString().slice(-8); // 8 chữ số cuối của timestamp (ms)
+    const shortId = uuidv4().replace(/-/g, '').substring(0, 4).toUpperCase(); // 4 ký tự entropy
+    return `${prefix}-${timestamp}${shortId}`;
   }
 }

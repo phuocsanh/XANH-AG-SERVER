@@ -1186,30 +1186,7 @@ export class InventoryService {
         const itemEntity = queryRunner.manager.create(InventoryReceiptItem, itemData);
         const savedItem = await queryRunner.manager.save(itemEntity);
         savedItems.push(savedItem);
-
-        // Xử lý nhập kho cho sản phẩm và cập nhật giá vốn trung
-        if (receiptEntity.status === ReceiptStatus.COMPLETED) {
-          // Nếu tạo phiếu với trạng thái completed thì tiến hành nhập kho luôn
-          try {
-             await this.processStockIn(
-              item.product_id,
-              item.quantity,
-              item.final_unit_cost, // Sử dụng giá vốn đã bao gồm phí vận chuyển
-              userId,
-              savedItem.id, // Reference to receipt item
-              receiptEntity.code, // Batch code could be receipt code for now
-              undefined // Expiry date (cần bổ sung nếu có)
-            );
-          } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            this.logger.error(
-              `Lỗi khi xử lý nhập kho cho sản phẩm ${item.product_id}:`,
-              errorMessage,
-            );
-            throw new Error(`Lỗi nhập kho: ${errorMessage}`);
-          }
-        }
-      }
+      } // Kết thúc vòng lặp itemsWithShipping
 
       await queryRunner.commitTransaction();
       this.logger.log(`Đã commit transaction cho phiếu nhập kho ${receiptEntity.id}`);
@@ -1355,15 +1332,14 @@ export class InventoryService {
       throw new Error('Không tìm thấy phiếu nhập kho');
     }
 
-    // Chỉ cho phép xóa phiếu ở trạng thái 'draft'
-    // KHÔNG cho phép xóa phiếu 'cancelled' nếu đã từng 'completed' (để giữ audit trail)
+    // KHÔNG cho phép xóa phiếu 'cancelled' nếu đã từng 'approved' (để giữ audit trail)
     if (receipt.status !== ReceiptStatus.DRAFT) {
       if (receipt.status === ReceiptStatus.CANCELLED) {
-        // Kiểm tra xem phiếu này có completed_at không (tức là đã từng completed)
-        if (receipt.completed_at) {
-           throw new Error('Không thể xóa phiếu đã từng hoàn thành và bị hủy. Dữ liệu cần được giữ lại để đối soát.');
+        // Kiểm tra xem phiếu này có approved_at không (tức là đã từng approved và tác động kho)
+        if (receipt.approved_at) {
+           throw new Error('Không thể xóa phiếu đã từng duyệt (đã tác động kho) và bị hủy. Dữ liệu cần được giữ lại để đối soát.');
         }
-        // Nếu là cancelled nhưng chưa completed bao giờ (cancel từ draft/approved) thì cho xóa
+        // Nếu là cancelled nhưng chưa approved bao giờ (cancel từ draft) thì cho xóa
       } else {
         throw new Error(
           'Không thể xóa phiếu nhập kho đang hoạt động. Vui lòng hủy phiếu thay thế.',
@@ -1379,11 +1355,12 @@ export class InventoryService {
   }
 
   /**
-   * Duyệt phiếu nhập kho
+   * Duyệt phiếu nhập kho (và tự động thực hiện nhập kho)
    * @param id - ID của phiếu nhập kho cần duyệt
+   * @param userId - ID người thực hiện
    * @returns Thông tin phiếu nhập kho đã duyệt
    */
-  async approveReceipt(id: number): Promise<InventoryReceipt | null> {
+  async approveReceipt(id: number, userId: number): Promise<InventoryReceipt | null> {
     const receipt = await this.findReceiptById(id);
     if (!receipt) {
       return null;
@@ -1393,38 +1370,12 @@ export class InventoryService {
        throw new Error('Chỉ có thể duyệt phiếu ở trạng thái nháp');
     }
 
-    receipt.status = ReceiptStatus.APPROVED; // Cập nhật trạng thái thành đã duyệt
-    receipt.approved_at = new Date(); // Ghi nhận thời gian duyệt
-    return this.inventoryReceiptRepository.save(receipt);
-  }
-
-  /**
-   * Hoàn thành phiếu nhập kho
-   * @param id - ID của phiếu nhập kho cần hoàn thành
-   * @returns Thông tin phiếu nhập kho đã hoàn thành
-   */
-  async completeReceipt(id: number, userId: number): Promise<InventoryReceipt | null> {
-    const receipt = await this.findReceiptById(id);
-    if (!receipt) {
-      return null;
-    }
-
-    if (receipt.status === ReceiptStatus.COMPLETED) {
-      return receipt; // Đã hoàn thành rồi thì không làm gì
-    }
-    
-    if (receipt.status === ReceiptStatus.CANCELLED) {
-      throw new Error('Không thể hoàn thành phiếu đã bị hủy');
-    }
-
     // Lấy danh sách chi tiết phiếu nhập
     const items = await this.getReceiptItems(id);
 
-    // Xử lý nhập kho cho từng sản phẩm
+    // Xử lý nhập kho cho từng sản phẩm ngay khi duyệt
     for (const item of items) {
       try {
-        // Sử dụng final_unit_cost nếu có (đã bao gồm phí vận chuyển), nếu không thì dùng unit_cost
-        // Lưu ý: final_unit_cost được tính toán lúc tạo phiếu
         const costPrice =
           item.final_unit_cost !== undefined && item.final_unit_cost !== null
             ? Number(item.final_unit_cost)
@@ -1436,7 +1387,7 @@ export class InventoryService {
           costPrice,
           userId,
           item.id,
-          `RECEIPT_${receipt.id}_ITEM_${item.id}`,
+          `Phun thuốc/Nhập kho - Phiếu ${receipt.code}`,
         );
       } catch (error) {
         this.logger.error(
@@ -1444,13 +1395,13 @@ export class InventoryService {
           error,
         );
         throw new Error(
-          `Không thể hoàn thành phiếu nhập kho do lỗi xử lý tồn kho sản phẩm ${item.product_id}`,
+          `Không thể duyệt phiếu nhập kho do lỗi xử lý tồn kho sản phẩm ${item.product_id}`,
         );
       }
     }
 
-    receipt.status = ReceiptStatus.COMPLETED; // Cập nhật trạng thái thành đã hoàn thành
-    receipt.completed_at = new Date(); // Ghi nhận thời gian hoàn thành
+    receipt.status = ReceiptStatus.APPROVED;
+    receipt.approved_at = new Date();
     return this.inventoryReceiptRepository.save(receipt);
   }
 
@@ -1476,8 +1427,8 @@ export class InventoryService {
         throw new Error('Phiếu nhập kho đã bị hủy trước đó');
     }
     
-    // Nếu phiếu đã completed → Cần rollback inventory
-    if (receipt.status === ReceiptStatus.COMPLETED) {
+    // Nếu phiếu đã duyệt (APPROVED) → Cần rollback inventory
+    if (receipt.status === ReceiptStatus.APPROVED) {
         await this.rollbackReceiptInventory(id, userId, reason);
     }
     
@@ -1488,7 +1439,7 @@ export class InventoryService {
   }
 
   /**
-   * Rollback inventory khi cancel phiếu nhập kho đã completed
+   * Rollback inventory khi cancel phiếu nhập kho đã approved
    * @param receiptId - ID phiếu nhập
    * @param userId - ID người thực hiện
    * @param reason - Lý do hủy
@@ -1593,7 +1544,7 @@ export class InventoryService {
       .createQueryBuilder('item')
       .innerJoin('item.receipt', 'receipt')
       .where('item.product_id = :productId', { productId })
-      .andWhere('receipt.status = :status', { status: 'completed' }) // Chỉ lấy từ các phiếu đã hoàn thành
+      .andWhere('receipt.status = :status', { status: ReceiptStatus.APPROVED }) // Chỉ lấy từ các phiếu đã duyệt
       .orderBy('receipt.created_at', 'DESC')
       .getOne();
 
@@ -2030,52 +1981,7 @@ export class InventoryService {
     return this.inventoryReturnRepository.save(returnDoc);
   }
 
-  /**
-   * Hoàn thành phiếu xuất trả hàng
-   * @param id - ID của phiếu xuất trả hàng cần hoàn thành
-   * @returns Thông tin phiếu xuất trả hàng đã hoàn thành
-   */
-  async completeReturn(id: number, userId: number): Promise<InventoryReturn | null> {
-    const returnDoc = await this.findReturnById(id);
-    if (!returnDoc) {
-      return null;
-    }
 
-    if (returnDoc.status === ReturnStatus.COMPLETED) {
-      return returnDoc;
-    }
-
-    // Lấy danh sách chi tiết phiếu xuất trả
-    const items = await this.inventoryReturnItemRepository.find({
-      where: { return_id: id },
-    });
-
-    // Xử lý xuất kho cho từng sản phẩm
-    for (const item of items) {
-      try {
-        await this.processStockOut(
-          item.product_id,
-          item.quantity,
-          'RETURN',
-          userId,
-          id,
-          `Trả hàng cho nhà cung cấp - Phiếu ${returnDoc.code}`,
-        );
-      } catch (error) {
-        this.logger.error(
-          `Lỗi khi xử lý xuất kho cho sản phẩm ${item.product_id} trong phiếu trả hàng ${id}:`,
-          error,
-        );
-        throw new Error(
-          `Không thể hoàn thành phiếu trả hàng do lỗi xử lý tồn kho sản phẩm ${item.product_id}`,
-        );
-      }
-    }
-
-    returnDoc.status = ReturnStatus.COMPLETED;
-    returnDoc.completed_at = new Date();
-    return this.inventoryReturnRepository.save(returnDoc);
-  }
 
   /**
    * Hủy phiếu xuất trả hàng
@@ -2110,7 +2016,7 @@ export class InventoryService {
     // Chỉ cho phép xóa phiếu ở trạng thái nháp hoặc đã hủy
     if (returnDoc.status !== ReturnStatus.DRAFT && returnDoc.status !== ReturnStatus.CANCELLED) {
       throw new Error(
-        'Không thể xóa phiếu xuất trả hàng đã duyệt hoặc hoàn thành.',
+        'Không thể xóa phiếu xuất trả hàng đã được duyệt.',
       );
     }
 
@@ -2431,70 +2337,7 @@ export class InventoryService {
     return this.inventoryAdjustmentRepository.save(adjustment);
   }
 
-  /**
-   * Hoàn thành phiếu điều chỉnh kho
-   * @param id - ID của phiếu điều chỉnh kho cần hoàn thành
-   * @returns Thông tin phiếu điều chỉnh kho đã hoàn thành
-   */
-  async completeAdjustment(id: number, userId: number): Promise<InventoryAdjustment | null> {
-    const adjustment = await this.findAdjustmentById(id);
-    if (!adjustment) {
-      return null;
-    }
 
-    if (adjustment.status === AdjustmentStatus.COMPLETED) {
-      return adjustment;
-    }
-
-    // Lấy danh sách chi tiết phiếu điều chỉnh
-    const items = await this.inventoryAdjustmentItemRepository.find({
-      where: { adjustment_id: id },
-    });
-
-    // Xử lý điều chỉnh kho cho từng sản phẩm
-    for (const item of items) {
-      try {
-        const quantityChange = item.quantity_change;
-
-        if (quantityChange > 0) {
-          // Tăng tồn kho
-          const currentAverageCost = await this.getWeightedAverageCost(
-            item.product_id,
-          );
-          await this.processStockIn(
-            item.product_id,
-            quantityChange,
-            currentAverageCost, // Sử dụng giá vốn hiện tại
-            userId,
-            undefined,
-            `Điều chỉnh tăng kho - Phiếu ${adjustment.code}`,
-          );
-        } else if (quantityChange < 0) {
-          // Giảm tồn kho
-          await this.processStockOut(
-            item.product_id,
-            Math.abs(quantityChange),
-            'ADJUSTMENT',
-            userId,
-            id,
-            `Điều chỉnh giảm kho - Phiếu ${adjustment.code}`,
-          );
-        }
-      } catch (error) {
-        this.logger.error(
-          `Lỗi khi xử lý điều chỉnh kho cho sản phẩm ${item.product_id} trong phiếu ${id}:`,
-          error,
-        );
-        throw new Error(
-          `Không thể hoàn thành phiếu điều chỉnh kho do lỗi xử lý tồn kho sản phẩm ${item.product_id}`,
-        );
-      }
-    }
-
-    adjustment.status = AdjustmentStatus.COMPLETED;
-    adjustment.completed_at = new Date();
-    return this.inventoryAdjustmentRepository.save(adjustment);
-  }
 
   /**
    * Hủy phiếu điều chỉnh kho
@@ -2529,7 +2372,7 @@ export class InventoryService {
     // Chỉ cho phép xóa phiếu ở trạng thái nháp hoặc đã hủy
     if (adjustment.status !== AdjustmentStatus.DRAFT && adjustment.status !== AdjustmentStatus.CANCELLED) {
       throw new Error(
-        'Không thể xóa phiếu điều chỉnh kho đã duyệt hoặc hoàn thành.',
+        'Không thể xóa phiếu điều chỉnh kho đã được duyệt.',
       );
     }
 

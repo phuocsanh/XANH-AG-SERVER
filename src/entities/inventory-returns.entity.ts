@@ -81,9 +81,6 @@ export class InventoryReturn {
   @Column({ name: 'approved_at', nullable: true })
   approved_at?: Date;
 
-  /** Thời gian hoàn thành phiếu xuất trả hàng */
-  @Column({ name: 'completed_at', nullable: true })
-  completed_at?: Date;
 
   /** Thời gian hủy phiếu xuất trả hàng */
   @Column({ name: 'cancelled_at', nullable: true })

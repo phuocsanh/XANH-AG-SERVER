@@ -59,9 +59,6 @@ export class InventoryAdjustment {
   @Column({ name: 'approved_at', nullable: true })
   approved_at?: Date;
 
-  /** Thời gian hoàn thành phiếu điều chỉnh kho */
-  @Column({ name: 'completed_at', nullable: true })
-  completed_at?: Date;
 
   /** Thời gian hủy phiếu điều chỉnh kho */
   @Column({ name: 'cancelled_at', nullable: true })

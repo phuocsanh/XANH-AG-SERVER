@@ -270,7 +270,7 @@ export class SalesService {
           .from('sales_return_items', 'return_item')
           .innerJoin('sales_returns', 'sales_return', 'sales_return.id = return_item.sales_return_id')
           .where('sales_return.invoice_id = :invoiceId', { invoiceId: id })
-          .andWhere('sales_return.status = :status', { status: 'completed' })
+          .andWhere('sales_return.status = :status', { status: 'approved' })
           .andWhere('return_item.product_id = :productId', { productId: item.product_id })
           .getRawOne();
 
@@ -317,7 +317,7 @@ export class SalesService {
           .from('sales_return_items', 'return_item')
           .innerJoin('sales_returns', 'sales_return', 'sales_return.id = return_item.sales_return_id')
           .where('sales_return.invoice_id = :invoiceId', { invoiceId: invoice.id })
-          .andWhere('sales_return.status = :status', { status: 'completed' })
+          .andWhere('sales_return.status = :status', { status: 'approved' })
           .andWhere('return_item.product_id = :productId', { productId: item.product_id })
           .getRawOne();
 
