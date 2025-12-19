@@ -503,49 +503,6 @@ export class InventoryController {
     return this.inventoryService.getLatestPurchasePrice(+productId);
   }
 
-  /**
-   * Upload hình ảnh hóa đơn cho phiếu nhập kho
-   * @param id - ID của phiếu nhập kho
-   * @param file - File hình ảnh
-   * @returns Thông tin file đã upload
-   */
-  @Post('receipt/:id/upload-image')
-  @RequirePermissions('INVENTORY_MANAGE')
-  uploadReceiptImage(
-    @Param('id') id: string,
-    @Body() body: { fileId: number; fieldName?: string },
-  ) {
-    return this.inventoryService.uploadReceiptImage(
-      +id,
-      body.fileId,
-      body.fieldName,
-    );
-  }
-
-  /**
-   * Lấy danh sách hình ảnh của phiếu nhập kho
-   * @param id - ID của phiếu nhập kho
-   * @returns Danh sách hình ảnh
-   */
-  @Get('receipt/:id/images')
-  getReceiptImages(@Param('id') id: string) {
-    return this.inventoryService.getReceiptImages(+id);
-  }
-
-  /**
-   * Xóa hình ảnh khỏi phiếu nhập kho
-   * @param id - ID của phiếu nhập kho
-   * @param fileId - ID của file cần xóa
-   * @returns Kết quả xóa
-   */
-  @Delete('receipt/:id/image/:fileId')
-  @RequirePermissions('INVENTORY_MANAGE')
-  deleteReceiptImage(
-    @Param('id') id: string,
-    @Param('fileId') fileId: string,
-  ) {
-    return this.inventoryService.deleteReceiptImage(+id, +fileId);
-  }
 
   // ===== RETURN ENDPOINTS =====
 
@@ -642,39 +599,6 @@ export class InventoryController {
     return this.inventoryService.removeReturn(+id);
   }
 
-  /**
-   * Upload hình ảnh cho phiếu xuất trả hàng
-   * @param id - ID của phiếu xuất trả hàng
-   * @param body - Thông tin file
-   * @returns Thông tin file đã upload
-   */
-  @Post('return/:id/upload-image')
-  @RequirePermissions('INVENTORY_MANAGE')
-  uploadReturnImage(
-    @Param('id') id: string,
-    @Body() body: { fileId: number; fieldName?: string },
-  ) {
-    return this.inventoryService.uploadReturnImage(
-      +id,
-      body.fileId,
-      body.fieldName,
-    );
-  }
-
-  /**
-   * Xóa hình ảnh khỏi phiếu xuất trả hàng
-   * @param id - ID của phiếu xuất trả hàng
-   * @param fileId - ID của file cần xóa
-   * @returns Kết quả xóa
-   */
-  @Delete('return/:id/image/:fileId')
-  @RequirePermissions('INVENTORY_MANAGE')
-  deleteReturnImage(
-    @Param('id') id: string,
-    @Param('fileId') fileId: string,
-  ) {
-    return this.inventoryService.deleteReturnImage(+id, +fileId);
-  }
 
   // ===== ADJUSTMENT ENDPOINTS =====
 

@@ -61,6 +61,10 @@ export class InventoryReturn {
   @Column({ name: 'notes', nullable: true, type: 'text' })
   notes?: string;
 
+  /** Danh sách URL hình ảnh hàng lỗi / chứng từ */
+  @Column({ name: 'images', nullable: true, type: 'json' })
+  images?: string[];
+
   /** ID của người tạo phiếu xuất trả hàng */
   @Column({ name: 'created_by' })
   created_by!: number;

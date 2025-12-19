@@ -71,4 +71,9 @@ export class CreateInventoryReceiptDto {
   @Type(() => CreateInventoryReceiptItemDto)
   @IsArray()
   items!: CreateInventoryReceiptItemDto[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  images?: string[];
 }

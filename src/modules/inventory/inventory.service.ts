@@ -1100,6 +1100,11 @@ export class InventoryService {
         receiptData.shipping_allocation_method = createInventoryReceiptDto.shipping_allocation_method;
       }
 
+      // Thêm images nếu có
+      if (createInventoryReceiptDto.images && createInventoryReceiptDto.images.length > 0) {
+        receiptData.images = createInventoryReceiptDto.images;
+      }
+
       const receipt = queryRunner.manager.create(InventoryReceipt, receiptData);
       const savedReceipt = await queryRunner.manager.save(receipt);
 
@@ -1317,6 +1322,12 @@ export class InventoryService {
       entityUpdateData.notes = updateData.notes;
     if (updateData.created_by !== undefined)
       entityUpdateData.created_by = updateData.created_by;
+    if (updateData.images !== undefined)
+      entityUpdateData.images = updateData.images;
+    if (updateData.shared_shipping_cost !== undefined)
+      entityUpdateData.shared_shipping_cost = updateData.shared_shipping_cost;
+    if (updateData.shipping_allocation_method !== undefined)
+      entityUpdateData.shipping_allocation_method = updateData.shipping_allocation_method;
 
     await this.inventoryReceiptRepository.update(id, entityUpdateData);
     return this.findReceiptById(id);
@@ -1551,104 +1562,6 @@ export class InventoryService {
     return latestReceiptItem ? latestReceiptItem.unit_cost : null;
   }
 
-  /**
-   * Upload hình ảnh hóa đơn cho phiếu nhập kho
-   * @param receiptId - ID của phiếu nhập kho
-   * @param fileId - ID của file đã upload
-   * @param fieldName - Tên trường (mặc định: 'invoice_images')
-   * @returns Thông tin tham chiếu file đã tạo
-   */
-  async uploadReceiptImage(
-    receiptId: number,
-    fileId: number,
-    fieldName: string = 'invoice_images',
-  ) {
-    // Kiểm tra phiếu nhập kho có tồn tại không
-    const receipt = await this.findReceiptById(receiptId);
-    if (!receipt) {
-      throw new Error('Không tìm thấy phiếu nhập kho');
-    }
-
-    // Lấy thông tin file
-    const fileUpload = await this.fileTrackingService.findOne(fileId);
-    if (!fileUpload) {
-      throw new Error('Không tìm thấy file');
-    }
-
-    // Tạo tham chiếu file
-    const fileReference = await this.fileTrackingService.createFileReference(
-      fileUpload,
-      'inventory_receipt',
-      receiptId,
-      fieldName,
-    );
-
-    return fileReference;
-  }
-
-  /**
-   * Lấy danh sách hình ảnh của phiếu nhập kho
-   * @param receiptId - ID của phiếu nhập kho
-   * @returns Danh sách hình ảnh
-   */
-  async getReceiptImages(receiptId: number) {
-    const fileReferences =
-      await this.fileTrackingService.findFileReferencesByEntity(
-        'inventory_receipt',
-        receiptId,
-      );
-
-    // Lấy thông tin chi tiết của từng file
-    const images: Array<{
-      id: number;
-      url: string;
-      name: string;
-      type: string;
-      size: number;
-      created_at: Date;
-    }> = [];
-    for (const ref of fileReferences) {
-      const file = await this.fileTrackingService.findOne(ref.file_id);
-      if (file) {
-        images.push({
-          id: file.id,
-          url: file.url,
-          name: file.name,
-          type: file.type,
-          size: file.size,
-          created_at: ref.created_at,
-        });
-      }
-    }
-
-    return images;
-  }
-
-  /**
-   * Xóa hình ảnh khỏi phiếu nhập kho
-   * @param receiptId - ID của phiếu nhập kho
-   * @param fileId - ID của file cần xóa
-   * @returns Kết quả xóa
-   */
-  async deleteReceiptImage(receiptId: number, fileId: number) {
-    // Kiểm tra phiếu nhập kho có tồn tại không
-    const receipt = await this.findReceiptById(receiptId);
-    if (!receipt) {
-      throw new Error('Không tìm thấy phiếu nhập kho');
-    }
-
-    // Xóa tham chiếu file
-    await this.fileTrackingService.removeFileReference(
-      fileId,
-      'inventory_receipt',
-      receiptId,
-    );
-
-    return {
-      success: true,
-      message: 'Đã xóa hình ảnh thành công',
-    };
-  }
 
   // ===== RETURN FEATURE METHODS =====
 
@@ -1728,6 +1641,11 @@ export class InventoryService {
 
       if (createInventoryReturnDto.notes !== undefined) {
         returnData.notes = createInventoryReturnDto.notes;
+      }
+
+      // Thêm images nếu có
+      if (createInventoryReturnDto.images && createInventoryReturnDto.images.length > 0) {
+        returnData.images = createInventoryReturnDto.images;
       }
 
       this.logger.log(`Đang lưu phiếu trả hàng với dữ liệu: ${JSON.stringify(returnData)}`);
@@ -1823,9 +1741,10 @@ export class InventoryService {
       if (updateDto.total_amount !== undefined) updateData.total_amount = updateDto.total_amount;
       if (updateDto.reason) updateData.reason = updateDto.reason;
       if (updateDto.status) updateData.status = updateDto.status;
-      if (updateDto.notes !== undefined) updateData.notes = updateDto.notes;
+    if (updateDto.notes !== undefined) updateData.notes = updateDto.notes;
+    if (updateDto.images !== undefined) updateData.images = updateDto.images;
 
-      await queryRunner.manager.update(InventoryReturn, id, updateData);
+    await queryRunner.manager.update(InventoryReturn, id, updateData);
 
       // Cập nhật danh sách items nếu có
       if (updateDto.items) {
@@ -1876,9 +1795,6 @@ export class InventoryService {
       return null;
     }
 
-    // Load images và gắn vào returnDoc
-    const images = await this.getReturnImages(id);
-    (returnDoc as any).images = images;
 
     return returnDoc;
   }
@@ -2027,104 +1943,6 @@ export class InventoryService {
     await this.inventoryReturnRepository.delete(id);
   }
 
-  /**
-   * Upload hình ảnh cho phiếu xuất trả hàng
-   * @param returnId - ID của phiếu xuất trả hàng
-   * @param fileId - ID của file đã upload
-   * @param fieldName - Tên trường (mặc định: 'return_images')
-   * @returns Thông tin tham chiếu file đã tạo
-   */
-  async uploadReturnImage(
-    returnId: number,
-    fileId: number,
-    fieldName: string = 'return_images',
-  ) {
-    // Kiểm tra phiếu trả hàng có tồn tại không
-    const returnDoc = await this.findReturnById(returnId);
-    if (!returnDoc) {
-      throw new Error('Không tìm thấy phiếu trả hàng');
-    }
-
-    // Lấy thông tin file
-    const fileUpload = await this.fileTrackingService.findOne(fileId);
-    if (!fileUpload) {
-      throw new Error('Không tìm thấy file');
-    }
-
-    // Tạo tham chiếu file
-    const fileReference = await this.fileTrackingService.createFileReference(
-      fileUpload,
-      'inventory_return',
-      returnId,
-      fieldName,
-    );
-
-    return fileReference;
-  }
-
-  /**
-   * Lấy danh sách hình ảnh của phiếu xuất trả hàng
-   * @param returnId - ID của phiếu xuất trả hàng
-   * @returns Danh sách hình ảnh
-   */
-  async getReturnImages(returnId: number) {
-    const fileReferences =
-      await this.fileTrackingService.findFileReferencesByEntity(
-        'inventory_return',
-        returnId,
-      );
-
-    // Lấy thông tin chi tiết của từng file
-    const images: Array<{
-      id: number;
-      url: string;
-      name: string;
-      type: string;
-      size: number;
-      created_at: Date;
-    }> = [];
-    for (const ref of fileReferences) {
-      const file = await this.fileTrackingService.findOne(ref.file_id);
-      if (file) {
-        images.push({
-          id: file.id,
-          url: file.url,
-          name: file.name,
-          type: file.type,
-          size: file.size,
-          created_at: ref.created_at,
-        });
-      }
-    }
-
-    return images;
-  }
-
-  /**
-   * Xóa hình ảnh khỏi phiếu xuất trả hàng
-   * @param returnId - ID của phiếu xuất trả hàng
-   * @param fileId - ID của file cần xóa
-   * @returns Kết quả xóa
-   */
-  async deleteReturnImage(returnId: number, fileId: number) {
-    // Kiểm tra phiếu trả hàng có tồn tại không
-    const returnDoc = await this.findReturnById(returnId);
-    if (!returnDoc) {
-      throw new Error('Không tìm thấy phiếu trả hàng');
-    }
-
-    // Xóa tham chiếu file
-    await this.fileTrackingService.removeFileReference(
-      fileId,
-      'inventory_return',
-      returnId,
-    );
-
-    return {
-      success: true,
-      message: 'Đã xóa hình ảnh thành công',
-    };
-  }
 
   // ===== ADJUSTMENT FEATURE METHODS =====
 

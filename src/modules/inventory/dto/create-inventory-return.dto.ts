@@ -101,4 +101,10 @@ export class CreateInventoryReturnDto {
   @ValidateNested({ each: true })
   @Type(() => CreateInventoryReturnItemDto)
   items!: CreateInventoryReturnItemDto[];
+
+  /** Danh sách URL hình ảnh */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  images?: string[];
 }

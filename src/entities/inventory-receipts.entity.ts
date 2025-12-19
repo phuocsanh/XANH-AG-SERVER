@@ -48,6 +48,10 @@ export class InventoryReceipt {
   @Column({ name: 'notes', nullable: true })
   notes?: string;
 
+  /** Danh sách URL hình ảnh hóa đơn / chứng từ */
+  @Column({ name: 'images', nullable: true, type: 'json' })
+  images?: string[];
+
   /** ID của người tạo phiếu nhập kho */
   @Column({ name: 'created_by' })
   created_by!: number;
