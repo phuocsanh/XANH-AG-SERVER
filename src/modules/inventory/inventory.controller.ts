@@ -11,6 +11,7 @@ import {
   UseGuards,
   HttpException,
   HttpStatus,
+  Req,
 } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
 import { CreateInventoryBatchDto } from './dto/create-inventory-batch.dto';
@@ -761,8 +762,12 @@ export class InventoryController {
    */
   @Post('adjustments/:id/cancel')
   @RequirePermissions('INVENTORY_MANAGE')
-  cancelAdjustment(@Param('id') id: string, @Body('reason') reason: string) {
-    return this.inventoryService.cancelAdjustment(+id, reason);
+  cancelAdjustment(
+    @Param('id') id: string, 
+    @Body('reason') reason: string,
+    @Req() req: any,
+  ) {
+    return this.inventoryService.cancelAdjustment(+id, reason, req.user.id);
   }
 
   /**

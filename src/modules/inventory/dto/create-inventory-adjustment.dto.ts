@@ -77,4 +77,10 @@ export class CreateInventoryAdjustmentDto {
   @ValidateNested({ each: true })
   @Type(() => CreateInventoryAdjustmentItemDto)
   items!: CreateInventoryAdjustmentItemDto[];
+
+  /** Danh sách URL hình ảnh */
+  @IsOptional()
+  @IsArray({ message: 'Danh sách hình ảnh phải là mảng' })
+  @IsString({ each: true, message: 'Mỗi hình ảnh phải là chuỗi URL' })
+  images?: string[];
 }

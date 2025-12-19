@@ -39,6 +39,10 @@ export class InventoryAdjustment {
   @Column({ name: 'notes', nullable: true, type: 'text' })
   notes?: string;
 
+  /** Danh sách URL hình ảnh chứng từ / hiện trạng */
+  @Column({ name: 'images', nullable: true, type: 'json' })
+  images?: string[];
+
   /** ID của người tạo phiếu điều chỉnh kho */
   @Column({ name: 'created_by' })
   created_by!: number;

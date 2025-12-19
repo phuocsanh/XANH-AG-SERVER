@@ -2164,6 +2164,11 @@ export class InventoryService {
         adjustmentData.notes = createInventoryAdjustmentDto.notes;
       }
 
+      // Thêm images nếu có
+      if (createInventoryAdjustmentDto.images && createInventoryAdjustmentDto.images.length > 0) {
+        adjustmentData.images = createInventoryAdjustmentDto.images;
+      }
+
       const adjustment = queryRunner.manager.create(InventoryAdjustment, adjustmentData);
       const savedAdjustment = await queryRunner.manager.save(adjustment);
 
@@ -2196,6 +2201,48 @@ export class InventoryService {
       
       await queryRunner.commitTransaction();
       this.logger.log(`Đã commit transaction cho phiếu điều chỉnh ${adjustmentEntity.id}`);
+
+      // Nếu tạo phiếu với trạng thái 'approved', tự động cập nhật tồn kho
+      if (createInventoryAdjustmentDto.status === AdjustmentStatus.APPROVED) {
+        this.logger.log(`Phiếu ${adjustmentEntity.id} được tạo với trạng thái approved, đang cập nhật tồn kho...`);
+        
+        for (const item of createInventoryAdjustmentDto.items) {
+          try {
+            const quantityChange = item.quantity_change;
+            
+            if (quantityChange > 0) {
+              // Tăng tồn kho
+              const currentAverageCost = await this.getWeightedAverageCost(item.product_id);
+              await this.processStockIn(
+                item.product_id,
+                quantityChange,
+                currentAverageCost,
+                userId,
+                undefined,
+                `Điều chỉnh tăng kho - Phiếu ${adjustmentData.code}`,
+              );
+            } else if (quantityChange < 0) {
+              // Giảm tồn kho
+              await this.processStockOut(
+                item.product_id,
+                Math.abs(quantityChange),
+                'ADJUSTMENT',
+                userId,
+                adjustmentEntity.id,
+                `Điều chỉnh giảm kho - Phiếu ${adjustmentData.code}`,
+              );
+            }
+          } catch (error) {
+            this.logger.error(`Lỗi khi cập nhật tồn kho cho sản phẩm ${item.product_id}:`, error);
+            throw new Error(`Không thể cập nhật tồn kho cho sản phẩm ${item.product_id}`);
+          }
+        }
+        
+        // Cập nhật approved_at
+        await this.inventoryAdjustmentRepository.update(adjustmentEntity.id, {
+          approved_at: new Date()
+        });
+      }
 
       return this.inventoryAdjustmentRepository.findOne({
         where: { id: adjustmentEntity.id },
@@ -2241,6 +2288,10 @@ export class InventoryService {
       if (updateDto.reason) updateData.reason = updateDto.reason;
       if (updateDto.notes !== undefined) updateData.notes = updateDto.notes;
       if (updateDto.status) updateData.status = updateDto.status;
+      
+      // Debug log
+      this.logger.log(`📸 Update images: ${JSON.stringify(updateDto.images)}`);
+      if (updateDto.images !== undefined) updateData.images = updateDto.images; // Cập nhật images
 
       await queryRunner.manager.update(InventoryAdjustment, id, updateData);
 
@@ -2279,18 +2330,20 @@ export class InventoryService {
    * @param id - ID của phiếu điều chỉnh kho cần tìm
    * @returns Thông tin phiếu điều chỉnh kho
    */
-  async findAdjustmentById(id: number): Promise<InventoryAdjustment | null> {
-    return this.inventoryAdjustmentRepository.findOne({
+  async findAdjustmentById(id: number): Promise<any> {
+    const adjustment = await this.inventoryAdjustmentRepository.findOne({
       where: { id },
-      relations: ['items'],
+      relations: ['items', 'items.product'], // Populate cả thông tin sản phẩm
     });
+
+    return adjustment;
   }
 
   /**
    * Tìm kiếm nâng cao phiếu điều chỉnh kho
    */
   async searchAdjustments(searchDto: SearchInventoryDto): Promise<{
-    data: InventoryAdjustment[];
+    data: any[];
     total: number;
     page: number;
     limit: number;
@@ -2317,10 +2370,31 @@ export class InventoryService {
       ['filters', 'nested_filters', 'operator']
     );
 
-    const [data, total] = await queryBuilder.getManyAndCount();
+    const [adjustments, total] = await queryBuilder.getManyAndCount();
+
+    // 3. Populate images cho từng adjustment
+    const dataWithImages = await Promise.all(
+      adjustments.map(async (adjustment) => {
+        const fileReferences = await this.fileTrackingService.findFileReferencesByEntity(
+          'inventory_adjustment',
+          adjustment.id,
+        );
+        
+        const images = fileReferences.map(ref => ({
+          id: ref.fileUpload.id,
+          url: ref.fileUpload.url,
+          name: ref.fileUpload.name,
+          type: ref.fileUpload.mime_type,
+          size: ref.fileUpload.size,
+          created_at: ref.created_at
+        }));
+
+        return { ...adjustment, images };
+      })
+    );
 
     return {
-      data,
+      data: dataWithImages,
       total,
       page,
       limit,
@@ -2404,16 +2478,60 @@ export class InventoryService {
    * Hủy phiếu điều chỉnh kho
    * @param id - ID của phiếu điều chỉnh kho cần hủy
    * @param reason - Lý do hủy phiếu điều chỉnh kho
+   * @param userId - ID người hủy
    * @returns Thông tin phiếu điều chỉnh kho đã hủy
    */
   async cancelAdjustment(
     id: number,
     reason: string,
+    userId: number,
   ): Promise<InventoryAdjustment | null> {
     const adjustment = await this.findAdjustmentById(id);
     if (!adjustment) {
       return null;
     }
+
+    // Nếu phiếu đã duyệt, cần hoàn tồn kho (reverse lại thao tác)
+    if (adjustment.status === AdjustmentStatus.APPROVED) {
+      this.logger.log(`Phiếu ${id} đã duyệt, đang hoàn tồn kho trước khi hủy...`);
+      
+      const items = await this.inventoryAdjustmentItemRepository.find({
+        where: { adjustment_id: id },
+      });
+
+      for (const item of items) {
+        try {
+          const quantityChange = item.quantity_change;
+          
+          if (quantityChange > 0) {
+            // Phiếu tăng kho → Hủy = Giảm kho
+            await this.processStockOut(
+              item.product_id,
+              quantityChange,
+              'ADJUSTMENT_CANCEL',
+              userId,
+              id,
+              `Hủy phiếu điều chỉnh tăng kho - ${adjustment.code}`,
+            );
+          } else if (quantityChange < 0) {
+            // Phiếu giảm kho → Hủy = Tăng kho
+            const currentAverageCost = await this.getWeightedAverageCost(item.product_id);
+            await this.processStockIn(
+              item.product_id,
+              Math.abs(quantityChange),
+              currentAverageCost,
+              userId,
+              undefined,
+              `Hủy phiếu điều chỉnh giảm kho - ${adjustment.code}`,
+            );
+          }
+        } catch (error) {
+          this.logger.error(`Lỗi khi hoàn tồn kho cho sản phẩm ${item.product_id}:`, error);
+          throw new Error(`Không thể hủy phiếu: Lỗi khi hoàn tồn kho sản phẩm ${item.product_id}`);
+        }
+      }
+    }
+
     adjustment.status = AdjustmentStatus.CANCELLED;
     adjustment.cancelled_at = new Date();
     adjustment.cancelled_reason = reason;
