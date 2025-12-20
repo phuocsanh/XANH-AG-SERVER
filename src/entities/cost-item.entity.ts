@@ -68,25 +68,17 @@ export class CostItem {
   @Column({ name: 'item_name', length: 255 })
   item_name!: string;
 
-  @ApiProperty({ description: 'Số lượng', example: 50, required: false })
-  @Column({ name: 'quantity', type: 'decimal', precision: 10, scale: 2, nullable: true })
-  quantity?: number;
 
-  @ApiProperty({ description: 'Đơn vị', example: 'kg', required: false })
-  @Column({ name: 'unit', length: 50, nullable: true })
-  unit?: string;
 
-  @ApiProperty({ description: 'Đơn giá', example: 50000 })
-  @Column({ name: 'unit_price', type: 'decimal', precision: 15, scale: 2 })
-  unit_price!: number;
+
 
   @ApiProperty({ description: 'Tổng chi phí', example: 2500000 })
   @Column({ name: 'total_cost', type: 'decimal', precision: 15, scale: 2 })
   total_cost!: number;
 
-  @ApiProperty({ description: 'Ngày mua/chi', required: false })
-  @Column({ name: 'purchase_date', type: 'date', nullable: true })
-  purchase_date?: Date;
+  @ApiProperty({ description: 'Ngày chi', required: false })
+  @Column({ name: 'expense_date', type: 'date', nullable: true })
+  expense_date?: Date;
 
   @ApiProperty({ description: 'ID hóa đơn (nếu mua từ cửa hàng)', required: false })
   @Column({ name: 'invoice_id', nullable: true })

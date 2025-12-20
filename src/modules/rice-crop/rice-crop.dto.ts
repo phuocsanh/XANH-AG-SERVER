@@ -172,6 +172,24 @@ export class UpdateRiceCropDto {
   @MaxLength(10, { message: 'Chất lượng không được vượt quá 10 ký tự' })
   quality_grade?: string;
 
+  @ApiPropertyOptional({ 
+    description: 'Giai đoạn sinh trưởng', 
+    enum: GrowthStage,
+    example: GrowthStage.TILLERING 
+  })
+  @IsOptional()
+  @IsEnum(GrowthStage, { message: 'Giai đoạn sinh trưởng không hợp lệ' })
+  growth_stage?: GrowthStage;
+
+  @ApiPropertyOptional({ 
+    description: 'Trạng thái vụ lúa', 
+    enum: CropStatus,
+    example: CropStatus.ACTIVE 
+  })
+  @IsOptional()
+  @IsEnum(CropStatus, { message: 'Trạng thái không hợp lệ' })
+  status?: CropStatus;
+
   @ApiPropertyOptional({ description: 'Ghi chú' })
   @IsOptional()
   @IsString({ message: 'Ghi chú phải là chuỗi' })

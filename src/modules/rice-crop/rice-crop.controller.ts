@@ -172,4 +172,15 @@ export class RiceCropController {
   async getCustomerStats(@Param('customerId', ParseIntPipe) customerId: number) {
     return this.riceCropService.getCustomerStats(customerId);
   }
+
+  /**
+   * Lấy tất cả hóa đơn mua hàng (system + external)
+   */
+  @Get(':id/all-purchases')
+  @RequirePermissions('rice_crop:read')
+  @ApiOperation({ summary: 'Lấy tất cả hóa đơn mua hàng của Ruộng lúa (cả hệ thống và external)' })
+  @ApiResponse({ status: 200, description: 'Danh sách hóa đơn đã merge' })
+  async getAllPurchases(@Param('id', ParseIntPipe) id: number) {
+    return this.riceCropService.getAllPurchases(id);
+  }
 }

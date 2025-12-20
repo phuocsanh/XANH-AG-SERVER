@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThanOrEqual } from 'typeorm';
-import { FarmingSchedule, ScheduleStatus } from '../../entities/farming-schedule.entity';
+import { FarmingSchedule, ScheduleStatus, ActivityType } from '../../entities/farming-schedule.entity';
 import { CreateFarmingScheduleDto, UpdateFarmingScheduleDto } from './farming-schedule.dto';
 
 @Injectable()
@@ -15,6 +15,12 @@ export class FarmingScheduleService {
 
   async create(createDto: CreateFarmingScheduleDto): Promise<FarmingSchedule> {
     this.logger.log(`Tạo lịch canh tác mới cho mảnh ruộng ${createDto.rice_crop_id}`);
+    
+    // Nếu không có activity_type, mặc định là OTHER
+    if (!createDto.activity_type) {
+      createDto.activity_type = ActivityType.OTHER;
+    }
+    
     const schedule = this.scheduleRepository.create(createDto);
     return this.scheduleRepository.save(schedule);
   }

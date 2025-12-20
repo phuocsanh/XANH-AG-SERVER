@@ -9,6 +9,7 @@ import {
   UpdateCropStatusDto,
   QueryRiceCropDto 
 } from './rice-crop.dto';
+import { PurchaseMergeService } from './purchase-merge.service';
 
 @Injectable()
 export class RiceCropService {
@@ -17,6 +18,7 @@ export class RiceCropService {
   constructor(
     @InjectRepository(RiceCrop)
     private riceCropRepository: Repository<RiceCrop>,
+    private purchaseMergeService: PurchaseMergeService,
   ) {}
 
   /**
@@ -125,7 +127,20 @@ export class RiceCropService {
     try {
       const crop = await this.findOne(id);
 
-      // Cập nhật các trường
+      // Nếu chuyển sang giai đoạn HARVESTED (qua growth_stage hoặc status)
+      // Tự động cập nhật các thông tin liên quan
+      if (
+        (updateDto.growth_stage === GrowthStage.HARVESTED || updateDto.status === CropStatus.HARVESTED) &&
+        crop.status !== CropStatus.HARVESTED
+      ) {
+        crop.status = CropStatus.HARVESTED;
+        crop.growth_stage = GrowthStage.HARVESTED;
+        if (!crop.actual_harvest_date && !updateDto.actual_harvest_date) {
+          crop.actual_harvest_date = new Date();
+        }
+      }
+
+      // Cập nhật các trường khác
       Object.assign(crop, updateDto);
 
       const updated = await this.riceCropRepository.save(crop);
@@ -308,5 +323,12 @@ export class RiceCropService {
       this.logger.error(`❌ Lỗi tìm kiếm vụ lúa: ${err.message}`, err.stack);
       throw new BadRequestException(`Không thể tìm kiếm vụ lúa: ${err.message}`);
     }
+  }
+
+  /**
+   * Lấy tất cả hóa đơn mua hàng (system + external)
+   */
+  async getAllPurchases(riceCropId: number) {
+    return this.purchaseMergeService.getAllPurchasesByRiceCrop(riceCropId);
   }
 }

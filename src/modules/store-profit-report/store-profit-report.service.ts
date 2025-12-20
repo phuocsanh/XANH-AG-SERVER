@@ -764,10 +764,8 @@ export class StoreProfitReportService {
           production_costs_breakdown: productionCosts.map(c => ({
             name: c.item_name,
             amount: Number(c.total_cost),
-            date: c.purchase_date || c.created_at,
+            date: c.expense_date || c.created_at,
             category: c.category,
-            quantity: c.quantity,
-            unit: c.unit,
             type: 'production'
           })),
           invoices: [],
@@ -890,10 +888,8 @@ export class StoreProfitReportService {
         production_costs_breakdown: productionCosts.map(c => ({
             name: c.item_name,
             amount: Number(c.total_cost),
-            date: c.purchase_date || c.created_at,
+            date: c.expense_date || c.created_at,
             category: c.category,
-            quantity: c.quantity,
-            unit: c.unit,
             type: 'production'
         })),
         invoices: invoiceDetails,

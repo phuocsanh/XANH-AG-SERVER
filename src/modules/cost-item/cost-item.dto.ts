@@ -32,24 +32,7 @@ export class CreateCostItemDto {
   @IsString({ message: 'Tên khoản chi phải là chuỗi' })
   item_name!: string;
 
-  @ApiPropertyOptional({ description: 'Số lượng', example: 50 })
-  @IsOptional()
-  @IsNumber({}, { message: 'Số lượng phải là số' })
-  @Min(0, { message: 'Số lượng phải lớn hơn hoặc bằng 0' })
-  @Type(() => Number)
-  quantity?: number;
 
-  @ApiPropertyOptional({ description: 'Đơn vị', example: 'kg' })
-  @IsOptional()
-  @IsString({ message: 'Đơn vị phải là chuỗi' })
-  unit?: string;
-
-  @ApiProperty({ description: 'Đơn giá', example: 50000 })
-  @IsNotEmpty({ message: 'Đơn giá không được để trống' })
-  @IsNumber({}, { message: 'Đơn giá phải là số' })
-  @Min(0, { message: 'Đơn giá phải lớn hơn hoặc bằng 0' })
-  @Type(() => Number)
-  unit_price!: number;
 
   @ApiProperty({ description: 'Tổng chi phí', example: 2500000 })
   @IsNotEmpty({ message: 'Tổng chi phí không được để trống' })
@@ -58,10 +41,10 @@ export class CreateCostItemDto {
   @Type(() => Number)
   total_cost!: number;
 
-  @ApiPropertyOptional({ description: 'Ngày mua/chi', example: '2024-12-01' })
+  @ApiPropertyOptional({ description: 'Ngày chi', example: '2024-12-01' })
   @IsOptional()
-  @IsDateString({}, { message: 'Ngày mua phải là định dạng ngày hợp lệ (YYYY-MM-DD)' })
-  purchase_date?: string;
+  @IsDateString({}, { message: 'Ngày chi phải là định dạng ngày hợp lệ (YYYY-MM-DD)' })
+  expense_date?: string;
 
   @ApiPropertyOptional({ description: 'ID hóa đơn', example: 1 })
   @IsOptional()
@@ -90,24 +73,7 @@ export class UpdateCostItemDto {
   @IsString({ message: 'Tên khoản chi phải là chuỗi' })
   item_name?: string;
 
-  @ApiPropertyOptional({ description: 'Số lượng', example: 50 })
-  @IsOptional()
-  @IsNumber({}, { message: 'Số lượng phải là số' })
-  @Min(0, { message: 'Số lượng phải lớn hơn hoặc bằng 0' })
-  @Type(() => Number)
-  quantity?: number;
 
-  @ApiPropertyOptional({ description: 'Đơn vị', example: 'kg' })
-  @IsOptional()
-  @IsString({ message: 'Đơn vị phải là chuỗi' })
-  unit?: string;
-
-  @ApiPropertyOptional({ description: 'Đơn giá', example: 50000 })
-  @IsOptional()
-  @IsNumber({}, { message: 'Đơn giá phải là số' })
-  @Min(0, { message: 'Đơn giá phải lớn hơn hoặc bằng 0' })
-  @Type(() => Number)
-  unit_price?: number;
 
   @ApiPropertyOptional({ description: 'Tổng chi phí', example: 2500000 })
   @IsOptional()
@@ -116,10 +82,10 @@ export class UpdateCostItemDto {
   @Type(() => Number)
   total_cost?: number;
 
-  @ApiPropertyOptional({ description: 'Ngày mua/chi', example: '2024-12-01' })
+  @ApiPropertyOptional({ description: 'Ngày chi', example: '2024-12-01' })
   @IsOptional()
-  @IsDateString({}, { message: 'Ngày mua phải là định dạng ngày hợp lệ (YYYY-MM-DD)' })
-  purchase_date?: string;
+  @IsDateString({}, { message: 'Ngày chi phải là định dạng ngày hợp lệ (YYYY-MM-DD)' })
+  expense_date?: string;
 
   @ApiPropertyOptional({ description: 'ID hóa đơn', example: 1 })
   @IsOptional()

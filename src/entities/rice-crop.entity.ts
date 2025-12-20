@@ -20,6 +20,7 @@ export enum GrowthStage {
   TILLERING = 'tillering',         // Đẻ nhánh
   PANICLE_INITIATION = 'panicle',  // Làm đòng
   HEADING = 'heading',             // Trổ bông
+  GRAIN_FILLING = 'grain_filling', // Vô gạo
   RIPENING = 'ripening',           // Chín
   HARVESTED = 'harvested',         // Đã thu hoạch
 }

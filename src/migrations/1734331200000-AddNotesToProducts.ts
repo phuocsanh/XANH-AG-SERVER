@@ -5,16 +5,21 @@ import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
  */
 export class AddNotesToProducts1734331200000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // Thêm column notes vào bảng products
-    await queryRunner.addColumn(
-      'products',
-      new TableColumn({
-        name: 'notes',
-        type: 'text',
-        isNullable: true,
-        comment: 'Ghi chú về sản phẩm',
-      }),
-    );
+    // Check nếu column chưa tồn tại thì mới thêm
+    const table = await queryRunner.getTable('products');
+    const notesColumn = table?.findColumnByName('notes');
+    
+    if (!notesColumn) {
+      await queryRunner.addColumn(
+        'products',
+        new TableColumn({
+          name: 'notes',
+          type: 'text',
+          isNullable: true,
+          comment: 'Ghi chú về sản phẩm',
+        }),
+      );
+    }
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

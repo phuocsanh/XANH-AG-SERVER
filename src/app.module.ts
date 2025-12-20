@@ -50,6 +50,7 @@ import { FirebaseModule } from './modules/firebase/firebase.module';
 import { HealthModule } from './health/health.module';
 import { CleanupModule } from './modules/cleanup/cleanup.module';
 import { AreaOfEachPlotOfLandModule } from './modules/area-of-each-plot-of-land/area-of-each-plot-of-land.module';
+import { ExternalPurchaseModule } from './modules/external-purchase/external-purchase.module';
 
 
 /**
@@ -136,6 +137,7 @@ import { AreaOfEachPlotOfLandModule } from './modules/area-of-each-plot-of-land/
     HealthModule, // Module health check để tránh Render free tier sleep
     CleanupModule, // Module dọn dẹp dữ liệu rác định kỳ
     AreaOfEachPlotOfLandModule, // Module quản lý các vùng/lô đất
+    ExternalPurchaseModule, // Module quản lý hóa đơn mua hàng từ bên ngoài
   ],
   controllers: [], // Các controller global (nếu có)
   providers: [

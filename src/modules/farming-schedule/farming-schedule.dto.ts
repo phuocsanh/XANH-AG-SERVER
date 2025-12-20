@@ -10,10 +10,10 @@ export class CreateFarmingScheduleDto {
   @Type(() => Number)
   rice_crop_id!: number;
 
-  @ApiProperty({ enum: ActivityType })
-  @IsNotEmpty()
+  @ApiPropertyOptional({ enum: ActivityType })
+  @IsOptional()
   @IsEnum(ActivityType)
-  activity_type!: ActivityType;
+  activity_type?: ActivityType;
 
   @ApiProperty()
   @IsNotEmpty()
@@ -88,4 +88,9 @@ export class UpdateFarmingScheduleDto {
   @IsOptional()
   @IsString()
   instructions?: string;
+
+  @ApiPropertyOptional({ enum: ActivityType })
+  @IsOptional()
+  @IsEnum(ActivityType)
+  activity_type?: ActivityType;
 }
