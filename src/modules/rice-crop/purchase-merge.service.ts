@@ -17,6 +17,7 @@ export interface MergedPurchase {
   source: 'system' | 'external';
   items: any[];
   notes?: string | undefined;
+  created_by?: number;
 }
 
 /**
@@ -63,6 +64,7 @@ export class PurchaseMergeService {
       source: 'system',
       items: inv.items || [],
       notes: inv.notes,
+      created_by: inv.created_by,
     }));
 
     // 4. Chuẩn hóa format chung cho external purchases
@@ -72,13 +74,14 @@ export class PurchaseMergeService {
       date: ext.purchase_date,
       supplier: ext.supplier_name,
       total_amount: Number(ext.total_amount || 0),
-      paid_amount: Number(ext.total_amount || 0), // External mặc định đã trả hết
-      remaining_amount: 0,
-      status: 'paid',
+      paid_amount: Number(ext.paid_amount || 0),
+      remaining_amount: Number(ext.total_amount || 0) - Number(ext.paid_amount || 0),
+      status: ext.payment_status || 'paid',
       payment_method: 'cash',
       source: 'external',
       items: ext.items || [],
       notes: ext.notes,
+      created_by: ext.created_by,
     }));
 
     // 5. Merge và sort theo ngày (mới nhất trước)

@@ -37,6 +37,12 @@ export class ExternalPurchase {
   @Column({ type: 'text', nullable: true })
   notes?: string;
 
+  @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
+  paid_amount!: number;
+
+  @Column({ type: 'varchar', length: 50, default: 'pending' })
+  payment_status!: string;
+
   @Column({ type: 'int' })
   created_by!: number;
 

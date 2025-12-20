@@ -50,6 +50,15 @@ export class CreateExternalPurchaseDto {
   @IsString()
   notes?: string;
 
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  paid_amount?: number;
+
+  @IsOptional()
+  @IsString()
+  payment_status?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ExternalPurchaseItemDto)
@@ -76,6 +85,15 @@ export class UpdateExternalPurchaseDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  paid_amount?: number;
+
+  @IsOptional()
+  @IsString()
+  payment_status?: string;
 
   @IsOptional()
   @IsArray()

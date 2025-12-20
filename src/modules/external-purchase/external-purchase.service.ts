@@ -41,6 +41,8 @@ export class ExternalPurchaseService {
         purchase_date: dto.purchase_date,
         supplier_name: dto.supplier_name,
         total_amount: dto.total_amount,
+        paid_amount: dto.paid_amount || 0,
+        payment_status: dto.payment_status || 'pending',
         ...(dto.notes && { notes: dto.notes }),
         created_by: userId,
       });
@@ -127,6 +129,8 @@ export class ExternalPurchaseService {
       if (dto.supplier_name) purchase.supplier_name = dto.supplier_name;
       if (dto.total_amount !== undefined) purchase.total_amount = dto.total_amount;
       if (dto.notes !== undefined) purchase.notes = dto.notes;
+      if (dto.paid_amount !== undefined) purchase.paid_amount = dto.paid_amount;
+      if (dto.payment_status !== undefined) purchase.payment_status = dto.payment_status;
 
       await queryRunner.manager.save(purchase);
 
