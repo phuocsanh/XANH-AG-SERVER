@@ -11,6 +11,8 @@ export class SearchUserDto extends BaseSearchDto {
   
   @IsString() @IsOptional() status?: string;
   @IsString() @IsOptional() role?: string;
+  @IsNumber() @IsOptional() @Type(() => Number) role_id?: number; // Added
+  @IsString() @IsOptional() nickname?: string; // Added
   @IsString() @IsOptional() user_type?: string;
 
   @IsDateString() @IsOptional() created_at?: string;

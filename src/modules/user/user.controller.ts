@@ -35,6 +35,15 @@ export class UserController {
   constructor(private readonly userService: UserService) {}
 
   /**
+   * Lấy danh sách roles
+   */
+  @Get('roles-list')
+  @UseGuards(JwtAuthGuard)
+  getRoles() {
+    return this.userService.getAllRoles();
+  }
+
+  /**
    * Endpoint tạo người dùng mới
    * @param createUserDto - Dữ liệu tạo người dùng mới
    * @returns Thông tin người dùng đã tạo

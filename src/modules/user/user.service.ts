@@ -634,20 +634,20 @@ export class UserService {
     page: number;
     limit: number;
   }> {
-    const queryBuilder = this.userRepository.createQueryBuilder('user');
+    const queryBuilder = this.userRepository.createQueryBuilder('u');
 
     // Join profile và role để search và display
-    queryBuilder.leftJoinAndSelect('user.profile', 'profile');
-    queryBuilder.leftJoinAndSelect('user.role', 'role');
+    queryBuilder.leftJoinAndSelect('u.profile', 'profile');
+    queryBuilder.leftJoinAndSelect('u.role', 'role');
 
     // Thêm điều kiện mặc định
-    queryBuilder.where('user.deleted_at IS NULL');
+    queryBuilder.where('u.deleted_at IS NULL');
 
     // 1. Base Search
     const { page, limit } = QueryHelper.applyBaseSearch(
       queryBuilder,
       searchDto,
-      'user',
+      'u',
       ['account', 'profile.nickname', 'profile.email', 'profile.mobile'] // Global search
     );
 
@@ -655,13 +655,16 @@ export class UserService {
     QueryHelper.applyFilters(
       queryBuilder,
       searchDto,
-      'user',
+      'u',
       ['filters', 'nested_filters', 'operator'],
       {
         full_name: 'profile.nickname',
+        nickname: 'profile.nickname',
         phone_number: 'profile.mobile',
         email: 'profile.email',
         role: 'role.code',
+        role_id: 'u.role_id',
+        status: 'u.status',
       }
     );
 
@@ -673,6 +676,15 @@ export class UserService {
       page,
       limit,
     };
+  }
+
+  /**
+   * Lấy danh sách tất cả các roles
+   */
+  async getAllRoles() {
+    return this.userRepository.manager.find('Role', {
+      order: { id: 'ASC' }
+    });
   }
 }
 
