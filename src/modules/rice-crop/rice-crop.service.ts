@@ -102,7 +102,7 @@ export class RiceCropService {
     try {
       const crop = await this.riceCropRepository.findOne({
         where: { id },
-        relations: ['customer', 'season'],
+        relations: ['customer', 'season', 'areaOfEachPlotOfLand'],
       });
 
       if (!crop) {

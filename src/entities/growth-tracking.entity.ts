@@ -74,17 +74,6 @@ export class GrowthTracking {
   @Column({ name: 'leaf_color', length: 100, nullable: true })
   leaf_color?: string;
 
-  @ApiProperty({ 
-    description: 'Tình trạng sức khỏe', 
-    enum: HealthStatus,
-    example: HealthStatus.HEALTHY 
-  })
-  @Column({
-    name: 'health_status',
-    type: 'enum',
-    enum: HealthStatus,
-  })
-  health_status!: HealthStatus;
 
   @ApiProperty({ description: 'Loại sâu/bệnh phát hiện', required: false })
   @Column({ name: 'pest_disease_detected', length: 255, nullable: true })

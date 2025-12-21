@@ -2,7 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsNumber, IsString, IsOptional, IsEnum, IsDateString, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
 import { GrowthStage } from '../../entities/rice-crop.entity';
-import { HealthStatus, SeverityLevel } from '../../entities/growth-tracking.entity';
+import { SeverityLevel } from '../../entities/growth-tracking.entity';
 
 export class CreateGrowthTrackingDto {
   @ApiProperty()
@@ -37,11 +37,6 @@ export class CreateGrowthTrackingDto {
   @IsOptional()
   @IsString()
   leaf_color?: string;
-
-  @ApiProperty({ enum: HealthStatus })
-  @IsNotEmpty()
-  @IsEnum(HealthStatus)
-  health_status!: HealthStatus;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -82,13 +77,33 @@ export class UpdateGrowthTrackingDto {
   @Type(() => Number)
   tiller_count?: number;
 
-  @ApiPropertyOptional({ enum: HealthStatus })
+  @ApiPropertyOptional()
   @IsOptional()
-  @IsEnum(HealthStatus)
-  health_status?: HealthStatus;
+  @IsString()
+  leaf_color?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  pest_disease_detected?: string;
+
+  @ApiPropertyOptional({ enum: SeverityLevel })
+  @IsOptional()
+  @IsEnum(SeverityLevel)
+  severity?: SeverityLevel;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  photo_urls?: string[];
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  tracking_date?: string;
 }
