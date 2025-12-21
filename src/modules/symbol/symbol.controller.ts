@@ -161,7 +161,7 @@ export class SymbolController {
    * @returns Danh sách ký hiệu phù hợp
    */
   @Post('search')
-  @RequirePermissions('PRODUCT_VIEW')
+  @RequirePermissions('product:read')
   search(@Body() searchDto: SearchSymbolDto) {
     try {
       return this.symbolService.searchSymbols(searchDto);

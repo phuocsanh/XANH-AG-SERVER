@@ -12,13 +12,13 @@ export class PaymentAllocationController {
   constructor(private readonly allocationService: PaymentAllocationService) {}
 
   @Post()
-  @RequirePermissions('SALES_MANAGE')
+  @RequirePermissions('sales:manage')
   create(@Body() createDto: CreatePaymentAllocationDto) {
     return this.allocationService.create(createDto);
   }
 
   @Post('search')
-  @RequirePermissions('SALES_VIEW')
+  @RequirePermissions('sales:read')
   search(@Body() searchDto: SearchPaymentAllocationDto) {
     return this.allocationService.search(searchDto);
   }

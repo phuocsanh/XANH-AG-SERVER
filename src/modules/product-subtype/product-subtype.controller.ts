@@ -92,7 +92,7 @@ export class ProductSubtypeController {
    * @returns Danh sách loại phụ sản phẩm phù hợp
    */
   @Post('search')
-  @RequirePermissions('PRODUCT_VIEW')
+  @RequirePermissions('product:read')
   search(@Body() searchDto: SearchProductSubtypeDto) {
     try {
       return this.productSubtypeService.searchProductSubtypes(searchDto);

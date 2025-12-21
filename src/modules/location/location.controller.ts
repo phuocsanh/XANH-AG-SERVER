@@ -23,7 +23,7 @@ export class LocationController {
    */
   @Get()
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('RICE_BLAST_VIEW')
+  @RequirePermissions('ai:rice_blast:read')
   @ApiOperation({ summary: 'Lấy vị trí ruộng lúa hiện tại' })
   @ApiResponse({ 
     status: 200, 
@@ -42,7 +42,7 @@ export class LocationController {
    */
   @Post()
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('RICE_BLAST_MANAGE')
+  @RequirePermissions('ai:rice_blast:manage')
   @ApiOperation({ summary: 'Cập nhật vị trí ruộng lúa' })
   @ApiResponse({ 
     status: 200, 

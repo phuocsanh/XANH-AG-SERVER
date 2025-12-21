@@ -33,7 +33,7 @@ export class CostItemCategoryController {
    * Tạo loại chi phí mới
    */
   @Post()
-  @RequirePermissions('COST_ITEM_MANAGE')
+  @RequirePermissions('cost_item:manage')
   create(@Body() createDto: CreateCostItemCategoryDto) {
     return this.categoryService.create(createDto);
   }
@@ -42,7 +42,7 @@ export class CostItemCategoryController {
    * Tìm kiếm (hoặc lấy tất cả nếu body rỗng)
    */
   @Post('search')
-  @RequirePermissions('COST_ITEM_VIEW')
+  @RequirePermissions('cost_item:read')
   search(@Body() searchDto: SearchCostItemCategoryDto) {
     return this.categoryService.search(searchDto);
   }
@@ -51,7 +51,7 @@ export class CostItemCategoryController {
    * Lấy chi tiết
    */
   @Get(':id')
-  @RequirePermissions('COST_ITEM_VIEW')
+  @RequirePermissions('cost_item:read')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.categoryService.findOne(id);
   }
@@ -60,7 +60,7 @@ export class CostItemCategoryController {
    * Cập nhật
    */
   @Patch(':id')
-  @RequirePermissions('COST_ITEM_MANAGE')
+  @RequirePermissions('cost_item:manage')
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateDto: UpdateCostItemCategoryDto,
@@ -72,7 +72,7 @@ export class CostItemCategoryController {
    * Xóa (soft delete)
    */
   @Delete(':id')
-  @RequirePermissions('COST_ITEM_MANAGE')
+  @RequirePermissions('cost_item:manage')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.categoryService.remove(id);

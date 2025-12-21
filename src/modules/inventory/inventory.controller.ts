@@ -47,7 +47,7 @@ export class InventoryController {
    * @returns Thông tin lô hàng tồn kho đã tạo
    */
   @Post('batches')
-  @RequirePermissions('INVENTORY_MANAGE')
+  @RequirePermissions('inventory:manage')
   createBatch(@Body() createInventoryBatchDto: CreateInventoryBatchDto) {
     return this.inventoryService.createBatch(createInventoryBatchDto);
   }
@@ -200,7 +200,7 @@ export class InventoryController {
    * @returns Kết quả xử lý nhập kho
    */
   @Post('stock-in')
-  @RequirePermissions('INVENTORY_MANAGE')
+  @RequirePermissions('inventory:manage')
   processStockIn(
     @Body()
     stockInData: {
@@ -352,7 +352,7 @@ export class InventoryController {
    * @returns Thông tin phiếu nhập kho đã tạo
    */
   @Post('receipt')
-  @RequirePermissions('INVENTORY_MANAGE')
+  @RequirePermissions('inventory:manage')
   createReceipt(
     @Body() createInventoryReceiptDto: CreateInventoryReceiptDto,
     @CurrentUser('id') userId: number,
@@ -512,7 +512,7 @@ export class InventoryController {
    * @returns Thông tin phiếu xuất trả hàng đã tạo
    */
   @Post('return')
-  @RequirePermissions('INVENTORY_MANAGE')
+  @RequirePermissions('inventory:manage')
   createReturn(
     @Body() createInventoryReturnDto: any,
     @CurrentUser('id') userId: number,
@@ -553,7 +553,7 @@ export class InventoryController {
    * Cập nhật thông tin phiếu xuất trả hàng
    */
   @Patch('return/:id')
-  @RequirePermissions('INVENTORY_MANAGE')
+  @RequirePermissions('inventory:manage')
   updateReturn(
     @Param('id') id: string,
     @Body() updateDto: any,
@@ -569,7 +569,7 @@ export class InventoryController {
    * @returns Kết quả duyệt phiếu xuất trả hàng
    */
   @Post('return/:id/approve')
-  @RequirePermissions('INVENTORY_MANAGE')
+  @RequirePermissions('inventory:manage')
   approveReturn(@Param('id') id: string, @CurrentUser('id') userId: number) {
     return this.inventoryService.approveReturn(+id, userId);
   }
@@ -583,7 +583,7 @@ export class InventoryController {
    * @returns Kết quả hủy phiếu xuất trả hàng
    */
   @Post('return/:id/cancel')
-  @RequirePermissions('INVENTORY_MANAGE')
+  @RequirePermissions('inventory:manage')
   cancelReturn(@Param('id') id: string, @Body('reason') reason: string) {
     return this.inventoryService.cancelReturn(+id, reason);
   }
@@ -594,7 +594,7 @@ export class InventoryController {
    * @returns Kết quả xóa phiếu xuất trả hàng
    */
   @Delete('return/:id')
-  @RequirePermissions('INVENTORY_MANAGE')
+  @RequirePermissions('inventory:manage')
   removeReturn(@Param('id') id: string) {
     return this.inventoryService.removeReturn(+id);
   }
@@ -608,7 +608,7 @@ export class InventoryController {
    * @returns Thông tin phiếu điều chỉnh kho đã tạo
    */
   @Post('adjustments')
-  @RequirePermissions('INVENTORY_MANAGE')
+  @RequirePermissions('inventory:manage')
   createAdjustment(
     @Body() createInventoryAdjustmentDto: any,
     @CurrentUser('id') userId: number,
@@ -654,7 +654,7 @@ export class InventoryController {
    * Cập nhật thông tin phiếu điều chỉnh kho
    */
   @Put('adjustments/:id')
-  @RequirePermissions('INVENTORY_MANAGE')
+  @RequirePermissions('inventory:manage')
   updateAdjustment(
     @Param('id') id: string,
     @Body() updateDto: any,
@@ -671,7 +671,7 @@ export class InventoryController {
    * @returns Kết quả duyệt phiếu điều chỉnh kho
    */
   @Post('adjustments/:id/approve')
-  @RequirePermissions('INVENTORY_MANAGE')
+  @RequirePermissions('inventory:manage')
   approveAdjustment(@Param('id') id: string, @CurrentUser('id') userId: number) {
     console.log('🚀 [DEBUG] approveAdjustment called for ID:', id);
     return this.inventoryService.approveAdjustment(+id, userId);
@@ -685,7 +685,7 @@ export class InventoryController {
    * @returns Kết quả hủy phiếu điều chỉnh kho
    */
   @Post('adjustments/:id/cancel')
-  @RequirePermissions('INVENTORY_MANAGE')
+  @RequirePermissions('inventory:manage')
   cancelAdjustment(
     @Param('id') id: string, 
     @Body('reason') reason: string,
@@ -700,7 +700,7 @@ export class InventoryController {
    * @returns Kết quả xóa phiếu điều chỉnh kho
    */
   @Delete('adjustments/:id')
-  @RequirePermissions('INVENTORY_MANAGE')
+  @RequirePermissions('inventory:manage')
   removeAdjustment(@Param('id') id: string) {
     return this.inventoryService.removeAdjustment(+id);
   }

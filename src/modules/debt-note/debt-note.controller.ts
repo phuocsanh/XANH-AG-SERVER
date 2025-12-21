@@ -14,7 +14,7 @@ export class DebtNoteController {
   constructor(private readonly debtNoteService: DebtNoteService) {}
 
   @Post()
-  @RequirePermissions('SALES_MANAGE')
+  @RequirePermissions('sales:manage')
   create(
     @Body() createDto: CreateDebtNoteDto,
     @CurrentUser('id') userId: number,
@@ -25,7 +25,7 @@ export class DebtNoteController {
 
 
   @Post('search')
-  @RequirePermissions('SALES_VIEW')
+  @RequirePermissions('sales:read')
   search(@Body() searchDto: SearchDebtNoteDto) {
     return this.debtNoteService.search(searchDto);
   }
@@ -36,13 +36,13 @@ export class DebtNoteController {
   }
 
   @Patch(':id')
-  @RequirePermissions('SALES_MANAGE')
+  @RequirePermissions('sales:manage')
   update(@Param('id') id: string, @Body() updateDto: UpdateDebtNoteDto) {
     return this.debtNoteService.update(+id, updateDto);
   }
 
   @Delete(':id')
-  @RequirePermissions('SALES_MANAGE')
+  @RequirePermissions('sales:manage')
   remove(@Param('id') id: string) {
     return this.debtNoteService.remove(+id);
   }

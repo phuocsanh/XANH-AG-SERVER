@@ -60,7 +60,7 @@ export class OperatingCostController {
    * @returns Tổng chi phí theo từng loại
    */
   @Get('summary-all')
-  @RequirePermissions('OPERATING_COST_VIEW')
+  @RequirePermissions('operating_cost:read')
   async getCostSummary(): Promise<Array<{ costType: string; total: number }>> {
     // Các loại chi phí phổ biến
     const costTypes = [
@@ -90,7 +90,7 @@ export class OperatingCostController {
    * @returns Tổng chi phí của loại chi phí tương ứng
    */
   @Get('type/:costType')
-  @RequirePermissions('OPERATING_COST_VIEW')
+  @RequirePermissions('operating_cost:read')
   async getTotalCostByType(
     @Param('costType') costType: string,
   ): Promise<{ total: number }> {
@@ -104,7 +104,7 @@ export class OperatingCostController {
    * @returns Thông tin chi phí vận hành đã tạo
    */
   @Post()
-  @RequirePermissions('OPERATING_COST_MANAGE')
+  @RequirePermissions('operating_cost:manage')
   async create(
     @Body() createOperatingCostDto: CreateOperatingCostDto,
   ): Promise<OperatingCost> {
@@ -117,7 +117,7 @@ export class OperatingCostController {
    * @returns Thông tin chi phí vận hành
    */
   @Get(':id')
-  @RequirePermissions('OPERATING_COST_VIEW')
+  @RequirePermissions('operating_cost:read')
   async findOne(@Param('id', ParseIntPipe) id: number): Promise<OperatingCost> {
     const operatingCost = await this.operatingCostService.findOne(id);
     if (!operatingCost) {
@@ -135,7 +135,7 @@ export class OperatingCostController {
    * @returns Thông tin chi phí vận hành đã cập nhật
    */
   @Put(':id')
-  @RequirePermissions('OPERATING_COST_MANAGE')
+  @RequirePermissions('operating_cost:manage')
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateOperatingCostDto: UpdateOperatingCostDto,
@@ -157,7 +157,7 @@ export class OperatingCostController {
    * @param id - ID của chi phí vận hành cần xóa
    */
   @Delete(':id')
-  @RequirePermissions('OPERATING_COST_MANAGE')
+  @RequirePermissions('operating_cost:manage')
   async remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
     const operatingCost = await this.operatingCostService.findOne(id);
     if (!operatingCost) {
@@ -174,7 +174,7 @@ export class OperatingCostController {
    * @returns Danh sách chi phí vận hành phù hợp
    */
   @Post('search')
-  @RequirePermissions('OPERATING_COST_VIEW')
+  @RequirePermissions('operating_cost:read')
   async searchAdvanced(
     @Body() searchDto: SearchOperatingCostDto,
   ): Promise<any> {

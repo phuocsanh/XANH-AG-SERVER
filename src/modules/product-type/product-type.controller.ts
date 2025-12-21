@@ -38,7 +38,7 @@ export class ProductTypeController {
    * @returns Thông tin loại sản phẩm đã tạo
    */
   @Post()
-  @RequirePermissions('PRODUCT_MANAGE')
+  @RequirePermissions('product:manage')
   create(@Body() createProductTypeDto: CreateProductTypeDto) {
     return this.productTypeService.create(createProductTypeDto);
   }
@@ -58,7 +58,7 @@ export class ProductTypeController {
    * @returns Danh sách loại sản phẩm theo trạng thái
    */
   @Get('by-status/:status')
-  @RequirePermissions('PRODUCT_VIEW')
+  @RequirePermissions('product:read')
   findByStatus(@Param('status') status: BaseStatus) {
     return this.productTypeService.findByStatus(status);
   }
@@ -68,7 +68,7 @@ export class ProductTypeController {
    * @returns Danh sách loại sản phẩm đã bị xóa
    */
   @Get('deleted')
-  @RequirePermissions('PRODUCT_MANAGE')
+  @RequirePermissions('product:manage')
   findDeleted() {
     return this.productTypeService.findDeleted();
   }
@@ -79,7 +79,7 @@ export class ProductTypeController {
    * @returns Danh sách loại sản phẩm phù hợp
    */
   @Post('search')
-  @RequirePermissions('PRODUCT_VIEW')
+  @RequirePermissions('product:read')
   search(@Body() searchDto: SearchProductTypeDto) {
     try {
       return this.productTypeService.searchProductTypes(searchDto);
@@ -97,7 +97,7 @@ export class ProductTypeController {
    * @returns Thông tin loại sản phẩm
    */
   @Get(':id')
-  @RequirePermissions('PRODUCT_VIEW')
+  @RequirePermissions('product:read')
   findOne(@Param('id') id: string) {
     return this.productTypeService.findOne(+id);
   }
@@ -109,7 +109,7 @@ export class ProductTypeController {
    * @returns Thông tin loại sản phẩm đã cập nhật
    */
   @Patch(':id')
-  @RequirePermissions('PRODUCT_MANAGE')
+  @RequirePermissions('product:manage')
   update(
     @Param('id') id: string,
     @Body() updateProductTypeDto: UpdateProductTypeDto,
@@ -123,7 +123,7 @@ export class ProductTypeController {
    * @returns Thông tin loại sản phẩm đã kích hoạt
    */
   @Patch(':id/activate')
-  @RequirePermissions('PRODUCT_MANAGE')
+  @RequirePermissions('product:manage')
   activate(@Param('id') id: string) {
     return this.productTypeService.activate(+id);
   }
@@ -134,7 +134,7 @@ export class ProductTypeController {
    * @returns Thông tin loại sản phẩm đã vô hiệu hóa
    */
   @Patch(':id/deactivate')
-  @RequirePermissions('PRODUCT_MANAGE')
+  @RequirePermissions('product:manage')
   deactivate(@Param('id') id: string) {
     return this.productTypeService.deactivate(+id);
   }
@@ -145,7 +145,7 @@ export class ProductTypeController {
    * @returns Thông tin loại sản phẩm đã lưu trữ
    */
   @Patch(':id/archive')
-  @RequirePermissions('PRODUCT_MANAGE')
+  @RequirePermissions('product:manage')
   archive(@Param('id') id: string) {
     return this.productTypeService.archive(+id);
   }
@@ -156,7 +156,7 @@ export class ProductTypeController {
    * @returns Kết quả soft delete
    */
   @Delete(':id/soft')
-  @RequirePermissions('PRODUCT_MANAGE')
+  @RequirePermissions('product:manage')
   softDelete(@Param('id') id: string) {
     return this.productTypeService.softDelete(+id);
   }
@@ -167,7 +167,7 @@ export class ProductTypeController {
    * @returns Thông tin loại sản phẩm đã khôi phục
    */
   @Patch(':id/restore')
-  @RequirePermissions('PRODUCT_MANAGE')
+  @RequirePermissions('product:manage')
   restore(@Param('id') id: string) {
     return this.productTypeService.restore(+id);
   }
@@ -178,7 +178,7 @@ export class ProductTypeController {
    * @returns Kết quả xóa vĩnh viễn loại sản phẩm
    */
   @Delete(':id')
-  @RequirePermissions('PRODUCT_MANAGE')
+  @RequirePermissions('product:manage')
   remove(@Param('id') id: string) {
     return this.productTypeService.remove(+id);
   }

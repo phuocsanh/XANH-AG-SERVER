@@ -38,7 +38,7 @@ export class UnitController {
    * @returns Thông tin đơn vị tính đã tạo
    */
   @Post()
-  @RequirePermissions('PRODUCT_MANAGE')
+  @RequirePermissions('product:manage')
   create(@Body() createUnitDto: CreateUnitDto) {
     return this.unitService.create(createUnitDto);
   }
@@ -59,7 +59,7 @@ export class UnitController {
    * @returns Danh sách đơn vị tính theo trạng thái
    */
   @Get('by-status/:status')
-  @RequirePermissions('PRODUCT_VIEW')
+  @RequirePermissions('product:read')
   findByStatus(@Param('status') status: BaseStatus) {
     return this.unitService.findByStatus(status);
   }
@@ -70,7 +70,7 @@ export class UnitController {
    * @returns Thông tin đơn vị tính
    */
   @Get(':id')
-  @RequirePermissions('PRODUCT_VIEW')
+  @RequirePermissions('product:read')
   findOne(@Param('id') id: string) {
     return this.unitService.findOne(+id);
   }
@@ -82,7 +82,7 @@ export class UnitController {
    * @returns Thông tin đơn vị tính đã cập nhật
    */
   @Patch(':id')
-  @RequirePermissions('PRODUCT_MANAGE')
+  @RequirePermissions('product:manage')
   update(@Param('id') id: string, @Body() updateUnitDto: UpdateUnitDto) {
     return this.unitService.update(+id, updateUnitDto);
   }
@@ -93,7 +93,7 @@ export class UnitController {
    * @returns Thông tin đơn vị tính đã kích hoạt
    */
   @Patch(':id/activate')
-  @RequirePermissions('PRODUCT_MANAGE')
+  @RequirePermissions('product:manage')
   activate(@Param('id') id: string) {
     return this.unitService.activate(+id);
   }
@@ -104,7 +104,7 @@ export class UnitController {
    * @returns Thông tin đơn vị tính đã vô hiệu hóa
    */
   @Patch(':id/deactivate')
-  @RequirePermissions('PRODUCT_MANAGE')
+  @RequirePermissions('product:manage')
   deactivate(@Param('id') id: string) {
     return this.unitService.deactivate(+id);
   }
@@ -115,7 +115,7 @@ export class UnitController {
    * @returns Thông tin đơn vị tính đã lưu trữ
    */
   @Patch(':id/archive')
-  @RequirePermissions('PRODUCT_MANAGE')
+  @RequirePermissions('product:manage')
   archive(@Param('id') id: string) {
     return this.unitService.archive(+id);
   }
@@ -125,7 +125,7 @@ export class UnitController {
    * @param id - ID của đơn vị tính cần soft delete
    */
   @Delete(':id/soft')
-  @RequirePermissions('PRODUCT_MANAGE')
+  @RequirePermissions('product:manage')
   softDelete(@Param('id') id: string) {
     return this.unitService.softDelete(+id);
   }
@@ -136,7 +136,7 @@ export class UnitController {
    * @returns Thông tin đơn vị tính đã khôi phục
    */
   @Patch(':id/restore')
-  @RequirePermissions('PRODUCT_MANAGE')
+  @RequirePermissions('product:manage')
   restore(@Param('id') id: string) {
     return this.unitService.restore(+id);
   }
@@ -147,7 +147,7 @@ export class UnitController {
    * @returns Kết quả xóa đơn vị tính
    */
   @Delete(':id')
-  @RequirePermissions('PRODUCT_MANAGE')
+  @RequirePermissions('product:manage')
   remove(@Param('id') id: string) {
     return this.unitService.remove(+id);
   }
@@ -158,7 +158,7 @@ export class UnitController {
    * @returns Danh sách đơn vị tính phù hợp
    */
   @Post('search')
-  @RequirePermissions('PRODUCT_VIEW')
+  @RequirePermissions('product:read')
   search(@Body() searchDto: SearchUnitDto) {
     try {
       return this.unitService.searchUnits(searchDto);

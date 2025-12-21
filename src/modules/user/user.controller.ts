@@ -62,7 +62,7 @@ export class UserController {
    */
   @Get(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('USER_VIEW')
+  @RequirePermissions('user:read')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.userService.findOne(id);
   }
@@ -75,7 +75,7 @@ export class UserController {
    */
   @Put(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('USER_UPDATE')
+  @RequirePermissions('user:update')
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateUserDto: UpdateUserDto,
@@ -91,7 +91,7 @@ export class UserController {
    */
   @Delete(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('USER_DELETE')
+  @RequirePermissions('user:delete')
   remove(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
     const operatorRoleCode = req.user.role.code;
     return this.userService.remove(id, operatorRoleCode);
@@ -104,7 +104,7 @@ export class UserController {
    */
   @Post('search')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('USER_VIEW')
+  @RequirePermissions('user:read')
   search(@Body() searchUserDto: SearchUserDto) {
     return this.userService.searchUsers(searchUserDto);
   }
@@ -117,7 +117,7 @@ export class UserController {
    */
   @Post('admin/create')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('USER_CREATE')
+  @RequirePermissions('user:create')
   async createByAdmin(@Body() createUserByAdminDto: any, @Req() req: any) {
     const creatorRoleCode = req.user.role.code;
     return this.userService.createByAdmin(createUserByAdminDto, creatorRoleCode);
@@ -131,7 +131,7 @@ export class UserController {
    */
   @Post('admin/approve')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('USER_APPROVE')
+  @RequirePermissions('user:approve')
   async approveUser(@Body() approveUserDto: any, @Req() req: any) {
     const approverRoleCode = req.user.role.code;
     return this.userService.approveUser(approveUserDto.user_id, approverRoleCode);
@@ -147,7 +147,7 @@ export class UserController {
    */
   @Post(':id/activate')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('USER_UPDATE')
+  @RequirePermissions('user:update')
   async activateUser(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
     const operatorRoleCode = req.user.role.code;
     return this.userService.activate(id, operatorRoleCode);
@@ -161,7 +161,7 @@ export class UserController {
    */
   @Post(':id/deactivate')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('USER_UPDATE')
+  @RequirePermissions('user:update')
   async deactivateUser(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
     const operatorRoleCode = req.user.role.code;
     return this.userService.deactivate(id, operatorRoleCode);
@@ -174,7 +174,7 @@ export class UserController {
    */
   @Post('customer/create-account')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('CUSTOMER_MANAGE')
+  @RequirePermissions('customer:manage')
   async createCustomerAccount(@Body() createCustomerAccountDto: CreateCustomerAccountDto) {
     return this.userService.createCustomerAccount(createCustomerAccountDto.customer_id);
   }

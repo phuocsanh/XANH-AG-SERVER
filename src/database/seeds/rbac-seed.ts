@@ -5,6 +5,8 @@ import { Permission } from '../../entities/permission.entity';
 import { User } from '../../entities/users.entity';
 import { UserProfile } from '../../entities/user-profiles.entity';
 import { BaseStatus } from '../../entities/base-status.enum';
+import { PERMISSIONS } from './permissions.config';
+import { getRolesData } from './roles.config';
 
 /**
  * Seed dữ liệu RBAC: Roles, Permissions, và Super Admin
@@ -17,97 +19,9 @@ export async function seedRBAC(dataSource: DataSource) {
 
   console.log('🌱 Bắt đầu seed RBAC...');
 
-  // 1. Tạo Permissions
-  const permissions = [
-    // User Management
-    { code: 'USER_VIEW', name: 'Xem người dùng', group: 'User Management', description: 'Xem danh sách và thông tin người dùng' },
-    { code: 'USER_CREATE', name: 'Tạo người dùng', group: 'User Management', description: 'Tạo tài khoản người dùng mới' },
-    { code: 'USER_UPDATE', name: 'Cập nhật người dùng', group: 'User Management', description: 'Chỉnh sửa thông tin người dùng' },
-    { code: 'USER_DELETE', name: 'Xóa người dùng', group: 'User Management', description: 'Xóa tài khoản người dùng' },
-    { code: 'USER_APPROVE', name: 'Duyệt người dùng', group: 'User Management', description: 'Duyệt tài khoản đăng ký mới' },
-    
-    // Role & Permission Management
-    { code: 'ROLE_MANAGE', name: 'Quản lý vai trò', group: 'Role Management', description: 'Quản lý roles và permissions' },
-    
-    // Rice Blast
-    { code: 'RICE_BLAST_VIEW', name: 'Xem cảnh báo đạo ôn', group: 'Rice Blast', description: 'Xem cảnh báo bệnh đạo ôn' },
-    { code: 'RICE_BLAST_MANAGE', name: 'Quản lý cảnh báo đạo ôn', group: 'Rice Blast', description: 'Cập nhật vị trí và chạy phân tích' },
-    
-    // Product Management
-    { code: 'PRODUCT_VIEW', name: 'Xem sản phẩm', group: 'Product Management', description: 'Xem danh sách sản phẩm' },
-    { code: 'PRODUCT_MANAGE', name: 'Quản lý sản phẩm', group: 'Product Management', description: 'Tạo, sửa, xóa sản phẩm' },
-    
-    // Sales Management
-    { code: 'SALES_VIEW', name: 'Xem hóa đơn', group: 'Sales Management', description: 'Xem hóa đơn bán hàng' },
-    { code: 'SALES_CREATE', name: 'Tạo hóa đơn', group: 'Sales Management', description: 'Tạo hóa đơn bán hàng mới' },
-    { code: 'SALES_MANAGE', name: 'Quản lý hóa đơn', group: 'Sales Management', description: 'Sửa, xóa hóa đơn' },
-    
-    // Customer Management
-    { code: 'CUSTOMER_VIEW', name: 'Xem khách hàng', group: 'Customer Management', description: 'Xem danh sách khách hàng' },
-    { code: 'CUSTOMER_MANAGE', name: 'Quản lý khách hàng', group: 'Customer Management', description: 'Tạo, sửa, xóa khách hàng và tạo tài khoản' },
-    
-    // Inventory Management
-    { code: 'INVENTORY_VIEW', name: 'Xem kho', group: 'Inventory Management', description: 'Xem tồn kho' },
-    { code: 'INVENTORY_MANAGE', name: 'Quản lý kho', group: 'Inventory Management', description: 'Nhập xuất kho' },
-    
-    // Report
-    { code: 'REPORT_VIEW', name: 'Xem báo cáo', group: 'Report', description: 'Xem các báo cáo thống kê' },
-    { code: 'REPORT_EXPORT', name: 'Xuất báo cáo', group: 'Report', description: 'Xuất báo cáo ra file' },
-    
-    // Rice Crop Management
-    { code: 'rice_crop:read', name: 'Xem vụ lúa', group: 'Rice Crop Management', description: 'Xem danh sách và chi tiết mảnh ruộng' },
-    { code: 'rice_crop:create', name: 'Tạo mảnh ruộng', group: 'Rice Crop Management', description: 'Tạo mảnh ruộng mới' },
-    { code: 'rice_crop:update', name: 'Cập nhật mảnh ruộng', group: 'Rice Crop Management', description: 'Cập nhật thông tin mảnh ruộng' },
-    { code: 'rice_crop:delete', name: 'Xóa mảnh ruộng', group: 'Rice Crop Management', description: 'Xóa mảnh ruộng' },
-    
-    // Cost Item Management
-    { code: 'cost_item:read', name: 'Xem chi phí', group: 'Cost Item Management', description: 'Xem danh sách chi phí' },
-    { code: 'cost_item:create', name: 'Thêm chi phí', group: 'Cost Item Management', description: 'Thêm chi phí mới' },
-    { code: 'cost_item:update', name: 'Cập nhật chi phí', group: 'Cost Item Management', description: 'Cập nhật chi phí' },
-    { code: 'cost_item:delete', name: 'Xóa chi phí', group: 'Cost Item Management', description: 'Xóa chi phí' },
-    { code: 'COST_ITEM_VIEW', name: 'Xem loại chi phí canh tác', group: 'Cost Item Management', description: 'Xem danh sách loại chi phí canh tác' },
-    { code: 'COST_ITEM_MANAGE', name: 'Quản lý loại chi phí canh tác', group: 'Cost Item Management', description: 'Thêm sửa xóa loại chi phí canh tác' },
-    
-    // Harvest Record Management
-    { code: 'harvest:read', name: 'Xem thu hoạch', group: 'Harvest Management', description: 'Xem thông tin thu hoạch' },
-    { code: 'harvest:create', name: 'Ghi nhận thu hoạch', group: 'Harvest Management', description: 'Ghi nhận thu hoạch mới' },
-    { code: 'harvest:update', name: 'Cập nhật thu hoạch', group: 'Harvest Management', description: 'Cập nhật thông tin thu hoạch' },
-    { code: 'harvest:delete', name: 'Xóa thu hoạch', group: 'Harvest Management', description: 'Xóa thông tin thu hoạch' },
-    
-    // Farming Schedule Management
-    { code: 'schedule:read', name: 'Xem lịch canh tác', group: 'Schedule Management', description: 'Xem lịch canh tác' },
-    { code: 'schedule:create', name: 'Tạo lịch canh tác', group: 'Schedule Management', description: 'Tạo lịch canh tác mới' },
-    { code: 'schedule:update', name: 'Cập nhật lịch', group: 'Schedule Management', description: 'Cập nhật lịch canh tác' },
-    { code: 'schedule:delete', name: 'Xóa lịch', group: 'Schedule Management', description: 'Xóa lịch canh tác' },
-    
-    // Application Record Management
-    { code: 'application:read', name: 'Xem nhật ký', group: 'Application Management', description: 'Xem nhật ký phun thuốc/bón phân' },
-    { code: 'application:create', name: 'Ghi nhật ký', group: 'Application Management', description: 'Ghi nhật ký mới' },
-    { code: 'application:update', name: 'Cập nhật nhật ký', group: 'Application Management', description: 'Cập nhật nhật ký' },
-    { code: 'application:delete', name: 'Xóa nhật ký', group: 'Application Management', description: 'Xóa nhật ký' },
-    
-    // Growth Tracking Management
-    { code: 'growth:read', name: 'Xem theo dõi', group: 'Growth Tracking', description: 'Xem theo dõi sinh trưởng' },
-    { code: 'growth:create', name: 'Ghi nhận quan sát', group: 'Growth Tracking', description: 'Ghi nhận quan sát mới' },
-    { code: 'growth:update', name: 'Cập nhật quan sát', group: 'Growth Tracking', description: 'Cập nhật quan sát' },
-    { code: 'growth:delete', name: 'Xóa quan sát', group: 'Growth Tracking', description: 'Xóa quan sát' },
-    
-    // Area of Each Plot of Land Management
-    { code: 'area_of_each_plot_of_land:read', name: 'Xem vùng/lô đất', group: 'Area Management', description: 'Xem danh sách vùng/lô đất' },
-    { code: 'area_of_each_plot_of_land:create', name: 'Tạo vùng/lô đất', group: 'Area Management', description: 'Tạo vùng/lô đất mới' },
-    { code: 'area_of_each_plot_of_land:update', name: 'Cập nhật vùng/lô đất', group: 'Area Management', description: 'Cập nhật thông tin vùng/lô đất' },
-    { code: 'area_of_each_plot_of_land:delete', name: 'Xóa vùng/lô đất', group: 'Area Management', description: 'Xóa vùng/lô đất' },
-    
-    // Store Profit Report
-    { code: 'store-profit-report:read', name: 'Xem báo cáo lợi nhuận', group: 'Store Profit Report', description: 'Xem báo cáo lợi nhuận cửa hàng' },
-    
-    // Operating Cost Management
-    { code: 'OPERATING_COST_VIEW', name: 'Xem chi phí vận hành', group: 'Operating Cost', description: 'Xem danh sách chi phí vận hành' },
-    { code: 'OPERATING_COST_MANAGE', name: 'Quản lý chi phí vận hành', group: 'Operating Cost', description: 'Thêm sửa xóa chi phí vận hành' },
-  ];
-
+  // 1. Tạo Permissions từ config
   const createdPermissions: Permission[] = [];
-  for (const permData of permissions) {
+  for (const permData of PERMISSIONS) {
     let permission = await permissionRepository.findOne({ where: { code: permData.code } });
     if (!permission) {
       permission = permissionRepository.create(permData);
@@ -117,87 +31,10 @@ export async function seedRBAC(dataSource: DataSource) {
     createdPermissions.push(permission);
   }
 
-  // 2. Tạo Roles với Permissions tương ứng
-  const rolesData = [
-    {
-      code: 'SUPER_ADMIN',
-      name: 'Super Admin',
-      description: 'Chủ hệ thống - Toàn quyền',
-      permissionCodes: createdPermissions.map(p => p.code), // Tất cả quyền
-    },
-    {
-      code: 'ADMIN',
-      name: 'Admin',
-      description: 'Quản trị viên - Quản lý người dùng và hệ thống',
-      permissionCodes: [
-        'USER_VIEW', 'USER_CREATE', 'USER_UPDATE', 'USER_APPROVE',
-        'RICE_BLAST_VIEW', 'RICE_BLAST_MANAGE',
-        'PRODUCT_VIEW', 'PRODUCT_MANAGE',
-        'SALES_VIEW', 'SALES_CREATE', 'SALES_MANAGE',
-        'CUSTOMER_VIEW', 'CUSTOMER_MANAGE',
-        'INVENTORY_VIEW', 'INVENTORY_MANAGE',
-        'REPORT_VIEW', 'REPORT_EXPORT',
-        'rice_crop:read', 'rice_crop:create', 'rice_crop:update', 'rice_crop:delete',
-        'COST_ITEM_VIEW', 'COST_ITEM_MANAGE',
-        'cost_item:read', 'cost_item:create', 'cost_item:update', 'cost_item:delete',
-        'harvest:read', 'harvest:create', 'harvest:update', 'harvest:delete',
-        'schedule:read', 'schedule:create', 'schedule:update', 'schedule:delete',
-        'application:read', 'application:create', 'application:update', 'application:delete',
-        'growth:read', 'growth:create', 'growth:update', 'growth:delete',
-        'area_of_each_plot_of_land:read', 'area_of_each_plot_of_land:create', 'area_of_each_plot_of_land:update', 'area_of_each_plot_of_land:delete',
-        'store-profit-report:read',
-        'OPERATING_COST_VIEW', 'OPERATING_COST_MANAGE',
-      ],
-    },
-    {
-      code: 'STAFF',
-      name: 'Staff',
-      description: 'Nhân viên - Xem và thao tác cơ bản',
-      permissionCodes: [
-        'USER_VIEW',
-        'RICE_BLAST_VIEW',
-        'PRODUCT_VIEW',
-        'SALES_VIEW', 'SALES_CREATE',
-        'INVENTORY_VIEW',
-        'REPORT_VIEW',
-        'rice_crop:read', 'rice_crop:create', 'rice_crop:update',
-        'cost_item:read', 'cost_item:create', 'cost_item:update',
-        'harvest:read', 'harvest:create', 'harvest:update',
-        'schedule:read', 'schedule:create', 'schedule:update',
-        'application:read', 'application:create', 'application:update',
-        'growth:read', 'growth:create', 'growth:update',
-        'area_of_each_plot_of_land:read', 'area_of_each_plot_of_land:create', 'area_of_each_plot_of_land:update',
-        'store-profit-report:read',
-        'OPERATING_COST_VIEW', 'OPERATING_COST_MANAGE',
-      ],
-    },
-    {
-      code: 'USER',
-      name: 'User',
-      description: 'Người dùng - Nông dân/Khách hàng',
-      permissionCodes: [
-        'RICE_BLAST_VIEW',
-        'PRODUCT_VIEW',
-        'SALES_VIEW', // Chỉ xem hóa đơn cửa hàng
-        // Rice Crop - Không có quyền xóa rice-crop chính
-        'rice_crop:read', 'rice_crop:create', 'rice_crop:update',
-        // Cost Item - Có quyền xóa items do mình tạo
-        'cost_item:read', 'cost_item:create', 'cost_item:update', 'cost_item:delete',
-        // Harvest - Có quyền xóa thu hoạch do mình tạo
-        'harvest:read', 'harvest:create', 'harvest:update', 'harvest:delete',
-        // Schedule - Có quyền xóa lịch do mình tạo
-        'schedule:read', 'schedule:create', 'schedule:update', 'schedule:delete',
-        // Application - Có quyền xóa nhật ký do mình tạo
-        'application:read', 'application:create', 'application:update', 'application:delete',
-        // Growth - Có quyền xóa quan sát do mình tạo
-        'growth:read', 'growth:create', 'growth:update', 'growth:delete',
-        // Area - Có quyền xóa vùng/lô đất do mình tạo
-        'area_of_each_plot_of_land:read', 'area_of_each_plot_of_land:create', 'area_of_each_plot_of_land:update', 'area_of_each_plot_of_land:delete',
-        // Store Profit Report - Chỉ xem
-        'store-profit-report:read',
-      ],
-    },
-  ];
+
+  // 2. Tạo Roles từ config
+  const rolesData = getRolesData(createdPermissions.map(p => p.code));
+
 
   const createdRoles: { [key: string]: Role } = {};
   for (const roleData of rolesData) {
@@ -227,7 +64,7 @@ export async function seedRBAC(dataSource: DataSource) {
 
   // 3. Tạo tài khoản Super Admin mặc định
   const superAdminAccount = 'admin';
-  const superAdminPassword = '123456'; // Mật khẩu theo yêu cầu
+  const superAdminPassword = process.env.ADMIN_DEFAULT_PASSWORD || '123456'; // Mật khẩu mặc định (nên đổi qua .env)
 
   let superAdmin = await userRepository.findOne({ 
     where: { account: superAdminAccount },

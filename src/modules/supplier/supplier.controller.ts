@@ -35,7 +35,7 @@ export class SupplierController {
    * @returns Thông tin nhà cung cấp đã tạo
    */
   @Post()
-  @RequirePermissions('INVENTORY_MANAGE')
+  @RequirePermissions('inventory:manage')
   create(
     @Body() createSupplierDto: CreateSupplierDto,
     @CurrentUser('id') userId: number,
@@ -69,7 +69,7 @@ export class SupplierController {
    * @returns Danh sách nhà cung cấp phù hợp với thông tin phân trang
    */
   @Post('search')
-  @RequirePermissions('INVENTORY_VIEW')
+  @RequirePermissions('inventory:read')
   search(@Body() searchDto: SearchSupplierDto) {
     try {
       return this.supplierService.searchSuppliers(searchDto);
@@ -88,7 +88,7 @@ export class SupplierController {
    * @returns Thông tin nhà cung cấp đã cập nhật
    */
   @Patch(':id')
-  @RequirePermissions('INVENTORY_MANAGE')
+  @RequirePermissions('inventory:manage')
   update(
     @Param('id') id: string,
     @Body() updateSupplierDto: UpdateSupplierDto,
@@ -102,7 +102,7 @@ export class SupplierController {
    * @returns Kết quả xóa nhà cung cấp
    */
   @Delete(':id')
-  @RequirePermissions('INVENTORY_MANAGE')
+  @RequirePermissions('inventory:manage')
   remove(@Param('id') id: string) {
     return this.supplierService.remove(+id);
   }

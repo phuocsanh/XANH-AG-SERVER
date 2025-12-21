@@ -22,7 +22,7 @@ export class AiBacterialBlightController {
    */
   @Get('warning')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('RICE_BLAST_VIEW')
+  @RequirePermissions('ai:rice_blast:read')
   @ApiOperation({ summary: 'Lấy cảnh báo bệnh cháy bìa lá mới nhất' })
   @ApiResponse({ 
     status: 200, 
@@ -40,7 +40,7 @@ export class AiBacterialBlightController {
    */
   @Post('run-now')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('RICE_BLAST_MANAGE')
+  @RequirePermissions('ai:rice_blast:manage')
   @ApiOperation({ summary: 'Chạy phân tích bệnh cháy bìa lá ngay lập tức' })
   @ApiResponse({ 
     status: 200, 

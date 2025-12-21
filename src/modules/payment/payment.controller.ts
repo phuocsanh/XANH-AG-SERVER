@@ -15,7 +15,7 @@ export class PaymentController {
 
 
   @Post('settle-debt')
-  @RequirePermissions('SALES_MANAGE')
+  @RequirePermissions('sales:manage')
   settleDebt(
     @Body() dto: SettleDebtDto,
     @CurrentUser('id') userId: number,
@@ -26,7 +26,7 @@ export class PaymentController {
 
 
   @Post('search')
-  @RequirePermissions('SALES_VIEW')
+  @RequirePermissions('sales:read')
   search(@Body() searchDto: SearchPaymentDto) {
     return this.paymentService.search(searchDto);
   }
@@ -42,19 +42,19 @@ export class PaymentController {
   }
 
   @Delete(':id')
-  @RequirePermissions('SALES_MANAGE')
+  @RequirePermissions('sales:manage')
   remove(@Param('id') id: string) {
     return this.paymentService.remove(+id);
   }
 
   @Get(':id/allocations')
-  @RequirePermissions('SALES_VIEW')
+  @RequirePermissions('sales:read')
   getPaymentAllocations(@Param('id') id: string) {
     return this.paymentService.getPaymentAllocations(+id);
   }
 
   @Post(':id/rollback')
-  @RequirePermissions('SALES_MANAGE')
+  @RequirePermissions('sales:manage')
   rollback(@Param('id') id: string) {
     return this.paymentService.rollbackPayment(+id);
   }

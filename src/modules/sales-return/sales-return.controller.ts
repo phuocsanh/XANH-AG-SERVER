@@ -13,7 +13,7 @@ export class SalesReturnController {
   constructor(private readonly salesReturnService: SalesReturnService) {}
 
   @Post()
-  @RequirePermissions('SALES_MANAGE')
+  @RequirePermissions('sales:manage')
   create(
     @Body() createDto: CreateSalesReturnDto,
     @CurrentUser('id') userId: number,
@@ -22,7 +22,7 @@ export class SalesReturnController {
   }
 
   @Post('search')
-  @RequirePermissions('SALES_VIEW')
+  @RequirePermissions('sales:read')
   search(@Body() searchDto: SearchSalesReturnDto) {
     return this.salesReturnService.search(searchDto);
   }

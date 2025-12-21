@@ -13,19 +13,19 @@ export class CustomerController {
   constructor(private readonly customerService: CustomerService) {}
 
   @Post()
-  @RequirePermissions('SALES_MANAGE')
+  @RequirePermissions('sales:manage')
   create(@Body() createCustomerDto: CreateCustomerDto) {
     return this.customerService.create(createCustomerDto);
   }
 
   @Post('search')
-  @RequirePermissions('CUSTOMER_VIEW')
+  @RequirePermissions('customer:read')
   search(@Body() searchDto: SearchCustomerDto) {
     return this.customerService.searchCustomers(searchDto);
   }
 
   @Post('debtors')
-  @RequirePermissions('SALES_VIEW')
+  @RequirePermissions('sales:read')
   getDebtors(@Body() searchDto: SearchCustomerDto) {
     return this.customerService.getCustomersWithDebt(searchDto);
   }
@@ -38,7 +38,7 @@ export class CustomerController {
   }
 
   @Get(':id/debt-summary')
-  @RequirePermissions('SALES_VIEW')
+  @RequirePermissions('sales:read')
   getDebtSummary(@Param('id') id: string) {
     return this.customerService.getCustomerDebtSummary(+id);
   }

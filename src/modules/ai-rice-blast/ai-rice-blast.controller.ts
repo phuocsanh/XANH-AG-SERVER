@@ -22,7 +22,7 @@ export class AiRiceBlastController {
    */
   @Get('warning')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('RICE_BLAST_VIEW')
+  @RequirePermissions('ai:rice_blast:read')
   @ApiOperation({ summary: 'Lấy cảnh báo bệnh đạo ôn mới nhất' })
   @ApiResponse({ 
     status: 200, 

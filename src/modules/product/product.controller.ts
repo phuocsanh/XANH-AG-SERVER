@@ -35,7 +35,7 @@ export class ProductController {
    */
   @Post()
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('PRODUCT_MANAGE')
+  @RequirePermissions('product:manage')
   async create(@Body() createProductDto: CreateProductDto): Promise<Product> {
     return this.productService.create(createProductDto);
   }
@@ -76,7 +76,7 @@ export class ProductController {
    */
   @Put(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('PRODUCT_MANAGE')
+  @RequirePermissions('product:manage')
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateProductDto: UpdateProductDto,
@@ -94,7 +94,7 @@ export class ProductController {
    */
   @Delete(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('PRODUCT_MANAGE')
+  @RequirePermissions('product:manage')
   async remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
     return this.productService.softDelete(id);
   }
@@ -172,7 +172,7 @@ export class ProductController {
    */
   @Post('search')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('PRODUCT_VIEW')
+  @RequirePermissions('product:read')
   async searchAdvanced(@Body() searchDto: SearchProductDto): Promise<any> {
     return this.productService.searchProductsAdvanced(searchDto);
   }

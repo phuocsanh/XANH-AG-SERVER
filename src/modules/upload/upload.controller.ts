@@ -101,7 +101,7 @@ export class UploadController {
 
   @Delete()
   @UseGuards(PermissionsGuard)
-  @RequirePermissions('PRODUCT_MANAGE')
+  @RequirePermissions('product:manage')
   async deleteFile(@Query('publicId') publicId: string) {
     if (!publicId) {
       throw new BadRequestException('PublicId is required');
@@ -117,7 +117,7 @@ export class UploadController {
 
   @Post('cleanup')
   @UseGuards(PermissionsGuard)
-  @RequirePermissions('PRODUCT_MANAGE')
+  @RequirePermissions('product:manage')
   async cleanupUnusedFiles() {
     return this.uploadService.cleanupUnusedFiles();
   }

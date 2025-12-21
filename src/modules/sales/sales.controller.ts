@@ -41,7 +41,7 @@ export class SalesController {
    */
   @Post('invoice')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('SALES_CREATE')
+  @RequirePermissions('sales:create')
   create(
     @Body() createSalesInvoiceDto: CreateSalesInvoiceDto,
     @CurrentUser('id') userId: number,
@@ -116,7 +116,7 @@ export class SalesController {
    */
   @Patch('invoice/:id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('SALES_MANAGE')
+  @RequirePermissions('sales:manage')
   update(
     @Param('id') id: string,
     @Body() updateSalesInvoiceDto: UpdateSalesInvoiceDto,
@@ -191,7 +191,7 @@ export class SalesController {
    */
   @Delete('invoice/:id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('SALES_MANAGE')
+  @RequirePermissions('sales:manage')
   remove(@Param('id') id: string) {
     return this.salesService.remove(+id);
   }
@@ -266,7 +266,7 @@ export class SalesController {
    */
   @Post('invoices/search')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('SALES_VIEW')
+  @RequirePermissions('sales:read')
   search(@Body() searchDto: SearchSalesDto) {
     try {
       return this.salesService.searchSalesInvoices(searchDto);

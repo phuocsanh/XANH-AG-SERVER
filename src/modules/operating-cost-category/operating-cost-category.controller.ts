@@ -33,7 +33,7 @@ export class OperatingCostCategoryController {
    * Tạo loại chi phí mới
    */
   @Post()
-  @RequirePermissions('OPERATING_COST_MANAGE')
+  @RequirePermissions('operating_cost:manage')
   create(@Body() createDto: CreateOperatingCostCategoryDto) {
     return this.categoryService.create(createDto);
   }
@@ -43,7 +43,7 @@ export class OperatingCostCategoryController {
    * Tìm kiếm nâng cao (hoặc lấy tất cả nếu body rỗng)
    */
   @Post('search')
-  @RequirePermissions('OPERATING_COST_VIEW')
+  @RequirePermissions('operating_cost:read')
   search(@Body() searchDto: SearchOperatingCostCategoryDto) {
     return this.categoryService.search(searchDto);
   }
@@ -52,7 +52,7 @@ export class OperatingCostCategoryController {
    * Lấy chi tiết category
    */
   @Get(':id')
-  @RequirePermissions('OPERATING_COST_VIEW')
+  @RequirePermissions('operating_cost:read')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.categoryService.findOne(id);
   }
@@ -61,7 +61,7 @@ export class OperatingCostCategoryController {
    * Cập nhật category
    */
   @Patch(':id')
-  @RequirePermissions('OPERATING_COST_MANAGE')
+  @RequirePermissions('operating_cost:manage')
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateDto: UpdateOperatingCostCategoryDto,
@@ -73,7 +73,7 @@ export class OperatingCostCategoryController {
    * Xóa category (soft delete)
    */
   @Delete(':id')
-  @RequirePermissions('OPERATING_COST_MANAGE')
+  @RequirePermissions('operating_cost:manage')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.categoryService.remove(id);
