@@ -174,18 +174,26 @@ export async function seedRBAC(dataSource: DataSource) {
     {
       code: 'USER',
       name: 'User',
-      description: 'Người dùng - Nông dân',
+      description: 'Người dùng - Nông dân/Khách hàng',
       permissionCodes: [
         'RICE_BLAST_VIEW',
         'PRODUCT_VIEW',
-        'SALES_VIEW',
+        'SALES_VIEW', // Chỉ xem hóa đơn cửa hàng
+        // Rice Crop - Không có quyền xóa rice-crop chính
         'rice_crop:read', 'rice_crop:create', 'rice_crop:update',
-        'cost_item:read', 'cost_item:create', 'cost_item:update',
-        'harvest:read', 'harvest:create', 'harvest:update',
-        'schedule:read', 'schedule:create', 'schedule:update',
-        'application:read', 'application:create', 'application:update',
-        'growth:read', 'growth:create', 'growth:update',
-        'area_of_each_plot_of_land:read', 'area_of_each_plot_of_land:create', 'area_of_each_plot_of_land:update',
+        // Cost Item - Có quyền xóa items do mình tạo
+        'cost_item:read', 'cost_item:create', 'cost_item:update', 'cost_item:delete',
+        // Harvest - Có quyền xóa thu hoạch do mình tạo
+        'harvest:read', 'harvest:create', 'harvest:update', 'harvest:delete',
+        // Schedule - Có quyền xóa lịch do mình tạo
+        'schedule:read', 'schedule:create', 'schedule:update', 'schedule:delete',
+        // Application - Có quyền xóa nhật ký do mình tạo
+        'application:read', 'application:create', 'application:update', 'application:delete',
+        // Growth - Có quyền xóa quan sát do mình tạo
+        'growth:read', 'growth:create', 'growth:update', 'growth:delete',
+        // Area - Có quyền xóa vùng/lô đất do mình tạo
+        'area_of_each_plot_of_land:read', 'area_of_each_plot_of_land:create', 'area_of_each_plot_of_land:update', 'area_of_each_plot_of_land:delete',
+        // Store Profit Report - Chỉ xem
         'store-profit-report:read',
       ],
     },
@@ -219,7 +227,7 @@ export async function seedRBAC(dataSource: DataSource) {
 
   // 3. Tạo tài khoản Super Admin mặc định
   const superAdminAccount = 'admin';
-  const superAdminPassword = 'sanhtps'; // Mật khẩu theo yêu cầu
+  const superAdminPassword = '123456'; // Mật khẩu theo yêu cầu
 
   let superAdmin = await userRepository.findOne({ 
     where: { account: superAdminAccount },

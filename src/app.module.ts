@@ -51,6 +51,7 @@ import { HealthModule } from './health/health.module';
 import { CleanupModule } from './modules/cleanup/cleanup.module';
 import { AreaOfEachPlotOfLandModule } from './modules/area-of-each-plot-of-land/area-of-each-plot-of-land.module';
 import { ExternalPurchaseModule } from './modules/external-purchase/external-purchase.module';
+import { SeedController } from './seed.controller';
 
 
 /**
@@ -139,7 +140,7 @@ import { ExternalPurchaseModule } from './modules/external-purchase/external-pur
     AreaOfEachPlotOfLandModule, // Module quản lý các vùng/lô đất
     ExternalPurchaseModule, // Module quản lý hóa đơn mua hàng từ bên ngoài
   ],
-  controllers: [], // Các controller global (nếu có)
+  controllers: [SeedController], // Seed controller để seed RBAC qua API
   providers: [
     // Đăng ký ThrottlerGuard như một global guard để áp dụng rate limiting
     {

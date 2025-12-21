@@ -5,7 +5,9 @@ import { CreateHarvestRecordDto, UpdateHarvestRecordDto } from './harvest-record
 import { HarvestRecord } from '../../entities/harvest-record.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { OwnershipGuard } from '../../common/guards/ownership.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { CheckOwnership } from '../../common/decorators/check-ownership.decorator';
 
 @ApiTags('Harvest Record Management')
 @ApiBearerAuth()
@@ -39,7 +41,9 @@ export class HarvestRecordController {
   }
 
   @Patch(':id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard, OwnershipGuard)
   @RequirePermissions('harvest:update')
+  @CheckOwnership('HarvestRecord')
   @ApiOperation({ summary: 'Cập nhật thu hoạch' })
   @ApiResponse({ status: 200, type: HarvestRecord })
   update(@Param('id', ParseIntPipe) id: number, @Body() updateDto: UpdateHarvestRecordDto): Promise<HarvestRecord> {
@@ -47,7 +51,9 @@ export class HarvestRecordController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard, OwnershipGuard)
   @RequirePermissions('harvest:delete')
+  @CheckOwnership('HarvestRecord')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Xóa thu hoạch' })
   remove(@Param('id', ParseIntPipe) id: number): Promise<void> {

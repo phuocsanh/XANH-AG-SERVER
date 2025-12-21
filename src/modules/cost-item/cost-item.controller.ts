@@ -18,7 +18,9 @@ import { CreateCostItemDto, UpdateCostItemDto, SearchCostItemDto } from './cost-
 import { CostItem } from '../../entities/cost-item.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { OwnershipGuard } from '../../common/guards/ownership.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { CheckOwnership } from '../../common/decorators/check-ownership.decorator';
 
 @ApiTags('Cost Item Management')
 @ApiBearerAuth()
@@ -60,7 +62,9 @@ export class CostItemController {
   }
 
   @Patch(':id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard, OwnershipGuard)
   @RequirePermissions('cost_item:update')
+  @CheckOwnership('CostItem')
   @ApiOperation({ summary: 'Cập nhật chi phí' })
   @ApiResponse({ status: 200, description: 'Chi phí đã được cập nhật', type: CostItem })
   async update(
@@ -71,7 +75,9 @@ export class CostItemController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard, OwnershipGuard)
   @RequirePermissions('cost_item:delete')
+  @CheckOwnership('CostItem')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Xóa chi phí' })
   @ApiResponse({ status: 204, description: 'Chi phí đã được xóa' })
