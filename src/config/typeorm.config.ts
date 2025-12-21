@@ -43,7 +43,7 @@ const typeOrmConfig: TypeOrmModuleOptions = {
         database: process.env.DB_NAME || 'gn_argi', // Tên database
       }),
   ssl: !!databaseUrl, // Bật SSL nếu dùng connection string (thường là cloud DB như Supabase)
-  extra: process.env.DATABASE_URL
+  extra: databaseUrl
     ? {
         ssl: {
           rejectUnauthorized: false, // Chấp nhận self-signed cert (cần thiết cho một số cloud provider)
