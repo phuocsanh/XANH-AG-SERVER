@@ -55,7 +55,7 @@ export class PurchaseMergeService {
       id: inv.id,
       code: inv.code,
       date: inv.created_at,
-      supplier: 'Hệ thống',
+      supplier: 'Cửa hàng XANH',
       total_amount: Number(inv.final_amount || 0),
       paid_amount: Number(inv.partial_payment_amount || 0),
       remaining_amount: Number(inv.remaining_amount || 0),

@@ -129,12 +129,11 @@ export class CustomerService {
   }> {
     const result = await this.customerRepository
       .createQueryBuilder('customer')
-      .leftJoin('debt_notes', 'debt_note', 'debt_note.customer_id = customer.id')
+      .leftJoin('debt_notes', 'debt_note', 'debt_note.customer_id = customer.id AND debt_note.remaining_amount > 0')
       .select('customer.id', 'customer_id')
       .addSelect('COALESCE(SUM(debt_note.remaining_amount), 0)', 'total_debt')
-      .addSelect('COUNT(CASE WHEN debt_note.remaining_amount > 0 THEN 1 END)', 'debt_note_count')
+      .addSelect('COUNT(debt_note.id)', 'debt_note_count')
       .where('customer.id = :customerId', { customerId })
-      .andWhere('debt_note.status IN (:...statuses)', { statuses: ['active', 'overdue'] })
       .groupBy('customer.id')
       .getRawOne();
 
