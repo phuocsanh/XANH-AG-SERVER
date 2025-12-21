@@ -15,7 +15,7 @@ export const AppDataSource = new DataSource({
   url: process.env.DATABASE_URL || 'postgresql://localhost:5432/gn_argi',
   ssl: hasSSL ? { rejectUnauthorized: false } : false,
   entities: ['src/entities/*.entity.ts'],
-  migrations: ['src/database/migrations/*.ts'],
-  synchronize: false,
+  // migrations: ['src/database/migrations/*.ts'], // Đã xóa migrations
+  synchronize: true, // TỰ ĐỘNG TẠO BẢNG TỪ ENTITIES KHI KHỞI ĐỘNG
   logging: ['error', 'warn'],
 });

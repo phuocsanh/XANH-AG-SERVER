@@ -36,11 +36,12 @@ const typeOrmConfig: TypeOrmModuleOptions = {
       }
     : undefined,
   entities: [path.join(__dirname, '../entities/*.entity{.ts,.js}')], // Đường dẫn đến các entity
-  migrations: [path.join(__dirname, '../database/migrations/*{.ts,.js}')], // Đường dẫn đến các migration
+  // migrations: [path.join(__dirname, '../database/migrations/*{.ts,.js}')], // ĐÃ XÓA MIGRATIONS
   
   // Tự động đồng bộ schema từ entities
-  // TypeORM sẽ tự tạo/update tables dựa trên entities
-  synchronize: false,
+  // TypeORM sẽ tự tạo/update tables dựa trên entities khi khởi động
+  // ⚠️ CHÚ Ý: Chỉ dùng synchronize: true trong development, KHÔNG dùng trong production
+  synchronize: true, // TỰ ĐỘNG TẠO BẢNG TỪ ENTITIES
   
   // Logging
   logging: isProduction ? ['error', 'warn'] : true,
