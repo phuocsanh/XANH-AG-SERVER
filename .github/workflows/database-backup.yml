@@ -1,0 +1,154 @@
+name: 🗄️ Daily Database Backup
+
+on:
+  schedule:
+    # Chạy lúc 2h sáng (UTC) mỗi ngày = 9h sáng (GMT+7)
+    - cron: '0 2 * * *'
+  
+  # Cho phép chạy thủ công
+  workflow_dispatch:
+
+jobs:
+  backup:
+    name: Backup Database to Discord
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Install PostgreSQL Client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: 💾 Backup Database
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          echo "🚀 Starting database backup..."
+          DATE=$(date +%Y%m%d_%H%M%S)
+          FILENAME="xanh_ag_backup_$DATE.sql"
+          
+          # Backup database
+          pg_dump "$DATABASE_URL" > "$FILENAME"
+          
+          # Compress
+          gzip "$FILENAME"
+          
+          # Get file size
+          SIZE=$(du -h "${FILENAME}.gz" | cut -f1)
+          SIZE_BYTES=$(stat -f%z "${FILENAME}.gz" 2>/dev/null || stat -c%s "${FILENAME}.gz")
+          SIZE_MB=$((SIZE_BYTES / 1024 / 1024))
+          
+          echo "✅ Backup completed: ${FILENAME}.gz (${SIZE})"
+          
+          # Save info for next steps
+          echo "BACKUP_FILE=${FILENAME}.gz" >> $GITHUB_ENV
+          echo "BACKUP_SIZE=${SIZE}" >> $GITHUB_ENV
+          echo "BACKUP_SIZE_MB=${SIZE_MB}" >> $GITHUB_ENV
+          echo "BACKUP_DATE=${DATE}" >> $GITHUB_ENV
+
+      - name: 📤 Send to Discord
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          echo "📨 Sending backup to Discord..."
+          
+          # Check file size (Discord limit: 25MB for free)
+          if [ "$BACKUP_SIZE_MB" -gt 25 ]; then
+            echo "⚠️ File too large for Discord (${BACKUP_SIZE_MB}MB > 25MB)"
+            echo "Sending notification with GitHub Artifacts link..."
+            
+            # Send notification about large file
+            curl -H "Content-Type: application/json" \
+              -d "{
+                \"embeds\": [{
+                  \"title\": \"⚠️ Database Backup - File Too Large\",
+                  \"description\": \"Backup file quá lớn để upload lên Discord. Download từ GitHub Artifacts.\",
+                  \"color\": 16776960,
+                  \"fields\": [
+                    {\"name\": \"📅 Date\", \"value\": \"$(date '+%Y-%m-%d %H:%M:%S')\", \"inline\": true},
+                    {\"name\": \"💾 Size\", \"value\": \"${BACKUP_SIZE} (${BACKUP_SIZE_MB}MB)\", \"inline\": true},
+                    {\"name\": \"📦 File\", \"value\": \"${BACKUP_FILE}\", \"inline\": false},
+                    {\"name\": \"📥 Download\", \"value\": \"[GitHub Artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\", \"inline\": false}
+                  ],
+                  \"footer\": {\"text\": \"Run #${{ github.run_number }} | Xanh AG Backup\"},
+                  \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+                }]
+              }" \
+              "$DISCORD_WEBHOOK_URL"
+          else
+            echo "✅ File size OK (${BACKUP_SIZE_MB}MB < 25MB), uploading to Discord..."
+            
+            # Send file with embed
+            curl -F "file=@${BACKUP_FILE}" \
+              -F "payload_json={
+                \"embeds\": [{
+                  \"title\": \"🗄️ Database Backup Successful\",
+                  \"description\": \"Daily database backup hoàn thành thành công.\",
+                  \"color\": 3066993,
+                  \"fields\": [
+                    {\"name\": \"📅 Date\", \"value\": \"$(date '+%Y-%m-%d %H:%M:%S')\", \"inline\": true},
+                    {\"name\": \"💾 Size\", \"value\": \"${BACKUP_SIZE}\", \"inline\": true},
+                    {\"name\": \"📦 File\", \"value\": \"${BACKUP_FILE}\", \"inline\": false},
+                    {\"name\": \"🔢 Run\", \"value\": \"#${{ github.run_number }}\", \"inline\": true},
+                    {\"name\": \"✅ Status\", \"value\": \"Success\", \"inline\": true}
+                  ],
+                  \"footer\": {\"text\": \"Xanh AG Backup System\"},
+                  \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+                }]
+              }" \
+              "$DISCORD_WEBHOOK_URL"
+          fi
+          
+          echo "✅ Notification sent to Discord!"
+
+      - name: 📦 Upload to GitHub Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-backup-${{ github.run_number }}
+          path: "*.sql.gz"
+          retention-days: 30
+          compression-level: 0
+
+      - name: 🧹 Cleanup
+        if: always()
+        run: |
+          echo "🧹 Cleaning up temporary files..."
+          rm -f *.sql *.sql.gz
+          echo "✅ Cleanup completed"
+
+      - name: 📊 Summary
+        if: success()
+        run: |
+          echo "### ✅ Backup Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- 📅 **Date:** $(date '+%Y-%m-%d %H:%M:%S')" >> $GITHUB_STEP_SUMMARY
+          echo "- 📦 **File:** ${BACKUP_FILE}" >> $GITHUB_STEP_SUMMARY
+          echo "- 💾 **Size:** ${BACKUP_SIZE} (${BACKUP_SIZE_MB}MB)" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔢 **Run Number:** ${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 📤 **Discord:** Sent successfully" >> $GITHUB_STEP_SUMMARY
+          echo "- 📦 **Artifacts:** Uploaded (30 days retention)" >> $GITHUB_STEP_SUMMARY
+
+      - name: ❌ Notify Failure
+        if: failure()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          curl -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"❌ Database Backup Failed\",
+                \"description\": \"Có lỗi xảy ra trong quá trình backup database.\",
+                \"color\": 15158332,
+                \"fields\": [
+                  {\"name\": \"📅 Date\", \"value\": \"$(date '+%Y-%m-%d %H:%M:%S')\", \"inline\": true},
+                  {\"name\": \"🔢 Run\", \"value\": \"#${{ github.run_number }}\", \"inline\": true},
+                  {\"name\": \"🔗 Logs\", \"value\": \"[View Details](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\", \"inline\": false}
+                ],
+                \"footer\": {\"text\": \"Xanh AG Backup System\"},
+                \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+              }]
+            }" \
+            "$DISCORD_WEBHOOK_URL"

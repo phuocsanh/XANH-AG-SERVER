@@ -11,6 +11,21 @@ config({ path: '.env.local' });
 const isProduction = process.env.NODE_ENV === 'production';
 
 /**
+ * Chọn DATABASE_URL dựa trên môi trường:
+ * - Development: Ưu tiên DATABASE_URL_DEV, fallback về DATABASE_URL
+ * - Production: Dùng DATABASE_URL
+ */
+const getDatabaseUrl = () => {
+  if (isProduction) {
+    return process.env.DATABASE_URL;
+  }
+  // Dev: Ưu tiên DATABASE_URL_DEV
+  return process.env.DATABASE_URL_DEV || process.env.DATABASE_URL;
+};
+
+const databaseUrl = getDatabaseUrl();
+
+/**
  * Cấu hình kết nối cơ sở dữ liệu TypeORM
  * Chứa các thông số kết nối đến PostgreSQL database
  * Tự động điều chỉnh theo môi trường (development/production)
@@ -18,8 +33,8 @@ const isProduction = process.env.NODE_ENV === 'production';
 const typeOrmConfig: TypeOrmModuleOptions = {
   type: 'postgres', // Loại cơ sở dữ liệu
   // Sử dụng connection string nếu có, nếu không thì dùng các biến môi trường riêng lẻ
-  ...(process.env.DATABASE_URL
-    ? { url: process.env.DATABASE_URL }
+  ...(databaseUrl
+    ? { url: databaseUrl }
     : {
         host: process.env.DB_HOST || 'localhost', // Địa chỉ host của database
         port: parseInt(process.env.DB_PORT || '5432', 10), // Port của database
@@ -27,7 +42,7 @@ const typeOrmConfig: TypeOrmModuleOptions = {
         password: process.env.DB_PASSWORD || 'postgres', // Mật khẩu để kết nối database
         database: process.env.DB_NAME || 'gn_argi', // Tên database
       }),
-  ssl: !!process.env.DATABASE_URL, // Bật SSL nếu dùng connection string (thường là cloud DB như Supabase)
+  ssl: !!databaseUrl, // Bật SSL nếu dùng connection string (thường là cloud DB như Supabase)
   extra: process.env.DATABASE_URL
     ? {
         ssl: {
