@@ -1,15 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { 
-  IsNotEmpty, 
+  IsNotEmpty,
   IsNumber, 
   IsString, 
   IsOptional, 
-  IsEnum, 
   IsDateString,
   Min 
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { CostCategory } from '../../entities/cost-item.entity';
 
 export class CreateCostItemDto {
   @ApiProperty({ description: 'ID mảnh ruộng', example: 1 })
@@ -18,14 +16,6 @@ export class CreateCostItemDto {
   @Type(() => Number)
   rice_crop_id!: number;
 
-  @ApiProperty({ 
-    description: 'Loại chi phí', 
-    enum: CostCategory,
-    example: CostCategory.FERTILIZER 
-  })
-  @IsNotEmpty({ message: 'Loại chi phí không được để trống' })
-  @IsEnum(CostCategory, { message: 'Loại chi phí không hợp lệ' })
-  category!: CostCategory;
 
   @ApiProperty({ description: 'Tên khoản chi', example: 'Giống lúa OM 5451' })
   @IsNotEmpty({ message: 'Tên khoản chi không được để trống' })
@@ -59,15 +49,6 @@ export class CreateCostItemDto {
 }
 
 export class UpdateCostItemDto {
-  @ApiPropertyOptional({ 
-    description: 'Loại chi phí', 
-    enum: CostCategory,
-    example: CostCategory.FERTILIZER 
-  })
-  @IsOptional()
-  @IsEnum(CostCategory, { message: 'Loại chi phí không hợp lệ' })
-  category?: CostCategory;
-
   @ApiPropertyOptional({ description: 'Tên khoản chi', example: 'Giống lúa OM 5451' })
   @IsOptional()
   @IsString({ message: 'Tên khoản chi phải là chuỗi' })
@@ -106,14 +87,6 @@ export class QueryCostItemDto {
   @Type(() => Number)
   rice_crop_id?: number;
 
-  @ApiPropertyOptional({ 
-    description: 'Loại chi phí', 
-    enum: CostCategory,
-    example: CostCategory.FERTILIZER 
-  })
-  @IsOptional()
-  @IsEnum(CostCategory, { message: 'Loại chi phí không hợp lệ' })
-  category?: CostCategory;
 }
 
 /**

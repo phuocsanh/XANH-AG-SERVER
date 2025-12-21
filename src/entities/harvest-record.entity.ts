@@ -44,6 +44,10 @@ export class HarvestRecord {
   @Column({ name: 'yield_amount', type: 'decimal', precision: 10, scale: 2 })
   yield_amount!: number;
 
+  @ApiProperty({ description: 'Đơn vị sản lượng (kg/tan)', example: 'kg' })
+  @Column({ name: 'yield_unit', length: 10, default: 'kg' })
+  yield_unit!: string;
+
   @ApiProperty({ description: 'Độ ẩm (%)', example: 14.5, required: false })
   @Column({ name: 'moisture_content', type: 'decimal', precision: 5, scale: 2, nullable: true })
   moisture_content?: number;

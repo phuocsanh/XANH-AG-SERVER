@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { RiceCrop } from '../../entities/rice-crop.entity';
-import { CostItem, CostCategory } from '../../entities/cost-item.entity';
+import { CostItem } from '../../entities/cost-item.entity';
 import { HarvestRecord } from '../../entities/harvest-record.entity';
 import { SalesInvoice, SalesInvoiceStatus } from '../../entities/sales-invoices.entity';
 import { ExternalPurchase } from '../../entities/external-purchase.entity';
@@ -90,24 +90,13 @@ export class ProfitReportService {
       
       // Phân bổ chi phí cho biểu đồ
       const temp_breakdown: Record<string, number> = {
-        [CostCategory.SEED]: 0,
-        [CostCategory.FERTILIZER]: 0,
-        [CostCategory.PESTICIDE]: 0,
-        [CostCategory.LABOR]: 0,
-        [CostCategory.MACHINERY]: 0,
-        [CostCategory.IRRIGATION]: 0,
+        'cultivation_cost': 0,
         'system_invoices': systemCost,
         'external_invoices': externalCost,
-        [CostCategory.OTHER]: 0,
       };
 
       costItems.forEach(item => {
-        const category = item.category || CostCategory.OTHER;
-        if (temp_breakdown[category] !== undefined) {
-          temp_breakdown[category] += Number(item.total_cost);
-        } else {
-          temp_breakdown[CostCategory.OTHER] += Number(item.total_cost);
-        }
+        temp_breakdown['cultivation_cost'] = (temp_breakdown['cultivation_cost'] || 0) + Number(item.total_cost);
       });
 
       // Lấy thông tin thu hoạch
@@ -127,15 +116,9 @@ export class ProfitReportService {
 
       // Chuyển đổi breakdown sang dạng mảng mà Frontend mong đợi
       const categoryLabels: Record<string, string> = {
-        [CostCategory.SEED]: 'Hạt giống',
-        [CostCategory.FERTILIZER]: 'Phân bón',
-        [CostCategory.PESTICIDE]: 'Thuốc BVTV',
-        [CostCategory.LABOR]: 'Nhân công',
-        [CostCategory.MACHINERY]: 'Máy móc',
-        [CostCategory.IRRIGATION]: 'Tưới tiêu',
-        'system_invoices': 'Vật tư (Cửa hàng)',
+        'cultivation_cost': 'Chi phí canh tác',
+        'system_invoices': 'Vật tư (Cửa hàng XANH)',
         'external_invoices': 'Vật tư (Mua ngoài)',
-        [CostCategory.OTHER]: 'Khác',
       };
 
       const cost_breakdown = Object.entries(temp_breakdown)

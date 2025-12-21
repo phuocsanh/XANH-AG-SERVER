@@ -765,7 +765,6 @@ export class StoreProfitReportService {
             name: c.item_name,
             amount: Number(c.total_cost),
             date: c.expense_date || c.created_at,
-            category: c.category,
             type: 'production'
           })),
           invoices: [],
@@ -889,7 +888,6 @@ export class StoreProfitReportService {
             name: c.item_name,
             amount: Number(c.total_cost),
             date: c.expense_date || c.created_at,
-            category: c.category,
             type: 'production'
         })),
         invoices: invoiceDetails,

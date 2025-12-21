@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CostItem, CostCategory } from '../../entities/cost-item.entity';
+import { CostItem } from '../../entities/cost-item.entity';
 import { CreateCostItemDto, UpdateCostItemDto, QueryCostItemDto } from './cost-item.dto';
 
 @Injectable()
@@ -17,11 +17,12 @@ export class CostItemService {
     try {
       this.logger.log(`Tạo chi phí mới cho mảnh ruộng ${createDto.rice_crop_id}`);
       
-      const costItem = this.costItemRepository.create(createDto);
+      const costItem = this.costItemRepository.create(createDto as any);
       const saved = await this.costItemRepository.save(costItem);
+      const result = (Array.isArray(saved) ? saved[0] : saved) as CostItem;
       
-      this.logger.log(`✅ Đã tạo chi phí ID: ${saved.id}`);
-      return saved;
+      this.logger.log(`✅ Đã tạo chi phí ID: ${result.id}`);
+      return result;
     } catch (error) {
       const err = error as Error;
       this.logger.error(`❌ Lỗi tạo chi phí: ${err.message}`, err.stack);
@@ -39,12 +40,6 @@ export class CostItemService {
       if (query.rice_crop_id) {
         queryBuilder.andWhere('cost_item.rice_crop_id = :rice_crop_id', { 
           rice_crop_id: query.rice_crop_id 
-        });
-      }
-
-      if (query.category) {
-        queryBuilder.andWhere('cost_item.category = :category', { 
-          category: query.category 
         });
       }
 
@@ -117,7 +112,6 @@ export class CostItemService {
 
   async getSummaryByCrop(cropId: number): Promise<{
     total: number;
-    breakdown: Record<CostCategory, number>;
     items: CostItem[];
   }> {
     try {
@@ -127,22 +121,7 @@ export class CostItemService {
 
       const total = items.reduce((sum, item) => sum + Number(item.total_cost), 0);
       
-      const breakdown: Record<CostCategory, number> = {
-        [CostCategory.SEED]: 0,
-        [CostCategory.FERTILIZER]: 0,
-        [CostCategory.PESTICIDE]: 0,
-        [CostCategory.LABOR]: 0,
-        [CostCategory.MACHINERY]: 0,
-        [CostCategory.IRRIGATION]: 0,
-        [CostCategory.OTHER]: 0,
-      };
-
-      items.forEach(item => {
-        const category = item.category || CostCategory.OTHER; // Fallback nếu category undefined
-        breakdown[category] += Number(item.total_cost);
-      });
-
-      return { total, breakdown, items };
+      return { total, items };
     } catch (error) {
       const err = error as Error;
       this.logger.error(`❌ Lỗi lấy tổng hợp chi phí: ${err.message}`, err.stack);
@@ -162,12 +141,6 @@ export class CostItemService {
       if (query.rice_crop_id) {
         queryBuilder.andWhere('cost_item.rice_crop_id = :rice_crop_id', { 
           rice_crop_id: query.rice_crop_id 
-        });
-      }
-
-      if (query.category) {
-        queryBuilder.andWhere('cost_item.category = :category', { 
-          category: query.category 
         });
       }
 

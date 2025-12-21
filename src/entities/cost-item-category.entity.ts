@@ -4,9 +4,7 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
-  OneToMany,
 } from 'typeorm';
-import { CostItem } from './cost-item.entity';
 
 /**
  * Entity biểu diễn loại chi phí canh tác
@@ -42,7 +40,4 @@ export class CostItemCategory {
   @UpdateDateColumn({ name: 'updated_at' })
   updated_at!: Date;
 
-  /** Quan hệ với CostItem */
-  @OneToMany(() => CostItem, (item) => item.categoryRelation)
-  items?: CostItem[];
 }

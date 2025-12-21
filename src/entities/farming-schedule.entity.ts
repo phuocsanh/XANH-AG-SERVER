@@ -116,6 +116,10 @@ export class FarmingSchedule {
   @Column({ name: 'reminder_time', type: 'timestamptz', nullable: true })
   reminder_time?: Date;
 
+  @ApiProperty({ description: 'Ngày thực tế đã hoàn thành', example: '2024-12-10', required: false })
+  @Column({ name: 'completed_date', type: 'date', nullable: true })
+  completed_date?: Date;
+
   @ApiProperty({ description: 'Thời gian tạo' })
   @CreateDateColumn({ name: 'created_at' })
   created_at!: Date;

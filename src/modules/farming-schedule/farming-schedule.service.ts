@@ -61,12 +61,21 @@ export class FarmingScheduleService {
 
   async update(id: number, updateDto: UpdateFarmingScheduleDto): Promise<FarmingSchedule> {
     const schedule = await this.findOne(id);
-    Object.assign(schedule, updateDto);
+    
+    // Nếu có hoàn thành, đảm bảo lưu ngày chuẩn
+    if (updateDto.status === ScheduleStatus.COMPLETED && !updateDto.completed_date) {
+      (updateDto as any).completed_date = new Date().toISOString().split('T')[0];
+    }
+    
+    Object.assign(schedule, updateDto as any);
     return this.scheduleRepository.save(schedule);
   }
 
   async markAsCompleted(id: number): Promise<FarmingSchedule> {
-    return this.update(id, { status: ScheduleStatus.COMPLETED });
+    return this.update(id, { 
+      status: ScheduleStatus.COMPLETED,
+      completed_date: new Date().toISOString().split('T')[0]
+    } as UpdateFarmingScheduleDto);
   }
 
   async remove(id: number): Promise<void> {

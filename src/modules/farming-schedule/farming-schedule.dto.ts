@@ -61,6 +61,11 @@ export class CreateFarmingScheduleDto {
   @IsOptional()
   @IsBoolean()
   reminder_enabled?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  completed_date?: string;
 }
 
 export class UpdateFarmingScheduleDto {
@@ -88,6 +93,11 @@ export class UpdateFarmingScheduleDto {
   @IsOptional()
   @IsString()
   instructions?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  completed_date?: string;
 
   @ApiPropertyOptional({ enum: ActivityType })
   @IsOptional()

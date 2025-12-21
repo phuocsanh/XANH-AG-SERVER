@@ -22,16 +22,21 @@ export class CreateHarvestRecordDto {
   @Type(() => Number)
   yield_amount!: number;
 
+  @ApiPropertyOptional({ description: 'Đơn vị sản lượng', example: 'kg' })
+  @IsOptional()
+  @IsString()
+  yield_unit?: string;
+
   @ApiPropertyOptional({ description: 'Độ ẩm (%)', example: 14.5 })
   @IsOptional()
   @IsNumber()
   @Type(() => Number)
   moisture_content?: number;
 
-  @ApiProperty({ description: 'Chất lượng', example: 'A' })
-  @IsNotEmpty()
+  @ApiPropertyOptional({ description: 'Chất lượng', example: 'A' })
+  @IsOptional()
   @IsString()
-  quality_grade!: string;
+  quality_grade?: string;
 
   @ApiProperty({ description: 'Giá bán/kg', example: 8000 })
   @IsNotEmpty()
@@ -80,6 +85,11 @@ export class UpdateHarvestRecordDto {
   @Min(0)
   @Type(() => Number)
   yield_amount?: number;
+
+  @ApiPropertyOptional({ description: 'Đơn vị sản lượng' })
+  @IsOptional()
+  @IsString()
+  yield_unit?: string;
 
   @ApiPropertyOptional({ description: 'Độ ẩm (%)' })
   @IsOptional()
