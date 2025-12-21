@@ -624,31 +624,33 @@ export class InventoryService {
 
     // Cập nhật giá sản phẩm dựa trên giá vốn trung bình mới và phần trăm lợi nhuận
     // Tương tự như UpdateProductAverageCostAndPrice trong Go server
-    try {
-      await this.productService.updateProductAverageCostAndPrice(
-        productId,
-        newAverageCost,
-      );
+    // ĐÃ BỎ CHỨC NĂNG TỰ ĐỘNG TÍNH GIÁ BÁN - User sẽ tự nhập giá bán thủ công
+    // try {
+    //   await this.productService.updateProductAverageCostAndPrice(
+    //     productId,
+    //     newAverageCost,
+    //   );
 
       // Cập nhật giá nhập mới nhất và tồn kho cho sản phẩm
       await this.productService.update(productId, {
         latest_purchase_price: unitCostPrice,
         quantity: newTotalQuantity, // Cập nhật tồn kho hiển thị
+        average_cost_price: newAverageCost.toFixed(2), // Chỉ cập nhật giá vốn trung bình
       });
 
       this.logger.log('✅ Đã cập nhật tồn kho sản phẩm:', {
         productId,
         newQuantity: newTotalQuantity,
       });
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-      this.logger.warn(
-        `Không thể cập nhật giá sản phẩm ${productId}:`,
-        errorMessage,
-      );
-      // Không throw error để không làm gián đoạn quá trình nhập kho
-    }
+    // } catch (error) {
+    //   const errorMessage =
+    //     error instanceof Error ? error.message : 'Unknown error';
+    //   this.logger.warn(
+    //     `Không thể cập nhật giá sản phẩm ${productId}:`,
+    //     errorMessage,
+    //   );
+    //   // Không throw error để không làm gián đoạn quá trình nhập kho
+    // }
 
     return {
       transaction,
