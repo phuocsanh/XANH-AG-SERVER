@@ -16,6 +16,7 @@ import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { SearchUserDto } from './dto/search-user.dto';
+import { CreateCustomerAccountDto } from './dto/create-customer-account.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -155,5 +156,17 @@ export class UserController {
   async deactivateUser(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
     const operatorRoleCode = req.user.role.code;
     return this.userService.deactivate(id, operatorRoleCode);
+  }
+
+  /**
+   * Endpoint tạo tài khoản đăng nhập cho khách hàng
+   * @param createCustomerAccountDto - Dữ liệu tạo tài khoản (customer_id)
+   * @returns Thông tin tài khoản đã tạo (account và mật khẩu tạm)
+   */
+  @Post('customer/create-account')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('CUSTOMER_MANAGE')
+  async createCustomerAccount(@Body() createCustomerAccountDto: CreateCustomerAccountDto) {
+    return this.userService.createCustomerAccount(createCustomerAccountDto.customer_id);
   }
 }

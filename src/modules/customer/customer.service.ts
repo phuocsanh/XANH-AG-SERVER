@@ -70,7 +70,9 @@ export class CustomerService {
     await this.customerRepository.remove(customer);
   }
   async searchCustomers(searchDto: SearchCustomerDto) {
-    const queryBuilder = this.customerRepository.createQueryBuilder('customer');
+    const queryBuilder = this.customerRepository
+      .createQueryBuilder('customer')
+      .leftJoinAndSelect('customer.users', 'users'); // Load relation users để check đã có tài khoản chưa
 
     // 1. Base Search (Page, Sort, Keyword)
     const { page, limit } = QueryHelper.applyBaseSearch(
@@ -84,6 +86,12 @@ export class CustomerService {
     QueryHelper.applyFilters(queryBuilder, searchDto, 'customer', []);
 
     const [data, total] = await queryBuilder.getManyAndCount();
+    
+    // Debug: Log để check users có được load không
+    if (data.length > 0) {
+      console.log('First customer users:', data[0]?.users);
+    }
+    
     return { data, total, page, limit };
   }
 

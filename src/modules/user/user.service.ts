@@ -531,6 +531,101 @@ export class UserService {
   }
 
   /**
+   * Tạo tài khoản đăng nhập cho khách hàng
+   * @param customerId - ID của khách hàng cần tạo tài khoản
+   * @returns Thông tin tài khoản đã tạo (account và mật khẩu tạm)
+   */
+  async createCustomerAccount(customerId: number): Promise<{
+    account: string;
+    temp_password: string;
+    customer_name: string;
+  }> {
+    try {
+      // 1. Kiểm tra customer có tồn tại không
+      const customer = await this.userRepository.manager
+        .getRepository('Customer')
+        .findOne({ where: { id: customerId } });
+
+      if (!customer) {
+        throw new Error('Khách hàng không tồn tại');
+      }
+
+      // 2. Kiểm tra customer đã có tài khoản chưa
+      const existingUser = await this.userRepository.findOne({
+        where: { customer_id: customerId },
+      });
+
+      if (existingUser) {
+        throw new Error('Khách hàng đã có tài khoản đăng nhập');
+      }
+
+      // 3. Kiểm tra số điện thoại đã được dùng làm account chưa
+      const existingAccount = await this.findByAccount(customer.phone);
+      if (existingAccount) {
+        throw new Error('Số điện thoại này đã được sử dụng làm tài khoản');
+      }
+
+      // 4. Lấy role CUSTOMER
+      const customerRole = await this.userRepository.manager
+        .getRepository('Role')
+        .findOne({ where: { code: 'CUSTOMER' } });
+
+      if (!customerRole) {
+        throw new Error('Role CUSTOMER chưa được tạo trong hệ thống');
+      }
+
+      // 5. Tạo mật khẩu tạm (8 ký tự random)
+      const tempPassword = this.generateTempPassword();
+
+      // 6. Hash mật khẩu
+      const salt = await bcrypt.genSalt();
+      const hashedPassword = await bcrypt.hash(tempPassword, salt);
+
+      // 7. Tạo user mới
+      const user = this.userRepository.create({
+        account: customer.phone, // Dùng SĐT làm username
+        password: hashedPassword,
+        salt: salt,
+        role_id: customerRole.id,
+        customer_id: customerId,
+        status: BaseStatus.ACTIVE, // Customer được active ngay
+      });
+
+      await this.userRepository.save(user);
+
+      // 8. Tạo user profile mặc định
+      const userProfile = this.userProfileRepository.create({
+        user_id: user.id,
+        account: user.account,
+        nickname: customer.name,
+        mobile: customer.phone,
+        email: customer.email,
+      });
+      await this.userProfileRepository.save(userProfile);
+
+      // TODO: Gửi SMS/Email thông báo tài khoản cho customer
+      // await this.sendAccountCreatedNotification(customer, tempPassword);
+
+      return {
+        account: user.account,
+        temp_password: tempPassword,
+        customer_name: customer.name,
+      };
+    } catch (error) {
+      ErrorHandler.handleCreateError(error, 'tài khoản khách hàng');
+    }
+  }
+
+  /**
+   * Tạo mật khẩu tạm cố định
+   * @returns Mật khẩu tạm (123456)
+   */
+  private generateTempPassword(): string {
+    // Mật khẩu tạm cố định để dễ nhớ
+    return '123456';
+  }
+
+  /**
    * Tìm kiếm nâng cao người dùng với cấu trúc filter lồng nhau
    */
   async searchUsers(searchDto: SearchUserDto): Promise<{

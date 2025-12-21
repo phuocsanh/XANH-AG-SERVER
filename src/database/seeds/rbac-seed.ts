@@ -42,6 +42,10 @@ export async function seedRBAC(dataSource: DataSource) {
     { code: 'SALES_CREATE', name: 'Tạo hóa đơn', group: 'Sales Management', description: 'Tạo hóa đơn bán hàng mới' },
     { code: 'SALES_MANAGE', name: 'Quản lý hóa đơn', group: 'Sales Management', description: 'Sửa, xóa hóa đơn' },
     
+    // Customer Management
+    { code: 'CUSTOMER_VIEW', name: 'Xem khách hàng', group: 'Customer Management', description: 'Xem danh sách khách hàng' },
+    { code: 'CUSTOMER_MANAGE', name: 'Quản lý khách hàng', group: 'Customer Management', description: 'Tạo, sửa, xóa khách hàng và tạo tài khoản' },
+    
     // Inventory Management
     { code: 'INVENTORY_VIEW', name: 'Xem kho', group: 'Inventory Management', description: 'Xem tồn kho' },
     { code: 'INVENTORY_MANAGE', name: 'Quản lý kho', group: 'Inventory Management', description: 'Nhập xuất kho' },
@@ -130,9 +134,11 @@ export async function seedRBAC(dataSource: DataSource) {
         'RICE_BLAST_VIEW', 'RICE_BLAST_MANAGE',
         'PRODUCT_VIEW', 'PRODUCT_MANAGE',
         'SALES_VIEW', 'SALES_CREATE', 'SALES_MANAGE',
+        'CUSTOMER_VIEW', 'CUSTOMER_MANAGE',
         'INVENTORY_VIEW', 'INVENTORY_MANAGE',
         'REPORT_VIEW', 'REPORT_EXPORT',
         'rice_crop:read', 'rice_crop:create', 'rice_crop:update', 'rice_crop:delete',
+        'COST_ITEM_VIEW', 'COST_ITEM_MANAGE',
         'cost_item:read', 'cost_item:create', 'cost_item:update', 'cost_item:delete',
         'harvest:read', 'harvest:create', 'harvest:update', 'harvest:delete',
         'schedule:read', 'schedule:create', 'schedule:update', 'schedule:delete',

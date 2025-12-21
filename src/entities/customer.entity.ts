@@ -7,6 +7,7 @@ import {
   OneToMany,
 } from 'typeorm';
 import { SalesInvoice } from './sales-invoices.entity';
+import { User } from './users.entity';
 
 /**
  * Enum định nghĩa loại khách hàng
@@ -87,4 +88,8 @@ export class Customer {
   /** Danh sách hóa đơn của khách hàng */
   @OneToMany(() => SalesInvoice, (invoice) => invoice.customer)
   invoices?: SalesInvoice[];
+
+  /** Danh sách tài khoản đăng nhập liên kết (thường chỉ 1) */
+  @OneToMany(() => User, (user) => user.customer)
+  users?: User[];
 }

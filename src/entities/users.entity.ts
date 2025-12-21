@@ -84,4 +84,13 @@ export class User {
   /** Thông tin profile của user */
   @OneToOne(() => UserProfile, (profile) => profile.user)
   profile?: UserProfile;
+
+  /** ID của customer (nếu user này là customer) */
+  @Column({ name: 'customer_id', nullable: true })
+  customer_id?: number;
+
+  /** Thông tin customer (nếu user này là customer) */
+  @ManyToOne(() => require('./customer.entity').Customer, (customer: any) => customer.users)
+  @JoinColumn({ name: 'customer_id' })
+  customer?: any;
 }

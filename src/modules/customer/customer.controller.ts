@@ -19,7 +19,7 @@ export class CustomerController {
   }
 
   @Post('search')
-  @RequirePermissions('SALES_VIEW')
+  @RequirePermissions('CUSTOMER_VIEW')
   search(@Body() searchDto: SearchCustomerDto) {
     return this.customerService.searchCustomers(searchDto);
   }

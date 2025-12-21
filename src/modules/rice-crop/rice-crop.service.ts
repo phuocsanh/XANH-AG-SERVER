@@ -273,7 +273,7 @@ export class RiceCropService {
       throw new BadRequestException(`Không thể lấy thống kê: ${err.message}`);
     }
   }
-  async search(searchDto: any): Promise<{ data: RiceCrop[]; total: number }> {
+  async search(searchDto: any, user?: any): Promise<{ data: RiceCrop[]; total: number }> {
     try {
       const { page = 1, limit = 20, ...query } = searchDto;
       const skip = (page - 1) * limit;
@@ -284,8 +284,14 @@ export class RiceCropService {
         .leftJoinAndSelect('rice_crop.season', 'season')
         .orderBy('rice_crop.created_at', 'DESC');
 
-      // Filter theo customer_id
-      if (query.customer_id) {
+      // Nếu user là CUSTOMER, tự động filter theo customer_id của họ
+      if (user && user.role && user.role.code === 'CUSTOMER' && user.customer_id) {
+        queryBuilder.andWhere('rice_crop.customer_id = :customer_id', { 
+          customer_id: user.customer_id 
+        });
+      }
+      // Nếu không phải CUSTOMER, cho phép filter theo customer_id từ searchDto
+      else if (query.customer_id) {
         queryBuilder.andWhere('rice_crop.customer_id = :customer_id', { 
           customer_id: query.customer_id 
         });
