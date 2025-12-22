@@ -1,6 +1,6 @@
 import { Injectable, Inject, forwardRef, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan, In } from 'typeorm';
+import { Repository, MoreThan, In, QueryRunner } from 'typeorm';
 
 import { InventoryBatch } from '../../entities/inventories.entity';
 import { InventoryTransaction } from '../../entities/inventory-transactions.entity';
@@ -10,6 +10,7 @@ import { InventoryReturn } from '../../entities/inventory-returns.entity';
 import { InventoryReturnItem } from '../../entities/inventory-return-items.entity';
 import { InventoryAdjustment } from '../../entities/inventory-adjustments.entity';
 import { InventoryAdjustmentItem } from '../../entities/inventory-adjustment-items.entity';
+import { Product } from '../../entities/products.entity';
 import { CreateInventoryBatchDto } from './dto/create-inventory-batch.dto';
 import { QueryHelper } from '../../common/helpers/query-helper';
 import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
@@ -76,12 +77,13 @@ export class InventoryService {
    * @param createInventoryBatchDto - Dữ liệu tạo lô hàng tồn kho mới
    * @returns Thông tin lô hàng tồn kho đã tạo
    */
-  async createBatch(createInventoryBatchDto: CreateInventoryBatchDto) {
+   async createBatch(createInventoryBatchDto: CreateInventoryBatchDto, queryRunner?: QueryRunner) {
     try {
-      const batch = this.inventoryBatchRepository.create(
+      const repo = queryRunner ? queryRunner.manager.getRepository(InventoryBatch) : this.inventoryBatchRepository;
+      const batch = repo.create(
         createInventoryBatchDto,
       );
-      return this.inventoryBatchRepository.save(batch);
+      return repo.save(batch);
     } catch (error) {
       ErrorHandler.handleCreateError(error, 'lô hàng tồn kho');
     }
@@ -214,8 +216,9 @@ export class InventoryService {
    * @param createInventoryTransactionDto - Dữ liệu tạo giao dịch kho mới
    * @returns Thông tin giao dịch kho đã tạo
    */
-  async createTransaction(
+   async createTransaction(
     createInventoryTransactionDto: CreateInventoryTransactionDto,
+    queryRunner?: QueryRunner,
   ) {
     // Map DTO fields to entity fields
     const transactionData: any = {
@@ -241,9 +244,10 @@ export class InventoryService {
       }),
     };
 
+    const repo = queryRunner ? queryRunner.manager.getRepository(InventoryTransaction) : this.inventoryTransactionRepository;
     const transaction =
-      this.inventoryTransactionRepository.create(transactionData);
-    return this.inventoryTransactionRepository.save(transaction);
+      repo.create(transactionData);
+    return repo.save(transaction);
   }
 
 
@@ -569,6 +573,7 @@ export class InventoryService {
     receiptItemId?: number,
     code?: string,
     expiryDate?: Date,
+    queryRunner?: QueryRunner,
   ) {
     // Lấy giá vốn trung bình hiện tại
     const currentAverageCost = await this.getWeightedAverageCost(productId);
@@ -584,8 +589,6 @@ export class InventoryService {
     const newAverageCost =
       newTotalQuantity > 0 ? newTotalValue / newTotalQuantity : unitCostPrice;
 
-  
-
     // Tạo lô hàng mới
     const batchData: CreateInventoryBatchDto = {
       product_id: productId,
@@ -597,12 +600,16 @@ export class InventoryService {
       ...(expiryDate && { expiry_date: expiryDate }),
     };
 
-    const newBatch = await this.createBatch(batchData);
+    const newBatch = await this.createBatch(batchData, queryRunner);
 
     // Cập nhật giá nhập mới nhất cho sản phẩm
-    await this.productService.update(productId, {
-      latest_purchase_price: unitCostPrice,
-    });
+    if (queryRunner) {
+        await queryRunner.manager.update(Product, productId, { latest_purchase_price: unitCostPrice });
+    } else {
+        await this.productService.update(productId, {
+            latest_purchase_price: unitCostPrice,
+        });
+    }
 
     // Tạo giao dịch nhập kho
     const transactionData: CreateInventoryTransactionDto = {
@@ -620,23 +627,22 @@ export class InventoryService {
       ...(receiptItemId && { receipt_item_id: receiptItemId }),
     };
 
-    const transaction = await this.createTransaction(transactionData);
+    const transaction = await this.createTransaction(transactionData, queryRunner);
 
-    // Cập nhật giá sản phẩm dựa trên giá vốn trung bình mới và phần trăm lợi nhuận
-    // Tương tự như UpdateProductAverageCostAndPrice trong Go server
-    // ĐÃ BỎ CHỨC NĂNG TỰ ĐỘNG TÍNH GIÁ BÁN - User sẽ tự nhập giá bán thủ công
-    // try {
-    //   await this.productService.updateProductAverageCostAndPrice(
-    //     productId,
-    //     newAverageCost,
-    //   );
-
-      // Cập nhật giá nhập mới nhất và tồn kho cho sản phẩm
-      await this.productService.update(productId, {
-        latest_purchase_price: unitCostPrice,
-        quantity: newTotalQuantity, // Cập nhật tồn kho hiển thị
-        average_cost_price: newAverageCost.toFixed(2), // Chỉ cập nhật giá vốn trung bình
-      });
+    // Cập nhật giá sản phẩm
+    if (queryRunner) {
+        await queryRunner.manager.update(Product, productId, { 
+            latest_purchase_price: unitCostPrice,
+            quantity: newTotalQuantity,
+            average_cost_price: newAverageCost.toFixed(2),
+        });
+    } else {
+        await this.productService.update(productId, {
+            latest_purchase_price: unitCostPrice,
+            quantity: newTotalQuantity,
+            average_cost_price: newAverageCost.toFixed(2),
+        });
+    }
 
       this.logger.log('✅ Đã cập nhật tồn kho sản phẩm:', {
         productId,
@@ -678,6 +684,7 @@ export class InventoryService {
     userId: number,
     referenceId?: number,
     notes?: string,
+    queryRunner?: QueryRunner,
   ) {
     // Kiểm tra tồn kho hiện tại
     const currentInventory = await this.getInventorySummary(productId);
@@ -691,7 +698,8 @@ export class InventoryService {
     const currentAverageCost = await this.getWeightedAverageCost(productId);
 
     // Lấy các lô hàng theo thứ tự FIFO (First In, First Out)
-    const batches = await this.inventoryBatchRepository.find({
+    const batchRepo = queryRunner ? queryRunner.manager.getRepository(InventoryBatch) : this.inventoryBatchRepository;
+    const batches = await batchRepo.find({
       where: {
         product_id: productId,
         remaining_quantity: MoreThan(0),
@@ -719,7 +727,7 @@ export class InventoryService {
       totalCostValue += deductFromBatch * batchCost;
 
       // Cập nhật batch
-      await this.inventoryBatchRepository.save(batch);
+      await batchRepo.save(batch);
       
       affectedBatches.push({
         batchId: batch.id,
@@ -747,20 +755,24 @@ export class InventoryService {
       ...(referenceId && { reference_id: referenceId }),
     };
 
-    const transaction = await this.createTransaction(transactionData);
+    const transaction = await this.createTransaction(transactionData, queryRunner);
 
     // Cập nhật tồn kho hiển thị cho sản phẩm
     try {
-      await this.productService.update(productId, {
-        quantity: newTotalQuantity,
-      });
+      if (queryRunner) {
+          await queryRunner.manager.update(Product, productId, { quantity: newTotalQuantity });
+      } else {
+        await this.productService.update(productId, {
+            quantity: newTotalQuantity,
+        });
+      }
 
       this.logger.log('✅ Đã cập nhật tồn kho sản phẩm sau xuất kho:', {
         productId,
         newQuantity: newTotalQuantity,
       });
     } catch (error) {
-      const errorMessage =
+           const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
       this.logger.warn(
         `Không thể cập nhật tồn kho sản phẩm ${productId}:`,
@@ -1195,16 +1207,42 @@ export class InventoryService {
         savedItems.push(savedItem);
       } // Kết thúc vòng lặp itemsWithShipping
 
-      await queryRunner.commitTransaction();
-      this.logger.log(`Đã commit transaction cho phiếu nhập kho ${receiptEntity.id}`);
+      // Nếu tạo phiếu với trạng thái đã duyệt, thực hiện nhập kho ngay TRONG CÙNG TRANSACTION
+      if (receiptData.status === ReceiptStatus.APPROVED) {
+        try {
+          this.logger.log(`Phiếu ${receiptEntity.code} được tạo với trạng thái APPROVED, đang xử lý nhập kho...`);
+          
+          for (const item of savedItems) {
+            await this.processStockIn(
+              item.product_id,
+              item.quantity,
+              Number(item.final_unit_cost || item.unit_cost),
+              userId,
+              item.id,
+              `Phun thuốc/Nhập kho - Phiếu ${receiptEntity.code}`,
+              undefined,
+              queryRunner // Sử dụng cùng queryRunner
+            );
+          }
+          
+          // Cập nhật thời gian duyệt
+          await queryRunner.manager.update(InventoryReceipt, receiptEntity.id, {
+             approved_at: new Date()
+          });
+        } catch (error) {
+           this.logger.error(`Lỗi nhập kho tự động cho phiếu ${receiptEntity.code}:`, error);
+           // Throw error để rollback toàn bộ transaction
+           throw new BadRequestException(`Lỗi nhập kho: ${error instanceof Error ? error.message : 'Unknown'}. Giao dịch đã được hủy bỏ hoàn toàn.`);
+        }
+      }
 
-      // Trả về phiếu nhập kho với thông tin nhà cung cấp
-      const finalReceipt = await this.inventoryReceiptRepository.findOne({
+      await queryRunner.commitTransaction();
+
+      return this.inventoryReceiptRepository.findOne({
         where: { id: receiptEntity.id },
         relations: ['supplier'], // Bao gồm thông tin nhà cung cấp
       });
 
-      return finalReceipt;
 
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -1343,7 +1381,7 @@ export class InventoryService {
   async removeReceipt(id: number) {
     const receipt = await this.findReceiptById(id);
     if (!receipt) {
-      throw new Error('Không tìm thấy phiếu nhập kho');
+      throw new NotFoundException('Không tìm thấy phiếu nhập kho');
     }
 
     // KHÔNG cho phép xóa phiếu 'cancelled' nếu đã từng 'approved' (để giữ audit trail)
@@ -1351,11 +1389,11 @@ export class InventoryService {
       if (receipt.status === ReceiptStatus.CANCELLED) {
         // Kiểm tra xem phiếu này có approved_at không (tức là đã từng approved và tác động kho)
         if (receipt.approved_at) {
-           throw new Error('Không thể xóa phiếu đã từng duyệt (đã tác động kho) và bị hủy. Dữ liệu cần được giữ lại để đối soát.');
+           throw new BadRequestException('Không thể xóa phiếu đã từng duyệt (đã tác động kho) và bị hủy. Dữ liệu cần được giữ lại để đối soát.');
         }
         // Nếu là cancelled nhưng chưa approved bao giờ (cancel từ draft) thì cho xóa
       } else {
-        throw new Error(
+        throw new BadRequestException(
           'Không thể xóa phiếu nhập kho đang hoạt động. Vui lòng hủy phiếu thay thế.',
         );
       }
@@ -1433,12 +1471,12 @@ export class InventoryService {
   ): Promise<InventoryReceipt | null> {
     const receipt = await this.findReceiptById(id);
     if (!receipt) {
-      throw new Error('Không tìm thấy phiếu nhập kho');
+      throw new NotFoundException('Không tìm thấy phiếu nhập kho');
     }
     
     // Validate: Không cho phép cancel phiếu đã cancelled
     if (receipt.status === ReceiptStatus.CANCELLED) {
-        throw new Error('Phiếu nhập kho đã bị hủy trước đó');
+        throw new BadRequestException('Phiếu nhập kho đã bị hủy trước đó');
     }
     
     // Nếu phiếu đã duyệt (APPROVED) → Cần rollback inventory
@@ -1488,8 +1526,8 @@ export class InventoryService {
         );
         // Trong trường hợp rollback lỗi, ta vẫn ném lỗi ra để ngừng quá trình cancel
         // Để admin có thể xử lý thủ công hoặc thử lại
-        throw new Error(
-          `Không thể hủy phiếu nhập kho do lỗi khi hoàn tác tồn kho sản phẩm ${item.product_id}`
+        throw new BadRequestException(
+          `Không thể hủy phiếu nhập kho: ${error instanceof Error ? error.message : 'Lỗi khi hoàn tác tồn kho'}`
         );
       }
     }
@@ -1889,8 +1927,8 @@ export class InventoryService {
           `Lỗi khi xử lý xuất kho cho sản phẩm ${item.product_id} trong phiếu trả hàng ${id}:`,
           error,
         );
-        throw new Error(
-          `Không thể duyệt phiếu trả hàng do lỗi xử lý tồn kho sản phẩm ${item.product_id}`,
+        throw new BadRequestException(
+          `Không thể duyệt phiếu trả hàng: ${error instanceof Error ? error.message : 'Lỗi không xác định'}`,
         );
       }
     }
@@ -1911,11 +1949,45 @@ export class InventoryService {
   async cancelReturn(
     id: number,
     reason: string,
+    userId: number,
   ): Promise<InventoryReturn | null> {
     const returnDoc = await this.findReturnById(id);
     if (!returnDoc) {
       return null;
     }
+
+    // Nếu phiếu đã duyệt, cần hoàn tồn kho (nhập lại hàng đã trả)
+    if (returnDoc.status === ReturnStatus.APPROVED) {
+      this.logger.log(`Phiếu trả hàng ${id} đã duyệt, đang hoàn tồn kho trước khi hủy...`);
+      
+      const items = await this.inventoryReturnItemRepository.find({
+        where: { return_id: id },
+      });
+
+      for (const item of items) {
+        try {
+          // Hoàn kho = Stock In
+          // Sử dụng unit_cost lúc trả để nhập lại (đảm bảo giá trị kho)
+          await this.processStockIn(
+            item.product_id,
+            item.quantity,
+            Number(item.unit_cost),
+            userId,
+            undefined,
+            `Hủy phiếu trả hàng - ${returnDoc.code}`,
+          );
+        } catch (error) {
+          this.logger.error(
+            `Lỗi khi hoàn tồn kho cho sản phẩm ${item.product_id} trong phiếu trả hàng ${id}:`,
+            error,
+          );
+          throw new Error(
+            `Không thể hủy phiếu trả hàng do lỗi hoàn tồn kho sản phẩm ${item.product_id}`,
+          );
+        }
+      }
+    }
+
     returnDoc.status = ReturnStatus.CANCELLED;
     returnDoc.cancelled_at = new Date();
     returnDoc.cancelled_reason = reason;

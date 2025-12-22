@@ -29,6 +29,10 @@ export class SalesInvoiceItem {
   @Column({ name: 'product_id' })
   product_id!: number;
 
+  /** Tên sản phẩm tại thời điểm mua (snapshot) */
+  @Column({ name: 'product_name', nullable: true })
+  product_name?: string;
+
   /** Số lượng sản phẩm trong hóa đơn */
   @Column({ name: 'quantity' })
   quantity!: number;

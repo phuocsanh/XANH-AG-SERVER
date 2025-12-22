@@ -11,6 +11,11 @@ export class CreateSalesInvoiceItemDto {
   @IsNumber()
   product_id!: number;
 
+  /** Tên sản phẩm tại thời điểm mua - snapshot (tùy chọn, sẽ tự động lấy từ DB nếu không có) */
+  @IsString()
+  @IsOptional()
+  product_name?: string;
+
   /** Số lượng sản phẩm trong hóa đơn (bắt buộc) */
   @IsNumber()
   quantity!: number;

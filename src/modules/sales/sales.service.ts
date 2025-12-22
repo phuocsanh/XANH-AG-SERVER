@@ -93,19 +93,32 @@ export class SalesService {
       
       this.logger.log(`Đã lưu hóa đơn với ID: ${savedInvoice.id}`);
 
-      // Tạo các item trong phiếu với tính toán totalPrice
+      // Tạo các item trong phiếu với tính toán totalPrice và lưu product_name snapshot
       if (createSalesInvoiceDto.items && Array.isArray(createSalesInvoiceDto.items) && createSalesInvoiceDto.items.length > 0) {
-        const items = createSalesInvoiceDto.items.map((item) => {
+        const items = await Promise.all(
+          createSalesInvoiceDto.items.map(async (item) => {
           // Tính tổng giá tiền = (giá đơn vị * số lượng) - số tiền giảm giá
           const totalPrice =
             item.unit_price * item.quantity - (item.discount_amount || 0);
 
-          return queryRunner.manager.create(SalesInvoiceItem, {
-            ...item,
-            invoice_id: savedInvoice.id,
-            total_price: totalPrice,
-          });
-        });
+            // Lấy tên sản phẩm từ DB nếu không có trong DTO
+            let productName = item.product_name;
+            if (!productName) {
+              const product = await queryRunner.manager.findOne(Product, {
+                where: { id: item.product_id },
+              });
+              productName = product?.trade_name || product?.name;
+            }
+
+            return queryRunner.manager.create(SalesInvoiceItem, {
+              ...item,
+              invoice_id: savedInvoice.id,
+              total_price: totalPrice,
+              ...(productName && { product_name: productName }), // Chỉ set nếu có giá trị
+            });
+          })
+        );
+
         await queryRunner.manager.save(items);
 
         // 🆕 Tự động tính lợi nhuận ngay trong transaction

@@ -584,8 +584,12 @@ export class InventoryController {
    */
   @Post('return/:id/cancel')
   @RequirePermissions('inventory:manage')
-  cancelReturn(@Param('id') id: string, @Body('reason') reason: string) {
-    return this.inventoryService.cancelReturn(+id, reason);
+  cancelReturn(
+    @Param('id') id: string,
+    @Body('reason') reason: string,
+    @CurrentUser('id') userId: number,
+  ) {
+    return this.inventoryService.cancelReturn(+id, reason, userId);
   }
 
   /**
