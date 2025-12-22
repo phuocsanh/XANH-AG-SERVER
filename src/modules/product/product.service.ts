@@ -362,7 +362,7 @@ export class ProductService extends BaseSearchService<Product> {
       queryBuilder,
       searchDto,
       'product',
-      ['name', 'code'] // Chỉ tìm kiếm theo tên và mã sản phẩm
+      ['name', 'code', 'trade_name'] // Tìm kiếm theo tên, hiệu thuốc và mã sản phẩm
     );
 
     // Fix: Handle sorting for price fields (stored as string in DB)

@@ -1276,6 +1276,7 @@ export class InventoryService {
       ['filters', 'nested_filters', 'operator'],
       {
         supplier_name: 'supplier.name',
+        supplier_id: 'receipt.supplier_id',
         creator_account: 'creator.account',
       }
     );
