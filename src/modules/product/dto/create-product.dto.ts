@@ -21,6 +21,15 @@ export class CreateProductDto {
   @IsString()
   name!: string;
 
+  /** Hiệu thuốc / Tên thương mại (bắt buộc) */
+  @IsString()
+  trade_name!: string;
+
+  /** Dung tích / Khối lượng (tùy chọn) */
+  @IsOptional()
+  @IsString()
+  volume?: string;
+
   /** Giá sản phẩm (Giá tiền mặt) (tùy chọn) */
   @IsOptional()
   @IsString()

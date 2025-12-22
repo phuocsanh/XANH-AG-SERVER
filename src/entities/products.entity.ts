@@ -30,6 +30,14 @@ export class Product {
   @Column({ name: 'name' })
   name!: string;
 
+  /** Hiệu thuốc / Tên thương mại */
+  @Column({ name: 'trade_name' })
+  trade_name!: string;
+
+  /** Dung tích / Khối lượng (VD: 450ml, 1 lít, 500g) */
+  @Column({ name: 'volume', nullable: true })
+  volume?: string;
+
   /** Giá sản phẩm (Giá tiền mặt) */
   @Column({ name: 'price', nullable: true })
   price?: string;
