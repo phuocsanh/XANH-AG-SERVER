@@ -19,7 +19,7 @@ export class StoreProfitReportController {
   constructor(private readonly service: StoreProfitReportService) {}
 
   @Get('invoice/:id')
-  @RequirePermissions('store-profit-report:read')
+  @RequirePermissions('store_profit_report:read')
   @ApiOperation({ 
     summary: 'Xem lợi nhuận chi tiết của 1 đơn hàng',
     description: 'Trả về thông tin lợi nhuận gộp và chi tiết từng sản phẩm trong đơn hàng'
@@ -36,7 +36,7 @@ export class StoreProfitReportController {
   }
 
   @Get('invoice/code/:code')
-  @RequirePermissions('store-profit-report:read')
+  @RequirePermissions('store_profit_report:read')
   @ApiOperation({ 
     summary: 'Xem lợi nhuận chi tiết của 1 đơn hàng qua mã (code)',
     description: 'Trả về thông tin lợi nhuận gộp và chi tiết từng sản phẩm trong đơn hàng'
@@ -53,7 +53,7 @@ export class StoreProfitReportController {
   }
 
   @Get('season/:seasonId')
-  @RequirePermissions('store-profit-report:read')
+  @RequirePermissions('store_profit_report:read')
   @ApiOperation({
     summary: 'Báo cáo lợi nhuận tổng hợp theo mùa vụ',
     description: 'Bao gồm: Doanh thu, Giá vốn, Chi phí vận hành, Lợi nhuận ròng, Top customers, Top products'
@@ -70,7 +70,7 @@ export class StoreProfitReportController {
   }
 
   @Get('customer/:customerId')
-  @RequirePermissions('store-profit-report:read')
+  @RequirePermissions('store_profit_report:read')
   @ApiOperation({
     summary: 'Báo cáo lợi nhuận theo khách hàng',
     description: 'Xem lịch sử lợi nhuận từ các đơn hàng của một khách hàng cụ thể'
@@ -97,7 +97,7 @@ export class StoreProfitReportController {
   }
 
   @Get('rice-crop/:riceCropId')
-  @RequirePermissions('store-profit-report:read')
+  @RequirePermissions('store_profit_report:read')
   @ApiOperation({
     summary: 'Báo cáo lợi nhuận theo vụ lúa',
     description: 'Xem lợi nhuận từ các đơn hàng liên quan đến một vụ lúa cụ thể'
