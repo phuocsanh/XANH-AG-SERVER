@@ -9,6 +9,6 @@ trigger: always_on
 - Luôn tìm kiếm giải pháp tốt nhất trước khi thực hiện 1 chức năng theo yêu cầu.
 - Luôn comment code bằng tiếng việt chức năng của file, hàm, code hay biến.
 - Hàm, code, hay file nào sau khi thêm chức năng mới hoặc chỉnh sửa xong mà không dùng nữa xóa đi.
-- Không tạo dữ liệu giả , mock data trả về cho font-end nếu source code là của server
+- Không tạo dữ liệu giả , mock data trả về cho font-end 
 - Database sử dụng supabase, có hai chế độ dev và pro bạn làm việc với chế độ dev nha. Luôn chạy dự án bằng docker ở chế độ dev.
-- Kiểm tra kiểu dữ liệu trước khi thực hiện phép tính các trường là chuỗi nhớ chuyển sang number trước khi tính to
+- Kiểm tra kiểu dữ liệu trước khi thực hiện phép tính các trường là chuỗi nhớ chuyển sang number trước khi tính toán

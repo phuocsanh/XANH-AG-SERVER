@@ -59,7 +59,7 @@ export class RiceCropController {
   @ApiResponse({ status: 200, description: 'Danh sách vụ lúa' })
   @ApiResponse({ status: 401, description: 'Chưa xác thực' })
   @ApiResponse({ status: 403, description: 'Không có quyền' })
-  async search(@Body() searchDto: SearchRiceCropDto, @Req() req: any): Promise<{ data: RiceCrop[]; total: number }> {
+  async search(@Body() searchDto: SearchRiceCropDto, @Req() req: any): Promise<{ data: RiceCrop[]; total: number; page: number; limit: number }> {
     return this.riceCropService.search(searchDto, req.user);
   }
 

@@ -273,7 +273,7 @@ export class RiceCropService {
       throw new BadRequestException(`Không thể lấy thống kê: ${err.message}`);
     }
   }
-  async search(searchDto: any, user?: any): Promise<{ data: RiceCrop[]; total: number }> {
+  async search(searchDto: any, user?: any): Promise<{ data: RiceCrop[]; total: number; page: number; limit: number }> {
     try {
       const { page = 1, limit = 20, ...query } = searchDto;
       const skip = (page - 1) * limit;
@@ -318,12 +318,25 @@ export class RiceCropService {
         });
       }
 
+      // Keyword search - tìm kiếm theo tên ruộng
+      if (query.keyword) {
+        const trimmedKeyword = query.keyword.trim();
+        this.logger.log(`🔍 Searching rice crops with keyword: "${trimmedKeyword}"`);
+        if (trimmedKeyword) {
+          queryBuilder.andWhere('rice_crop.field_name LIKE :keyword', {
+            keyword: `%${trimmedKeyword}%`,
+          });
+        }
+      }
+
       queryBuilder.skip(skip).take(limit);
 
       const [data, total] = await queryBuilder.getManyAndCount();
-      this.logger.log(`📋 Tìm thấy ${data.length} vụ lúa`);
+      const totalPages = Math.ceil(total / limit);
       
-      return { data, total };
+      this.logger.log(`📋 Tìm thấy ${data.length}/${total} vụ lúa (trang ${page}/${totalPages})`);
+      
+      return { data, total, page, limit };
     } catch (error) {
       const err = error as Error;
       this.logger.error(`❌ Lỗi tìm kiếm vụ lúa: ${err.message}`, err.stack);

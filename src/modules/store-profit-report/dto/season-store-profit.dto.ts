@@ -102,8 +102,11 @@ export class ProfitSummaryDto {
   @ApiProperty({ description: 'Tỷ suất lợi nhuận gộp (%)', example: 20 })
   gross_margin!: number;
 
-  @ApiProperty({ description: 'Tổng chi phí vận hành', example: 45000000 })
+  @ApiProperty({ description: 'Tổng chi phí vận hành (deprecated)', example: 45000000 })
   operating_costs!: number;
+
+  @ApiProperty({ description: 'Tổng chi phí dịch vụ/quà tặng', example: 45000000 })
+  farm_service_costs!: number;
 
   @ApiProperty({ description: 'Lợi nhuận ròng', example: 45000000 })
   net_profit!: number;
@@ -134,8 +137,8 @@ export class SeasonStoreProfitDto {
   @ApiProperty({ description: 'Tổng hợp lợi nhuận', type: ProfitSummaryDto })
   summary!: ProfitSummaryDto;
 
-  @ApiProperty({ description: 'Chi tiết chi phí vận hành', type: [OperatingCostBreakdownDto] })
-  operating_costs_breakdown!: OperatingCostBreakdownDto[];
+  @ApiProperty({ description: 'Chi tiết chi phí dịch vụ/quà tặng', type: [OperatingCostBreakdownDto] })
+  farm_service_costs_breakdown!: OperatingCostBreakdownDto[];
 
   @ApiProperty({ description: 'Thống kê giao hàng', type: DeliveryStatsDto, required: false })
   delivery_stats?: DeliveryStatsDto | undefined;

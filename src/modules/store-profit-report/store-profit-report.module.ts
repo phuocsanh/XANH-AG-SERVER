@@ -6,8 +6,7 @@ import { SalesInvoice } from '../../entities/sales-invoices.entity';
 import { Season } from '../../entities/season.entity';
 import { OperatingCost } from '../../entities/operating-costs.entity';
 import { DeliveryLog } from '../../entities/delivery-log.entity';
-import { CostItem } from '../../entities/cost-item.entity';
-import { SalesReturn } from '../../entities/sales-return.entity';
+import { FarmServiceCost } from '../../entities/farm-service-cost.entity';
 import { RiceCrop } from '../../entities/rice-crop.entity';
 import { Customer } from '../../entities/customer.entity';
 
@@ -21,8 +20,7 @@ import { Customer } from '../../entities/customer.entity';
       Season,
       OperatingCost,
       DeliveryLog,
-      CostItem,
-      SalesReturn,
+      FarmServiceCost,
       RiceCrop,
       Customer,
     ]),

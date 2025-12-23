@@ -51,6 +51,7 @@ import { HealthModule } from './health/health.module';
 import { CleanupModule } from './modules/cleanup/cleanup.module';
 import { AreaOfEachPlotOfLandModule } from './modules/area-of-each-plot-of-land/area-of-each-plot-of-land.module';
 import { ExternalPurchaseModule } from './modules/external-purchase/external-purchase.module';
+import { FarmServiceCostModule } from './modules/farm-service-cost/farm-service-cost.module';
 import { SeedController } from './seed.controller';
 
 
@@ -139,6 +140,7 @@ import { SeedController } from './seed.controller';
     CleanupModule, // Module dọn dẹp dữ liệu rác định kỳ
     AreaOfEachPlotOfLandModule, // Module quản lý các vùng/lô đất
     ExternalPurchaseModule, // Module quản lý hóa đơn mua hàng từ bên ngoài
+    FarmServiceCostModule, // Module quản lý chi phí dịch vụ/quà tặng cho nông dân
   ],
   controllers: [SeedController], // Seed controller để seed RBAC qua API
   providers: [

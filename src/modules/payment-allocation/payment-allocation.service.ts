@@ -8,6 +8,7 @@ import { DebtNote, DebtNoteStatus } from '../../entities/debt-note.entity';
 import { CreatePaymentAllocationDto } from './dto/create-payment-allocation.dto';
 import { SearchPaymentAllocationDto } from './dto/search-payment-allocation.dto';
 import { QueryHelper } from '../../common/helpers/query-helper';
+import { FarmServiceCostService } from '../farm-service-cost/farm-service-cost.service';
 
 @Injectable()
 export class PaymentAllocationService {
@@ -15,6 +16,7 @@ export class PaymentAllocationService {
     @InjectRepository(PaymentAllocation)
     private allocationRepository: Repository<PaymentAllocation>,
     private dataSource: DataSource,
+    private farmServiceCostService: FarmServiceCostService,
   ) {}
 
   async create(createDto: CreatePaymentAllocationDto): Promise<PaymentAllocation> {
@@ -68,6 +70,24 @@ export class PaymentAllocationService {
             invoice.status = SalesInvoiceStatus.PAID;
             invoice.payment_status = SalesPaymentStatus.PAID;
             invoice.remaining_amount = 0; // Clamp to 0
+            
+            // Tạo chi phí quà tặng nếu hóa đơn có quà tặng và đủ thông tin
+            if (invoice.gift_value && Number(invoice.gift_value) > 0 && invoice.gift_description && invoice.season_id && invoice.customer_id) {
+              try {
+                await this.farmServiceCostService.createFromInvoiceGift(
+                  invoice.id,
+                  invoice.customer_id,
+                  invoice.season_id,
+                  invoice.rice_crop_id,
+                  invoice.gift_description,
+                  Number(invoice.gift_value),
+                  invoice.created_at,
+                );
+              } catch (error) {
+                // Log lỗi nhưng không rollback transaction
+                console.error('⚠️ Lỗi tạo chi phí quà tặng:', error);
+              }
+            }
         } else {
             invoice.payment_status = SalesPaymentStatus.PARTIAL;
         }

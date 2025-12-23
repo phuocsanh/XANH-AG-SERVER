@@ -3,11 +3,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, Between, In } from 'typeorm';
 import { SalesInvoice, SalesInvoiceStatus } from '../../entities/sales-invoices.entity';
 import { Season } from '../../entities/season.entity';
-import { OperatingCost } from '../../entities/operating-costs.entity';
+// import { OperatingCost } from '../../entities/operating-costs.entity';  // Không dùng nữa
 import { DeliveryLog } from '../../entities/delivery-log.entity';
-import { CostItem } from '../../entities/cost-item.entity';
 import { RiceCrop } from '../../entities/rice-crop.entity';
 import { Customer } from '../../entities/customer.entity';
+import { FarmServiceCost } from '../../entities/farm-service-cost.entity';
 
 import { 
   InvoiceProfitDto, 
@@ -16,7 +16,7 @@ import {
 import {
   SeasonStoreProfitDto,
   ProfitSummaryDto,
-  OperatingCostBreakdownDto,
+  // OperatingCostBreakdownDto,  // Không dùng nữa
   DeliveryStatsDto,
   TopCustomerProfitDto,
   TopProductProfitDto,
@@ -39,16 +39,16 @@ export class StoreProfitReportService {
     private salesInvoiceRepository: Repository<SalesInvoice>,
     @InjectRepository(Season)
     private seasonRepository: Repository<Season>,
-    @InjectRepository(OperatingCost)
-    private operatingCostRepository: Repository<OperatingCost>,
+    // @InjectRepository(OperatingCost)  // Không dùng nữa
+    // private operatingCostRepository: Repository<OperatingCost>,
     @InjectRepository(DeliveryLog)
     private deliveryLogRepository: Repository<DeliveryLog>,
-    @InjectRepository(CostItem)
-    private costItemRepository: Repository<CostItem>,
     @InjectRepository(RiceCrop)
     private riceCropRepository: Repository<RiceCrop>,
     @InjectRepository(Customer)
     private customerRepository: Repository<Customer>,
+    @InjectRepository(FarmServiceCost)
+    private farmServiceCostRepository: Repository<FarmServiceCost>,
 
   ) {}
 
@@ -271,12 +271,26 @@ export class StoreProfitReportService {
       const grossProfit = totalRevenue - totalCOGS;
       const grossMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
 
-      // Lấy chi phí vận hành gắn với season này HOẶC trong khoảng thời gian season (cho dữ liệu cũ)
-      const operatingCosts = await this.getSeasonOperatingCosts(
-        season.start_date,
-        season.end_date,
-        seasonId,
-      );
+      // Lấy chi phí dịch vụ/quà tặng gắn với season này
+      const farmServiceCostsResult = await this.farmServiceCostRepository
+        .createQueryBuilder('fsc')
+        .where('fsc.season_id = :seasonId', { seasonId })
+        .select([
+          'fsc.name as name',
+          'fsc.amount as amount',
+          'fsc.expense_date as date',
+          'fsc.notes as notes',
+          'fsc.source as source',
+        ])
+        .getRawMany();
+
+      const farmServiceCostsBreakdown = farmServiceCostsResult.map(item => ({
+        type: item.source || 'manual',
+        name: item.name,
+        amount: Number(item.amount),
+        date: item.date,
+        notes: item.notes,
+      }));
 
       // Lấy thống kê giao hàng
       const deliveryStats = await this.getSeasonDeliveryStats(
@@ -285,10 +299,10 @@ export class StoreProfitReportService {
         seasonId,
       );
 
-      const totalOperatingCosts = operatingCosts.reduce((sum, c) => sum + c.amount, 0)
-        + (deliveryStats?.total_delivery_cost || 0);
+      const totalFarmServiceCosts = farmServiceCostsBreakdown.reduce((sum, c) => sum + c.amount, 0);
+      const totalOperatingCosts = totalFarmServiceCosts + (deliveryStats?.total_delivery_cost || 0);
       
-      const netProfit = grossProfit - totalOperatingCosts;
+      const netProfit = grossProfit - totalFarmServiceCosts;
       const netMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
 
       // Top customers
@@ -324,7 +338,8 @@ export class StoreProfitReportService {
         cost_of_goods_sold: Math.round(totalCOGS * 100) / 100,
         gross_profit: Math.round(grossProfit * 100) / 100,
         gross_margin: Math.round(grossMargin * 100) / 100,
-        operating_costs: Math.round(totalOperatingCosts * 100) / 100,
+        operating_costs: Math.round(totalOperatingCosts * 100) / 100,  // Deprecated
+        farm_service_costs: Math.round(totalFarmServiceCosts * 100) / 100,  // Mới
         net_profit: Math.round(netProfit * 100) / 100,
         net_margin: Math.round(netMargin * 100) / 100,
       };
@@ -339,12 +354,12 @@ export class StoreProfitReportService {
           end_date: season.end_date,
         },
         summary,
-        operating_costs_breakdown: operatingCosts,
+        farm_service_costs_breakdown: farmServiceCostsBreakdown,  // Đổi tên
         delivery_stats: deliveryStats,
         top_customers: topCustomers,
 
         top_products: topProducts,
-        debug_version: 'v4_fix_all',
+        debug_version: 'v5_farm_service_costs',
       };
     } catch (error) {
       const err = error as Error;
@@ -353,46 +368,49 @@ export class StoreProfitReportService {
     }
   }
 
+
   /**
    * Lấy chi phí vận hành trong khoảng thời gian hoặc theo seasonId
+   * @deprecated Không dùng nữa, đã chuyển sang farm_service_costs
    */
-  private async getSeasonOperatingCosts(
-    startDate?: Date,
-    endDate?: Date,
-    seasonId?: number,
-  ): Promise<OperatingCostBreakdownDto[]> {
-    try {
-      // Ưu tiên lấy theo season_id nếu có
-      let where: any = [];
-      
-      if (seasonId) {
-        where.push({ season_id: seasonId });
-      }
+  // private async getSeasonOperatingCosts(
+  //   startDate?: Date,
+  //   endDate?: Date,
+  //   seasonId?: number,
+  // ): Promise<OperatingCostBreakdownDto[]> {
+  //   try {
+  //     // Ưu tiên lấy theo season_id nếu có
+  //     let where: any = [];
+  //     
+  //     if (seasonId) {
+  //       where.push({ season_id: seasonId });
+  //     }
 
-      // Fallback: Lấy theo ngày tháng nếu chưa gán season_id (cho dữ liệu cũ)
-      // VÀ phải chưa được gán cho season nào khác (season_id IS NULL) để tránh duplicate
-      if (startDate && endDate) {
-         where.push({ 
-           created_at: Between(startDate, endDate),
-           season_id: null // Chỉ lấy những cái chưa gán season cụ thể
-         });
-      }
+  //     // Fallback: Lấy theo ngày tháng nếu chưa gán season_id (cho dữ liệu cũ)
+  //     // VÀ phải chưa được gán cho season nào khác (season_id IS NULL) để tránh duplicate
+  //     if (startDate && endDate) {
+  //        where.push({ 
+  //          created_at: Between(startDate, endDate),
+  //          season_id: null // Chỉ lấy những cái chưa gán season cụ thể
+  //        });
+  //     }
 
-      // Nếu không có điều kiện nào thì trả về rỗng
-      if (where.length === 0) return [];
+  //     // Nếu không có điều kiện nào thì trả về rỗng
+  //     if (where.length === 0) return [];
 
-      const costs = await this.operatingCostRepository.find({ where });
+  //     const costs = await this.operatingCostRepository.find({ where });
 
-      return costs.map(cost => ({
-        type: cost.type || 'other', // Fallback nếu type không có (dữ liệu cũ)
-        name: cost.name,
-        amount: Number(cost.value),
-      }));
-    } catch (error) {
-      this.logger.warn('Không thể lấy chi phí vận hành, trả về mảng rỗng');
-      return [];
-    }
-  }
+  //     return costs.map(cost => ({
+  //       type: cost.type || 'other', // Fallback nếu type không có (dữ liệu cũ)
+  //       name: cost.name,
+  //       amount: Number(cost.value),
+  //     }));
+  //   } catch (error) {
+  //     this.logger.warn('Không thể lấy chi phí vận hành, trả về mảng rỗng');
+  //     return [];
+  //   }
+  // }
+
 
   /**
    * Lấy thống kê giao hàng trong season
@@ -724,18 +742,11 @@ export class StoreProfitReportService {
           throw new NotFoundException(`Không tìm thấy mảnh ruộng ID: ${riceCropId}`);
         }
 
-        // Lấy chi phí vận hành & canh tác ngay cả khi chưa có hóa đơn bán
-        const operatingCosts = await this.operatingCostRepository.find({
+        // Lấy chi phí dịch vụ/quà tặng của cửa hàng dành cho ruộng lúa này
+        const farmServiceCosts = await this.farmServiceCostRepository.find({
           where: { rice_crop_id: riceCropId }
         });
-        const totalOperatingCosts = operatingCosts.reduce((sum, cost) => sum + Number(cost.value), 0);
-
-        const productionCosts = await this.costItemRepository.find({
-          where: { rice_crop_id: riceCropId }
-        });
-        const totalProductionCosts = productionCosts.reduce((sum, item) => sum + Number(item.total_cost || 0), 0);
-
-        const totalExpenses = totalOperatingCosts + totalProductionCosts;
+        const totalFarmServiceCosts = farmServiceCosts.reduce((sum, cost) => sum + Number(cost.amount), 0);
 
         return {
           rice_crop_id: riceCropId,
@@ -749,23 +760,16 @@ export class StoreProfitReportService {
             gross_profit: 0,
             avg_margin: 0,
             gift_value_from_invoices: 0,
-            operating_costs: totalOperatingCosts,
-            production_costs: totalProductionCosts,
-            total_expenses: totalExpenses,
-            net_profit: -totalExpenses, // Lợi nhuận âm vì có chi phí mà chưa có doanh thu
+            farm_service_costs: totalFarmServiceCosts,
+            net_profit: -totalFarmServiceCosts, // Lợi nhuận âm vì có chi phí mà chưa có doanh thu
             net_margin: 0,
           },
-          operating_costs_breakdown: operatingCosts.map(c => ({
+          farm_service_costs_breakdown: farmServiceCosts.map(c => ({
             name: c.name,
-            amount: Number(c.value),
-            date: c.expense_date || c.created_at,
-            type: 'operating'
-          })),
-          production_costs_breakdown: productionCosts.map(c => ({
-            name: c.item_name,
-            amount: Number(c.total_cost),
-            date: c.expense_date || c.created_at,
-            type: 'production'
+            amount: Number(c.amount),
+            date: c.expense_date,
+            notes: c.notes,
+            source: c.source,
           })),
           invoices: [],
           debug_version: 'v5_empty_data',
@@ -832,29 +836,22 @@ export class StoreProfitReportService {
         });
       }
 
-      // 3. Lấy Chi phí vận hành RIÊNG cho vụ lúa này (Operating Costs - Chi phí quản lý)
-      const operatingCosts = await this.operatingCostRepository.find({
+      // 3. Lấy Chi phí dịch vụ/quà tặng của cửa hàng dành cho ruộng lúa này
+      const farmServiceCosts = await this.farmServiceCostRepository.find({
         where: { rice_crop_id: riceCropId }
       });
-      const totalOperatingCosts = operatingCosts.reduce((sum, cost) => sum + Number(cost.value), 0);
+      const totalFarmServiceCosts = farmServiceCosts.reduce((sum, cost) => sum + Number(cost.amount), 0);
 
-      // 4. Lấy Chi phí sản xuất/Canh tác (Cost Items - Phân, Thuốc, Giống...)
-      const productionCosts = await this.costItemRepository.find({
-        where: { rice_crop_id: riceCropId }
-      });
-      const totalProductionCosts = productionCosts.reduce((sum, item) => sum + Number(item.total_cost || 0), 0);
-
-      // 5. Tính Net Profit của vụ lúa
-      // Net Profit = Gross Profit - (Operating Costs + Production Costs)
-      const totalExpenses = totalOperatingCosts + totalProductionCosts;
-      const netProfit = totalProfit - totalExpenses;
+      // 4. Tính Net Profit của vụ lúa (chỉ tính chi phí dịch vụ của cửa hàng)
+      // Net Profit = Gross Profit - Farm Service Costs
+      const netProfit = totalProfit - totalFarmServiceCosts;
       const netMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
 
       const avgMargin = totalRevenue > 0 
         ? (totalProfit / totalRevenue) * 100 
         : 0; // Đây là Gross Margin trung bình
 
-      this.logger.log(`✅ Báo cáo mảnh ruộng #${riceCropId}: Gross ${totalProfit}, Ops Cost ${totalOperatingCosts}, Prod Cost ${totalProductionCosts}, Net ${netProfit}`);
+      this.logger.log(`✅ Báo cáo mảnh ruộng #${riceCropId}: Gross ${totalProfit}, Service Cost ${totalFarmServiceCosts}, Net ${netProfit}`);
 
       return {
         rice_crop_id: riceCropId,
@@ -869,26 +866,19 @@ export class StoreProfitReportService {
           avg_margin: Math.round(avgMargin * 100) / 100, // Biên LN gộp
           gift_value_from_invoices: Math.round(totalGiftFromInvoices * 100) / 100,
           
-          // Chi phí
-          operating_costs: Math.round(totalOperatingCosts * 100) / 100,
-          production_costs: Math.round(totalProductionCosts * 100) / 100,
-          total_expenses: Math.round(totalExpenses * 100) / 100, // Tổng chi phí (Ops + Prod)
+          // Chi phí dịch vụ/quà tặng của cửa hàng
+          farm_service_costs: Math.round(totalFarmServiceCosts * 100) / 100,
 
-          // Lợi nhuận ròng
+          // Lợi nhuận ròng (Gross Profit - Farm Service Costs)
           net_profit: Math.round(netProfit * 100) / 100,
           net_margin: Math.round(netMargin * 100) / 100,
         },
-        operating_costs_breakdown: operatingCosts.map(c => ({
+        farm_service_costs_breakdown: farmServiceCosts.map(c => ({
             name: c.name,
-            amount: Number(c.value),
-            date: c.expense_date || c.created_at,
-            type: 'operating'
-        })),
-        production_costs_breakdown: productionCosts.map(c => ({
-            name: c.item_name,
-            amount: Number(c.total_cost),
-            date: c.expense_date || c.created_at,
-            type: 'production'
+            amount: Number(c.amount),
+            date: c.expense_date,
+            notes: c.notes,
+            source: c.source,
         })),
         invoices: invoiceDetails,
         debug_version: 'v4_fix_all',

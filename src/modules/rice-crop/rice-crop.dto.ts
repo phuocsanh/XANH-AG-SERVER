@@ -284,4 +284,9 @@ export class SearchRiceCropDto extends QueryRiceCropDto {
   @IsNumber()
   @Type(() => Number)
   limit?: number = 20;
+
+  @ApiPropertyOptional({ description: 'Từ khóa tìm kiếm theo tên ruộng', example: 'x' })
+  @IsOptional()
+  @IsString({ message: 'Từ khóa phải là chuỗi' })
+  keyword?: string;
 }
