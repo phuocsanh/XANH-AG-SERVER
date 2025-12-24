@@ -5,11 +5,14 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
+  OneToMany,
   JoinColumn,
 } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 import { SalesInvoice } from './sales-invoices.entity';
 import { DeliveryStatus } from '../modules/sales/enums/delivery-status.enum';
+import { DeliveryLogItem } from './delivery-log-item.entity';
+import { Season } from './season.entity';
 
 /**
  * Entity biểu diễn lịch sử giao hàng
@@ -33,10 +36,26 @@ export class DeliveryLog {
   @JoinColumn({ name: 'invoice_id' })
   invoice?: SalesInvoice;
 
+  /** ID mùa vụ */
+  @ApiProperty({ description: 'ID mùa vụ', example: 1, required: false })
+  @Column({ name: 'season_id', nullable: true })
+  season_id?: number;
+
+  /** Thông tin mùa vụ */
+  @ManyToOne(() => Season)
+  @JoinColumn({ name: 'season_id' })
+  season?: Season;
+
+
   /** Ngày giao hàng */
   @ApiProperty({ description: 'Ngày giao hàng', example: '2024-12-01' })
   @Column({ name: 'delivery_date', type: 'date' })
   delivery_date!: Date;
+
+  /** Giờ bắt đầu giao hàng */
+  @ApiProperty({ description: 'Giờ bắt đầu giao hàng', example: '08:00:00', required: false })
+  @Column({ name: 'delivery_start_time', type: 'time', nullable: true })
+  delivery_start_time?: string;
 
   /** Khoảng cách (km) */
   @ApiProperty({ description: 'Khoảng cách giao hàng (km)', example: 50, required: false })
@@ -78,17 +97,37 @@ export class DeliveryLog {
   @Column({ name: 'delivery_address', type: 'text', nullable: true })
   delivery_address?: string;
 
+  /** Tên người nhận */
+  @ApiProperty({ description: 'Tên người nhận', example: 'Nguyễn Văn A', required: false })
+  @Column({ name: 'receiver_name', length: 255, nullable: true })
+  receiver_name?: string;
+
+  /** Số điện thoại người nhận */
+  @ApiProperty({ description: 'Số điện thoại người nhận', example: '0987654321', required: false })
+  @Column({ name: 'receiver_phone', length: 20, nullable: true })
+  receiver_phone?: string;
+
+  /** Ghi chú giao hàng */
+  @ApiProperty({ description: 'Ghi chú giao hàng', required: false })
+  @Column({ name: 'delivery_notes', type: 'text', nullable: true })
+  delivery_notes?: string;
+
+  /** Số xe (biển số) */
+  @ApiProperty({ description: 'Số xe (biển số)', example: '67A-12345', required: false })
+  @Column({ name: 'vehicle_number', length: 50, nullable: true })
+  vehicle_number?: string;
+
   /** Trạng thái giao hàng */
   @ApiProperty({ 
     description: 'Trạng thái giao hàng', 
-    example: DeliveryStatus.COMPLETED,
+    example: DeliveryStatus.PENDING,
     enum: DeliveryStatus
   })
   @Column({ 
     name: 'status', 
     type: 'enum',
     enum: DeliveryStatus,
-    default: DeliveryStatus.COMPLETED 
+    default: DeliveryStatus.PENDING 
   })
   status!: DeliveryStatus;
 
@@ -111,4 +150,8 @@ export class DeliveryLog {
   @ApiProperty({ description: 'Thời gian cập nhật' })
   @UpdateDateColumn({ name: 'updated_at' })
   updated_at!: Date;
+
+  /** Danh sách sản phẩm trong phiếu giao hàng */
+  @OneToMany(() => DeliveryLogItem, (item) => item.delivery_log)
+  items?: DeliveryLogItem[];
 }

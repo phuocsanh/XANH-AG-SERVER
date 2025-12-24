@@ -60,6 +60,9 @@ export class InvoiceProfitDto {
   @ApiProperty({ description: 'Giá trị quà tặng', example: 50000 })
   gift_value!: number;
 
+  @ApiProperty({ description: 'Chi phí giao hàng', example: 100000, required: false })
+  delivery_cost?: number;
+
   @ApiProperty({ description: 'Lợi nhuận ròng (sau trừ quà tặng)', example: 350000 })
   net_profit!: number;
 

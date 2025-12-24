@@ -8,13 +8,17 @@ import {
 } from '../../entities/sales-invoices.entity';
 import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
 import { Product } from '../../entities/products.entity';
+import { DeliveryLog } from '../../entities/delivery-log.entity';
+import { DeliveryLogItem } from '../../entities/delivery-log-item.entity';
 import { CreateSalesInvoiceDto } from './dto/create-sales-invoice.dto';
 import { UpdateSalesInvoiceDto } from './dto/update-sales-invoice.dto';
 import { SearchSalesDto } from './dto/search-sales.dto';
+import { CreateDeliveryLogDto } from './dto/delivery-log.dto';
 import { QueryHelper } from '../../common/helpers/query-helper';
 import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 import { DebtNoteService } from '../debt-note/debt-note.service';
+import { DeliveryStatus } from './enums/delivery-status.enum';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến quản lý bán hàng
@@ -28,6 +32,8 @@ export class SalesService {
    * Constructor injection các repository cần thiết
    * @param salesInvoiceRepository - Repository để thao tác với entity SalesInvoice
    * @param salesInvoiceItemRepository - Repository để thao tác với entity SalesInvoiceItem
+   * @param deliveryLogRepository - Repository để thao tác với entity DeliveryLog
+   * @param deliveryLogItemRepository - Repository để thao tác với entity DeliveryLogItem
    * @param debtNoteService - Service xử lý công nợ
    * @param dataSource - DataSource để tạo raw query builder
    */
@@ -36,6 +42,10 @@ export class SalesService {
     private salesInvoiceRepository: Repository<SalesInvoice>,
     @InjectRepository(SalesInvoiceItem)
     private salesInvoiceItemRepository: Repository<SalesInvoiceItem>,
+    @InjectRepository(DeliveryLog)
+    private deliveryLogRepository: Repository<DeliveryLog>,
+    @InjectRepository(DeliveryLogItem)
+    private deliveryLogItemRepository: Repository<DeliveryLogItem>,
     private debtNoteService: DebtNoteService,
     private dataSource: DataSource,
   ) {}
@@ -93,9 +103,12 @@ export class SalesService {
       
       this.logger.log(`Đã lưu hóa đơn với ID: ${savedInvoice.id}`);
 
+      // Khai báo items ở ngoài để dùng cho delivery log
+      let items: SalesInvoiceItem[] = [];
+
       // Tạo các item trong phiếu với tính toán totalPrice và lưu product_name snapshot
       if (createSalesInvoiceDto.items && Array.isArray(createSalesInvoiceDto.items) && createSalesInvoiceDto.items.length > 0) {
-        const items = await Promise.all(
+        items = await Promise.all(
           createSalesInvoiceDto.items.map(async (item) => {
           // Tính tổng giá tiền = (giá đơn vị * số lượng) - số tiền giảm giá
           const totalPrice =
@@ -184,6 +197,24 @@ export class SalesService {
         }
       }
 
+      // 🆕 Tạo phiếu giao hàng nếu có thông tin giao hàng
+      if (createSalesInvoiceDto.delivery_log) {
+        try {
+          await this.createDeliveryLog(
+            createSalesInvoiceDto.delivery_log,
+            savedInvoice.id,
+            items, // Truyền danh sách items đã lưu
+            userId,
+            queryRunner.manager,
+          );
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          this.logger.warn(`⚠️ Không thể tạo phiếu giao hàng: ${errorMessage}`);
+          // Không throw error để không làm gián đoạn luồng tạo đơn
+          // Phiếu giao hàng có thể tạo sau
+        }
+      }
+
       await queryRunner.commitTransaction();
       this.logger.log(`Đã commit transaction cho hóa đơn ${savedInvoice.id}`);
 
@@ -263,6 +294,7 @@ export class SalesService {
       .leftJoinAndSelect('invoice.customer', 'customer')
       .leftJoinAndSelect('invoice.season', 'season')
       .leftJoinAndSelect('invoice.rice_crop', 'rice_crop')
+      .leftJoinAndSelect('invoice.delivery_logs', 'delivery_logs')
       .leftJoin('invoice.creator', 'creator')
       .addSelect(['creator.id', 'creator.account'])
       .where('invoice.id = :id', { id })
@@ -665,9 +697,342 @@ export class SalesService {
   }
 
 
+
   /**
    * Sinh mã hóa đơn tự động dựa trên thời gian hiện tại
    * Định dạng: HD{YYYYMMDD}{HHMMSS}{RANDOM}
    * Ví dụ: HD20231127103045123
    */
+
+  /**
+   * Tạo phiếu giao hàng cho hóa đơn
+   * @param deliveryData - Dữ liệu phiếu giao hàng từ DTO
+   * @param invoiceId - ID hóa đơn
+   * @param savedItems - Danh sách items đã lưu trong hóa đơn
+   * @param userId - ID người tạo
+   * @param manager - Transaction manager
+   */
+  private async createDeliveryLog(
+    deliveryData: any,
+    invoiceId: number,
+    savedItems: SalesInvoiceItem[],
+    userId: number,
+    manager: any,
+  ): Promise<void> {
+    try {
+      // Tính tổng chi phí nếu không có
+      const totalCost = deliveryData.total_cost || 
+        (Number(deliveryData.fuel_cost || 0) + 
+         Number(deliveryData.driver_cost || 0) + 
+         Number(deliveryData.other_costs || 0));
+
+      // Tạo delivery log
+      const deliveryLog = manager.create(DeliveryLog, {
+        invoice_id: invoiceId,
+        delivery_date: deliveryData.delivery_date,
+        delivery_start_time: deliveryData.delivery_start_time,
+        distance_km: deliveryData.distance_km,
+        fuel_cost: deliveryData.fuel_cost || 0,
+        driver_cost: deliveryData.driver_cost || 0,
+        other_costs: deliveryData.other_costs || 0,
+        total_cost: totalCost,
+        driver_name: deliveryData.driver_name,
+        vehicle_plate: deliveryData.vehicle_plate,
+        delivery_address: deliveryData.delivery_address,
+        status: deliveryData.status || DeliveryStatus.PENDING,
+        notes: deliveryData.notes,
+        created_by: userId,
+      });
+
+      const savedDeliveryLog = await manager.save(deliveryLog);
+      this.logger.log(`✅ Đã tạo phiếu giao hàng #${savedDeliveryLog.id} cho hóa đơn #${invoiceId}`);
+
+      // Tạo delivery log items nếu có danh sách sản phẩm cần giao
+      if (deliveryData.items && Array.isArray(deliveryData.items) && deliveryData.items.length > 0) {
+        const deliveryItems = await Promise.all(
+          deliveryData.items.map(async (item: any) => {
+            // Frontend gửi sales_invoice_item_id là INDEX (0, 1, 2...)
+            // Cần map sang item thực tế trong savedItems
+            const itemIndex = item.sales_invoice_item_id;
+            const invoiceItem = savedItems[itemIndex];
+
+            if (!invoiceItem) {
+              this.logger.warn(`⚠️ Không tìm thấy item tại index ${itemIndex} trong hóa đơn`);
+              return null;
+            }
+
+            // Lấy thông tin sản phẩm
+            const product = await manager.findOne(Product, {
+              where: { id: invoiceItem.product_id },
+            });
+
+            return manager.create(DeliveryLogItem, {
+              delivery_log_id: savedDeliveryLog.id,
+              sales_invoice_item_id: invoiceItem.id, // Dùng ID thực tế của item đã lưu
+              product_id: invoiceItem.product_id,
+              product_name: invoiceItem.product_name || product?.name || 'Unknown',
+              quantity_delivered: item.quantity_delivered,
+              unit: product?.unit,
+              notes: item.notes,
+            });
+          })
+        );
+
+        // Lọc bỏ null và lưu
+        const validItems = deliveryItems.filter((item) => item !== null);
+        if (validItems.length > 0) {
+          await manager.save(validItems);
+          this.logger.log(`✅ Đã tạo ${validItems.length} sản phẩm trong phiếu giao hàng`);
+        }
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`❌ Lỗi khi tạo phiếu giao hàng: ${errorMessage}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Tạo phiếu giao hàng standalone (không kèm tạo hóa đơn)
+   * @param createDeliveryLogDto - Dữ liệu tạo phiếu giao hàng
+   * @param userId - ID người tạo
+   * @returns Phiếu giao hàng đã tạo
+   */
+  async createStandaloneDeliveryLog(
+    createDeliveryLogDto: CreateDeliveryLogDto,
+    userId: number,
+  ) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // Tạo object delivery log
+      const deliveryLogData: any = {
+        delivery_date: createDeliveryLogDto.delivery_date,
+        total_cost: createDeliveryLogDto.total_cost || 0,
+        status: createDeliveryLogDto.status || DeliveryStatus.PENDING,
+        created_by: userId,
+        season_id: createDeliveryLogDto.season_id,
+      };
+
+      // Thêm các fields optional
+      if (createDeliveryLogDto.invoice_id) {
+        deliveryLogData.invoice_id = createDeliveryLogDto.invoice_id;
+      }
+      if (createDeliveryLogDto.delivery_start_time) {
+        deliveryLogData.delivery_start_time = createDeliveryLogDto.delivery_start_time;
+      }
+      if (createDeliveryLogDto.delivery_address) {
+        deliveryLogData.delivery_address = createDeliveryLogDto.delivery_address;
+      }
+      if (createDeliveryLogDto.receiver_name) {
+        deliveryLogData.receiver_name = createDeliveryLogDto.receiver_name;
+      }
+      if (createDeliveryLogDto.receiver_phone) {
+        deliveryLogData.receiver_phone = createDeliveryLogDto.receiver_phone;
+      }
+      if (createDeliveryLogDto.delivery_notes) {
+        deliveryLogData.delivery_notes = createDeliveryLogDto.delivery_notes;
+      }
+      if (createDeliveryLogDto.driver_name) {
+        deliveryLogData.driver_name = createDeliveryLogDto.driver_name;
+      }
+      if (createDeliveryLogDto.vehicle_number) {
+        deliveryLogData.vehicle_number = createDeliveryLogDto.vehicle_number;
+      }
+
+      const deliveryLog = this.deliveryLogRepository.create(deliveryLogData);
+      const savedDeliveryLog: any = await queryRunner.manager.save(deliveryLog);
+
+      // Tạo delivery items nếu có
+      if (createDeliveryLogDto.items && createDeliveryLogDto.items.length > 0) {
+        const deliveryItems = createDeliveryLogDto.items.map((item) => {
+          const itemData: any = {
+            delivery_log_id: savedDeliveryLog.id,
+            quantity: item.quantity,
+          };
+          
+          if (item.sales_invoice_item_id) {
+            itemData.sales_invoice_item_id = item.sales_invoice_item_id;
+          }
+          if (item.product_id) {
+            itemData.product_id = item.product_id;
+          }
+          if (item.unit) {
+            itemData.unit = item.unit;
+          }
+          
+          return this.deliveryLogItemRepository.create(itemData);
+        });
+
+        await queryRunner.manager.save(deliveryItems);
+      }
+
+      await queryRunner.commitTransaction();
+
+      // Load lại với relations
+      return this.deliveryLogRepository.findOne({
+        where: { id: savedDeliveryLog.id },
+        relations: ['invoice', 'items', 'items.product'],
+      });
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`❌ Lỗi khi tạo phiếu giao hàng standalone: ${errorMessage}`);
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  /**
+   * Lấy danh sách phiếu giao hàng với phân trang và filter
+   */
+  async findAllDeliveryLogs(params: {
+    page: number;
+    limit: number;
+    invoiceId?: number;
+    status?: string;
+  }) {
+    const { page, limit, invoiceId, status } = params;
+    const skip = (page - 1) * limit;
+
+    const queryBuilder = this.deliveryLogRepository
+      .createQueryBuilder('delivery_log')
+      .leftJoinAndSelect('delivery_log.invoice', 'invoice')
+      .leftJoinAndSelect('invoice.customer', 'customer')
+      .leftJoinAndSelect('delivery_log.season', 'season')
+      .leftJoinAndSelect('delivery_log.items', 'items')
+      .leftJoinAndSelect('items.product', 'product')
+      .orderBy('delivery_log.created_at', 'DESC');
+
+    // Filter theo invoice
+    if (invoiceId) {
+      queryBuilder.andWhere('delivery_log.invoice_id = :invoiceId', { invoiceId });
+    }
+
+    // Filter theo status
+    if (status) {
+      queryBuilder.andWhere('delivery_log.status = :status', { status });
+    }
+
+    const [items, total] = await queryBuilder
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  /**
+   * Lấy chi tiết phiếu giao hàng theo ID
+   */
+  async findOneDeliveryLog(id: number) {
+    const deliveryLog = await this.deliveryLogRepository.findOne({
+      where: { id },
+      relations: [
+        'invoice',
+        'invoice.customer',
+        'season',
+        'items',
+        'items.product',
+        'items.sales_invoice_item',
+      ],
+    });
+
+    if (!deliveryLog) {
+      throw new Error(`Không tìm thấy phiếu giao hàng với ID ${id}`);
+    }
+
+    return deliveryLog;
+  }
+
+  /**
+   * Cập nhật phiếu giao hàng
+   */
+  async updateDeliveryLog(
+    id: number,
+    updateData: Partial<CreateDeliveryLogDto>,
+  ) {
+    const deliveryLog = await this.findOneDeliveryLog(id);
+
+    // Cập nhật thông tin cơ bản
+    Object.assign(deliveryLog, {
+      delivery_date: updateData.delivery_date || deliveryLog.delivery_date,
+      delivery_start_time: updateData.delivery_start_time || deliveryLog.delivery_start_time,
+      delivery_address: updateData.delivery_address || deliveryLog.delivery_address,
+      receiver_name: updateData.receiver_name || deliveryLog.receiver_name,
+      receiver_phone: updateData.receiver_phone || deliveryLog.receiver_phone,
+      delivery_notes: updateData.delivery_notes || deliveryLog.delivery_notes,
+      driver_name: updateData.driver_name || deliveryLog.driver_name,
+      vehicle_number: updateData.vehicle_number || deliveryLog.vehicle_number,
+      total_cost: updateData.total_cost !== undefined ? updateData.total_cost : deliveryLog.total_cost,
+      status: updateData.status || deliveryLog.status,
+      season_id: updateData.season_id !== undefined ? updateData.season_id : deliveryLog.season_id,
+    });
+
+    await this.deliveryLogRepository.save(deliveryLog);
+
+    // Cập nhật items nếu có
+    if (updateData.items) {
+      // Xóa items cũ
+      await this.deliveryLogItemRepository.delete({ delivery_log_id: id });
+
+      // Tạo items mới
+      const newItems = updateData.items.map((item) => {
+        const itemData: any = {
+          delivery_log_id: id,
+          quantity: item.quantity,
+        };
+        
+        if (item.sales_invoice_item_id) {
+          itemData.sales_invoice_item_id = item.sales_invoice_item_id;
+        }
+        if (item.product_id) {
+          itemData.product_id = item.product_id;
+        }
+        if (item.unit) {
+          itemData.unit = item.unit;
+        }
+        
+        return this.deliveryLogItemRepository.create(itemData);
+      });
+
+      await this.deliveryLogItemRepository.save(newItems as any);
+    }
+
+    return this.findOneDeliveryLog(id);
+  }
+
+  /**
+   * Xóa phiếu giao hàng
+   */
+  async removeDeliveryLog(id: number) {
+    const deliveryLog = await this.findOneDeliveryLog(id);
+
+    // Xóa items trước
+    await this.deliveryLogItemRepository.delete({ delivery_log_id: id });
+
+    // Xóa delivery log
+    await this.deliveryLogRepository.remove(deliveryLog);
+
+    return { message: 'Đã xóa phiếu giao hàng thành công' };
+  }
+
+  /**
+   * Cập nhật trạng thái phiếu giao hàng
+   */
+  async updateDeliveryStatus(id: number, status: string) {
+    const deliveryLog = await this.findOneDeliveryLog(id);
+    deliveryLog.status = status as DeliveryStatus;
+    await this.deliveryLogRepository.save(deliveryLog);
+    return deliveryLog;
+  }
 }

@@ -50,6 +50,9 @@ export class RiceCropProfitSummaryDto {
 
   @ApiProperty({ description: 'Tổng giá trị quà tặng từ các đơn hàng' })
   gift_value_from_invoices!: number;
+
+  @ApiProperty({ description: 'Tổng chi phí giao hàng', example: 500000, required: false })
+  delivery_cost?: number;
 }
 
 /**

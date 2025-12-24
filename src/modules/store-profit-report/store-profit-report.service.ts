@@ -81,8 +81,12 @@ export class StoreProfitReportService {
 
         totalCOGS += itemCOGS;
 
+        const productName = item.product?.trade_name 
+          ? (item.product.volume ? `${item.product.trade_name} (${item.product.volume})` : item.product.trade_name)
+          : (item.product?.name || 'Unknown');
+
         itemDetails.push({
-          product_name: item.product?.name || 'Unknown',
+          product_name: productName,
           quantity: item.quantity,
           unit_price: item.unit_price,
           avg_cost: avgCost,
@@ -104,7 +108,14 @@ export class StoreProfitReportService {
       // Tính lợi nhuận ròng (sau khi trừ quà tặng)
       const netProfit = grossProfit - giftValue;
 
-      this.logger.log(`✅ Tính toán lợi nhuận đơn hàng #${invoiceId}: Gross ${grossProfit.toLocaleString()} đ, Gift ${giftValue.toLocaleString()} đ${giftDescription ? ` (${giftDescription})` : ''}, Net ${netProfit.toLocaleString()} đ`);
+      // Lấy chi phí giao hàng từ delivery_logs
+      const deliveryLog = await this.deliveryLogRepository.findOne({
+        where: { invoice_id: invoiceId },
+      });
+      
+      const deliveryCost = deliveryLog ? Number(deliveryLog.total_cost || 0) : 0;
+
+      this.logger.log(`✅ Tính toán lợi nhuận đơn hàng #${invoiceId}: Gross ${grossProfit.toLocaleString()} đ, Gift ${giftValue.toLocaleString()} đ${giftDescription ? ` (${giftDescription})` : ''}, Delivery ${deliveryCost.toLocaleString()} đ, Net ${netProfit.toLocaleString()} đ`);
 
       return {
         invoice_id: invoice.id,
@@ -117,6 +128,7 @@ export class StoreProfitReportService {
         gross_margin: Math.round(margin * 100) / 100,
         gift_description: giftDescription,
         gift_value: giftValue,
+        ...(deliveryCost > 0 && { delivery_cost: deliveryCost }),
         net_profit: netProfit,
         item_details: itemDetails,
       };
@@ -232,9 +244,13 @@ export class StoreProfitReportService {
             // Track product profit
             const productId = item.product_id;
             if (!productProfitMap.has(productId)) {
+              const productName = item.product?.trade_name 
+                ? (item.product.volume ? `${item.product.trade_name} (${item.product.volume})` : item.product.trade_name)
+                : (item.product?.name || 'Unknown');
+
               productProfitMap.set(productId, {
                 id: productId,
-                name: item.product?.name || 'Unknown',
+                name: productName,
                 quantity: 0,
                 revenue: 0,
                 profit: 0,
@@ -299,10 +315,12 @@ export class StoreProfitReportService {
         seasonId,
       );
 
+
       const totalFarmServiceCosts = farmServiceCostsBreakdown.reduce((sum, c) => sum + c.amount, 0);
       const totalOperatingCosts = totalFarmServiceCosts + (deliveryStats?.total_delivery_cost || 0);
       
-      const netProfit = grossProfit - totalFarmServiceCosts;
+      // Lợi nhuận ròng = Lợi nhuận gộp - Chi phí dịch vụ - Chi phí giao hàng
+      const netProfit = grossProfit - totalOperatingCosts;
       const netMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
 
       // Top customers
@@ -422,22 +440,35 @@ export class StoreProfitReportService {
   ): Promise<DeliveryStatsDto | undefined> {
     try {
       // Lấy tất cả delivery logs trong khoảng thời gian
-      const where: any = {};
+      let where: any = {};
       
       if (startDate && endDate) {
         where.delivery_date = Between(startDate, endDate);
       }
 
-      // Nếu có seasonId, lấy invoice_ids trong season
+      // Nếu có seasonId, lấy logs từ hóa đơn trong season HOẶC logs gán trực tiếp cho season
       if (seasonId) {
         const invoices = await this.salesInvoiceRepository.find({
           where: { season_id: seasonId },
           select: ['id'],
         });
         const invoiceIds = invoices.map(inv => inv.id);
+        
+        const orConditions: any[] = [{ season_id: seasonId }];
         if (invoiceIds.length > 0) {
-          where.invoice_id = In(invoiceIds);
+          orConditions.push({ invoice_id: In(invoiceIds) });
         }
+
+        // Áp dụng bộ lọc cho từng nhánh OR
+        const conditions = orConditions.map(cond => {
+          const combined = { ...cond };
+          if (startDate && endDate) {
+            combined.delivery_date = Between(startDate, endDate);
+          }
+          return combined;
+        });
+        
+        where = conditions;
       }
 
       const deliveries = await this.deliveryLogRepository.find({ where });
@@ -609,6 +640,12 @@ export class StoreProfitReportService {
           ? (invoiceProfit / invoice.final_amount) * 100 
           : 0;
 
+        // Lấy chi phí giao hàng cho hóa đơn này
+        const deliveryLog = await this.deliveryLogRepository.findOne({
+          where: { invoice_id: invoice.id },
+        });
+        const deliveryCost = deliveryLog ? Number(deliveryLog.total_cost || 0) : 0;
+
         totalRevenue += invoice.final_amount;
         totalCost += invoiceCOGS;
         totalProfit += invoiceProfit;
@@ -622,6 +659,7 @@ export class StoreProfitReportService {
           cost: invoiceCOGS,
           profit: invoiceProfit,
           margin: Math.round(invoiceMargin * 100) / 100,
+          ...(deliveryCost > 0 && { delivery_cost: deliveryCost }),
           season_id: invoice.season_id,
           season_name: invoice.season?.name,
         });
@@ -684,6 +722,26 @@ export class StoreProfitReportService {
 
       this.logger.log(`✅ Báo cáo khách hàng #${customerId}: Lifetime ${allInvoices.length} đơn, Filtered ${invoices.length} đơn`);
 
+      // Tính tổng delivery cost cho lifetime
+      const allInvoiceIds = allInvoices.map(inv => inv.id);
+      let lifetimeDeliveryCost = 0;
+      if (allInvoiceIds.length > 0) {
+        const allDeliveryLogs = await this.deliveryLogRepository.find({
+          where: { invoice_id: In(allInvoiceIds) },
+        });
+        lifetimeDeliveryCost = allDeliveryLogs.reduce((sum, log) => sum + Number(log.total_cost || 0), 0);
+      }
+
+      // Tính tổng delivery cost cho filtered invoices
+      const filteredInvoiceIds = invoices.map(inv => inv.id);
+      let filteredDeliveryCost = 0;
+      if (filteredInvoiceIds.length > 0) {
+        const filteredDeliveryLogs = await this.deliveryLogRepository.find({
+          where: { invoice_id: In(filteredInvoiceIds) },
+        });
+        filteredDeliveryCost = filteredDeliveryLogs.reduce((sum, log) => sum + Number(log.total_cost || 0), 0);
+      }
+
       return {
         customer_id: customerId,
         customer_name: customerName,
@@ -695,6 +753,7 @@ export class StoreProfitReportService {
           total_cost: Math.round(lifetimeCost * 100) / 100,
           total_profit: Math.round(lifetimeProfit * 100) / 100,
           avg_margin: Math.round(lifetimeMargin * 100) / 100,
+          ...(lifetimeDeliveryCost > 0 && { delivery_cost: Math.round(lifetimeDeliveryCost * 100) / 100 }),
         },
         current_season_summary: currentSeasonSummary,
         summary: {
@@ -703,6 +762,7 @@ export class StoreProfitReportService {
           total_cost: Math.round(totalCost * 100) / 100,
           total_profit: Math.round(totalProfit * 100) / 100,
           avg_margin: Math.round(avgMargin * 100) / 100,
+          ...(filteredDeliveryCost > 0 && { delivery_cost: Math.round(filteredDeliveryCost * 100) / 100 }),
         },
         invoices: invoiceDetails,
 
@@ -842,6 +902,16 @@ export class StoreProfitReportService {
       });
       const totalFarmServiceCosts = farmServiceCosts.reduce((sum, cost) => sum + Number(cost.amount), 0);
 
+      // Tính tổng chi phí giao hàng cho tất cả hóa đơn của ruộng lúa
+      const invoiceIds = invoices.map(inv => inv.id);
+      let totalDeliveryCost = 0;
+      if (invoiceIds.length > 0) {
+        const deliveryLogs = await this.deliveryLogRepository.find({
+          where: { invoice_id: In(invoiceIds) },
+        });
+        totalDeliveryCost = deliveryLogs.reduce((sum, log) => sum + Number(log.total_cost || 0), 0);
+      }
+
       // 4. Tính Net Profit của vụ lúa (chỉ tính chi phí dịch vụ của cửa hàng)
       // Net Profit = Gross Profit - Farm Service Costs
       const netProfit = totalProfit - totalFarmServiceCosts;
@@ -851,7 +921,7 @@ export class StoreProfitReportService {
         ? (totalProfit / totalRevenue) * 100 
         : 0; // Đây là Gross Margin trung bình
 
-      this.logger.log(`✅ Báo cáo mảnh ruộng #${riceCropId}: Gross ${totalProfit}, Service Cost ${totalFarmServiceCosts}, Net ${netProfit}`);
+      this.logger.log(`✅ Báo cáo mảnh ruộng #${riceCropId}: Gross ${totalProfit}, Service Cost ${totalFarmServiceCosts}, Delivery ${totalDeliveryCost}, Net ${netProfit}`);
 
       return {
         rice_crop_id: riceCropId,
@@ -868,6 +938,9 @@ export class StoreProfitReportService {
           
           // Chi phí dịch vụ/quà tặng của cửa hàng
           farm_service_costs: Math.round(totalFarmServiceCosts * 100) / 100,
+
+          // Chi phí giao hàng
+          ...(totalDeliveryCost > 0 && { delivery_cost: Math.round(totalDeliveryCost * 100) / 100 }),
 
           // Lợi nhuận ròng (Gross Profit - Farm Service Costs)
           net_profit: Math.round(netProfit * 100) / 100,

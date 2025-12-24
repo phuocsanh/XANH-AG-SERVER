@@ -14,6 +14,7 @@ import { Season } from './season.entity';
 import { Customer } from './customer.entity';
 import { RiceCrop } from './rice-crop.entity';
 import { User } from './users.entity';
+import { DeliveryLog } from './delivery-log.entity';
 
 /**
  * Enum định nghĩa các trạng thái của hóa đơn bán hàng
@@ -216,4 +217,8 @@ export class SalesInvoice {
   /** Danh sách các item trong hóa đơn */
   @OneToMany(() => SalesInvoiceItem, (item) => item.invoice)
   items?: SalesInvoiceItem[];
+
+  /** Danh sách các phiếu giao hàng của hóa đơn này */
+  @OneToMany(() => DeliveryLog, (log) => log.invoice)
+  delivery_logs?: DeliveryLog[];
 }

@@ -1,7 +1,9 @@
-
+/**
+ * Enum định nghĩa các trạng thái của phiếu giao hàng
+ */
 export enum DeliveryStatus {
-  PENDING = 'pending',
-  IN_TRANSIT = 'in_transit',
-  COMPLETED = 'completed',
-  FAILED = 'failed',
+  PENDING = 'pending',        // Chờ giao
+  COMPLETED = 'completed',    // Hoàn thành
+  FAILED = 'failed',          // Thất bại
+  CANCELLED = 'cancelled',    // Hủy
 }

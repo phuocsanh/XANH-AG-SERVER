@@ -1,6 +1,7 @@
 import { IsNumber, IsString, IsOptional, IsArray, ValidateNested, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
 import { SalesInvoiceStatus } from '../../../entities/sales-invoices.entity';
+import { CreateDeliveryLogDto } from './delivery-log.dto';
 
 /**
  * DTO (Data Transfer Object) dùng để tạo chi tiết hóa đơn bán hàng
@@ -121,4 +122,10 @@ export class CreateSalesInvoiceDto {
   @ValidateNested({ each: true })
   @Type(() => CreateSalesInvoiceItemDto)
   items!: CreateSalesInvoiceItemDto[];
+
+  /** Thông tin giao hàng (tùy chọn - tạo phiếu giao hàng cùng lúc) */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CreateDeliveryLogDto)
+  delivery_log?: CreateDeliveryLogDto;
 }

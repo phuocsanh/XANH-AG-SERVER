@@ -25,6 +25,9 @@ export class CustomerInvoiceDto {
   @ApiProperty({ description: 'Tỷ suất lợi nhuận (%)', example: 17.4 })
   margin!: number;
 
+  @ApiProperty({ description: 'Chi phí giao hàng', example: 50000, required: false })
+  delivery_cost?: number;
+
   @ApiProperty({ description: 'ID mùa vụ', required: false })
   season_id?: number | undefined;
 
@@ -90,6 +93,7 @@ export class CustomerProfitReportDto {
     total_cost: number;
     total_profit: number;
     avg_margin: number;
+    delivery_cost?: number;
   };
 
   @ApiProperty({ 
@@ -113,6 +117,7 @@ export class CustomerProfitReportDto {
     total_cost: number;
     total_profit: number;
     avg_margin: number;
+    delivery_cost?: number;
   };
 
   @ApiProperty({ 
@@ -131,6 +136,7 @@ export class CustomerProfitReportDto {
     total_cost: number;
     total_profit: number;
     avg_margin: number;
+    delivery_cost?: number;
   };
 
   @ApiProperty({ description: 'Danh sách đơn hàng', type: [CustomerInvoiceDto] })
