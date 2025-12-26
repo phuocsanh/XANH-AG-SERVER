@@ -10,6 +10,7 @@ import * as admin from 'firebase-admin';
 export class FirebaseService implements OnModuleInit {
   private readonly logger = new Logger(FirebaseService.name);
   private remoteConfig: admin.remoteConfig.RemoteConfig | null = null;
+  private messaging: admin.messaging.Messaging | null = null;
   private cachedKeys: Map<number, { key: string; timestamp: number }> = new Map();
   private readonly CACHE_DURATION = 12 * 60 * 60 * 1000; // 12 giờ
 
@@ -33,6 +34,7 @@ export class FirebaseService implements OnModuleInit {
       });
 
       this.remoteConfig = admin.remoteConfig();
+      this.messaging = admin.messaging();
       this.logger.log('✅ Firebase Admin SDK initialized successfully');
     } catch (error) {
       this.logger.error(`❌ Failed to initialize Firebase: ${error}`);
@@ -101,6 +103,31 @@ export class FirebaseService implements OnModuleInit {
     }
 
     throw new Error(`Could not retrieve API Key #${keyIndex} from Firebase Remote Config. Please check Firebase Console.`);
+  }
+
+  /**
+   * Gửi thông báo đẩy tới một thiết bị cụ thể qua FCM
+   */
+  async sendPushNotification(token: string, title: string, body: string, data?: any) {
+    if (!this.messaging) {
+      this.logger.error('❌ Firebase Messaging is not initialized!');
+      return;
+    }
+
+    try {
+      const message = {
+        notification: { title, body },
+        token: token,
+        data: data || {},
+      };
+
+      const response = await this.messaging.send(message);
+      this.logger.log(`🚀 Successfully sent notification: ${response}`);
+      return response;
+    } catch (error) {
+      this.logger.error(`❌ Error sending push notification: ${error}`);
+      throw error;
+    }
   }
 
   /**

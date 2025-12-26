@@ -62,6 +62,10 @@ export class UserProfile {
   @Column({ name: 'is_authentication', default: 0 })
   is_authentication!: number;
 
+  /** Token nhận thông báo trên điện thoại (FCM) */
+  @Column({ name: 'fcm_token', nullable: true, type: 'text' })
+  fcm_token?: string;
+
   /** Thời gian tạo profile người dùng */
   @CreateDateColumn({ name: 'created_at' })
   created_at!: Date;

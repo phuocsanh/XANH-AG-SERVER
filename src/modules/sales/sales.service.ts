@@ -19,6 +19,7 @@ import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper'
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 import { DebtNoteService } from '../debt-note/debt-note.service';
 import { DeliveryStatus } from './enums/delivery-status.enum';
+import { DeliveryNotificationService } from './delivery-notification.service';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến quản lý bán hàng
@@ -48,6 +49,7 @@ export class SalesService {
     private deliveryLogItemRepository: Repository<DeliveryLogItem>,
     private debtNoteService: DebtNoteService,
     private dataSource: DataSource,
+    private deliveryNotificationService: DeliveryNotificationService,
   ) {}
 
   /**
@@ -853,6 +855,11 @@ export class SalesService {
       const deliveryLog = this.deliveryLogRepository.create(deliveryLogData);
       const savedDeliveryLog: any = await queryRunner.manager.save(deliveryLog);
 
+      // Đặt lịch thông báo cho phiếu giao hàng
+      if (savedDeliveryLog.status === DeliveryStatus.PENDING) {
+        this.deliveryNotificationService.scheduleNotification(savedDeliveryLog);
+      }
+
       // Tạo delivery items nếu có
       if (createDeliveryLogDto.items && createDeliveryLogDto.items.length > 0) {
         const deliveryItems = await Promise.all(
@@ -1009,6 +1016,9 @@ export class SalesService {
 
     await this.deliveryLogRepository.save(deliveryLog);
 
+    // Cập nhật lịch thông báo
+    await this.deliveryNotificationService.onDeliveryLogUpdated(deliveryLog);
+
     // Cập nhật items nếu có
     if (updateData.items) {
       // Xóa items cũ
@@ -1061,6 +1071,9 @@ export class SalesService {
   async removeDeliveryLog(id: number) {
     const deliveryLog = await this.findOneDeliveryLog(id);
 
+    // Hủy lịch thông báo
+    await this.deliveryNotificationService.onDeliveryLogDeleted(id);
+
     // Xóa items trước
     await this.deliveryLogItemRepository.delete({ delivery_log_id: id });
 
@@ -1077,6 +1090,10 @@ export class SalesService {
     const deliveryLog = await this.findOneDeliveryLog(id);
     deliveryLog.status = status as DeliveryStatus;
     await this.deliveryLogRepository.save(deliveryLog);
+    
+    // Cập nhật lịch thông báo
+    await this.deliveryNotificationService.onDeliveryLogUpdated(deliveryLog);
+    
     return deliveryLog;
   }
 }

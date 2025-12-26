@@ -13,6 +13,7 @@ import { SalesInvoice } from './sales-invoices.entity';
 import { DeliveryStatus } from '../modules/sales/enums/delivery-status.enum';
 import { DeliveryLogItem } from './delivery-log-item.entity';
 import { Season } from './season.entity';
+import { User } from './users.entity';
 
 /**
  * Entity biểu diễn lịch sử giao hàng
@@ -82,7 +83,12 @@ export class DeliveryLog {
   @Column({ name: 'total_cost', type: 'decimal', precision: 15, scale: 2 })
   total_cost!: number;
 
-  /** Tên tài xế */
+  /** ID tài xế (nếu chọn từ hệ thống) */
+  @ApiProperty({ description: 'ID tài xế (từ danh sách user)', example: 1, required: false })
+  @Column({ name: 'driver_id', nullable: true })
+  driver_id?: number;
+
+  /** Tên tài xế (hiển thị hoặc nhập tay) */
   @ApiProperty({ description: 'Tên tài xế', example: 'Nguyễn Văn B', required: false })
   @Column({ name: 'driver_name', length: 255, nullable: true })
   driver_name?: string;
@@ -154,4 +160,9 @@ export class DeliveryLog {
   /** Danh sách sản phẩm trong phiếu giao hàng */
   @OneToMany(() => DeliveryLogItem, (item) => item.delivery_log)
   items?: DeliveryLogItem[];
+
+  /** Thông tin người giao hàng (Tài xế) */
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'driver_id' })
+  driver?: User;
 }

@@ -10,6 +10,10 @@ import { SalesService } from './sales.service';
 import { SalesController } from './sales.controller';
 import { DeliveryController } from './delivery.controller';
 import { DebtNoteService } from '../debt-note/debt-note.service';
+import { FirebaseModule } from '../firebase/firebase.module';
+import { User } from '../../entities/users.entity';
+import { UserProfile } from '../../entities/user-profiles.entity';
+import { DeliveryNotificationService } from './delivery-notification.service';
 
 /**
  * SalesModule - Module quản lý bán hàng
@@ -33,10 +37,13 @@ import { DebtNoteService } from '../debt-note/debt-note.service';
       DebtNote, // Entity phiếu công nợ (để tự động tạo theo mùa vụ)
       DeliveryLog, // Entity phiếu giao hàng
       DeliveryLogItem, // Entity chi tiết sản phẩm trong phiếu giao hàng
+      User, // Entity người dùng (tài xế)
+      UserProfile, // Entity profile người dùng (fcm_token)
     ]),
+    FirebaseModule,
   ],
   controllers: [SalesController, DeliveryController], // Controllers xử lý các request
-  providers: [SalesService, DebtNoteService], // Service xử lý logic nghiệp vụ bán hàng và công nợ
+  providers: [SalesService, DebtNoteService, DeliveryNotificationService], // Service xử lý logic nghiệp vụ bán hàng và công nợ
   exports: [SalesService], // Xuất SalesService để các module khác có thể sử dụng
 })
 export class SalesModule {}

@@ -102,6 +102,12 @@ export class CreateDeliveryLogDto {
   @IsString({ message: 'Tên tài xế phải là chuỗi' })
   driver_name?: string;
 
+  /** ID tài xế (nếu chọn từ hệ thống) */
+  @ApiProperty({ description: 'ID tài xế (từ danh sách user)', example: 1, required: false })
+  @IsOptional()
+  @IsNumber({}, { message: 'ID tài xế phải là số' })
+  driver_id?: number;
+
   /** Số xe (biển số) */
   @ApiProperty({ description: 'Số xe (biển số)', example: '67A-12345', required: false })
   @IsOptional()
@@ -219,6 +225,12 @@ export class UpdateDeliveryLogDto {
   @IsOptional()
   @IsString({ message: 'Tên tài xế phải là chuỗi' })
   driver_name?: string;
+
+  /** ID tài xế (nếu chọn từ hệ thống) */
+  @ApiProperty({ description: 'ID tài xế (từ danh sách user)', example: 1, required: false })
+  @IsOptional()
+  @IsNumber({}, { message: 'ID tài xế phải là số' })
+  driver_id?: number;
 
   /** Biển số xe */
   @ApiProperty({ description: 'Biển số xe', example: '67A-12345', required: false })
