@@ -33,9 +33,9 @@ export class DeliveryLogItem {
   delivery_log?: DeliveryLog;
 
   /** ID item trong hóa đơn bán hàng */
-  @ApiProperty({ description: 'ID item trong hóa đơn', example: 10 })
-  @Column({ name: 'sales_invoice_item_id' })
-  sales_invoice_item_id!: number;
+  @ApiProperty({ description: 'ID item trong hóa đơn', example: 10, required: false })
+  @Column({ name: 'sales_invoice_item_id', nullable: true })
+  sales_invoice_item_id?: number;
 
   /** Thông tin item hóa đơn */
   @ManyToOne(() => SalesInvoiceItem)

@@ -7,7 +7,6 @@ import {
   Param,
   Delete,
   UseGuards,
-  Query,
 } from '@nestjs/common';
 import { SalesService } from './sales.service';
 import { CreateDeliveryLogDto } from './dto/delivery-log.dto';
@@ -41,34 +40,14 @@ export class DeliveryController {
   }
 
   /**
-   * Lấy danh sách tất cả phiếu giao hàng với phân trang
-   * @param page - Trang hiện tại (mặc định: 1)
-   * @param limit - Số bản ghi mỗi trang (mặc định: 20)
-   * @param invoiceId - Lọc theo hóa đơn (optional)
-   * @param status - Lọc theo trạng thái (optional)
+   * Tìm kiếm phiếu giao hàng với phân trang (POST)
+   * @param searchDto - Điều kiện tìm kiếm
    * @returns Danh sách phiếu giao hàng với thông tin phân trang
    */
-  @Get()
+  @Post('search')
   @RequirePermissions('sales:read')
-  findAll(
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 20,
-    @Query('invoiceId') invoiceId?: number,
-    @Query('status') status?: string,
-  ) {
-    const params: any = {
-      page: Number(page),
-      limit: Number(limit),
-    };
-    
-    if (invoiceId) {
-      params.invoiceId = Number(invoiceId);
-    }
-    if (status) {
-      params.status = status;
-    }
-    
-    return this.salesService.findAllDeliveryLogs(params);
+  search(@Body() searchDto: any) {
+    return this.salesService.findAllDeliveryLogs(searchDto);
   }
 
   /**

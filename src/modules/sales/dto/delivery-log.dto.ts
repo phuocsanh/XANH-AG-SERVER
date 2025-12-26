@@ -36,6 +36,12 @@ export class CreateDeliveryLogItemDto {
   @IsOptional()
   @IsString({ message: 'Ghi chú phải là chuỗi' })
   notes?: string;
+
+  /** Tên sản phẩm (Trích xuất từ phía server nếu thiếu) */
+  @ApiProperty({ description: 'Tên sản phẩm (snapshot)', required: false })
+  @IsOptional()
+  @IsString({ message: 'Tên sản phẩm phải là chuỗi' })
+  product_name?: string;
 }
 
 /**
@@ -55,10 +61,10 @@ export class CreateDeliveryLogDto {
   delivery_date!: string;
 
   /** Giờ bắt đầu giao hàng */
-  @ApiProperty({ description: 'Giờ bắt đầu giao hàng', example: '08:00:00', required: false })
-  @IsOptional()
+  @ApiProperty({ description: 'Giờ bắt đầu giao hàng', example: '08:00:00', required: true })
+  @IsNotEmpty({ message: 'Giờ giao hàng không được để trống' })
   @IsString({ message: 'Giờ giao hàng phải là chuỗi' })
-  delivery_start_time?: string;
+  delivery_start_time!: string;
 
   /** ID mùa vụ (Dùng cho tạo độc lập) */
   @ApiProperty({ description: 'ID mùa vụ', example: 1, required: false })
@@ -107,6 +113,30 @@ export class CreateDeliveryLogDto {
   @IsOptional()
   @IsNumber({}, { message: 'Tổng chi phí phải là số' })
   total_cost?: number;
+
+  /** Khoảng cách (km) */
+  @ApiProperty({ description: 'Khoảng cách giao hàng (km)', example: 50, required: false })
+  @IsOptional()
+  @IsNumber({}, { message: 'Khoảng cách phải là số' })
+  distance_km?: number;
+
+  /** Chi phí xăng xe */
+  @ApiProperty({ description: 'Chi phí xăng xe', example: 150000, required: false })
+  @IsOptional()
+  @IsNumber({}, { message: 'Chi phí xăng xe phải là số' })
+  fuel_cost?: number;
+
+  /** Chi phí tài xế */
+  @ApiProperty({ description: 'Chi phí tài xế', example: 50000, required: false })
+  @IsOptional()
+  @IsNumber({}, { message: 'Chi phí tài xế phải là số' })
+  driver_cost?: number;
+
+  /** Chi phí khác */
+  @ApiProperty({ description: 'Chi phí khác', example: 20000, required: false })
+  @IsOptional()
+  @IsNumber({}, { message: 'Chi phí khác phải là số' })
+  other_costs?: number;
 
   /** Trạng thái giao hàng */
   @ApiProperty({ 

@@ -207,11 +207,13 @@ export class SalesService {
             userId,
             queryRunner.manager,
           );
+          this.logger.log(`✅ Đã tạo phiếu giao hàng cho hóa đơn #${savedInvoice.id}`);
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          this.logger.warn(`⚠️ Không thể tạo phiếu giao hàng: ${errorMessage}`);
-          // Không throw error để không làm gián đoạn luồng tạo đơn
-          // Phiếu giao hàng có thể tạo sau
+          const errorStack = error instanceof Error ? error.stack : '';
+          this.logger.error(`❌ Lỗi khi tạo phiếu giao hàng: ${errorMessage}`, errorStack);
+          // Throw error để rollback transaction
+          throw new Error(`Không thể tạo phiếu giao hàng: ${errorMessage}`);
         }
       }
 
@@ -771,7 +773,7 @@ export class SalesService {
               sales_invoice_item_id: invoiceItem.id, // Dùng ID thực tế của item đã lưu
               product_id: invoiceItem.product_id,
               product_name: invoiceItem.product_name || product?.name || 'Unknown',
-              quantity_delivered: item.quantity_delivered,
+              quantity_delivered: item.quantity,
               unit: product?.unit,
               notes: item.notes,
             });
@@ -814,6 +816,11 @@ export class SalesService {
         status: createDeliveryLogDto.status || DeliveryStatus.PENDING,
         created_by: userId,
         season_id: createDeliveryLogDto.season_id,
+        // Bổ sung các trường chi phí
+        distance_km: createDeliveryLogDto.distance_km,
+        fuel_cost: createDeliveryLogDto.fuel_cost || 0,
+        driver_cost: createDeliveryLogDto.driver_cost || 0,
+        other_costs: createDeliveryLogDto.other_costs || 0,
       };
 
       // Thêm các fields optional
@@ -840,6 +847,7 @@ export class SalesService {
       }
       if (createDeliveryLogDto.vehicle_number) {
         deliveryLogData.vehicle_number = createDeliveryLogDto.vehicle_number;
+        deliveryLogData.vehicle_plate = createDeliveryLogDto.vehicle_number; // Map cả hai để tương thích
       }
 
       const deliveryLog = this.deliveryLogRepository.create(deliveryLogData);
@@ -847,24 +855,39 @@ export class SalesService {
 
       // Tạo delivery items nếu có
       if (createDeliveryLogDto.items && createDeliveryLogDto.items.length > 0) {
-        const deliveryItems = createDeliveryLogDto.items.map((item) => {
-          const itemData: any = {
-            delivery_log_id: savedDeliveryLog.id,
-            quantity: item.quantity,
-          };
-          
-          if (item.sales_invoice_item_id) {
-            itemData.sales_invoice_item_id = item.sales_invoice_item_id;
-          }
-          if (item.product_id) {
-            itemData.product_id = item.product_id;
-          }
-          if (item.unit) {
-            itemData.unit = item.unit;
-          }
-          
-          return this.deliveryLogItemRepository.create(itemData);
-        });
+        const deliveryItems = await Promise.all(
+          createDeliveryLogDto.items.map(async (item) => {
+            const itemData: any = {
+              delivery_log_id: savedDeliveryLog.id,
+              quantity_delivered: item.quantity,
+            };
+            
+            if (item.sales_invoice_item_id) {
+              itemData.sales_invoice_item_id = item.sales_invoice_item_id;
+            }
+            if (item.product_id) {
+              itemData.product_id = item.product_id;
+              
+              // Lấy tên sản phẩm nếu thiếu (để tránh lỗi NOT NULL)
+              if (!item.product_name) {
+                const product = await queryRunner.manager.findOne(Product, {
+                  where: { id: item.product_id },
+                });
+                itemData.product_name = product?.trade_name || product?.name || 'Unknown';
+              } else {
+                itemData.product_name = item.product_name;
+              }
+            }
+            if (item.unit) {
+              itemData.unit = item.unit;
+            }
+            if (item.notes) {
+              itemData.notes = item.notes;
+            }
+            
+            return this.deliveryLogItemRepository.create(itemData);
+          })
+        );
 
         await queryRunner.manager.save(deliveryItems);
       }
@@ -893,9 +916,11 @@ export class SalesService {
     page: number;
     limit: number;
     invoiceId?: number;
+    invoice_id?: number;
     status?: string;
   }) {
-    const { page, limit, invoiceId, status } = params;
+    const { page, limit, status } = params;
+    const invoiceId = params.invoiceId || params.invoice_id;
     const skip = (page - 1) * limit;
 
     const queryBuilder = this.deliveryLogRepository
@@ -917,17 +942,16 @@ export class SalesService {
       queryBuilder.andWhere('delivery_log.status = :status', { status });
     }
 
-    const [items, total] = await queryBuilder
+    const [data, total] = await queryBuilder
       .skip(skip)
       .take(limit)
       .getManyAndCount();
 
     return {
-      items,
+      data,
       total,
       page,
       limit,
-      totalPages: Math.ceil(total / limit),
     };
   }
 
@@ -973,7 +997,12 @@ export class SalesService {
       delivery_notes: updateData.delivery_notes || deliveryLog.delivery_notes,
       driver_name: updateData.driver_name || deliveryLog.driver_name,
       vehicle_number: updateData.vehicle_number || deliveryLog.vehicle_number,
+      vehicle_plate: updateData.vehicle_number || deliveryLog.vehicle_number || deliveryLog.vehicle_plate,
       total_cost: updateData.total_cost !== undefined ? updateData.total_cost : deliveryLog.total_cost,
+      distance_km: updateData.distance_km !== undefined ? updateData.distance_km : deliveryLog.distance_km,
+      fuel_cost: updateData.fuel_cost !== undefined ? updateData.fuel_cost : deliveryLog.fuel_cost,
+      driver_cost: updateData.driver_cost !== undefined ? updateData.driver_cost : deliveryLog.driver_cost,
+      other_costs: updateData.other_costs !== undefined ? updateData.other_costs : deliveryLog.other_costs,
       status: updateData.status || deliveryLog.status,
       season_id: updateData.season_id !== undefined ? updateData.season_id : deliveryLog.season_id,
     });
@@ -986,24 +1015,39 @@ export class SalesService {
       await this.deliveryLogItemRepository.delete({ delivery_log_id: id });
 
       // Tạo items mới
-      const newItems = updateData.items.map((item) => {
-        const itemData: any = {
-          delivery_log_id: id,
-          quantity: item.quantity,
-        };
-        
-        if (item.sales_invoice_item_id) {
-          itemData.sales_invoice_item_id = item.sales_invoice_item_id;
-        }
-        if (item.product_id) {
-          itemData.product_id = item.product_id;
-        }
-        if (item.unit) {
-          itemData.unit = item.unit;
-        }
-        
-        return this.deliveryLogItemRepository.create(itemData);
-      });
+      const newItems = await Promise.all(
+        updateData.items.map(async (item) => {
+          const itemData: any = {
+            delivery_log_id: id,
+            quantity_delivered: item.quantity,
+          };
+          
+          if (item.sales_invoice_item_id) {
+            itemData.sales_invoice_item_id = item.sales_invoice_item_id;
+          }
+          if (item.product_id) {
+            itemData.product_id = item.product_id;
+            
+            // Lấy tên sản phẩm nếu thiếu
+            if (!item.product_name) {
+              const product = await this.dataSource.manager.findOne(Product, {
+                where: { id: item.product_id },
+              });
+              itemData.product_name = product?.trade_name || product?.name || 'Unknown';
+            } else {
+              itemData.product_name = item.product_name;
+            }
+          }
+          if (item.unit) {
+            itemData.unit = item.unit;
+          }
+          if (item.notes) {
+            itemData.notes = item.notes;
+          }
+          
+          return this.deliveryLogItemRepository.create(itemData);
+        })
+      );
 
       await this.deliveryLogItemRepository.save(newItems as any);
     }
