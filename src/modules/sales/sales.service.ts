@@ -20,6 +20,7 @@ import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 import { DebtNoteService } from '../debt-note/debt-note.service';
 import { DeliveryStatus } from './enums/delivery-status.enum';
 import { DeliveryNotificationService } from './delivery-notification.service';
+import { FarmServiceCostService } from '../farm-service-cost/farm-service-cost.service';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến quản lý bán hàng
@@ -50,6 +51,7 @@ export class SalesService {
     private debtNoteService: DebtNoteService,
     private dataSource: DataSource,
     private deliveryNotificationService: DeliveryNotificationService,
+    private farmServiceCostService: FarmServiceCostService,
   ) {}
 
   /**
@@ -202,13 +204,18 @@ export class SalesService {
       // 🆕 Tạo phiếu giao hàng nếu có thông tin giao hàng
       if (createSalesInvoiceDto.delivery_log) {
         try {
-          await this.createDeliveryLog(
+          const createdLog = await this.createDeliveryLog(
             createSalesInvoiceDto.delivery_log,
             savedInvoice.id,
             items, // Truyền danh sách items đã lưu
             userId,
             queryRunner.manager,
           );
+          
+          if (createdLog) {
+            savedInvoice.delivery_logs = [createdLog];
+          }
+
           this.logger.log(`✅ Đã tạo phiếu giao hàng cho hóa đơn #${savedInvoice.id}`);
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -216,6 +223,29 @@ export class SalesService {
           this.logger.error(`❌ Lỗi khi tạo phiếu giao hàng: ${errorMessage}`, errorStack);
           // Throw error để rollback transaction
           throw new Error(`Không thể tạo phiếu giao hàng: ${errorMessage}`);
+        }
+      }
+
+      // 🆕 Tự động tạo Chi phí Dịch vụ nếu có quà tặng
+      if (createSalesInvoiceDto.gift_value && createSalesInvoiceDto.gift_value > 0) {
+        try {
+          await this.farmServiceCostService.createFromInvoiceGift(
+            savedInvoice.id,
+            savedInvoice.customer_id!,
+            savedInvoice.season_id!,
+            savedInvoice.rice_crop_id,
+            createSalesInvoiceDto.gift_description || 'Quà tặng hóa đơn',
+            createSalesInvoiceDto.gift_value,
+            savedInvoice.created_at || new Date(),
+          );
+
+          this.logger.log(
+            `✅ Đã tạo Chi phí dịch vụ cho quà tặng: ${createSalesInvoiceDto.gift_value.toLocaleString()} đ`,
+          );
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          this.logger.error(`❌ Lỗi khi tạo Chi phí dịch vụ cho quà tặng: ${errorMessage}`);
+          // Không throw error để không làm gián đoạn transaction nếu quà tặng gặp lỗi nhẹ
         }
       }
 
@@ -722,7 +752,7 @@ export class SalesService {
     savedItems: SalesInvoiceItem[],
     userId: number,
     manager: any,
-  ): Promise<void> {
+  ): Promise<DeliveryLog> {
     try {
       // Tính tổng chi phí nếu không có
       const totalCost = deliveryData.total_cost || 
@@ -743,6 +773,9 @@ export class SalesService {
         driver_name: deliveryData.driver_name,
         vehicle_plate: deliveryData.vehicle_plate,
         delivery_address: deliveryData.delivery_address,
+        receiver_name: deliveryData.receiver_name, // Thêm tên người nhận
+        receiver_phone: deliveryData.receiver_phone, // Thêm SĐT người nhận
+        delivery_notes: deliveryData.delivery_notes, // Thêm ghi chú giao hàng
         status: deliveryData.status || DeliveryStatus.PENDING,
         notes: deliveryData.notes,
         created_by: userId,
@@ -789,6 +822,8 @@ export class SalesService {
           this.logger.log(`✅ Đã tạo ${validItems.length} sản phẩm trong phiếu giao hàng`);
         }
       }
+
+      return savedDeliveryLog;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`❌ Lỗi khi tạo phiếu giao hàng: ${errorMessage}`);

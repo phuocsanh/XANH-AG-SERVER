@@ -21,10 +21,11 @@ export class FarmServiceCostService {
   /**
    * Tạo chi phí dịch vụ mới
    */
-  async create(createDto: CreateFarmServiceCostDto): Promise<FarmServiceCost> {
+  async create(createDto: CreateFarmServiceCostDto, manager?: any): Promise<FarmServiceCost> {
     try {
-      const farmServiceCost = this.farmServiceCostRepository.create(createDto);
-      const saved = await this.farmServiceCostRepository.save(farmServiceCost);
+      const repo = manager ? manager.getRepository(FarmServiceCost) : this.farmServiceCostRepository;
+      const farmServiceCost = repo.create(createDto);
+      const saved = await repo.save(farmServiceCost);
       
       this.logger.log(`✅ Đã tạo chi phí dịch vụ: ${saved.name} - ${saved.amount}đ`);
       return saved;

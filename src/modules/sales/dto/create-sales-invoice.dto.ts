@@ -128,4 +128,14 @@ export class CreateSalesInvoiceDto {
   @ValidateNested()
   @Type(() => CreateDeliveryLogDto)
   delivery_log?: CreateDeliveryLogDto;
+
+  /** Mô tả quà tặng cho khách hàng (tùy chọn) */
+  @IsString()
+  @IsOptional()
+  gift_description?: string;
+
+  /** Giá trị quà tặng (tùy chọn - dùng để tạo operating cost) */
+  @IsNumber()
+  @IsOptional()
+  gift_value?: number;
 }

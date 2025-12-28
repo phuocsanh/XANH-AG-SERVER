@@ -11,8 +11,7 @@ import { CloseSeasonDebtNoteDto } from './dto/close-season-debt-note.dto';
 import { QueryHelper } from '../../common/helpers/query-helper';
 import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
-import { OperatingCostService } from '../operating-cost/operating-cost.service';
-import { OperatingCostCategoryService } from '../operating-cost-category/operating-cost-category.service';
+import { FarmServiceCostService } from '../farm-service-cost/farm-service-cost.service';
 
 @Injectable()
 export class DebtNoteService {
@@ -27,8 +26,7 @@ export class DebtNoteService {
     @InjectRepository(CustomerRewardHistory)
     private rewardHistoryRepository: Repository<CustomerRewardHistory>,
     private dataSource: DataSource,
-    private operatingCostService: OperatingCostService,
-    private operatingCostCategoryService: OperatingCostCategoryService,
+    private farmServiceCostService: FarmServiceCostService,
   ) {}
 
   async create(createDto: CreateDebtNoteDto, userId: number): Promise<DebtNote> {
@@ -408,9 +406,11 @@ export class DebtNoteService {
 
       // 7.5. Tạo phiếu chi phí quà tặng (nếu có gift_value)
       if (rewardCount > 0 && closeData.gift_value && closeData.gift_value > 0) {
-        await this.createGiftOperatingCost({
+        await this.createGiftFarmServiceCost({
           debtNoteCode: debtNote.code,
+          customer_id: debtNote.customer_id,
           customerName: debtNote.customer?.name || 'Khách hàng',
+          season_id: debtNote.season_id!,
           seasonName: debtNote.season?.name,
           rewardCount,
           giftValue: closeData.gift_value,
@@ -472,12 +472,13 @@ export class DebtNoteService {
   }
 
   /**
-   * Tạo phiếu chi phí quà tặng
-   * Tự động tạo operating cost khi tặng quà cho khách hàng
+   * Tạo phiếu chi phí quà tặng vào bảng FarmServiceCost
    */
-  private async createGiftOperatingCost(params: {
+  private async createGiftFarmServiceCost(params: {
     debtNoteCode: string;
+    customer_id: number;
     customerName: string;
+    season_id: number;
     seasonName?: string | undefined;
     rewardCount: number;
     giftValue: number;
@@ -486,14 +487,6 @@ export class DebtNoteService {
     manager: any;
   }): Promise<void> {
     try {
-      // Lấy category "Quà tặng khách hàng"
-      const giftCategory = await this.operatingCostCategoryService.findByCode('GIFT');
-      
-      if (!giftCategory) {
-        this.logger.warn('⚠️ Không tìm thấy category "GIFT" - Bỏ qua tạo phiếu chi phí quà tặng');
-        return;
-      }
-
       // Tạo tên phiếu chi phí
       const costName = `Quà tặng cuối vụ - ${params.customerName}`;
 
@@ -506,17 +499,19 @@ export class DebtNoteService {
         `Phiếu nợ: ${params.debtNoteCode}`,
       ].filter(Boolean).join(' | ');
 
-      // Tạo phiếu chi phí
-      await this.operatingCostService.create({
+      // Tạo phiếu chi phí dịch vụ
+      await this.farmServiceCostService.create({
         name: costName,
-        category_id: giftCategory.id,
-        value: params.giftValue * params.rewardCount,
-        description: descriptionParts,
+        amount: params.giftValue * params.rewardCount,
+        season_id: params.season_id,
+        customer_id: params.customer_id,
+        notes: descriptionParts,
         expense_date: new Date().toISOString(),
-      });
+        source: 'reward_from_debt_note',
+      }, params.manager);
 
       this.logger.log(
-        `✅ Đã tạo phiếu chi phí quà tặng: ${costName} - ${this.formatCurrency(params.giftValue * params.rewardCount)}`
+        `✅ Đã tạo phiếu chi phí quà tặng (FarmServiceCost): ${costName} - ${this.formatCurrency(params.giftValue * params.rewardCount)}`
       );
     } catch (error) {
       this.logger.error('❌ Lỗi khi tạo phiếu chi phí quà tặng:', error);

@@ -119,6 +119,7 @@ export class OperatingCostService {
     queryBuilder.leftJoinAndSelect('operating_cost.season', 'season');
     queryBuilder.leftJoinAndSelect('operating_cost.rice_crop', 'rice_crop');
     queryBuilder.leftJoinAndSelect('operating_cost.category', 'category');
+    queryBuilder.leftJoinAndSelect('operating_cost.customer', 'customer');
 
     // 1. Base Search
     const { page, limit } = QueryHelper.applyBaseSearch(
@@ -138,6 +139,7 @@ export class OperatingCostService {
          season_name: 'season.name',
          rice_crop_name: 'rice_crop.field_name',
          category_name: 'category.name',
+         customer_name: 'customer.name',
       }
     );
 

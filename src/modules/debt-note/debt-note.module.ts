@@ -9,6 +9,7 @@ import { Customer } from '../../entities/customer.entity';
 import { Season } from '../../entities/season.entity';
 import { OperatingCostModule } from '../operating-cost/operating-cost.module';
 import { OperatingCostCategoryModule } from '../operating-cost-category/operating-cost-category.module';
+import { FarmServiceCostModule } from '../farm-service-cost/farm-service-cost.module';
 
 /**
  * DebtNoteModule - Module quản lý phiếu ghi nợ
@@ -31,6 +32,7 @@ import { OperatingCostCategoryModule } from '../operating-cost-category/operatin
     ]),
     OperatingCostModule,
     OperatingCostCategoryModule,
+    FarmServiceCostModule,
   ],
   controllers: [DebtNoteController],
   providers: [DebtNoteService],

@@ -18,23 +18,6 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 export class StoreProfitReportController {
   constructor(private readonly service: StoreProfitReportService) {}
 
-  @Get('invoice/:id')
-  @RequirePermissions('store_profit_report:read')
-  @ApiOperation({ 
-    summary: 'Xem lợi nhuận chi tiết của 1 đơn hàng',
-    description: 'Trả về thông tin lợi nhuận gộp và chi tiết từng sản phẩm trong đơn hàng'
-  })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Thông tin lợi nhuận đơn hàng',
-    type: InvoiceProfitDto 
-  })
-  async getInvoiceProfit(
-    @Param('id', ParseIntPipe) id: number,
-  ): Promise<InvoiceProfitDto> {
-    return this.service.calculateInvoiceProfit(id);
-  }
-
   @Get('invoice/code/:code')
   @RequirePermissions('store_profit_report:read')
   @ApiOperation({ 
@@ -50,6 +33,23 @@ export class StoreProfitReportController {
     @Param('code') code: string,
   ): Promise<InvoiceProfitDto> {
     return this.service.calculateInvoiceProfitByCode(code);
+  }
+
+  @Get('invoice/:id')
+  @RequirePermissions('store_profit_report:read')
+  @ApiOperation({ 
+    summary: 'Xem lợi nhuận chi tiết của 1 đơn hàng',
+    description: 'Trả về thông tin lợi nhuận gộp và chi tiết từng sản phẩm trong đơn hàng'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Thông tin lợi nhuận đơn hàng',
+    type: InvoiceProfitDto 
+  })
+  async getInvoiceProfit(
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<InvoiceProfitDto> {
+    return this.service.calculateInvoiceProfit(id);
   }
 
   @Get('season/:seasonId')

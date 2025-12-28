@@ -10,6 +10,7 @@ import {
 import { Season } from './season.entity';
 import { RiceCrop } from './rice-crop.entity';
 import { OperatingCostCategory } from './operating-cost-category.entity';
+import { Customer } from './customer.entity';
 
 /**
  * Entity biểu diễn chi phí vận hành trong cơ sở dữ liệu
@@ -63,6 +64,15 @@ export class OperatingCost {
   @ManyToOne(() => RiceCrop)
   @JoinColumn({ name: 'rice_crop_id' })
   rice_crop?: RiceCrop;
+
+  /** ID Khách hàng liên quan (nếu có) */
+  @Column({ name: 'customer_id', nullable: true })
+  customer_id?: number;
+
+  /** Quan hệ Khách hàng */
+  @ManyToOne(() => Customer)
+  @JoinColumn({ name: 'customer_id' })
+  customer?: Customer;
 
   /** Ngày phát sinh chi phí thực tế */
   @Column({ name: 'expense_date', type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })

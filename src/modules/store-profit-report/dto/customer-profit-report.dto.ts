@@ -93,7 +93,10 @@ export class CustomerProfitReportDto {
     total_cost: number;
     total_profit: number;
     avg_margin: number;
-    delivery_cost?: number;
+    delivery_costs: number;
+    farm_service_costs: number;
+    operating_costs: number;
+    net_profit: number;
   };
 
   @ApiProperty({ 
@@ -117,7 +120,10 @@ export class CustomerProfitReportDto {
     total_cost: number;
     total_profit: number;
     avg_margin: number;
-    delivery_cost?: number;
+    delivery_costs: number;
+    farm_service_costs: number;
+    operating_costs: number;
+    net_profit: number;
   };
 
   @ApiProperty({ 
@@ -136,7 +142,10 @@ export class CustomerProfitReportDto {
     total_cost: number;
     total_profit: number;
     avg_margin: number;
-    delivery_cost?: number;
+    delivery_costs: number;
+    farm_service_costs: number;
+    operating_costs: number;
+    net_profit: number;
   };
 
   @ApiProperty({ description: 'Danh sách đơn hàng', type: [CustomerInvoiceDto] })

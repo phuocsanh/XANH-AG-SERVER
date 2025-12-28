@@ -20,4 +20,5 @@ export class SearchOperatingCostDto extends BaseSearchDto {
   @IsString() @IsOptional() rice_crop_name?: string;
   @IsString() @IsOptional() category_name?: string;
   @IsString() @IsOptional() cost_type_name?: string;
+  @IsString() @IsOptional() customer_name?: string;
 }

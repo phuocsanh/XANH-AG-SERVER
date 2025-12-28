@@ -37,6 +37,11 @@ export class CreateOperatingCostDto {
   @IsNumber()
   rice_crop_id?: number;
 
+  /** ID Khách hàng liên quan (tùy chọn) */
+  @IsOptional()
+  @IsNumber()
+  customer_id?: number;
+
   /** Ngày phát sinh chi phí (tùy chọn, mặc định là ngày tạo) */
   @IsOptional()
   @IsDateString()

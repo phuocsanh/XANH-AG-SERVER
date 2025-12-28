@@ -53,6 +53,11 @@ export class CostItemCategoryService {
       queryBuilder.andWhere('category.is_active = :is_active', {
         is_active: searchDto.is_active,
       });
+    } else {
+      // Mặc định chỉ lấy các loại đang hoạt động
+      queryBuilder.andWhere('category.is_active = :is_active', {
+        is_active: true,
+      });
     }
 
     if (searchDto.code) {
