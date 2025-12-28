@@ -5,10 +5,12 @@ import { PaymentAllocation } from '../../entities/payment-allocation.entity';
 import { Payment } from '../../entities/payment.entity';
 import { SalesInvoice, SalesInvoiceStatus, SalesPaymentStatus } from '../../entities/sales-invoices.entity';
 import { DebtNote, DebtNoteStatus } from '../../entities/debt-note.entity';
+import { Customer } from '../../entities/customer.entity';
 import { CreatePaymentAllocationDto } from './dto/create-payment-allocation.dto';
 import { SearchPaymentAllocationDto } from './dto/search-payment-allocation.dto';
 import { QueryHelper } from '../../common/helpers/query-helper';
-import { FarmServiceCostService } from '../farm-service-cost/farm-service-cost.service';
+import { OperatingCostService } from '../operating-cost/operating-cost.service';
+import { OperatingCostCategoryService } from '../operating-cost-category/operating-cost-category.service';
 
 @Injectable()
 export class PaymentAllocationService {
@@ -16,7 +18,8 @@ export class PaymentAllocationService {
     @InjectRepository(PaymentAllocation)
     private allocationRepository: Repository<PaymentAllocation>,
     private dataSource: DataSource,
-    private farmServiceCostService: FarmServiceCostService,
+    private operatingCostService: OperatingCostService,
+    private operatingCostCategoryService: OperatingCostCategoryService,
   ) {}
 
   async create(createDto: CreatePaymentAllocationDto): Promise<PaymentAllocation> {
@@ -72,17 +75,21 @@ export class PaymentAllocationService {
             invoice.remaining_amount = 0; // Clamp to 0
             
             // Tạo chi phí quà tặng nếu hóa đơn có quà tặng và đủ thông tin
-            if (invoice.gift_value && Number(invoice.gift_value) > 0 && invoice.gift_description && invoice.season_id && invoice.customer_id) {
+            // Tạo chi phí quà tặng nếu hóa đơn có quà tặng và đủ thông tin
+            if (invoice.gift_value && Number(invoice.gift_value) > 0 && invoice.gift_description && invoice.customer_id) {
               try {
-                await this.farmServiceCostService.createFromInvoiceGift(
-                  invoice.id,
-                  invoice.customer_id,
-                  invoice.season_id,
-                  invoice.rice_crop_id,
-                  invoice.gift_description,
-                  Number(invoice.gift_value),
-                  invoice.created_at,
-                );
+                // Lấy thông tin khách hàng để hiển thị tên
+                const customer = await queryRunner.manager.findOne(Customer, {
+                    where: { id: invoice.customer_id },
+                    select: ['name'],
+                });
+
+                await this.createGiftOperatingCost({
+                  invoiceCode: invoice.code,
+                  customerName: customer?.name || 'Khách hàng',
+                  giftValue: Number(invoice.gift_value),
+                  giftDescription: invoice.gift_description,
+                });
               } catch (error) {
                 // Log lỗi nhưng không rollback transaction
                 console.error('⚠️ Lỗi tạo chi phí quà tặng:', error);
@@ -124,8 +131,10 @@ export class PaymentAllocationService {
       const allocation = this.allocationRepository.create(createDto);
       const savedAllocation = await queryRunner.manager.save(allocation);
 
-      // 4. Update Payment
-      payment.allocated_amount = Number(payment.allocated_amount) + createDto.amount;
+      // 4. Update Payment - Tránh lỗi cộng chuỗi
+      const currentAllocated = Number(payment.allocated_amount) || 0;
+      const addAmount = Number(createDto.amount) || 0;
+      payment.allocated_amount = currentAllocated + addAmount;
       await queryRunner.manager.save(payment);
 
       await queryRunner.commitTransaction();
@@ -187,5 +196,51 @@ export class PaymentAllocationService {
       page,
       limit,
     };
+  }
+
+
+  /**
+   * Tạo phiếu chi phí quà tặng
+   * Tự động tạo operating cost khi hóa đơn được thanh toán đủ và có quà tặng
+   */
+  private async createGiftOperatingCost(params: {
+    invoiceCode: string;
+    customerName: string;
+    giftValue: number;
+    giftDescription?: string | undefined;
+  }): Promise<void> {
+    try {
+      // Lấy category "Quà tặng khách hàng"
+      const giftCategory = await this.operatingCostCategoryService.findByCode('GIFT');
+      
+      if (!giftCategory) {
+        console.warn('⚠️ Không tìm thấy category "GIFT" - Bỏ qua tạo phiếu chi phí quà tặng');
+        return;
+      }
+
+      // Tạo tên phiếu chi phí
+      const costName = `Quà tặng hóa đơn - ${params.customerName}`;
+
+      // Tạo mô tả chi tiết
+      const descriptionParts = [
+        params.giftDescription ? `Quà: ${params.giftDescription}` : 'Quà tặng theo hóa đơn',
+        `Hóa đơn: ${params.invoiceCode}`,
+      ].filter(Boolean).join(' | ');
+
+      // Tạo phiếu chi phí
+      await this.operatingCostService.create({
+        name: costName,
+        category_id: giftCategory.id,
+        value: params.giftValue,
+        description: descriptionParts,
+        expense_date: new Date().toISOString(),
+      });
+
+      console.log(
+        `✅ Đã tạo phiếu chi phí quà tặng: ${costName} - ${params.giftValue.toLocaleString()} đ`
+      );
+    } catch (error) {
+      console.error('❌ Lỗi khi tạo phiếu chi phí quà tặng:', error);
+    }
   }
 }

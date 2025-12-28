@@ -11,6 +11,8 @@ import { SettleDebtDto } from './dto/settle-debt.dto';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 import { QueryHelper } from '../../common/helpers/query-helper';
+import { OperatingCostService } from '../operating-cost/operating-cost.service';
+import { OperatingCostCategoryService } from '../operating-cost-category/operating-cost-category.service';
 
 @Injectable()
 export class PaymentService {
@@ -25,6 +27,8 @@ export class PaymentService {
     private debtNoteRepository: Repository<DebtNote>,
     @InjectRepository(SalesInvoice)
     private salesInvoiceRepository: Repository<SalesInvoice>,
+    private operatingCostService: OperatingCostService,
+    private operatingCostCategoryService: OperatingCostCategoryService,
   ) {}
 
 
@@ -282,8 +286,10 @@ export class PaymentService {
         remainingPayment -= amountToAllocate;
       }
 
-      // 7. Cập nhật phiếu công nợ cũ + Lưu gift
-      oldDebtNote.paid_amount = Number(oldDebtNote.paid_amount || 0) + Number(dto.amount);
+      // 7. Cập nhật phiếu công nợ cũ + Lưu gift - Tránh lỗi cộng chuỗi
+      const currentPaidDebt = Number(oldDebtNote.paid_amount) || 0;
+      const paymentAmount = Number(dto.amount) || 0;
+      oldDebtNote.paid_amount = currentPaidDebt + paymentAmount;
       oldDebtNote.remaining_amount = totalDebt - Number(dto.amount);
       
       // Lưu thông tin quà tặng
@@ -304,6 +310,17 @@ export class PaymentService {
       }
 
       await this.debtNoteRepository.save(oldDebtNote);
+
+      // 8.5. Tạo phiếu chi phí quà tặng (nếu có gift_value)
+      if (dto.gift_value && dto.gift_value > 0) {
+        await this.createGiftOperatingCost({
+          paymentCode: paymentCode,
+          customerName: payment.customer?.name || 'Khách hàng',
+          giftValue: dto.gift_value,
+          giftDescription: dto.gift_description,
+          debtNoteCode: oldDebtNote.code,
+        });
+      }
 
       this.logger.log(
         `✅ Chốt sổ công nợ thành công: ${settledInvoices.length} hóa đơn, số tiền: ${dto.amount}, Quà tặng: ${dto.gift_value || 0}`,
@@ -363,9 +380,13 @@ export class PaymentService {
         const invoice = allocation.invoice;
         if (!invoice) continue;
 
-        // Trả lại số tiền đã thanh toán
-        invoice.partial_payment_amount = Number(invoice.partial_payment_amount || 0) - Number(allocation.amount);
-        invoice.remaining_amount = Number(invoice.remaining_amount) + Number(allocation.amount);
+        // Trả lại số tiền đã thanh toán - Tránh lỗi cộng chuỗi
+        const currentPartial = Number(invoice.partial_payment_amount) || 0;
+        const currentRemaining = Number(invoice.remaining_amount) || 0;
+        const allocationAmount = Number(allocation.amount) || 0;
+        
+        invoice.partial_payment_amount = currentPartial - allocationAmount;
+        invoice.remaining_amount = currentRemaining + allocationAmount;
 
         // Cập nhật trạng thái
         if (invoice.remaining_amount > 0) {
@@ -391,9 +412,13 @@ export class PaymentService {
           .getOne();
 
         if (debtNote) {
-          // Trả lại số tiền vào nợ
-          debtNote.paid_amount = Number(debtNote.paid_amount || 0) - Number(payment.amount);
-          debtNote.remaining_amount = Number(debtNote.remaining_amount) + Number(payment.amount);
+          // Trả lại số tiền vào nợ - Tránh lỗi cộng chuỗi
+          const currentPaidDebtNote = Number(debtNote.paid_amount) || 0;
+          const currentRemainingDebtNote = Number(debtNote.remaining_amount) || 0;
+          const paymentAmountToReturn = Number(payment.amount) || 0;
+          
+          debtNote.paid_amount = currentPaidDebtNote - paymentAmountToReturn;
+          debtNote.remaining_amount = currentRemainingDebtNote + paymentAmountToReturn;
 
           // Cập nhật trạng thái
           if (debtNote.remaining_amount > 0) {
@@ -427,6 +452,54 @@ export class PaymentService {
     } catch (error) {
       this.logger.error(`❌ Lỗi khi rollback payment #${paymentId}:`, error);
       throw error;
+    }
+  }
+
+  /**
+   * Tạo phiếu chi phí quà tặng
+   * Tự động tạo operating cost khi tặng quà cho khách hàng
+   */
+  private async createGiftOperatingCost(params: {
+    paymentCode: string;
+    customerName: string;
+    giftValue: number;
+    giftDescription?: string | undefined;
+    debtNoteCode: string;
+  }): Promise<void> {
+    try {
+      // Lấy category "Quà tặng khách hàng"
+      const giftCategory = await this.operatingCostCategoryService.findByCode('GIFT');
+      
+      if (!giftCategory) {
+        this.logger.warn('⚠️ Không tìm thấy category "GIFT" - Bỏ qua tạo phiếu chi phí quà tặng');
+        return;
+      }
+
+      // Tạo tên phiếu chi phí
+      const costName = `Quà tặng thanh toán - ${params.customerName}`;
+
+      // Tạo mô tả chi tiết
+      const descriptionParts = [
+        params.giftDescription ? `Quà: ${params.giftDescription}` : 'Quà tặng khi thanh toán',
+        `Phiếu thu: ${params.paymentCode}`,
+        `Phiếu nợ: ${params.debtNoteCode}`,
+      ].filter(Boolean).join(' | ');
+
+      // Tạo phiếu chi phí
+      await this.operatingCostService.create({
+        name: costName,
+        category_id: giftCategory.id,
+        value: params.giftValue,
+        description: descriptionParts,
+        expense_date: new Date().toISOString(),
+      });
+
+      this.logger.log(
+        `✅ Đã tạo phiếu chi phí quà tặng: ${costName} - ${params.giftValue.toLocaleString()} đ`
+      );
+    } catch (error) {
+      this.logger.error('❌ Lỗi khi tạo phiếu chi phí quà tặng:', error);
+      // Không throw error để không làm gián đoạn quá trình thanh toán
     }
   }
 }

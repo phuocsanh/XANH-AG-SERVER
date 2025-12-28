@@ -6,6 +6,8 @@ import { Payment } from '../../entities/payment.entity';
 import { PaymentAllocation } from '../../entities/payment-allocation.entity';
 import { DebtNote } from '../../entities/debt-note.entity';
 import { SalesInvoice } from '../../entities/sales-invoices.entity';
+import { OperatingCostModule } from '../operating-cost/operating-cost.module';
+import { OperatingCostCategoryModule } from '../operating-cost-category/operating-cost-category.module';
 
 /**
  * PaymentModule - Module quản lý thanh toán
@@ -17,12 +19,16 @@ import { SalesInvoice } from '../../entities/sales-invoices.entity';
  * - Liên kết thanh toán với hóa đơn và phiếu ghi nợ
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([
-    Payment,
-    PaymentAllocation,
-    DebtNote,
-    SalesInvoice,
-  ])],
+  imports: [
+    TypeOrmModule.forFeature([
+      Payment,
+      PaymentAllocation,
+      DebtNote,
+      SalesInvoice,
+    ]),
+    OperatingCostModule,
+    OperatingCostCategoryModule,
+  ],
   controllers: [PaymentController],
   providers: [PaymentService],
   exports: [PaymentService],

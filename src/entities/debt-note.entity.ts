@@ -135,6 +135,33 @@ export class DebtNote {
   })
   gift_value!: number;
 
+  /** Đã tặng quà khi chốt sổ hay chưa */
+  @Column({
+    name: 'reward_given',
+    type: 'boolean',
+    default: false,
+    comment: 'Đã tặng quà khi chốt sổ hay chưa'
+  })
+  reward_given!: boolean;
+
+  /** Số lần tặng quà khi chốt sổ này */
+  @Column({
+    name: 'reward_count',
+    type: 'int',
+    default: 0,
+    comment: 'Số lần tặng quà khi chốt sổ này (có thể tặng nhiều lần nếu tích lũy đủ)'
+  })
+  reward_count!: number;
+
+  /** Ngày chốt sổ công nợ */
+  @Column({
+    name: 'closed_at',
+    type: 'timestamp',
+    nullable: true,
+    comment: 'Ngày chốt sổ công nợ'
+  })
+  closed_at?: Date;
+
   /** Ngày tạo */
   @CreateDateColumn({ name: 'created_at' })
   created_at!: Date;

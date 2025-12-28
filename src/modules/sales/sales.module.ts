@@ -6,11 +6,15 @@ import { Product } from '../../entities/products.entity';
 import { DebtNote } from '../../entities/debt-note.entity';
 import { DeliveryLog } from '../../entities/delivery-log.entity';
 import { DeliveryLogItem } from '../../entities/delivery-log-item.entity';
+import { CustomerRewardTracking } from '../../entities/customer-reward-tracking.entity';
+import { CustomerRewardHistory } from '../../entities/customer-reward-history.entity';
 import { SalesService } from './sales.service';
 import { SalesController } from './sales.controller';
 import { DeliveryController } from './delivery.controller';
 import { DebtNoteService } from '../debt-note/debt-note.service';
 import { FirebaseModule } from '../firebase/firebase.module';
+import { OperatingCostModule } from '../operating-cost/operating-cost.module';
+import { OperatingCostCategoryModule } from '../operating-cost-category/operating-cost-category.module';
 import { User } from '../../entities/users.entity';
 import { UserProfile } from '../../entities/user-profiles.entity';
 import { DeliveryNotificationService } from './delivery-notification.service';
@@ -39,8 +43,12 @@ import { DeliveryNotificationService } from './delivery-notification.service';
       DeliveryLogItem, // Entity chi tiết sản phẩm trong phiếu giao hàng
       User, // Entity người dùng (tài xế)
       UserProfile, // Entity profile người dùng (fcm_token)
+      CustomerRewardTracking, // Entity theo dõi tích lũy quà tặng khách hàng
+      CustomerRewardHistory, // Entity lịch sử tặng quà khách hàng
     ]),
-    FirebaseModule,
+    FirebaseModule, // Module Firebase cho push notification
+    OperatingCostModule, // Module chi phí vận hành (cho chức năng tạo phiếu chi quà tặng)
+    OperatingCostCategoryModule, // Module loại chi phí (cho chức năng tạo phiếu chi quà tặng)
   ],
   controllers: [SalesController, DeliveryController], // Controllers xử lý các request
   providers: [SalesService, DebtNoteService, DeliveryNotificationService], // Service xử lý logic nghiệp vụ bán hàng và công nợ
