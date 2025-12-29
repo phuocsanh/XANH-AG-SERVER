@@ -4,10 +4,11 @@ import { IsString, IsOptional, IsBoolean, MaxLength } from 'class-validator';
  * DTO để tạo loại chi phí vận hành mới
  */
 export class CreateOperatingCostCategoryDto {
-  /** Mã loại chi phí (unique) */
+  /** Mã loại chi phí (unique) - tự động generate nếu không cung cấp */
+  @IsOptional()
   @IsString()
   @MaxLength(50)
-  code!: string;
+  code?: string;
 
   /** Tên loại chi phí */
   @IsString()
