@@ -151,17 +151,39 @@ ${JSON.stringify(simplifiedWeather, null, 2)}
 
       const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
       
-      // DEBUG: Log raw response
-      this.logger.log(`📝 Raw AI Response (Key #${keyIndex}): ${responseText.substring(0, 200)}...`);
+      // DEBUG: Log raw response (first 500 chars)
+      this.logger.log(`📝 Raw AI Response (Key #${keyIndex}): ${responseText.substring(0, 500)}...`);
 
-      // Clean up JSON string (remove markdown code blocks if any)
-      const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+      // Clean up JSON string - Nhiều bước để đảm bảo parse thành công
+      let cleanJson = responseText
+        .replace(/```json\s*/g, '')  // Loại bỏ markdown code block
+        .replace(/```\s*/g, '')       // Loại bỏ markdown closing
+        .trim();
+      
+      // Tìm JSON object đầu tiên (từ { đến } cuối cùng)
+      const firstBrace = cleanJson.indexOf('{');
+      const lastBrace = cleanJson.lastIndexOf('}');
+      
+      if (firstBrace === -1 || lastBrace === -1 || firstBrace >= lastBrace) {
+        this.logger.error(`❌ Không tìm thấy JSON object hợp lệ trong response`);
+        throw new Error('AI response không chứa JSON object hợp lệ');
+      }
+      
+      cleanJson = cleanJson.substring(firstBrace, lastBrace + 1);
       
       if (!cleanJson) {
         throw new Error('AI returned empty response');
       }
 
-      const analysis: AiAnalysisResult = JSON.parse(cleanJson);
+      let analysis: AiAnalysisResult;
+      try {
+        analysis = JSON.parse(cleanJson);
+      } catch (parseError: any) {
+        // Log chi tiết để debug
+        this.logger.error(`❌ Parse JSON Error at position ${parseError.message}`);
+        this.logger.error(`📄 Cleaned JSON (first 1000 chars): ${cleanJson.substring(0, 1000)}`);
+        throw new Error(`Lỗi parse JSON từ AI: ${parseError.message}`);
+      }
       
       // DEBUG: Log structure của AI result
       this.logger.log(`📊 AI Result Keys: ${Object.keys(analysis).join(', ')}`);
