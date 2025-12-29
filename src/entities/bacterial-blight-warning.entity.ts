@@ -44,7 +44,7 @@ export class BacterialBlightWarning {
   @Column({ name: 'message', type: 'text' })
   message!: string;
 
-  @Column({ name: 'peak_days', type: 'varchar', length: 100, nullable: true })
+  @Column({ name: 'peak_days', type: 'varchar', length: 255, nullable: true })
   peak_days?: string | null;
 
   @Column({ name: 'daily_data', type: 'jsonb' })
