@@ -60,12 +60,68 @@ export class ProductService extends BaseSearchService<Product> {
   }
 
   /**
+   * Kiểm tra trùng tên sản phẩm và tên thương mại
+   * Chỉ kiểm tra với các sản phẩm chưa bị xóa mềm
+   * @param name - Tên sản phẩm
+   * @param tradeName - Tên thương mại
+   * @param excludeId - ID sản phẩm cần loại trừ (khi update)
+   * @throws Error nếu tìm thấy trùng
+   */
+  private async checkDuplicateName(
+    name: string,
+    tradeName: string | undefined,
+    excludeId?: number,
+  ): Promise<void> {
+    // Kiểm tra trùng tên sản phẩm
+    const queryName = this.productRepository
+      .createQueryBuilder('product')
+      .where('LOWER(product.name) = LOWER(:name)', { name })
+      .andWhere('product.deleted_at IS NULL');
+
+    if (excludeId) {
+      queryName.andWhere('product.id != :excludeId', { excludeId });
+    }
+
+    const existingByName = await queryName.getOne();
+    if (existingByName) {
+      throw new Error(
+        `Sản phẩm với tên "${name}" đã tồn tại. Vui lòng chọn tên khác.`,
+      );
+    }
+
+    // Kiểm tra trùng tên thương mại (nếu có)
+    if (tradeName) {
+      const queryTradeName = this.productRepository
+        .createQueryBuilder('product')
+        .where('LOWER(product.trade_name) = LOWER(:tradeName)', { tradeName })
+        .andWhere('product.deleted_at IS NULL');
+
+      if (excludeId) {
+        queryTradeName.andWhere('product.id != :excludeId', { excludeId });
+      }
+
+      const existingByTradeName = await queryTradeName.getOne();
+      if (existingByTradeName) {
+        throw new Error(
+          `Sản phẩm với tên thương mại "${tradeName}" đã tồn tại. Vui lòng chọn tên khác.`,
+        );
+      }
+    }
+  }
+
+  /**
    * Tạo sản phẩm mới
    * @param createProductDto - Dữ liệu tạo sản phẩm mới
    * @returns Thông tin sản phẩm đã tạo
    */
   async create(createProductDto: CreateProductDto): Promise<Product> {
     try {
+      // Kiểm tra trùng tên sản phẩm và tên thương mại
+      await this.checkDuplicateName(
+        createProductDto.name,
+        createProductDto.trade_name,
+      );
+
       // Tạo product mới trực tiếp, bỏ qua Factory pattern vì logic xử lý attributes đã được thống nhất
       const product = new Product();
       Object.assign(product, createProductDto);
@@ -91,6 +147,12 @@ export class ProductService extends BaseSearchService<Product> {
     createProductDto: CreateProductDto,
   ): Promise<Product> {
     try {
+      // Kiểm tra trùng tên sản phẩm và tên thương mại
+      await this.checkDuplicateName(
+        createProductDto.name,
+        createProductDto.trade_name,
+      );
+
       // Tạo sản phẩm
       const product = new Product();
       Object.assign(product, createProductDto);
@@ -217,6 +279,20 @@ export class ProductService extends BaseSearchService<Product> {
       const currentProduct = await this.findOne(id);
       if (!currentProduct) {
         throw new Error(`Không tìm thấy sản phẩm với ID: ${id}`);
+      }
+
+      // Kiểm tra trùng tên nếu có thay đổi tên hoặc tên thương mại
+      if (
+        updateProductDto.name ||
+        updateProductDto.trade_name !== undefined
+      ) {
+        await this.checkDuplicateName(
+          updateProductDto.name || currentProduct.name,
+          updateProductDto.trade_name !== undefined
+            ? updateProductDto.trade_name
+            : currentProduct.trade_name,
+          id, // Loại trừ sản phẩm hiện tại khi kiểm tra
+        );
       }
 
       // Cập nhật sản phẩm
