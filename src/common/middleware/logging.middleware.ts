@@ -11,6 +11,12 @@ export class LoggingMiddleware implements NestMiddleware {
 
   use(req: Request, res: Response, next: NextFunction) {
     const { method, originalUrl, ip } = req;
+    
+    // Skip logging cho health check endpoint để tránh spam log
+    if (originalUrl === '/health' || originalUrl.startsWith('/health?')) {
+      return next();
+    }
+    
     const userAgent = req.get('User-Agent') || '';
     const startTime = Date.now();
 
@@ -40,8 +46,14 @@ export class LoggingMiddleware implements NestMiddleware {
  * @param next NextFunction
  */
 export function loggingMiddleware(req: Request, res: Response, next: NextFunction) {
-  const logger = new Logger('HTTP');
   const { method, originalUrl, ip } = req;
+  
+  // Skip logging cho health check endpoint để tránh spam log
+  if (originalUrl === '/health' || originalUrl.startsWith('/health?')) {
+    return next();
+  }
+  
+  const logger = new Logger('HTTP');
   const userAgent = req.get('User-Agent') || '';
   const startTime = Date.now();
 

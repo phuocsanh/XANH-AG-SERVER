@@ -20,6 +20,12 @@ export class LoggingInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const request = context.switchToHttp().getRequest<Request>();
     const { method, url, ip } = request;
+    
+    // Skip logging cho health check endpoint để tránh spam log
+    if (url === '/health' || url.startsWith('/health?')) {
+      return next.handle();
+    }
+    
     const userAgent = request.get('User-Agent') || '';
     const now = Date.now();
 
