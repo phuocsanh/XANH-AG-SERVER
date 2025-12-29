@@ -33,7 +33,6 @@
     "migration:generate": "npm run typeorm migration:generate -- -d src/config/data-source.ts",
     "migration:create": "npm run typeorm migration:create -- -d src/config/data-source.ts",
     "migration:revert": "npm run typeorm migration:revert -- -d src/config/data-source.ts",
-    "seed:units": "ts-node src/database/seeds/run-unit-seeder.ts",
     "seed:rbac": "ts-node src/database/run-seed.ts",
     "seed:rbac:prod": "node dist/database/run-seed.js",
     "deploy:render": "echo '📖 Xem hướng dẫn deploy tại RENDER_DEPLOYMENT.md'"
