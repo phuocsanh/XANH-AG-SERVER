@@ -66,6 +66,7 @@ export class InventoryController {
    * @returns Danh sách lô hàng tồn kho phù hợp với thông tin phân trang
    */
   @Post('batches/search')
+  @RequirePermissions('inventory:read')
   searchBatches(@Body() searchDto: SearchInventoryDto) {
     try {
       return this.inventoryService.searchBatches(searchDto);
@@ -83,6 +84,7 @@ export class InventoryController {
    * @returns Danh sách lô hàng tồn kho của sản phẩm đó
    */
   @Get('batches/product/:productId')
+  @RequirePermissions('inventory:read')
   findBatchesByProduct(@Param('productId') productId: string) {
     return this.inventoryService.findBatchesByProduct(+productId);
   }
@@ -93,6 +95,7 @@ export class InventoryController {
    * @returns Thông tin lô hàng tồn kho
    */
   @Get('batches/:id')
+  @RequirePermissions('inventory:read')
   findBatchById(@Param('id') id: string) {
     return this.inventoryService.findBatchById(+id);
   }
@@ -104,6 +107,7 @@ export class InventoryController {
    * @returns Thông tin lô hàng tồn kho đã cập nhật
    */
   @Patch('batches/:id')
+  @RequirePermissions('inventory:manage')
   updateBatch(
     @Param('id') id: string,
     @Body() updateData: Partial<CreateInventoryBatchDto>,
@@ -117,6 +121,7 @@ export class InventoryController {
    * @returns Kết quả xóa lô hàng tồn kho
    */
   @Delete('batches/:id')
+  @RequirePermissions('inventory:manage')
   removeBatch(@Param('id') id: string) {
     return this.inventoryService.removeBatch(+id);
   }
@@ -141,6 +146,7 @@ export class InventoryController {
    * @returns Danh sách giao dịch kho phù hợp với thông tin phân trang
    */
   @Post('transactions/search')
+  @RequirePermissions('inventory:read')
   searchTransactions(@Body() searchDto: SearchInventoryDto) {
     try {
       return this.inventoryService.searchTransactions(searchDto);
@@ -160,6 +166,7 @@ export class InventoryController {
    * @returns Danh sách giao dịch kho của sản phẩm đó
    */
   @Get('transactions/product/:productId')
+  @RequirePermissions('inventory:read')
   findTransactionsByProduct(@Param('productId') productId: string) {
     return this.inventoryService.findTransactionsByProduct(+productId);
   }
@@ -170,6 +177,7 @@ export class InventoryController {
    * @returns Tổng hợp tồn kho của sản phẩm
    */
   @Get('summary/product/:productId')
+  @RequirePermissions('inventory:read')
   getInventorySummary(@Param('productId') productId: string) {
     return this.inventoryService.getInventorySummary(+productId);
   }
@@ -180,6 +188,7 @@ export class InventoryController {
    * @returns Giá trị FIFO của sản phẩm
    */
   @Get('fifo/product/:productId')
+  @RequirePermissions('inventory:read')
   getFifoValue(@Param('productId') productId: string) {
     return this.inventoryService.getFifoValue(+productId);
   }
@@ -190,6 +199,7 @@ export class InventoryController {
    * @returns Giá vốn trung bình gia quyền hiện tại
    */
   @Get('weighted-average-cost/product/:productId')
+  @RequirePermissions('inventory:read')
   getWeightedAverageCost(@Param('productId') productId: string) {
     return this.inventoryService.getWeightedAverageCost(+productId);
   }
@@ -230,6 +240,7 @@ export class InventoryController {
    * @returns Kết quả xử lý xuất kho
    */
   @Post('stock-out')
+  @RequirePermissions('inventory:manage')
   processStockOut(
     @Body()
     stockOutData: {
@@ -257,6 +268,7 @@ export class InventoryController {
    * @returns Giá vốn trung bình gia quyền mới
    */
   @Post('recalculate-weighted-average/:productId')
+  @RequirePermissions('inventory:manage')
   recalculateWeightedAverageCost(@Param('productId') productId: string) {
     return this.inventoryService.recalculateWeightedAverageCost(+productId);
   }
@@ -267,6 +279,7 @@ export class InventoryController {
    * @returns Báo cáo giá trị tồn kho
    */
   @Get('value-report')
+  @RequirePermissions('inventory:read')
   getInventoryValueReport(@Query('productIds') productIds?: string): Promise<{
     summary: {
       totalProducts: number;
@@ -287,6 +300,7 @@ export class InventoryController {
    * @returns Danh sách sản phẩm có tồn kho thấp
    */
   @Get('low-stock-alert')
+  @RequirePermissions('inventory:read')
   getLowStockAlert(@Query('threshold') threshold?: string): Promise<{
     alertCount: number;
     minimumQuantity: number;
@@ -305,6 +319,7 @@ export class InventoryController {
    * @returns Danh sách lô hàng sắp hết hạn
    */
   @Get('expiring-batches-alert')
+  @RequirePermissions('inventory:read')
   getExpiringBatchesAlert(@Query('days') days?: string) {
     const daysValue = days ? +days : 30;
     return this.inventoryService.getExpiringBatchesAlert(daysValue);
@@ -317,6 +332,7 @@ export class InventoryController {
    * @returns Thông tin giá vốn FIFO
    */
   @Get('fifo-cost/product/:productId')
+  @RequirePermissions('inventory:read')
   calculateFifoCost(
     @Param('productId') productId: string,
     @Query('quantity') quantity: string,
@@ -330,6 +346,7 @@ export class InventoryController {
    * @returns Thông tin chi tiết về các lô hàng
    */
   @Get('batch-tracking')
+  @RequirePermissions('inventory:read')
   getBatchTrackingInfo(@Query('productId') productId?: string) {
     const id = productId ? +productId : undefined;
     return this.inventoryService.getBatchTrackingInfo(id);
@@ -341,6 +358,7 @@ export class InventoryController {
    * @returns Thông tin chi tiết về các lô hàng của sản phẩm
    */
   @Get('batch-tracking/product/:productId')
+  @RequirePermissions('inventory:read')
   getBatchTrackingByProduct(@Param('productId') productId: string) {
     return this.inventoryService.getBatchTrackingInfo(+productId);
   }
@@ -366,6 +384,7 @@ export class InventoryController {
    * @returns Danh sách phiếu nhập kho phù hợp với thông tin phân trang
    */
   @Post('receipts/search')
+  @RequirePermissions('inventory:read')
   searchReceipts(@Body() searchDto: SearchInventoryDto) {
     try {
       return this.inventoryService.searchReceipts(searchDto);
@@ -384,6 +403,7 @@ export class InventoryController {
    * @returns Thông tin phiếu nhập kho
    */
   @Get('receipt/:id')
+  @RequirePermissions('inventory:read')
   findReceiptById(@Param('id') id: string) {
     return this.inventoryService.findReceiptById(+id);
   }
@@ -394,6 +414,7 @@ export class InventoryController {
    * @returns Thông tin phiếu nhập kho
    */
   @Get('receipt/code/:code')
+  @RequirePermissions('inventory:read')
   findReceiptByCode(@Param('code') code: string) {
     return this.inventoryService.findReceiptByCode(code);
   }
@@ -405,6 +426,7 @@ export class InventoryController {
    * @returns Thông tin phiếu nhập kho đã cập nhật
    */
   @Patch('receipt/:id')
+  @RequirePermissions('inventory:manage')
   updateReceipt(
     @Param('id') id: string,
     @Body() updateData: Partial<CreateInventoryReceiptDto>,
@@ -418,6 +440,7 @@ export class InventoryController {
    * @returns Kết quả xóa phiếu nhập kho
    */
   @Delete('receipt/:id')
+  @RequirePermissions('inventory:manage')
   removeReceipt(@Param('id') id: string) {
     return this.inventoryService.removeReceipt(+id);
   }
@@ -428,6 +451,7 @@ export class InventoryController {
    * @returns Kết quả duyệt phiếu nhập kho
    */
   @Post('receipt/:id/approve')
+  @RequirePermissions('inventory:manage')
   approveReceipt(@Param('id') id: string, @CurrentUser('id') userId: number) {
     return this.inventoryService.approveReceipt(+id, userId);
   }
@@ -441,6 +465,7 @@ export class InventoryController {
    * @returns Kết quả hủy phiếu nhập kho
    */
   @Post('receipt/:id/cancel')
+  @RequirePermissions('inventory:manage')
   cancelReceipt(
     @Param('id') id: string,
     @Body('reason') reason: string,
@@ -455,6 +480,7 @@ export class InventoryController {
    * @returns Danh sách chi tiết phiếu nhập kho
    */
   @Get('receipt/:id/items')
+  @RequirePermissions('inventory:read')
   getReceiptItems(@Param('id') id: string) {
     return this.inventoryService.getReceiptItems(+id);
   }
@@ -466,6 +492,7 @@ export class InventoryController {
    * @returns Thông tin chi tiết phiếu nhập kho đã cập nhật
    */
   @Patch('receipt/item/:id')
+  @RequirePermissions('inventory:manage')
   updateReceiptItem(
     @Param('id') id: string,
     @Body() updateData: Partial<InventoryReceiptItem>,
@@ -479,6 +506,7 @@ export class InventoryController {
    * @returns Kết quả xóa chi tiết phiếu nhập kho
    */
   @Delete('receipt/item/:id')
+  @RequirePermissions('inventory:manage')
   removeReceiptItem(@Param('id') id: string) {
     return this.inventoryService.removeReceiptItem(+id);
   }
@@ -489,6 +517,7 @@ export class InventoryController {
    * @returns Thông tin giá nhập của sản phẩm
    */
   @Get('purchase-prices/product/:productId')
+  @RequirePermissions('inventory:read')
   getProductPurchasePrices(@Param('productId') productId: string) {
     return this.inventoryService.getProductPurchasePrices(+productId);
   }
@@ -499,6 +528,7 @@ export class InventoryController {
    * @returns Giá nhập mới nhất hoặc null nếu chưa có lần nhập nào
    */
   @Get('latest-purchase-price/product/:productId')
+  @RequirePermissions('inventory:read')
   getLatestPurchasePrice(@Param('productId') productId: string) {
     return this.inventoryService.getLatestPurchasePrice(+productId);
   }
@@ -528,6 +558,7 @@ export class InventoryController {
    * @returns Danh sách thanh toán
    */
   @Get('receipts/:id/payments')
+  @RequirePermissions('inventory:read')
   getPayments(@Param('id') id: string) {
     return this.inventoryService.getPayments(+id);
   }
@@ -538,6 +569,7 @@ export class InventoryController {
    * @returns Danh sách phiếu trả hàng
    */
   @Get('receipts/:id/returns')
+  @RequirePermissions('inventory:read')
   getReceiptReturns(@Param('id') id: string) {
     return this.inventoryService.getReceiptReturns(+id);
   }
@@ -582,6 +614,7 @@ export class InventoryController {
    * @returns Danh sách hoàn tiền
    */
   @Get('returns/:id/refunds')
+  @RequirePermissions('inventory:read')
   getRefunds(@Param('id') id: string) {
     return this.inventoryService.getRefunds(+id);
   }
@@ -609,6 +642,7 @@ export class InventoryController {
    * @returns Danh sách phiếu xuất trả hàng phù hợp với thông tin phân trang
    */
   @Post('returns/search')
+  @RequirePermissions('inventory:read')
   searchReturns(@Body() searchDto: SearchInventoryDto) {
     try {
       return this.inventoryService.searchReturns(searchDto);
@@ -628,6 +662,7 @@ export class InventoryController {
    * @returns Thông tin phiếu xuất trả hàng
    */
   @Get('return/:id')
+  @RequirePermissions('inventory:read')
   findReturnById(@Param('id') id: string) {
     return this.inventoryService.findReturnById(+id);
   }
@@ -712,6 +747,7 @@ export class InventoryController {
    * @returns Danh sách phiếu điều chỉnh kho phù hợp với thông tin phân trang
    */
   @Post('adjustments/search')
+  @RequirePermissions('inventory:read')
   searchAdjustments(@Body() searchDto: SearchInventoryDto) {
     try {
       return this.inventoryService.searchAdjustments(searchDto);
@@ -731,6 +767,7 @@ export class InventoryController {
    * @returns Thông tin phiếu điều chỉnh kho
    */
   @Get('adjustments/:id')
+  @RequirePermissions('inventory:read')
   async findAdjustmentById(@Param('id') id: string) {
     console.log('🔍 [DEBUG] findAdjustmentById called for ID:', id);
     const result = await this.inventoryService.findAdjustmentById(+id);
