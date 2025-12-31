@@ -503,6 +503,89 @@ export class InventoryController {
     return this.inventoryService.getLatestPurchasePrice(+productId);
   }
 
+  // ===== PAYMENT ENDPOINTS =====
+
+  /**
+   * Thêm thanh toán cho phiếu nhập kho
+   * @param id - ID phiếu nhập kho
+   * @param paymentDto - Dữ liệu thanh toán
+   * @param userId - ID người tạo
+   * @returns Thông tin thanh toán đã tạo
+   */
+  @Post('receipts/:id/payments')
+  @RequirePermissions('inventory:manage')
+  addPayment(
+    @Param('id') id: string,
+    @Body() paymentDto: any,
+    @CurrentUser('id') userId: number,
+  ) {
+    return this.inventoryService.addPayment(+id, paymentDto, userId);
+  }
+
+  /**
+   * Lấy danh sách thanh toán của phiếu nhập kho
+   * @param id - ID phiếu nhập kho
+   * @returns Danh sách thanh toán
+   */
+  @Get('receipts/:id/payments')
+  getPayments(@Param('id') id: string) {
+    return this.inventoryService.getPayments(+id);
+  }
+
+  /**
+   * Lấy danh sách phiếu trả hàng liên quan đến phiếu nhập kho
+   * @param id - ID phiếu nhập kho
+   * @returns Danh sách phiếu trả hàng
+   */
+  @Get('receipts/:id/returns')
+  getReceiptReturns(@Param('id') id: string) {
+    return this.inventoryService.getReceiptReturns(+id);
+  }
+
+  /**
+   * Xóa thanh toán
+   * @param id - ID phiếu nhập kho
+   * @param paymentId - ID thanh toán
+   * @param userId - ID người xóa
+   */
+  @Delete('receipts/:id/payments/:paymentId')
+  @RequirePermissions('inventory:manage')
+  deletePayment(
+    @Param('id') id: string,
+    @Param('paymentId') paymentId: string,
+  ) {
+    return this.inventoryService.deletePayment(+id, +paymentId);
+  }
+
+  // ===== REFUND ENDPOINTS =====
+
+  /**
+   * Thêm hoàn tiền cho phiếu trả hàng
+   * @param id - ID phiếu trả hàng
+   * @param refundDto - Dữ liệu hoàn tiền
+   * @param userId - ID người tạo
+   * @returns Thông tin hoàn tiền đã tạo
+   */
+  @Post('returns/:id/refunds')
+  @RequirePermissions('inventory:manage')
+  addRefund(
+    @Param('id') id: string,
+    @Body() refundDto: any,
+    @CurrentUser('id') userId: number,
+  ) {
+    return this.inventoryService.addRefund(+id, refundDto, userId);
+  }
+
+  /**
+   * Lấy danh sách hoàn tiền của phiếu trả hàng
+   * @param id - ID phiếu trả hàng
+   * @returns Danh sách hoàn tiền
+   */
+  @Get('returns/:id/refunds')
+  getRefunds(@Param('id') id: string) {
+    return this.inventoryService.getRefunds(+id);
+  }
+
 
   // ===== RETURN ENDPOINTS =====
 

@@ -21,6 +21,7 @@ import {
   CreateInventoryReceiptDto,
   CreateInventoryReceiptItemDto,
 } from './dto/create-inventory-receipt.dto';
+import { CreatePaymentDto } from './dto/create-payment.dto';
 import { CreateRefundDto } from './dto/create-refund.dto';
 import { CreateInventoryReturnDto } from './dto/create-inventory-return.dto';
 import { CreateInventoryAdjustmentDto } from './dto/create-inventory-adjustment.dto';
@@ -1129,14 +1130,10 @@ export class InventoryService {
       // ===== XỬ LÝ THANH TOÁN =====
       const paidAmount = Number(createInventoryReceiptDto.paid_amount) || 0;
       const totalAmount = Number(createInventoryReceiptDto.total_amount);
-      const returnedAmount = Number(receiptData.returned_amount) || 0;
-      
-      // Tính giá trị thực tế sau khi trừ trả hàng
-      const finalAmount = totalAmount - returnedAmount;
-      const debtAmount = finalAmount - paidAmount;
+      const debtAmount = totalAmount - paidAmount;
       
       let paymentStatus = 'unpaid';
-      if (paidAmount >= finalAmount) {
+      if (paidAmount >= totalAmount) {
         paymentStatus = 'paid';
       } else if (paidAmount > 0) {
         paymentStatus = 'partial';
@@ -1145,7 +1142,7 @@ export class InventoryService {
       // Thêm các trường thanh toán vào receiptData
       receiptData.paid_amount = paidAmount;
       receiptData.payment_status = paymentStatus;
-      receiptData.final_amount = finalAmount;
+      receiptData.final_amount = totalAmount;
       receiptData.debt_amount = debtAmount;
       
       if (createInventoryReceiptDto.payment_method) {
@@ -1419,6 +1416,8 @@ export class InventoryService {
       entityUpdateData.status = updateData.status;
     if (updateData.notes !== undefined)
       entityUpdateData.notes = updateData.notes;
+    if (updateData.created_by !== undefined)
+      entityUpdateData.created_by = updateData.created_by;
     if (updateData.images !== undefined)
       entityUpdateData.images = updateData.images;
     if (updateData.shared_shipping_cost !== undefined)
@@ -1438,13 +1437,6 @@ export class InventoryService {
     const receipt = await this.findReceiptById(id);
     if (!receipt) {
       throw new NotFoundException('Không tìm thấy phiếu nhập kho');
-    }
-
-    // ❌ KHÔNG cho xóa nếu đã thanh toán (dù chỉ 1 phần)
-    if (receipt.paid_amount && Number(receipt.paid_amount) > 0) {
-      throw new BadRequestException(
-        'Không thể xóa phiếu đã có giao dịch thanh toán. Vui lòng hủy phiếu và tạo phiếu điều chỉnh công nợ.'
-      );
     }
 
     // KHÔNG cho phép xóa phiếu 'cancelled' nếu đã từng 'approved' (để giữ audit trail)
@@ -2555,31 +2547,17 @@ export class InventoryService {
    */
   async addPayment(
     receiptId: number,
-    paymentDto: any,
+    paymentDto: CreatePaymentDto,
     userId: number,
     queryRunner?: QueryRunner
   ) {
-    // Tìm phiếu nhập kho - dùng queryRunner.manager nếu có để tránh lỗi trong transaction
-    const receipt = queryRunner
-      ? await queryRunner.manager.findOne(InventoryReceipt, {
-          where: { id: receiptId },
-        })
-      : await this.inventoryReceiptRepository.findOne({
-          where: { id: receiptId },
-        });
-
+    const receipt = await this.findReceiptById(receiptId);
+    
     if (!receipt) {
-    throw new NotFoundException('Không tìm thấy phiếu nhập kho');
-  }
-  
-  // Kiểm tra trạng thái phiếu - chỉ cho phép thanh toán phiếu đã duyệt
-  if (receipt.status !== 'approved') {
-    throw new BadRequestException(
-      'Chỉ có thể thanh toán cho phiếu đã duyệt'
-    );
-  }
-  
-  // Validation
+      throw new NotFoundException('Không tìm thấy phiếu nhập kho');
+    }
+    
+    // Validation
     if (receipt.is_payment_locked) {
       throw new BadRequestException('Payment đã bị khóa, không thể thêm thanh toán');
     }
@@ -2650,26 +2628,6 @@ export class InventoryService {
       relations: ['creator'],
       order: { payment_date: 'DESC' },
     });
-  }
-
-  /**
-   * Lấy danh sách phiếu trả hàng liên quan đến phiếu nhập kho
-   * @param receiptId - ID phiếu nhập kho
-   * @returns Danh sách phiếu trả hàng
-   */
-  async getReceiptReturns(receiptId: number) {
-    const returns = await this.inventoryReturnRepository.find({
-      where: { receipt_id: receiptId },
-      order: { created_at: 'DESC' },
-    });
-
-    return returns.map((r) => ({
-      id: r.id,
-      code: r.code,
-      total_amount: r.total_amount,
-      created_at: r.created_at,
-      status: r.status,
-    }));
   }
 
   /**

@@ -4,8 +4,10 @@ import { InventoryBatch } from '../../entities/inventories.entity';
 import { InventoryTransaction } from '../../entities/inventory-transactions.entity';
 import { InventoryReceipt } from '../../entities/inventory-receipts.entity';
 import { InventoryReceiptItem } from '../../entities/inventory-receipt-items.entity';
+import { InventoryReceiptPayment } from '../../entities/inventory-receipt-payments.entity';
 import { InventoryReturn } from '../../entities/inventory-returns.entity';
 import { InventoryReturnItem } from '../../entities/inventory-return-items.entity';
+import { InventoryReturnRefund } from '../../entities/inventory-return-refunds.entity';
 import { InventoryAdjustment } from '../../entities/inventory-adjustments.entity';
 import { InventoryAdjustmentItem } from '../../entities/inventory-adjustment-items.entity';
 import { InventoryService } from './inventory.service';
@@ -31,8 +33,10 @@ import { FileTrackingModule } from '../file-tracking/file-tracking.module';
       InventoryTransaction, // Entity quản lý giao dịch kho
       InventoryReceipt, // Entity quản lý phiếu nhập kho
       InventoryReceiptItem, // Entity quản lý chi tiết phiếu nhập kho
+      InventoryReceiptPayment, // Entity quản lý thanh toán phiếu nhập kho
       InventoryReturn, // Entity quản lý phiếu xuất trả hàng
       InventoryReturnItem, // Entity quản lý chi tiết phiếu xuất trả hàng
+      InventoryReturnRefund, // Entity quản lý hoàn tiền phiếu trả hàng
       InventoryAdjustment, // Entity quản lý phiếu điều chỉnh kho
       InventoryAdjustmentItem, // Entity quản lý chi tiết phiếu điều chỉnh kho
     ]),

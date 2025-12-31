@@ -10,6 +10,7 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { InventoryReturnItem } from './inventory-return-items.entity';
+import { InventoryReturnRefund } from './inventory-return-refunds.entity';
 import { Supplier } from './suppliers.entity';
 import { InventoryReceipt } from './inventory-receipts.entity';
 
@@ -101,4 +102,21 @@ export class InventoryReturn {
   /** Quan hệ với các item trong phiếu xuất trả hàng */
   @OneToMany(() => InventoryReturnItem, (item) => item.return)
   items!: InventoryReturnItem[];
+
+  // ===== HOÀN TIỀN =====
+  /** Số tiền đã hoàn */
+  @Column({ name: 'refund_amount', type: 'decimal', precision: 15, scale: 2, default: 0 })
+  refund_amount!: number;
+
+  /** Trạng thái hoàn tiền (pending, partial, refunded) */
+  @Column({ name: 'refund_status', length: 20, default: 'pending' })
+  refund_status!: string;
+
+  /** Phương thức hoàn tiền (cash, transfer, debt_offset) */
+  @Column({ name: 'refund_method', length: 50, nullable: true })
+  refund_method?: string;
+
+  /** Quan hệ với lịch sử hoàn tiền */
+  @OneToMany(() => InventoryReturnRefund, (refund) => refund.return)
+  refunds!: InventoryReturnRefund[];
 }

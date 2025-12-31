@@ -10,6 +10,7 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { InventoryReceiptItem } from './inventory-receipt-items.entity';
+import { InventoryReceiptPayment } from './inventory-receipt-payments.entity';
 import { Supplier } from './suppliers.entity';
 import { User } from './users.entity';
 
@@ -102,7 +103,59 @@ export class InventoryReceipt {
   @DeleteDateColumn({ name: 'deleted_at' })
   deleted_at?: Date;
 
+  // ===== THANH TOÁN =====
+  /** Số tiền đã thanh toán */
+  @Column({ name: 'paid_amount', type: 'decimal', precision: 15, scale: 2, default: 0 })
+  paid_amount!: number;
+
+  /** Trạng thái thanh toán (unpaid, partial, paid) */
+  @Column({ name: 'payment_status', length: 20, default: 'unpaid' })
+  payment_status!: string;
+
+  /** Phương thức thanh toán (cash, transfer, debt, mixed) */
+  @Column({ name: 'payment_method', length: 50, nullable: true })
+  payment_method?: string;
+
+  /** Hạn thanh toán */
+  @Column({ name: 'payment_due_date', type: 'timestamp', nullable: true })
+  payment_due_date?: Date;
+
+  // ===== ĐIỀU CHỈNH =====
+  /** Tổng giá trị đã điều chỉnh (+ hoặc -) */
+  @Column({ name: 'adjusted_amount', type: 'decimal', precision: 15, scale: 2, default: 0 })
+  adjusted_amount!: number;
+
+  /** Tổng giá trị đã trả hàng */
+  @Column({ name: 'returned_amount', type: 'decimal', precision: 15, scale: 2, default: 0 })
+  returned_amount!: number;
+
+  /** Số tiền cuối cùng (total_amount + adjusted_amount - returned_amount) */
+  @Column({ name: 'final_amount', type: 'decimal', precision: 15, scale: 2, nullable: true })
+  final_amount?: number;
+
+  /** Số tiền còn nợ (final_amount - paid_amount) */
+  @Column({ name: 'debt_amount', type: 'decimal', precision: 15, scale: 2, nullable: true })
+  debt_amount?: number;
+
+  // ===== CỜ TRẠNG THÁI =====
+  /** Có phiếu trả hàng liên quan */
+  @Column({ name: 'has_returns', default: false })
+  has_returns!: boolean;
+
+  /** Có điều chỉnh */
+  @Column({ name: 'has_adjustments', default: false })
+  has_adjustments!: boolean;
+
+  /** Khóa không cho sửa payment */
+  @Column({ name: 'is_payment_locked', default: false })
+  is_payment_locked!: boolean;
+
+  // ===== QUAN HỆ =====
   /** Quan hệ với các item trong phiếu nhập kho */
   @OneToMany(() => InventoryReceiptItem, (item) => item.receipt)
   items!: InventoryReceiptItem[];
+
+  /** Quan hệ với lịch sử thanh toán */
+  @OneToMany(() => InventoryReceiptPayment, (payment) => payment.receipt)
+  payments!: InventoryReceiptPayment[];
 }

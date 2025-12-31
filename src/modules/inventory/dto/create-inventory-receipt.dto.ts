@@ -56,9 +56,6 @@ export class CreateInventoryReceiptDto {
   })
   status!: string;
 
-  @IsNumber()
-  created_by!: number;
-
   @IsOptional()
   @IsNumber()
   shared_shipping_cost?: number;
@@ -76,4 +73,18 @@ export class CreateInventoryReceiptDto {
   @IsArray()
   @IsString({ each: true })
   images?: string[];
+
+  // Các trường thanh toán
+  @IsOptional()
+  @IsNumber()
+  paid_amount?: number;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['cash', 'transfer', 'debt', 'mixed'], { message: 'Phương thức thanh toán không hợp lệ' })
+  payment_method?: string;
+
+  @IsOptional()
+  @IsString()
+  payment_due_date?: string;
 }
