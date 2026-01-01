@@ -42,6 +42,7 @@ export class UploadService {
         resource_type: 'image',
         transformation: [
           { quality: 'auto', fetch_format: 'auto' }, // Tự động tối ưu chất lượng và định dạng
+          { aspect_ratio: '1.0', gravity: 'center', crop: 'pad', background: 'auto' }, // Tự động đưa về hình vuông 1:1, thêm viền nếu cần
         ],
       });
 
