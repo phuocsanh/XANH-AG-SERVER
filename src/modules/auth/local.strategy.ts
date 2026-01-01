@@ -32,7 +32,7 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
     const user = await this.authService.validateUser(account, password);
     if (!user) {
       // Nếu không xác thực được, throw exception
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('Tài khoản hoặc mật khẩu không chính xác');
     }
     return user;
   }

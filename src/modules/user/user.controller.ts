@@ -189,4 +189,15 @@ export class UserController {
   async createCustomerAccount(@Body() createCustomerAccountDto: CreateCustomerAccountDto) {
     return this.userService.createCustomerAccount(createCustomerAccountDto.customer_id);
   }
+
+  /**
+   * Endpoint cập nhật FCM token của người dùng hiện tại
+   * @param req - Request chứa thông tin user
+   * @param fcmToken - FCM token nhận từ client
+   */
+  @Put('fcm-token')
+  @UseGuards(JwtAuthGuard)
+  async updateFcmToken(@Req() req: any, @Body('fcm_token') fcmToken: string) {
+    return this.userService.updateUserProfile(req.user.id, { fcm_token: fcmToken });
+  }
 }

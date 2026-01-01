@@ -173,7 +173,7 @@ export class UserService {
   async update(id: number, updateUserDto: UpdateUserDto): Promise<User | null> {
     try {
       // Tách các trường thuộc UserProfile
-      const userProfileFields = ['email'];
+      const userProfileFields = ['email', 'fcm_token'];
       const userProfileData: any = {};
       const userData: any = {};
 
