@@ -67,6 +67,17 @@ export class UserController {
 
 
   /**
+   * Endpoint cập nhật FCM token của người dùng hiện tại
+   * @param req - Request chứa thông tin user
+   * @param fcmToken - FCM token nhận từ client
+   */
+  @Put('fcm-token')
+  @UseGuards(JwtAuthGuard)
+  async updateFcmToken(@Req() req: any, @Body('fcm_token') fcmToken: string) {
+    return this.userService.updateUserProfile(req.user.id, { fcm_token: fcmToken });
+  }
+
+  /**
    * Endpoint tìm người dùng theo ID
    * @param id - ID của người dùng cần tìm
    * @returns Thông tin người dùng
@@ -190,14 +201,5 @@ export class UserController {
     return this.userService.createCustomerAccount(createCustomerAccountDto.customer_id);
   }
 
-  /**
-   * Endpoint cập nhật FCM token của người dùng hiện tại
-   * @param req - Request chứa thông tin user
-   * @param fcmToken - FCM token nhận từ client
-   */
-  @Put('fcm-token')
-  @UseGuards(JwtAuthGuard)
-  async updateFcmToken(@Req() req: any, @Body('fcm_token') fcmToken: string) {
-    return this.userService.updateUserProfile(req.user.id, { fcm_token: fcmToken });
-  }
+
 }
