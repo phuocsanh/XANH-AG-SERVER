@@ -284,13 +284,13 @@ export class RiceCropService {
         .leftJoinAndSelect('rice_crop.season', 'season')
         .orderBy('rice_crop.created_at', 'DESC');
 
-      // Nếu user là CUSTOMER, tự động filter theo customer_id của họ
-      if (user && user.role && user.role.code === 'CUSTOMER' && user.customer_id) {
+      // Nếu user là USER (nông dân), tự động filter theo customer_id của họ
+      if (user && user.role && user.role.code === 'USER' && user.customer_id) {
         queryBuilder.andWhere('rice_crop.customer_id = :customer_id', { 
           customer_id: user.customer_id 
         });
       }
-      // Nếu không phải CUSTOMER, cho phép filter theo customer_id từ searchDto
+      // Nếu không phải USER (ví dụ: ADMIN, STAFF), cho phép filter theo customer_id từ searchDto
       else if (query.customer_id) {
         queryBuilder.andWhere('rice_crop.customer_id = :customer_id', { 
           customer_id: query.customer_id 

@@ -83,7 +83,8 @@ export class User {
 
   /** Thông tin profile của user */
   @OneToOne(() => UserProfile, (profile) => profile.user)
-  profile?: UserProfile;
+  @JoinColumn({ name: 'id', referencedColumnName: 'user_id' })
+  user_profile?: UserProfile;
 
   /** ID của customer (nếu user này là customer) */
   @Column({ name: 'customer_id', nullable: true })

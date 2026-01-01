@@ -15,6 +15,12 @@ export class CreateCostItemDto {
   @IsNumber({}, { message: 'ID mảnh ruộng phải là số' })
   @Type(() => Number)
   rice_crop_id!: number;
+  
+  @ApiPropertyOptional({ description: 'ID loại chi phí', example: 1 })
+  @IsOptional()
+  @IsNumber({}, { message: 'ID loại chi phí phải là số' })
+  @Type(() => Number)
+  category_id?: number;
 
 
   @ApiProperty({ description: 'Tên khoản chi', example: 'Giống lúa OM 5451' })
@@ -49,6 +55,12 @@ export class CreateCostItemDto {
 }
 
 export class UpdateCostItemDto {
+  @ApiPropertyOptional({ description: 'ID loại chi phí', example: 1 })
+  @IsOptional()
+  @IsNumber({}, { message: 'ID loại chi phí phải là số' })
+  @Type(() => Number)
+  category_id?: number;
+
   @ApiPropertyOptional({ description: 'Tên khoản chi', example: 'Giống lúa OM 5451' })
   @IsOptional()
   @IsString({ message: 'Tên khoản chi phải là chuỗi' })

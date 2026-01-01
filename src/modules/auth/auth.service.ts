@@ -85,6 +85,7 @@ export class AuthService {
         account: fullUser.account,
         status: fullUser.status,
         role: fullUser.role, // Bao gồm role với permissions
+        user_profile: (fullUser as any).user_profile, // Thêm profile để lấy tên người dùng
       },
     };
   }

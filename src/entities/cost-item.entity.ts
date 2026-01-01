@@ -33,6 +33,14 @@ export class CostItem {
   @Column({ name: 'item_name', length: 255 })
   item_name!: string;
 
+  @ApiProperty({ description: 'ID loại chi phí', required: false })
+  @Column({ name: 'category_id', nullable: true })
+  category_id?: number;
+
+  @ManyToOne('CostItemCategory')
+  @JoinColumn({ name: 'category_id' })
+  category_item?: any;
+
 
 
 

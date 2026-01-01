@@ -24,6 +24,10 @@ export const PERMISSION_GROUPS = {
   PRODUCT: ['product:read', 'product:manage'],
   PRODUCT_READ_ONLY: ['product:read'],
   
+  // Season Management
+  SEASON: ['season:read', 'season:manage'],
+  SEASON_READ_ONLY: ['season:read'],
+  
   // Sales Management
   SALES: ['sales:read', 'sales:create', 'sales:manage'],
   SALES_READ_CREATE: ['sales:read', 'sales:create'],
@@ -46,7 +50,7 @@ export const PERMISSION_GROUPS = {
   RICE_CROP_NO_DELETE: ['rice_crop:read', 'rice_crop:create', 'rice_crop:update'],
   
   // Cost Item (Full CRUD)
-  COST_ITEM: ['cost_item:read', 'cost_item:create', 'cost_item:update', 'cost_item:delete'],
+  COST_ITEM: ['cost_item:read', 'cost_item:create', 'cost_item:update', 'cost_item:delete', 'cost_item:manage'],
   COST_ITEM_NO_DELETE: ['cost_item:read', 'cost_item:create', 'cost_item:update'],
   
   // Harvest (Full CRUD)
@@ -112,6 +116,7 @@ export const getRolesData = (allPermissionCodes: string[]) => [
       ...PERMISSION_GROUPS.AREA,
       ...PERMISSION_GROUPS.STORE_PROFIT,
       ...PERMISSION_GROUPS.OPERATING_COST,
+      ...PERMISSION_GROUPS.SEASON,
     ],
   },
   {
@@ -134,6 +139,7 @@ export const getRolesData = (allPermissionCodes: string[]) => [
       ...PERMISSION_GROUPS.AREA_NO_DELETE,
       ...PERMISSION_GROUPS.STORE_PROFIT,
       ...PERMISSION_GROUPS.OPERATING_COST_READ_ONLY,
+      ...PERMISSION_GROUPS.SEASON_READ_ONLY,
     ],
   },
   {
@@ -144,6 +150,7 @@ export const getRolesData = (allPermissionCodes: string[]) => [
       ...PERMISSION_GROUPS.AI_READ_ONLY,
       ...PERMISSION_GROUPS.PRODUCT_READ_ONLY,
       ...PERMISSION_GROUPS.SALES_READ_ONLY,
+      'rice_crop:read', // Cho phép xem ruộng lúa của mình
       ...PERMISSION_GROUPS.RICE_CROP_NO_DELETE,
       ...PERMISSION_GROUPS.COST_ITEM,
       ...PERMISSION_GROUPS.HARVEST,
@@ -152,6 +159,16 @@ export const getRolesData = (allPermissionCodes: string[]) => [
       ...PERMISSION_GROUPS.GROWTH,
       ...PERMISSION_GROUPS.AREA,
       ...PERMISSION_GROUPS.STORE_PROFIT,
+      ...PERMISSION_GROUPS.SEASON_READ_ONLY,
+    ],
+  },
+  {
+    code: 'CUSTOMER',
+    name: 'Customer',
+    description: 'Khách hàng - Chỉ xem thông tin mua hàng và công nợ của mình',
+    permissionCodes: [
+      ...PERMISSION_GROUPS.SALES_READ_ONLY,
+      ...PERMISSION_GROUPS.PRODUCT_READ_ONLY,
     ],
   },
 ];

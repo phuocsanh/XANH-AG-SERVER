@@ -9,4 +9,5 @@ export enum RoleCode {
   STAFF = 'STAFF',             // Nhân viên
   FARMER = 'FARMER',           // Nông dân (Khách hàng)
   USER = 'USER',               // Người dùng thông thường
+  CUSTOMER = 'CUSTOMER',       // Khách hàng mua hàng
 }

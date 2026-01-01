@@ -79,7 +79,7 @@ export class UserProfile {
   deleted_at?: Date;
 
   /** User sở hữu profile này */
-  @OneToOne(() => User, (user) => user.profile)
+  @OneToOne(() => User, (user) => user.user_profile)
   @JoinColumn({ name: 'user_id' })
   user?: User;
 }

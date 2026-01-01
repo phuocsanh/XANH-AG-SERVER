@@ -508,7 +508,7 @@ export class ProductService extends BaseSearchService<Product> {
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.unit', 'unit')
       .leftJoinAndSelect('product.symbol', 'symbol')
-      .where('product.productType = :productType', { productType })
+      .where('product.type = :productType', { productType })
       .andWhere('product.status = :status', { status: BaseStatus.ACTIVE })
       .andWhere('product.deleted_at IS NULL')
       .getMany();

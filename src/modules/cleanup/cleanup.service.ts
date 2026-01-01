@@ -65,8 +65,8 @@ export class CleanupService {
       for (const user of usersToDelete) {
         try {
           // 1. Xóa avatar nếu có
-          if (user.profile?.avatar) {
-            await ImageCleanupHelper.deleteImage(user.profile.avatar, this.uploadService);
+          if (user.user_profile?.avatar) {
+            await ImageCleanupHelper.deleteImage(user.user_profile.avatar, this.uploadService);
           }
 
           // 2. Xóa cứng UserProfile (nếu chưa bị cascade)

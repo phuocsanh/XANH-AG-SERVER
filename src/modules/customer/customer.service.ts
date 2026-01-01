@@ -17,6 +17,17 @@ export class CustomerService {
   ) {}
 
   async create(createCustomerDto: CreateCustomerDto): Promise<Customer> {
+    // Kiểm tra số điện thoại đã được dùng làm account của USER chưa
+    if (createCustomerDto.phone) {
+      const existingUser = await this.customerRepository.manager
+        .getRepository('User')
+        .findOne({ where: { account: createCustomerDto.phone } });
+      
+      if (existingUser) {
+        throw new Error('Số điện thoại này đã được sử dụng cho tài khoản đăng nhập');
+      }
+    }
+
     // Auto-generate code nếu không được cung cấp
     if (!createCustomerDto.code) {
       createCustomerDto.code = CodeGeneratorHelper.generateCode('CUS');

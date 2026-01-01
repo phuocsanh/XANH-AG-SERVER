@@ -101,17 +101,14 @@ export class UserService {
         updated_at: true,
         is_two_factor_enabled: true,
         role_id: true,
-        profile: {
+        user_profile: {
           user_id: true,
           account: true,
           nickname: true,
           avatar: true,
           status: true,
           mobile: true,
-          gender: true,
-          birthday: true,
           email: true,
-          is_authentication: true,
           created_at: true,
           updated_at: true,
         },
@@ -122,10 +119,19 @@ export class UserService {
   /**
    * Tìm người dùng theo ID
    * @param id - ID của người dùng cần tìm
-   * @returns Thông tin người dùng
+   * @returns Thông tin người dùng (không bao gồm password và salt)
    */
   async findOne(id: number): Promise<User | null> {
-    return this.userRepository.findOne({ where: { id } });
+    const user = await this.userRepository.findOne({ 
+      where: { id },
+      relations: ['role', 'user_profile'],
+    });
+    
+    if (!user) return null;
+    
+    // Loại bỏ password và salt để bảo mật
+    const { password, salt, ...userWithoutSensitiveData } = user;
+    return userWithoutSensitiveData as User;
   }
 
   /**
@@ -154,7 +160,7 @@ export class UserService {
   async findOneWithPermissions(id: number): Promise<User | null> {
     return this.userRepository.findOne({
       where: { id, deleted_at: IsNull() },
-      relations: ['role', 'role.permissions'],
+      relations: ['role', 'role.permissions', 'user_profile'], // Thêm user_profile để lấy tên
     });
   }
 
@@ -547,58 +553,62 @@ export class UserService {
         .findOne({ where: { id: customerId } });
 
       if (!customer) {
-        throw new Error('Khách hàng không tồn tại');
+        throw new Error('Không tìm thấy khách hàng');
       }
 
-      // 2. Kiểm tra customer đã có tài khoản chưa
+      // 2. Kiểm tra customer đã có user chưa
       const existingUser = await this.userRepository.findOne({
         where: { customer_id: customerId },
       });
 
       if (existingUser) {
-        throw new Error('Khách hàng đã có tài khoản đăng nhập');
+        throw new Error('Khách hàng này đã có tài khoản đăng nhập');
       }
 
-      // 3. Kiểm tra số điện thoại đã được dùng làm account chưa
-      const existingAccount = await this.findByAccount(customer.phone);
-      if (existingAccount) {
-        throw new Error('Số điện thoại này đã được sử dụng làm tài khoản');
+      // 3. Kiểm tra số điện thoại đã được dùng chưa
+      if (customer.phone_number) {
+        const existingUserWithPhone = await this.userRepository.findOne({
+          where: { account: customer.phone_number },
+        });
+
+        if (existingUserWithPhone) {
+          throw new Error('Số điện thoại này đã được sử dụng cho tài khoản khác');
+        }
       }
 
-      // 4. Lấy role CUSTOMER
-      const customerRole = await this.userRepository.manager
+      // 4. Lấy role USER (không phải CUSTOMER vì CUSTOMER không có tài khoản đăng nhập)
+      const userRole = await this.userRepository.manager
         .getRepository('Role')
-        .findOne({ where: { code: 'CUSTOMER' } });
+        .findOne({ where: { code: 'USER' } });
 
-      if (!customerRole) {
-        throw new Error('Role CUSTOMER chưa được tạo trong hệ thống');
+      if (!userRole) {
+        throw new Error('Role USER chưa được tạo trong hệ thống');
       }
 
-      // 5. Tạo mật khẩu tạm (8 ký tự random)
-      const tempPassword = this.generateTempPassword();
-
-      // 6. Hash mật khẩu
+      // 5. Tạo tài khoản tự động
+      const account = customer.phone_number || `CUS-${customer.id}`;
+      const tempPassword = Math.random().toString(36).slice(-6).toUpperCase(); // Mật khẩu ngẫu nhiên 6 ký tự
       const salt = await bcrypt.genSalt();
       const hashedPassword = await bcrypt.hash(tempPassword, salt);
 
-      // 7. Tạo user mới
-      const user = this.userRepository.create({
-        account: customer.phone, // Dùng SĐT làm username
+      // 6. Tạo user mới với role USER
+      const newUser = this.userRepository.create({
+        account,
         password: hashedPassword,
         salt: salt,
-        role_id: customerRole.id,
+        role_id: userRole.id, // Gán role USER
         customer_id: customerId,
-        status: BaseStatus.ACTIVE, // Customer được active ngay
+        status: BaseStatus.ACTIVE,
       });
 
-      await this.userRepository.save(user);
+      await this.userRepository.save(newUser);
 
-      // 8. Tạo user profile mặc định
+      // 7. Tạo user profile mặc định
       const userProfile = this.userProfileRepository.create({
-        user_id: user.id,
-        account: user.account,
+        user_id: newUser.id,
+        account: newUser.account,
         nickname: customer.name,
-        mobile: customer.phone,
+        mobile: customer.phone_number,
         email: customer.email,
       });
       await this.userProfileRepository.save(userProfile);
@@ -607,7 +617,7 @@ export class UserService {
       // await this.sendAccountCreatedNotification(customer, tempPassword);
 
       return {
-        account: user.account,
+        account: newUser.account,
         temp_password: tempPassword,
         customer_name: customer.name,
       };
@@ -616,14 +626,6 @@ export class UserService {
     }
   }
 
-  /**
-   * Tạo mật khẩu tạm cố định
-   * @returns Mật khẩu tạm (123456)
-   */
-  private generateTempPassword(): string {
-    // Mật khẩu tạm cố định để dễ nhớ
-    return '123456';
-  }
 
   /**
    * Tìm kiếm nâng cao người dùng với cấu trúc filter lồng nhau

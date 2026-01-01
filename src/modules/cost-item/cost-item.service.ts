@@ -35,6 +35,7 @@ export class CostItemService {
       const queryBuilder = this.costItemRepository
         .createQueryBuilder('cost_item')
         .leftJoinAndSelect('cost_item.rice_crop', 'rice_crop')
+        .leftJoinAndSelect('cost_item.category_item', 'category_item')
         .orderBy('cost_item.created_at', 'DESC');
 
       if (query.rice_crop_id) {
@@ -136,6 +137,7 @@ export class CostItemService {
       const queryBuilder = this.costItemRepository
         .createQueryBuilder('cost_item')
         .leftJoinAndSelect('cost_item.rice_crop', 'rice_crop')
+        .leftJoinAndSelect('cost_item.category_item', 'category_item')
         .orderBy('cost_item.created_at', 'DESC');
 
       if (query.rice_crop_id) {

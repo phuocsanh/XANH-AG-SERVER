@@ -53,6 +53,17 @@ export class UserController {
     return this.userService.create(createUserDto);
   }
 
+  /**
+   * Endpoint lấy thông tin profile của user đang đăng nhập
+   * Không cần permission đặc biệt - chỉ cần đăng nhập
+   * @param req - Request object chứa thông tin user đang đăng nhập
+   * @returns Thông tin user với profile
+   */
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  async getMyProfile(@Req() req: any) {
+    return this.userService.findOne(req.user.id);
+  }
 
 
   /**

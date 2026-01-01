@@ -12,13 +12,13 @@ export class SeasonController {
   constructor(private readonly seasonService: SeasonService) {}
 
   @Post()
-  @RequirePermissions('product:manage')
+  @RequirePermissions('season:manage')
   create(@Body() createSeasonDto: CreateSeasonDto) {
     return this.seasonService.create(createSeasonDto);
   }
 
   @Post('search')
-  @RequirePermissions('product:read')
+  @RequirePermissions('season:read')
   search(@Body() searchDto: any) {
     return this.seasonService.search(searchDto);
   }
@@ -28,19 +28,19 @@ export class SeasonController {
 
 
   @Get(':id')
-  @RequirePermissions('product:read')
+  @RequirePermissions('season:read')
   findOne(@Param('id') id: string) {
     return this.seasonService.findOne(+id);
   }
 
   @Patch(':id')
-  @RequirePermissions('product:manage')
+  @RequirePermissions('season:manage')
   update(@Param('id') id: string, @Body() updateSeasonDto: UpdateSeasonDto) {
     return this.seasonService.update(+id, updateSeasonDto);
   }
 
   @Delete(':id')
-  @RequirePermissions('product:manage')
+  @RequirePermissions('season:manage')
   remove(@Param('id') id: string) {
     return this.seasonService.remove(+id);
   }

@@ -22,9 +22,11 @@ import { SearchProductTypeDto } from './dto/search-product-type.dto';
 /**
  * Controller xử lý các request liên quan đến loại sản phẩm
  * Bao gồm các thao tác CRUD, Status Management và Soft Delete cho ProductType
+ * 
+ * PUBLIC endpoints: by-status (GET)
+ * PROTECTED endpoints: create, update, delete, search
  */
 @Controller('product-types')
-@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class ProductTypeController {
   /**
    * Constructor injection ProductTypeService
@@ -38,6 +40,7 @@ export class ProductTypeController {
    * @returns Thông tin loại sản phẩm đã tạo
    */
   @Post()
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('product:manage')
   create(@Body() createProductTypeDto: CreateProductTypeDto) {
     return this.productTypeService.create(createProductTypeDto);
@@ -56,9 +59,9 @@ export class ProductTypeController {
    * Lấy danh sách loại sản phẩm theo trạng thái
    * @param status - Trạng thái cần lọc (active, inactive, archived)
    * @returns Danh sách loại sản phẩm theo trạng thái
+   * PUBLIC - Không cần auth để xem danh sách
    */
   @Get('by-status/:status')
-  @RequirePermissions('product:read')
   findByStatus(@Param('status') status: BaseStatus) {
     return this.productTypeService.findByStatus(status);
   }
@@ -68,6 +71,7 @@ export class ProductTypeController {
    * @returns Danh sách loại sản phẩm đã bị xóa
    */
   @Get('deleted')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('product:manage')
   findDeleted() {
     return this.productTypeService.findDeleted();
@@ -79,6 +83,7 @@ export class ProductTypeController {
    * @returns Danh sách loại sản phẩm phù hợp
    */
   @Post('search')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('product:read')
   search(@Body() searchDto: SearchProductTypeDto) {
     try {
@@ -97,6 +102,7 @@ export class ProductTypeController {
    * @returns Thông tin loại sản phẩm
    */
   @Get(':id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('product:read')
   findOne(@Param('id') id: string) {
     return this.productTypeService.findOne(+id);
@@ -109,6 +115,7 @@ export class ProductTypeController {
    * @returns Thông tin loại sản phẩm đã cập nhật
    */
   @Patch(':id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('product:manage')
   update(
     @Param('id') id: string,
@@ -123,6 +130,7 @@ export class ProductTypeController {
    * @returns Thông tin loại sản phẩm đã kích hoạt
    */
   @Patch(':id/activate')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('product:manage')
   activate(@Param('id') id: string) {
     return this.productTypeService.activate(+id);
@@ -134,6 +142,7 @@ export class ProductTypeController {
    * @returns Thông tin loại sản phẩm đã vô hiệu hóa
    */
   @Patch(':id/deactivate')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('product:manage')
   deactivate(@Param('id') id: string) {
     return this.productTypeService.deactivate(+id);
@@ -145,6 +154,7 @@ export class ProductTypeController {
    * @returns Thông tin loại sản phẩm đã lưu trữ
    */
   @Patch(':id/archive')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('product:manage')
   archive(@Param('id') id: string) {
     return this.productTypeService.archive(+id);
@@ -156,6 +166,7 @@ export class ProductTypeController {
    * @returns Kết quả soft delete
    */
   @Delete(':id/soft')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('product:manage')
   softDelete(@Param('id') id: string) {
     return this.productTypeService.softDelete(+id);
@@ -167,6 +178,7 @@ export class ProductTypeController {
    * @returns Thông tin loại sản phẩm đã khôi phục
    */
   @Patch(':id/restore')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('product:manage')
   restore(@Param('id') id: string) {
     return this.productTypeService.restore(+id);
@@ -178,6 +190,7 @@ export class ProductTypeController {
    * @returns Kết quả xóa vĩnh viễn loại sản phẩm
    */
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('product:manage')
   remove(@Param('id') id: string) {
     return this.productTypeService.remove(+id);

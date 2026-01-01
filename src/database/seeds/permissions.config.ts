@@ -24,6 +24,10 @@ export const PERMISSIONS = [
   { code: 'product:read', name: 'Xem sản phẩm', group: 'Product Management', description: 'Xem danh sách sản phẩm' },
   { code: 'product:manage', name: 'Quản lý sản phẩm', group: 'Product Management', description: 'Tạo, sửa, xóa sản phẩm' },
   
+  // Season Management
+  { code: 'season:read', name: 'Xem mùa vụ', group: 'Season Management', description: 'Xem danh sách mùa vụ' },
+  { code: 'season:manage', name: 'Quản lý mùa vụ', group: 'Season Management', description: 'Tạo, sửa, xóa mùa vụ' },
+  
   // Sales Management
   { code: 'sales:read', name: 'Xem hóa đơn', group: 'Sales Management', description: 'Xem hóa đơn bán hàng' },
   { code: 'sales:create', name: 'Tạo hóa đơn', group: 'Sales Management', description: 'Tạo hóa đơn bán hàng mới' },
@@ -52,6 +56,7 @@ export const PERMISSIONS = [
   { code: 'cost_item:create', name: 'Thêm chi phí', group: 'Cost Item Management', description: 'Thêm chi phí mới' },
   { code: 'cost_item:update', name: 'Cập nhật chi phí', group: 'Cost Item Management', description: 'Cập nhật chi phí' },
   { code: 'cost_item:delete', name: 'Xóa chi phí', group: 'Cost Item Management', description: 'Xóa chi phí' },
+  { code: 'cost_item:manage', name: 'Quản lý chi phí', group: 'Cost Item Management', description: 'Toàn quyền quản lý chi phí' },
   
   // Harvest Record Management
   { code: 'harvest:read', name: 'Xem thu hoạch', group: 'Harvest Management', description: 'Xem thông tin thu hoạch' },
