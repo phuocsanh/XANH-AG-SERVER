@@ -71,6 +71,13 @@ export async function seedRBAC(dataSource: DataSource) {
   });
 
   if (!superAdmin && createdRoles['SUPER_ADMIN']) {
+    const superAdminRole = createdRoles['SUPER_ADMIN'];
+    console.log(`🔍 Super Admin Role:`, {
+      id: superAdminRole.id,
+      code: superAdminRole.code,
+      name: superAdminRole.name,
+    });
+
     const salt = await bcrypt.genSalt();
     const hashedPassword = await bcrypt.hash(superAdminPassword, salt);
 
@@ -79,7 +86,14 @@ export async function seedRBAC(dataSource: DataSource) {
       password: hashedPassword,
       salt: salt,
       status: BaseStatus.ACTIVE,
-      role: createdRoles['SUPER_ADMIN'], // Sử dụng relation thay vì role_id
+      role_id: superAdminRole.id, // Sử dụng role_id trực tiếp
+      role: superAdminRole, // Cũng set relation để TypeORM biết
+    });
+
+    console.log(`🔍 User before save:`, {
+      account: superAdmin.account,
+      role_id: superAdmin.role_id,
+      role: superAdmin.role ? { id: superAdmin.role.id, code: superAdmin.role.code } : null,
     });
 
     superAdmin = await userRepository.save(superAdmin);
