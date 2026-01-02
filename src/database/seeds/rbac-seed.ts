@@ -79,7 +79,7 @@ export async function seedRBAC(dataSource: DataSource) {
       password: hashedPassword,
       salt: salt,
       status: BaseStatus.ACTIVE,
-      role_id: createdRoles['SUPER_ADMIN'].id,
+      role: createdRoles['SUPER_ADMIN'], // Sử dụng relation thay vì role_id
     });
 
     superAdmin = await userRepository.save(superAdmin);
