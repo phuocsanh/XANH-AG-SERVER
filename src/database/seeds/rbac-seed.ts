@@ -19,6 +19,26 @@ export async function seedRBAC(dataSource: DataSource) {
 
   console.log('🌱 Bắt đầu seed RBAC...');
 
+  // 0. Fix foreign key constraint nếu cần
+  try {
+    console.log('🔧 Kiểm tra và fix foreign key constraint...');
+    await dataSource.query(`
+      ALTER TABLE "users" 
+      DROP CONSTRAINT IF EXISTS "FK_a3ffb1c0c8416b9fc6f907b7433"
+    `);
+    await dataSource.query(`
+      ALTER TABLE "users" 
+      ADD CONSTRAINT "FK_users_role_id" 
+      FOREIGN KEY ("role_id") 
+      REFERENCES "roles"("id") 
+      ON DELETE SET NULL 
+      ON UPDATE CASCADE
+    `);
+    console.log('✅ Foreign key constraint đã được fix');
+  } catch (error) {
+    console.log('⚠️  Không thể fix foreign key constraint:', error instanceof Error ? error.message : error);
+  }
+
   // 1. Tạo Permissions từ config
   const createdPermissions: Permission[] = [];
   for (const permData of PERMISSIONS) {
