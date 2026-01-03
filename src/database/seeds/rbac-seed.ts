@@ -78,6 +78,14 @@ export async function seedRBAC(dataSource: DataSource) {
       name: superAdminRole.name,
     });
 
+    // Verify role tồn tại trong database
+    const roleInDb = await roleRepository.findOne({ where: { id: superAdminRole.id } });
+    console.log(`🔍 Role in database:`, roleInDb ? { id: roleInDb.id, code: roleInDb.code } : 'NOT FOUND!');
+
+    if (!roleInDb) {
+      throw new Error(`Role với id=${superAdminRole.id} không tồn tại trong database!`);
+    }
+
     const salt = await bcrypt.genSalt();
     const hashedPassword = await bcrypt.hash(superAdminPassword, salt);
 
