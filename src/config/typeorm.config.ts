@@ -48,6 +48,13 @@ const typeOrmConfig: TypeOrmModuleOptions = {
         ssl: {
           rejectUnauthorized: false, // Chấp nhận self-signed cert (cần thiết cho một số cloud provider)
         },
+        // Thêm connection timeout để tránh ETIMEDOUT
+        connectionTimeoutMillis: 30000, // 30 giây timeout
+        query_timeout: 30000, // 30 giây query timeout
+        statement_timeout: 30000, // 30 giây statement timeout
+        // Keep alive để maintain connection
+        keepAlive: true,
+        keepAliveInitialDelayMillis: 10000, // 10 giây
       }
     : undefined,
   entities: [path.join(__dirname, '../entities/*.entity{.ts,.js}')], // Đường dẫn đến các entity
@@ -67,6 +74,9 @@ const typeOrmConfig: TypeOrmModuleOptions = {
   // Retry connection
   retryAttempts: isProduction ? 10 : 3,
   retryDelay: 3000,
+  
+  // Connection timeout
+  connectTimeoutMS: 30000, // 30 giây
 };
 
 export default typeOrmConfig;
