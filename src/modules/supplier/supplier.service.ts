@@ -80,11 +80,37 @@ export class SupplierService {
   }
 
   /**
-   * Xóa nhà cung cấp theo ID
-   * @param id - ID của nhà cung cấp cần xóa
+   * Soft delete nhà cung cấp (đánh dấu deleted_at)
+   * @param id - ID của nhà cung cấp cần soft delete
    */
-  async remove(id: number) {
-    await this.supplierRepository.delete(id);
+  async softDelete(id: number): Promise<void> {
+    await this.supplierRepository.softDelete(id);
+  }
+
+  /**
+   * Khôi phục nhà cung cấp đã bị soft delete
+   * @param id - ID của nhà cung cấp cần khôi phục
+   * @returns Thông tin nhà cung cấp đã khôi phục
+   */
+  async restore(id: number): Promise<Supplier | null> {
+    await this.supplierRepository.restore(id);
+    return this.supplierRepository.findOne({ 
+      where: { id },
+      relations: ['creator']
+    });
+  }
+
+  /**
+   * Lấy danh sách nhà cung cấp đã bị soft delete
+   * @returns Danh sách nhà cung cấp đã bị soft delete
+   */
+  async findDeleted(): Promise<Supplier[]> {
+    return this.supplierRepository
+      .createQueryBuilder('supplier')
+      .withDeleted()
+      .where('supplier.deleted_at IS NOT NULL')
+      .leftJoinAndSelect('supplier.creator', 'creator')
+      .getMany();
   }
 
   /**
@@ -96,8 +122,32 @@ export class SupplierService {
     const queryBuilder = this.supplierRepository.createQueryBuilder('supplier');
     queryBuilder.leftJoinAndSelect('supplier.creator', 'creator');
 
-    // Thêm điều kiện mặc định: Nếu không có filter status thì mặc định lấy active
-    // Kiểm tra xem có filter status trong flat fields hoặc filters array không
+    // Kiểm tra xem có filter deleted_at không
+    const hasDeletedFilter = searchDto.filters?.some(
+      (filter) => filter.field === 'deleted_at',
+    );
+
+    // Thêm điều kiện mặc định chỉ khi không có filter deleted_at
+    if (!hasDeletedFilter) {
+      queryBuilder.where('supplier.deleted_at IS NULL');
+    } else {
+      // Nếu có filter deleted_at, cần sử dụng withDeleted() để bao gồm các bản ghi đã xóa
+      queryBuilder.withDeleted();
+
+      // Kiểm tra xem filter deleted_at có giá trị là isnotnull không
+      const deletedFilter = searchDto.filters?.find(
+        (filter) => filter.field === 'deleted_at',
+      );
+
+      if (deletedFilter && deletedFilter.operator === 'isnotnull') {
+        // Nếu đang tìm kiếm các bản ghi đã xóa, không cần thêm điều kiện mặc định
+        queryBuilder.where('supplier.deleted_at IS NOT NULL');
+      } else if (deletedFilter && deletedFilter.operator === 'isnull') {
+        // Nếu đang tìm kiếm các bản ghi chưa xóa, thêm điều kiện này
+        queryBuilder.where('supplier.deleted_at IS NULL');
+      }
+    }
+
     // 1. Base Search
     const { page, limit } = QueryHelper.applyBaseSearch(
       queryBuilder,

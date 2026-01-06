@@ -97,13 +97,34 @@ export class SupplierController {
   }
 
   /**
-   * Xóa nhà cung cấp theo ID
-   * @param id - ID của nhà cung cấp cần xóa
-   * @returns Kết quả xóa nhà cung cấp
+   * Soft delete nhà cung cấp (đánh dấu deleted_at)
+   * @param id - ID của nhà cung cấp cần soft delete
+   * @returns Kết quả soft delete nhà cung cấp
    */
   @Delete(':id')
   @RequirePermissions('inventory:manage')
   remove(@Param('id') id: string) {
-    return this.supplierService.remove(+id);
+    return this.supplierService.softDelete(+id);
+  }
+
+  /**
+   * Khôi phục nhà cung cấp đã bị soft delete
+   * @param id - ID của nhà cung cấp cần khôi phục
+   * @returns Thông tin nhà cung cấp đã khôi phục
+   */
+  @Patch(':id/restore')
+  @RequirePermissions('inventory:manage')
+  restore(@Param('id') id: string) {
+    return this.supplierService.restore(+id);
+  }
+
+  /**
+   * Lấy danh sách nhà cung cấp đã bị soft delete
+   * @returns Danh sách nhà cung cấp đã bị soft delete
+   */
+  @Get('deleted')
+  @RequirePermissions('inventory:manage')
+  findDeleted() {
+    return this.supplierService.findDeleted();
   }
 }
