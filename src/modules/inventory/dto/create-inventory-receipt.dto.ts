@@ -81,7 +81,7 @@ export class CreateInventoryReceiptDto {
 
   @IsOptional()
   @IsString()
-  @IsIn(['cash', 'transfer', 'debt', 'mixed'], { message: 'Phương thức thanh toán không hợp lệ' })
+  @IsIn(['cash', 'transfer'], { message: 'Phương thức thanh toán không hợp lệ. Chỉ chấp nhận: cash, transfer' })
   payment_method?: string;
 
   @IsOptional()

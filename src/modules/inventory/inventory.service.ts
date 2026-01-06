@@ -1131,6 +1131,28 @@ export class InventoryService {
       const totalAmount = Number(createInventoryReceiptDto.total_amount);
       const returnedAmount = Number(receiptData.returned_amount) || 0;
       
+      // ===== VALIDATION THANH TOÁN =====
+      // 1. Nếu có thanh toán, phải có payment_method (và không được là 'debt')
+      if (paidAmount > 0) {
+        if (!createInventoryReceiptDto.payment_method) {
+          throw new BadRequestException(
+            'Khi có thanh toán, phải chọn phương thức thanh toán (cash hoặc transfer)'
+          );
+        }
+        if (createInventoryReceiptDto.payment_method === 'debt') {
+          throw new BadRequestException(
+            'Không thể chọn phương thức "Công nợ" khi đã có thanh toán'
+          );
+        }
+      }
+      
+      // 2. Nếu thanh toán chưa đủ, phải có hạn thanh toán
+      if (paidAmount < totalAmount && !createInventoryReceiptDto.payment_due_date) {
+        throw new BadRequestException(
+          'Khi còn nợ, phải có hạn thanh toán'
+        );
+      }
+      
       // Tính giá trị thực tế sau khi trừ trả hàng
       const finalAmount = totalAmount - returnedAmount;
       const debtAmount = finalAmount - paidAmount;
