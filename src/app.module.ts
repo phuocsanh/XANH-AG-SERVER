@@ -52,6 +52,8 @@ import { CleanupModule } from './modules/cleanup/cleanup.module';
 import { AreaOfEachPlotOfLandModule } from './modules/area-of-each-plot-of-land/area-of-each-plot-of-land.module';
 import { ExternalPurchaseModule } from './modules/external-purchase/external-purchase.module';
 import { FarmServiceCostModule } from './modules/farm-service-cost/farm-service-cost.module';
+import { ExpiryAlertModule } from './modules/expiry-alert/expiry-alert.module';
+import { NotificationModule } from './modules/notification/notification.module';
 import { SeedController } from './seed.controller';
 
 
@@ -141,6 +143,8 @@ import { SeedController } from './seed.controller';
     AreaOfEachPlotOfLandModule, // Module quản lý các vùng/lô đất
     ExternalPurchaseModule, // Module quản lý hóa đơn mua hàng từ bên ngoài
     FarmServiceCostModule, // Module quản lý chi phí dịch vụ/quà tặng cho nông dân
+    ExpiryAlertModule, // Module quản lý cảnh báo hạn dùng sản phẩm
+    NotificationModule, // Module quản lý thông báo (FCM)
   ],
   controllers: [SeedController], // Seed controller để seed RBAC qua API
   providers: [

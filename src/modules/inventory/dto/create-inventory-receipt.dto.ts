@@ -33,6 +33,18 @@ export class CreateInventoryReceiptItemDto {
   @IsOptional()
   @IsNumber()
   individual_shipping_cost?: number;
+
+  // ===== TRƯỜNG MỚI - HẠN DÙNG =====
+  @IsOptional()
+  @IsString()
+  expiry_date?: string; // Format: YYYY-MM-DD
+
+  @IsOptional()
+  @IsString()
+  manufacturing_date?: string; // Format: YYYY-MM-DD
+  @IsOptional()
+  @IsString()
+  batch_number?: string;
 }
 
 export class CreateInventoryReceiptDto {

@@ -16,12 +16,11 @@ import {
 import { InventoryService } from './inventory.service';
 import { CreateInventoryBatchDto } from './dto/create-inventory-batch.dto';
 import { CreateInventoryTransactionDto } from './dto/create-inventory-transaction.dto';
-import { CreateInventoryReceiptDto } from './dto/create-inventory-receipt.dto';
+import { CreateInventoryReceiptDto, CreateInventoryReceiptItemDto } from './dto/create-inventory-receipt.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { InventoryReceiptItem } from '../../entities/inventory-receipt-items.entity';
 import {
   ProductGroup,
   StockData,
@@ -495,7 +494,7 @@ export class InventoryController {
   @RequirePermissions('inventory:manage')
   updateReceiptItem(
     @Param('id') id: string,
-    @Body() updateData: Partial<InventoryReceiptItem>,
+    @Body() updateData: Partial<CreateInventoryReceiptItemDto>,
   ) {
     return this.inventoryService.updateReceiptItem(+id, updateData);
   }

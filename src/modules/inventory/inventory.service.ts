@@ -618,6 +618,8 @@ export class InventoryService {
         });
     }
 
+
+
     // Tạo giao dịch nhập kho
     const transactionData: CreateInventoryTransactionDto = {
       product_id: productId,
@@ -1131,26 +1133,35 @@ export class InventoryService {
       const totalAmount = Number(createInventoryReceiptDto.total_amount);
       const returnedAmount = Number(receiptData.returned_amount) || 0;
       
-      // ===== VALIDATION THANH TOÁN =====
-      // 1. Nếu có thanh toán, phải có payment_method (và không được là 'debt')
-      if (paidAmount > 0) {
-        if (!createInventoryReceiptDto.payment_method) {
-          throw new BadRequestException(
-            'Khi có thanh toán, phải chọn phương thức thanh toán (cash hoặc transfer)'
-          );
-        }
-        if (createInventoryReceiptDto.payment_method === 'debt') {
-          throw new BadRequestException(
-            'Không thể chọn phương thức "Công nợ" khi đã có thanh toán'
-          );
-        }
+      // ===== VALIDATION: KHÔNG CHO PHÉP THANH TOÁN KHI TẠO PHIẾU NHÁP =====
+      if (createInventoryReceiptDto.status === ReceiptStatus.DRAFT && paidAmount > 0) {
+        throw new BadRequestException(
+          'Không thể thanh toán cho phiếu nhập ở trạng thái nháp. Vui lòng duyệt phiếu trước khi thanh toán.'
+        );
       }
       
-      // 2. Nếu thanh toán chưa đủ, phải có hạn thanh toán
-      if (paidAmount < totalAmount && !createInventoryReceiptDto.payment_due_date) {
-        throw new BadRequestException(
-          'Khi còn nợ, phải có hạn thanh toán'
-        );
+      // ===== VALIDATION THANH TOÁN - CHỈ ÁP DỤNG KHI KHÔNG PHẢI PHIẾU NHÁP =====
+      if (createInventoryReceiptDto.status !== ReceiptStatus.DRAFT) {
+        // 1. Nếu có thanh toán, phải có payment_method (và không được là 'debt')
+        if (paidAmount > 0) {
+          if (!createInventoryReceiptDto.payment_method) {
+            throw new BadRequestException(
+              'Khi có thanh toán, phải chọn phương thức thanh toán (cash hoặc transfer)'
+            );
+          }
+          if (createInventoryReceiptDto.payment_method === 'debt') {
+            throw new BadRequestException(
+              'Không thể chọn phương thức "Công nợ" khi đã có thanh toán'
+            );
+          }
+        }
+        
+        // 2. Nếu thanh toán chưa đủ, phải có hạn thanh toán
+        if (paidAmount < totalAmount && !createInventoryReceiptDto.payment_due_date) {
+          throw new BadRequestException(
+            'Khi còn nợ, phải có hạn thanh toán'
+          );
+        }
       }
       
       // Tính giá trị thực tế sau khi trừ trả hàng
@@ -1165,17 +1176,28 @@ export class InventoryService {
       }
       
       // Thêm các trường thanh toán vào receiptData
-      receiptData.paid_amount = paidAmount;
-      receiptData.payment_status = paymentStatus;
-      receiptData.final_amount = finalAmount;
-      receiptData.debt_amount = debtAmount;
-      
-      if (createInventoryReceiptDto.payment_method) {
-        receiptData.payment_method = createInventoryReceiptDto.payment_method;
-      }
-      
-      if (createInventoryReceiptDto.payment_due_date) {
-        receiptData.payment_due_date = createInventoryReceiptDto.payment_due_date;
+      // Nếu là phiếu nháp, reset tất cả về giá trị mặc định
+      if (createInventoryReceiptDto.status === ReceiptStatus.DRAFT) {
+        receiptData.paid_amount = 0;
+        receiptData.payment_status = 'unpaid';
+        receiptData.final_amount = finalAmount;
+        receiptData.debt_amount = finalAmount; // Toàn bộ là nợ
+        receiptData.payment_method = null;
+        receiptData.payment_due_date = null;
+      } else {
+        // Phiếu đã duyệt, lưu thông tin thanh toán bình thường
+        receiptData.paid_amount = paidAmount;
+        receiptData.payment_status = paymentStatus;
+        receiptData.final_amount = finalAmount;
+        receiptData.debt_amount = debtAmount;
+        
+        if (createInventoryReceiptDto.payment_method) {
+          receiptData.payment_method = createInventoryReceiptDto.payment_method;
+        }
+        
+        if (createInventoryReceiptDto.payment_due_date) {
+          receiptData.payment_due_date = createInventoryReceiptDto.payment_due_date;
+        }
       }
 
       const receipt = queryRunner.manager.create(InventoryReceipt, receiptData);
@@ -1246,19 +1268,30 @@ export class InventoryService {
       const savedItems: any[] = [];
       for (const item of itemsWithShipping) {
         const itemData: any = {
-          receipt_id: receiptEntity.id,
-          product_id: item.product_id,
-          quantity: item.quantity,
-          unit_cost: item.unit_cost,
-          total_price: item.total_price,
-          individual_shipping_cost: item.individual_shipping_cost || 0,
-          allocated_shipping_cost: item.allocated_shipping_cost,
-          final_unit_cost: item.final_unit_cost,
+           receipt_id: receiptEntity.id,
+           product_id: item.product_id,
+           quantity: item.quantity,
+           unit_cost: item.unit_cost,
+           total_price: item.total_price,
+           individual_shipping_cost: item.individual_shipping_cost || 0,
+           allocated_shipping_cost: item.allocated_shipping_cost,
+           final_unit_cost: item.final_unit_cost,
+           batch_number: item.batch_number,
         };
 
         // Only add notes if it's not undefined
         if (item.notes !== undefined) {
           itemData.notes = item.notes;
+        }
+
+        // Thêm expiry_date nếu có
+        if (item.expiry_date) {
+          itemData.expiry_date = item.expiry_date;
+        }
+
+        // Thêm manufacturing_date nếu có
+        if (item.manufacturing_date) {
+          itemData.manufacturing_date = item.manufacturing_date;
         }
 
         const itemEntity = queryRunner.manager.create(InventoryReceiptItem, itemData);
@@ -1271,17 +1304,26 @@ export class InventoryService {
         try {
           this.logger.log(`Phiếu ${receiptEntity.code} được tạo với trạng thái APPROVED, đang xử lý nhập kho...`);
           
+          let itemIndex = 1;
           for (const item of savedItems) {
-            await this.processStockIn(
+            const batch = await this.processStockIn(
               item.product_id,
               item.quantity,
               Number(item.final_unit_cost || item.unit_cost),
               userId,
               item.id,
-              `Phun thuốc/Nhập kho - Phiếu ${receiptEntity.code}`,
-              undefined,
+              `LOT-${receiptEntity.code.replace('REC-', '')}-${itemIndex}`,
+              item.expiry_date ? new Date(item.expiry_date) : undefined, // Truyền expiry_date
               queryRunner // Sử dụng cùng queryRunner
             );
+
+            // Cập nhật số lô ngược lại chi tiết phiếu nhập
+            if (batch && batch.batch && batch.batch.code) {
+                await queryRunner.manager.update(InventoryReceiptItem, item.id, {
+                    batch_number: batch.batch.code as string
+                });
+            }
+            itemIndex++;
           }
           
           // Cập nhật thời gian duyệt
@@ -1516,6 +1558,7 @@ export class InventoryService {
     const items = await this.getReceiptItems(id);
 
     // Xử lý nhập kho cho từng sản phẩm ngay khi duyệt
+    let itemIndex = 1;
     for (const item of items) {
       try {
         const costPrice =
@@ -1523,14 +1566,23 @@ export class InventoryService {
             ? Number(item.final_unit_cost)
             : Number(item.unit_cost);
 
-        await this.processStockIn(
+        const batch = await this.processStockIn(
           item.product_id,
           item.quantity,
           costPrice,
           userId,
           item.id,
-          `Phun thuốc/Nhập kho - Phiếu ${receipt.code}`,
+          `LOT-${receipt.code.replace('REC-', '')}-${itemIndex}`,
+          item.expiry_date ? new Date(item.expiry_date) : undefined,
         );
+
+        // Cập nhật số lô ngược lại chi tiết phiếu nhập
+        if (batch && batch.batch && batch.batch.code) {
+          await this.inventoryReceiptItemRepository.update(item.id, {
+            batch_number: batch.batch.code as string
+          });
+        }
+        itemIndex++;
       } catch (error) {
         this.logger.error(
           `Lỗi khi xử lý nhập kho cho sản phẩm ${item.product_id} trong phiếu ${id}:`,

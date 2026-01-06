@@ -57,6 +57,14 @@ export class InventoryReceiptItem {
   @Column({ name: 'final_unit_cost', type: 'decimal', precision: 15, scale: 2, nullable: true })
   final_unit_cost?: number;
 
+  /** Hạn sử dụng của sản phẩm (nếu có) */
+  @Column({ name: 'expiry_date', type: 'timestamp', nullable: true })
+  expiry_date?: Date;
+
+  /** Số lô hàng được cấp sau khi nhập kho */
+  @Column({ name: 'batch_number', nullable: true })
+  batch_number?: string;
+
   /** Thời gian tạo chi tiết phiếu nhập kho */
   @CreateDateColumn({ name: 'created_at' })
   created_at!: Date;
