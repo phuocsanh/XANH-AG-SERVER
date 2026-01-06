@@ -1297,7 +1297,7 @@ export class InventoryService {
 
 
       // ===== TẠO PAYMENT RECORD NẾU CÓ THANH TOÁN NGAY =====
-      if (paidAmount > 0) {
+      if (paidAmount > 0 && receiptData.status === ReceiptStatus.APPROVED) {
         try {
           this.logger.log(`Tạo payment record cho phiếu ${receiptEntity.code}: ${paidAmount}đ`);
           await this.addPayment(
