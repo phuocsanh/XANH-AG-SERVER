@@ -1297,25 +1297,30 @@ export class InventoryService {
 
 
       // ===== TẠO PAYMENT RECORD NẾU CÓ THANH TOÁN NGAY =====
-      if (paidAmount > 0 && receiptData.status === ReceiptStatus.APPROVED) {
+      // Tạo payment record để lưu lịch sử thanh toán (audit trail)
+      // KHÔNG dùng addPayment() vì nó sẽ cộng thêm vào paid_amount (đã set ở trên rồi)
+      if (paidAmount > 0) {
         try {
           this.logger.log(`Tạo payment record cho phiếu ${receiptEntity.code}: ${paidAmount}đ`);
-          await this.addPayment(
-            receiptEntity.id,
-            {
-              amount: paidAmount,
-              payment_method: createInventoryReceiptDto.payment_method || 'cash',
-              payment_date: new Date(),
-              notes: 'Thanh toán khi tạo phiếu',
-            },
-            userId,
-            queryRunner
-          );
+          
+          const paymentRepo = queryRunner.manager.getRepository(InventoryReceiptPayment);
+          const paymentRecord = paymentRepo.create({
+            receipt_id: receiptEntity.id,
+            amount: paidAmount,
+            payment_method: createInventoryReceiptDto.payment_method || 'cash',
+            payment_date: new Date(),
+            notes: 'Thanh toán khi tạo phiếu',
+            created_by: userId,
+          });
+          
+          await paymentRepo.save(paymentRecord);
+          this.logger.log(`✅ Đã tạo payment record #${paymentRecord.id}`);
         } catch (error) {
           this.logger.error(`Lỗi tạo payment record cho phiếu ${receiptEntity.code}:`, error);
-          throw new BadRequestException(`Lỗi tạo thanh toán: ${error instanceof Error ? error.message : 'Unknown'}`);
+          throw new BadRequestException(`Lỗi tạo payment record: ${error instanceof Error ? error.message : 'Unknown'}`);
         }
       }
+      
       await queryRunner.commitTransaction();
 
       return this.inventoryReceiptRepository.findOne({
