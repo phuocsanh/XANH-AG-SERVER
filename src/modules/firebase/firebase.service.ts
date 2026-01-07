@@ -11,8 +11,8 @@ export class FirebaseService implements OnModuleInit {
   private readonly logger = new Logger(FirebaseService.name);
   private remoteConfig: admin.remoteConfig.RemoteConfig | null = null;
   private messaging: admin.messaging.Messaging | null = null;
-  private cachedKeys: Map<number, { key: string; timestamp: number }> = new Map();
-  private readonly CACHE_DURATION = 12 * 60 * 60 * 1000; // 12 giờ
+  private cachedGeminiKeys: { keys: { key: string; name: string }[]; timestamp: number } | null = null;
+  private readonly CACHE_DURATION = 6 * 60 * 60 * 1000; // 6 giờ
 
   constructor(private configService: ConfigService) {}
 
@@ -43,66 +43,120 @@ export class FirebaseService implements OnModuleInit {
   }
 
   /**
-   * Lấy API Key Gemini từ Remote Config hoặc .env (fallback)
+   * Lấy danh sách tất cả API Key Gemini từ Remote Config
    */
-  async getGeminiApiKey(): Promise<string> {
-    return this.getGeminiApiKeyByIndex(1);
-  }
-
-  /**
-   * Lấy API Key Gemini theo index (1-7) từ Firebase Remote Config
-   * Key names: ABC_GEMINI_API_KEY_1, ABC_GEMINI_API_KEY_2, ..., ABC_GEMMINI_API_KEY_4 (typo), ...
-   */
-  async getGeminiApiKeyByIndex(keyIndex: number): Promise<string> {
-    // Validate index
-    if (keyIndex < 1 || keyIndex > 7) {
-      throw new Error(`Invalid keyIndex: ${keyIndex}. Must be between 1-7`);
+  async getAllGeminiApiKeys(): Promise<{ key: string; name: string }[]> {
+    if (!this.remoteConfig) {
+      this.logger.error('❌ Firebase Remote Config is not initialized!');
+      return [];
     }
 
     // 1. Kiểm tra cache
     const now = Date.now();
-    const cached = this.cachedKeys.get(keyIndex);
-    if (cached && (now - cached.timestamp) < this.CACHE_DURATION) {
-      return cached.key;
+    if (this.cachedGeminiKeys && (now - this.cachedGeminiKeys.timestamp) < this.CACHE_DURATION) {
+      return this.cachedGeminiKeys.keys;
     }
 
-    // 2. Thử lấy từ Firebase Remote Config
-    if (this.remoteConfig) {
-      try {
-        const template = await this.remoteConfig.getTemplate();
-        
-        // DEBUG: Log danh sách các key có trong template
-        const availableKeys = Object.keys(template.parameters);
-        this.logger.log(`📋 Available keys in Remote Config: ${availableKeys.join(', ')}`);
-        
-        // Key name mapping
-        const keyName = `GEMINI_API_KEY_${keyIndex}`;
+    try {
+      const template = await this.remoteConfig.getTemplate();
+      const geminiKeys: { key: string; name: string }[] = [];
 
-        const parameter = template.parameters[keyName];
-        
-        if (parameter && parameter.defaultValue) {
-          const apiKey = (parameter.defaultValue as any).value as string;
-          
-          if (apiKey) {
-            // Cache key
-            this.cachedKeys.set(keyIndex, { key: apiKey, timestamp: now });
-            this.logger.log(`✅ Got Gemini API Key #${keyIndex} from Firebase Remote Config: ${apiKey.substring(0, 10)}...`);
-            return apiKey;
-          } else {
-            this.logger.warn(`⚠️ Key ${keyName} exists but value is empty`);
+      // 2. Tìm trong parameters cấp 1
+      if (template.parameters) {
+        Object.keys(template.parameters).forEach(key => {
+          if (key.startsWith('GEMINI_API_KEY_')) {
+            const val = (template.parameters[key]?.defaultValue as any)?.value;
+            if (val) geminiKeys.push({ key: val, name: key });
           }
-        } else {
-            this.logger.warn(`⚠️ Key ${keyName} not found in template parameters`);
-        }
-        
-      } catch (error) {
-        this.logger.warn(`⚠️ Failed to fetch key #${keyIndex} from Remote Config: ${error}`);
+        });
       }
-    } else {
+
+      // 3. Tìm trong parameterGroups
+      if (template.parameterGroups) {
+        Object.keys(template.parameterGroups).forEach(groupName => {
+          const group = template.parameterGroups[groupName];
+          if (group && group.parameters) {
+            Object.keys(group.parameters).forEach(key => {
+              if (key.startsWith('GEMINI_API_KEY_')) {
+                const val = (group.parameters[key]?.defaultValue as any)?.value;
+                if (val) geminiKeys.push({ key: val, name: key });
+              }
+            });
+          }
+        });
+      }
+
+      if (geminiKeys.length > 0) {
+        this.cachedGeminiKeys = { keys: geminiKeys, timestamp: now };
+        this.logger.log(`✅ Found and cached ${geminiKeys.length} Gemini API Keys from Remote Config`);
+      } else {
+        this.logger.warn('⚠️ No Gemini API Keys found in Remote Config parameters/groups');
+      }
+      
+      return geminiKeys;
+    } catch (error) {
+      this.logger.error(`❌ Failed to fetch keys from Remote Config: ${error}`);
+      return [];
+    }
+  }
+
+  /**
+   * Lấy API Key Gemini từ Remote Config hoặc .env (fallback)
+   */
+  async getGeminiApiKey(): Promise<{ key: string; name: string }> {
+    const keys = await this.getAllGeminiApiKeys();
+    if (keys.length > 0) {
+      // Chọn ngẫu nhiên một key để phân bổ tải
+      const selected = keys[Math.floor(Math.random() * keys.length)];
+      if (selected) return selected;
+    }
+    
+    // Fallback .env
+    const envKey = this.configService.get<string>('GOOGLE_AI_API_KEY');
+    if (envKey) return { key: envKey, name: 'ENV_GOOGLE_AI_API_KEY' };
+
+    throw new Error('No Gemini API Key found in Remote Config or Environment');
+  }
+
+  /**
+   * Lấy API Key Gemini theo index (Legacy support)
+   */
+  async getGeminiApiKeyByIndex(keyIndex: number): Promise<{ key: string; name: string }> {
+    if (!this.remoteConfig) {
       this.logger.error('❌ Firebase Remote Config is not initialized!');
+      return this.getGeminiApiKey(); 
     }
 
-    throw new Error(`Could not retrieve API Key #${keyIndex} from Firebase Remote Config. Please check Firebase Console.`);
+    try {
+      const template = await this.remoteConfig.getTemplate();
+      const keyName = `GEMINI_API_KEY_${keyIndex}`;
+
+      // Thử tìm trong parameters flat
+      let parameter = template.parameters?.[keyName];
+      
+      // Nếu không thấy, thử tìm trong các groups
+      if (!parameter && template.parameterGroups) {
+        for (const groupName of Object.keys(template.parameterGroups)) {
+          const group = template.parameterGroups[groupName];
+          if (group && group.parameters && group.parameters[keyName]) {
+            parameter = group.parameters[keyName];
+            break;
+          }
+        }
+      }
+
+      if (parameter && parameter.defaultValue) {
+        const apiKey = (parameter.defaultValue as any).value as string | undefined;
+        if (apiKey) return { key: apiKey, name: keyName };
+      }
+      
+      this.logger.warn(`⚠️ Key ${keyName} not found in any Remote Config parameters or groups`);
+    } catch (error) {
+      this.logger.warn(`⚠️ Failed to fetch key #${keyIndex} from Remote Config: ${error}`);
+    }
+
+    // Fallback to getGeminiApiKey to at least return some key
+    return this.getGeminiApiKey();
   }
 
   /**
@@ -134,7 +188,7 @@ export class FirebaseService implements OnModuleInit {
    * Xóa cache để force refresh từ Remote Config
    */
   clearCache() {
-    this.cachedKeys.clear();
+    this.cachedGeminiKeys = null;
     this.logger.log('🔄 Cache cleared');
   }
 }

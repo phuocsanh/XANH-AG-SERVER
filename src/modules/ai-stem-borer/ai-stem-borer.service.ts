@@ -54,8 +54,7 @@ export class AiStemBorerService {
         'Sâu Đục Thân (Stem Borer)',
         location.name,
         weatherData,
-        'Sâu đục thân hoạt động mạnh ở nhiệt độ 25-30°C, độ ẩm cao >80%. Bướm đẻ trứng vào đêm khi trời ấm ẩm. Giai đoạn nguy hiểm: lúa đẻ nhánh và làm đòng.',
-        5 // Key index
+        'Sâu đục thân hoạt động mạnh ở nhiệt độ 25-30°C, độ ẩm cao >80%. Bướm đẻ trứng vào đêm khi trời ấm ẩm. Giai đoạn nguy hiểm: lúa đẻ nhánh và làm đòng.'
       );
 
       const basicStats = this.calculateBasicStats(weatherData);

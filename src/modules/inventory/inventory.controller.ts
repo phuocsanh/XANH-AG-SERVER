@@ -378,6 +378,15 @@ export class InventoryController {
   }
 
   /**
+   * Lấy thống kê cho phiếu nhập hàng
+   */
+  @Get('receipts/stats')
+  @RequirePermissions('inventory:read')
+  getReceiptStats() {
+    return this.inventoryService.getReceiptStats();
+  }
+
+  /**
    * Tìm kiếm nâng cao phiếu nhập kho
    * @param searchDto - Điều kiện tìm kiếm
    * @returns Danh sách phiếu nhập kho phù hợp với thông tin phân trang
@@ -482,6 +491,16 @@ export class InventoryController {
   @RequirePermissions('inventory:read')
   getReceiptItems(@Param('id') id: string) {
     return this.inventoryService.getReceiptItems(+id);
+  }
+
+  /**
+   * Lấy lịch sử giao dịch kho của một phiếu nhập hàng
+   * @param id - ID phiếu nhập
+   */
+  @Get('receipt/:id/transactions')
+  @RequirePermissions('inventory:read')
+  getReceiptTransactions(@Param('id') id: string) {
+    return this.inventoryService.findTransactionsByReceipt(+id);
   }
 
   /**

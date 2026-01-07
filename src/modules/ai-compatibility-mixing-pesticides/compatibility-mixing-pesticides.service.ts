@@ -42,9 +42,10 @@ export class CompatibilityMixingPesticidesService {
     try {
       this.logger.log('🚀 Starting AI processing with Google Search tool...');
 
-      // Lấy API Key từ Firebase Remote Config (dùng key #1)
-      const apiKey = await this.firebaseService.getGeminiApiKeyByIndex(1);
-      const ai = new GoogleGenAI({ apiKey });
+      // Lấy API Key từ Firebase Remote Config (Cơ chế xoay vòng Key)
+      const apiKeyConfig = await this.firebaseService.getGeminiApiKey();
+      this.logger.log(`🔑 Đang sử dụng Key: ${apiKeyConfig.name}`);
+      const ai = new GoogleGenAI({ apiKey: apiKeyConfig.key });
 
       // 2. Gửi yêu cầu API với công cụ tìm kiếm Google
       const response = await ai.models.generateContent({
@@ -119,9 +120,10 @@ export class CompatibilityMixingPesticidesService {
     try {
       this.logger.log('🚀 Starting AI processing with Google Search tool...');
 
-      // Lấy API Key từ Firebase Remote Config (dùng key #1)
-      const apiKey = await this.firebaseService.getGeminiApiKeyByIndex(1);
-      const ai = new GoogleGenAI({ apiKey });
+      // Lấy API Key từ Firebase Remote Config (Cơ chế xoay vòng Key)
+      const apiKeyConfig = await this.firebaseService.getGeminiApiKey();
+      this.logger.log(`🔑 Đang sử dụng Key: ${apiKeyConfig.name}`);
+      const ai = new GoogleGenAI({ apiKey: apiKeyConfig.key });
 
       // 2. Gửi yêu cầu API với công cụ tìm kiếm Google
       const response = await ai.models.generateContent({

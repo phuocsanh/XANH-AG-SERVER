@@ -1390,10 +1390,64 @@ export class InventoryService {
    * @returns Thông tin phiếu nhập kho
    */
   async findReceiptById(id: number): Promise<InventoryReceipt | null> {
-    return this.inventoryReceiptRepository.findOne({
+    const receipt = await this.inventoryReceiptRepository.findOne({
       where: { id },
-      relations: ['items', 'items.product', 'supplier', 'creator'],
+      relations: [
+        'items', 
+        'items.product', 
+        'supplier', 
+        'creator', 
+        'creator.user_profile',
+        'approver',
+        'approver.user_profile'
+      ],
     });
+
+    if (receipt) {
+      if (receipt.creator) {
+        (receipt.creator as any).full_name = receipt.creator.user_profile?.nickname || receipt.creator.account;
+      }
+      if (receipt.approver) {
+        (receipt.approver as any).full_name = receipt.approver.user_profile?.nickname || receipt.approver.account;
+      }
+    }
+
+    return receipt;
+  }
+
+  /**
+   * Lấy lịch sử giao dịch kho liên quan đến một phiếu nhập
+   * @param receiptId - ID của phiếu nhập kho
+   * @returns Danh sách các giao dịch kho liên quan
+   */
+  async findTransactionsByReceipt(receiptId: number) {
+    // 1. Tìm tất cả các item trong phiếu nhập này
+    const receiptItems = await this.inventoryReceiptItemRepository.find({
+      where: { receipt_id: receiptId },
+      select: ['id'],
+    });
+
+    const itemIds = receiptItems.map((item) => item.id);
+
+    if (itemIds.length === 0) {
+      return [];
+    }
+
+    // 2. Tìm tất cả các giao dịch kho liên quan đến những item này
+    const transactions = await this.inventoryTransactionRepository.find({
+      where: { receipt_item_id: In(itemIds) },
+      relations: ['product', 'creator', 'creator.user_profile'],
+      order: { created_at: 'DESC' },
+    });
+
+    // Map full_name cho creator
+    transactions.forEach(t => {
+      if (t.creator) {
+        (t.creator as any).full_name = t.creator.user_profile?.nickname || t.creator.account;
+      }
+    });
+
+    return transactions;
   }
 
   /**
@@ -1453,6 +1507,51 @@ export class InventoryService {
       total,
       page,
       limit,
+    };
+  }
+
+  /**
+   * Lấy thống kê cho phiếu nhập hàng
+   */
+  /**
+   * Lấy thống kê cho phiếu nhập hàng
+   */
+  /**
+   * Lấy thống kê cho phiếu nhập hàng
+   */
+  async getReceiptStats() {
+    const queryBuilder = this.inventoryReceiptRepository.createQueryBuilder('receipt');
+    
+    // Nhóm các mã trạng thái để tương thích với dữ liệu thực tế trong DB
+    const draftStatuses = "'draft', '1'";
+    const approvedStatuses = "'approved', '2', '3', 'completed', '4'";
+    const cancelledStatuses = "'cancelled', '5'";
+
+    const stats = await queryBuilder
+      .select('COUNT(*)', 'totalReceipts')
+      .addSelect(`SUM(CASE WHEN receipt.status IN (${draftStatuses}) THEN 1 ELSE 0 END)`, 'draftReceipts')
+      .addSelect(`SUM(CASE WHEN receipt.status IN (${approvedStatuses}) THEN 1 ELSE 0 END)`, 'approvedReceipts')
+      .addSelect(`SUM(CASE WHEN receipt.status IN (${cancelledStatuses}) THEN 1 ELSE 0 END)`, 'cancelledReceipts')
+      
+      // ===== THỐNG KÊ TÀI CHÍNH: CHỈ TÍNH PHIẾU ĐÃ DUYỆT (BUSINESS LOGIC CHUẨN) =====
+      // Đếm phiếu còn nợ: Chỉ tính các phiếu ĐÃ DUYỆT có debt_amount > 0
+      .addSelect(`SUM(CASE WHEN receipt.status IN (${approvedStatuses}) AND CAST(receipt.debt_amount AS DECIMAL) > 0 THEN 1 ELSE 0 END)`, 'debtReceiptsCount')
+      // Tổng giá trị: Chỉ tính tiền của các phiếu ĐÃ DUYỆT
+      .addSelect(`SUM(CASE WHEN receipt.status IN (${approvedStatuses}) THEN CAST(receipt.total_amount AS DECIMAL) ELSE 0 END)`, 'totalValue')
+      // Đã thanh toán & Còn nợ: Chỉ tính tiền của các phiếu ĐÃ DUYỆT
+      .addSelect(`SUM(CASE WHEN receipt.status IN (${approvedStatuses}) THEN CAST(receipt.paid_amount AS DECIMAL) ELSE 0 END)`, 'totalPaid')
+      .addSelect(`SUM(CASE WHEN receipt.status IN (${approvedStatuses}) THEN CAST(receipt.debt_amount AS DECIMAL) ELSE 0 END)`, 'totalDebt')
+      .getRawOne();
+
+    return {
+      totalReceipts: parseInt(stats.totalReceipts || '0'),
+      draftReceipts: parseInt(stats.draftReceipts || '0'),
+      approvedReceipts: parseInt(stats.approvedReceipts || '0'),
+      cancelledReceipts: parseInt(stats.cancelledReceipts || '0'),
+      debtReceiptsCount: parseInt(stats.debtReceiptsCount || '0'),
+      totalValue: stats.totalValue || '0',
+      totalPaid: stats.totalPaid || '0',
+      totalDebt: stats.totalDebt || '0',
     };
   }
 

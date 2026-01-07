@@ -82,6 +82,15 @@ export class InventoryReceipt {
   @Column({ name: 'approved_at', nullable: true })
   approved_at?: Date;
 
+  /** ID của người duyệt */
+  @Column({ name: 'approved_by', nullable: true })
+  approved_by?: number;
+
+  /** Người duyệt phiếu */
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'approved_by' })
+  approver?: User;
+
 
   /** Thời gian hủy phiếu nhập kho */
   @Column({ name: 'cancelled_at', nullable: true })

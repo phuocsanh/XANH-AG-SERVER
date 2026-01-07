@@ -285,9 +285,10 @@ export class AiAnalysisService {
         }
       `;
 
-      // Lấy API Key từ Firebase Remote Config (dùng key #1)
-      const apiKey = await this.firebaseService.getGeminiApiKeyByIndex(1);
-      const genAI = new GoogleGenAI({ apiKey });
+      // Lấy API Key từ Firebase Remote Config (Cơ chế xoay vòng Key)
+      const apiKeyConfig = await this.firebaseService.getGeminiApiKey();
+      this.logger.log(`🔑 Đang sử dụng Key: ${apiKeyConfig.name}`);
+      const genAI = new GoogleGenAI({ apiKey: apiKeyConfig.key });
 
       // Gọi API AI
       const result = await genAI.models.generateContent({
@@ -309,18 +310,22 @@ export class AiAnalysisService {
       // Parse JSON response từ AI
       let parsedResult: any;
       try {
-        // Loại bỏ markdown code blocks và các ký tự đặc biệt nếu có
-        let cleanedResult = analysisResult
-          .replace(/```json\n?/g, '')
-          .replace(/```\n?/g, '')
-          .replace(/\*\*/g, '') // Loại bỏ markdown bold
-          .replace(/\*/g, '') // Loại bỏ markdown italic
-          .trim();
-
-        // Tìm và extract JSON từ response
-        const jsonMatch = cleanedResult.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          cleanedResult = jsonMatch[0];
+        let cleanedResult = '';
+        // Sử dụng Regex để extract JSON từ response (Tìm khối { ... } lớn nhất)
+        const jsonRegex = /\{[\s\S]*\}/;
+        const match = analysisResult.match(jsonRegex);
+        
+        if (match) {
+          cleanedResult = match[0]
+            .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // Loại bỏ control characters
+            .trim();
+        } else {
+          cleanedResult = analysisResult
+            .replace(/```json\n?/g, '')
+            .replace(/```\n?/g, '')
+            .replace(/\*\*/g, '') // Loại bỏ markdown bold
+            .replace(/\*/g, '') // Loại bỏ markdown italic
+            .trim();
         }
 
         parsedResult = JSON.parse(cleanedResult);
@@ -450,9 +455,10 @@ Hãy trả lời câu hỏi một cách chính xác và có trích dẫn nguồn
       // Bước 3: Gọi AI để tạo câu trả lời
       this.logger.log('Gọi AI để tạo câu trả lời...');
       
-      // Lấy API Key từ Firebase Remote Config (dùng key #1)
-      const apiKey = await this.firebaseService.getGeminiApiKeyByIndex(1);
-      const genAI = new GoogleGenAI({ apiKey });
+      // Lấy API Key từ Firebase Remote Config (Cơ chế xoay vòng Key)
+      const apiKeyConfig = await this.firebaseService.getGeminiApiKey();
+      this.logger.log(`🔑 Đang sử dụng Key: ${apiKeyConfig.name}`);
+      const genAI = new GoogleGenAI({ apiKey: apiKeyConfig.key });
       
       const result = await genAI.models.generateContent({
         model: 'gemini-2.5-flash',

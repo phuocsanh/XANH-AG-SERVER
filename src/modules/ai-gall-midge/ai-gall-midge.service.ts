@@ -54,8 +54,7 @@ export class AiGallMidgeService {
         'Muỗi Hành (Gall Midge)',
         location.name,
         weatherData,
-        'Muỗi hành hoạt động mạnh khi độ ẩm rất cao (>85%), trời âm u ít nắng, nhiệt độ mát mẻ 23-28°C. Giai đoạn nguy hiểm nhất là lúa đẻ nhánh.',
-        4 // Key index
+        'Muỗi hành hoạt động mạnh khi độ ẩm rất cao (>85%), trời âm u ít nắng, nhiệt độ mát mẻ 23-28°C. Giai đoạn nguy hiểm nhất là lúa đẻ nhánh.'
       );
 
       const basicStats = this.calculateBasicStats(weatherData);

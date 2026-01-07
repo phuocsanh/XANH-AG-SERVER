@@ -82,8 +82,7 @@ export class AiRiceBlastService {
         'Bệnh Đạo Ôn (Rice Blast)',
         location.name,
         weatherData,
-        'Bệnh thường phát triển mạnh khi trời âm u, sương mù, độ ẩm cao và nhiệt độ 20-28 độ C. Mưa phùn kéo dài nguy hiểm hơn mưa rào.',
-        1 // Key index
+        'Bệnh thường phát triển mạnh khi trời âm u, sương mù, độ ẩm cao và nhiệt độ 20-28 độ C. Mưa phùn kéo dài nguy hiểm hơn mưa rào.'
       );
 
       // 2. Tính toán số liệu thống kê cơ bản từ dữ liệu thời tiết (để hiển thị biểu đồ)

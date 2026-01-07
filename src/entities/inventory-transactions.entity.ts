@@ -5,7 +5,11 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   DeleteDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
+import { Product } from './products.entity';
+import { User } from './users.entity';
 
 /**
  * Entity biểu diễn thông tin giao dịch kho
@@ -20,6 +24,11 @@ export class InventoryTransaction {
   /** ID của sản phẩm trong giao dịch */
   @Column({ name: 'product_id' })
   product_id!: number;
+
+  /** Quan hệ với sản phẩm */
+  @ManyToOne(() => Product)
+  @JoinColumn({ name: 'product_id' })
+  product?: Product;
 
   /** Loại giao dịch (ví dụ: 'IN' cho nhập kho, 'OUT' cho xuất kho) */
   @Column({ name: 'type' })
@@ -64,6 +73,11 @@ export class InventoryTransaction {
   /** ID của người dùng tạo giao dịch */
   @Column({ name: 'created_by' })
   created_by!: number;
+
+  /** Quan hệ với người tạo */
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'created_by' })
+  creator?: User;
 
   /** Thời gian tạo giao dịch */
   @CreateDateColumn({ name: 'created_at' })

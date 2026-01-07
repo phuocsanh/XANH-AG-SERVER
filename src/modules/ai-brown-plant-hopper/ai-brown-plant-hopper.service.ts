@@ -55,8 +55,7 @@ export class AiBrownPlantHopperService {
         'Rầy Nâu (Brown Plant Hopper)',
         location.name,
         weatherData,
-        'Rầy nâu phát triển mạnh ở nhiệt độ 25-30°C và độ ẩm cao >80%. Gió mạnh giúp rầy di trú từ nơi khác đến. Mưa nhỏ xen kẽ nắng nóng cũng thuận lợi, nhưng mưa quá to sẽ rửa trôi rầy.',
-        3 // Key index
+        'Rầy nâu phát triển mạnh ở nhiệt độ 25-30°C và độ ẩm cao >80%. Gió mạnh giúp rầy di trú từ nơi khác đến. Mưa nhỏ xen kẽ nắng nóng cũng thuận lợi, nhưng mưa quá to sẽ rửa trôi rầy.'
       );
 
       // 2. Tính toán thống kê cơ bản
