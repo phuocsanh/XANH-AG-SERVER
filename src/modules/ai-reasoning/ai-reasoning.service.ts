@@ -151,20 +151,35 @@ YÊU CẦU:
           throw new Error('AI returned empty response');
         }
 
-        // Trích xuất JSON bằng Regex
-        const jsonRegex = /\{[\s\S]*\}/;
-        const match = responseText.match(jsonRegex);
+        // 1. Clean response text (remove markdown formatting if present)
+        let cleanJson = responseText;
         
-        if (!match) {
-          this.logger.error(`❌ Không tìm thấy JSON object. Độ dài: ${responseText.length}`);
-          throw new Error('AI response không chứa JSON object hợp lệ');
+        // Check for markdown code blocks first
+        const markdownMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/) || responseText.match(/```\s*([\s\S]*?)\s*```/);
+        if (markdownMatch) {
+          cleanJson = markdownMatch[1];
+        } else {
+          // Fallback to finding the first '{' and last '}'
+          const firstOpen = responseText.indexOf('{');
+          const lastClose = responseText.lastIndexOf('}');
+          if (firstOpen !== -1 && lastClose !== -1 && lastClose > firstOpen) {
+            cleanJson = responseText.substring(firstOpen, lastClose + 1);
+          }
         }
 
-        const cleanJson = match[0].replace(/[\u0000-\u001F\u007F-\u009F]/g, '').trim();
-        const analysis: AiAnalysisResult = JSON.parse(cleanJson);
-        
-        this.logger.log(`✅ Phân tích AI hoàn tất: ${analysis.risk_level} (${analysis.risk_score}/100)`);
-        return analysis;
+        // 2. Validate and Parse
+        try {
+          // Remove potential control characters that JSON.parse dislikes
+          cleanJson = cleanJson.replace(/[\u0000-\u001F\u007F-\u009F]/g, '').trim();
+          
+          const analysis: AiAnalysisResult = JSON.parse(cleanJson);
+          
+          this.logger.log(`✅ Phân tích AI hoàn tất: ${analysis.risk_level} (${analysis.risk_score}/100)`);
+          return analysis;
+        } catch (parseError) {
+           this.logger.error(`❌ Parse Error. Raw text prefix: ${responseText.substring(0, 200)}...`);
+           throw new Error('Failed to parse AI response as JSON');
+        }
 
       } catch (error: any) {
         const keyInfo = apiKeyConfig ? apiKeyConfig.name : 'Unknown';
