@@ -97,7 +97,6 @@ YÊU CẦU:
 `;
 
     const maxRetries = 3;
-    let lastError: any = null;
     let apiKeyConfig: { key: string; name: string } | null = null;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -168,7 +167,6 @@ YÊU CẦU:
         return analysis;
 
       } catch (error: any) {
-        lastError = error;
         const keyInfo = apiKeyConfig ? apiKeyConfig.name : 'Unknown';
         this.logger.error(`❌ Lỗi lần ${attempt} (${keyInfo}): ${error.message}`);
         
