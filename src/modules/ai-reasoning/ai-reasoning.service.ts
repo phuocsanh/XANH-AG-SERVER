@@ -64,40 +64,26 @@ export class AiReasoningService {
     const simplifiedWeather = this.simplifyWeatherData(weatherData);
 
     const prompt = `
-Bạn là chuyên gia nông nghiệp AI. Phân tích nguy cơ ${diseaseName} tại ${locationName} dựa trên dự báo thời tiết 7 ngày tới.
+Phân tích nguy cơ ${diseaseName} tại ${locationName}.
 
-THÔNG TIN BỆNH:
-${additionalContext}
+BỆNH: ${additionalContext}
 
-DỮ LIỆU THỜI TIẾT (Đã tổng hợp):
-${JSON.stringify(simplifiedWeather, null, 2)}
+THỜI TIẾT 7 NGÀY: ${JSON.stringify(simplifiedWeather)}
 
-YÊU CẦU:
-1. Đánh giá mức độ nguy cơ (THẤP, TRUNG BÌNH, CAO, RẤT CAO) dựa trên điều kiện thời tiết và đặc điểm bệnh.
-2. Xác định những ngày có nguy cơ cao nhất (peak_days).
-3. Đưa ra phân tích chi tiết nhưng NGẮN GỌN, SÚC TÍCH (không quá 500 từ).
-4. Đưa ra khuyến nghị cụ thể cho nông dân.
+YÊU CẦU - TỐI ĐA 250 TỪ TỔNG:
+- summary: 50 từ
+- detailed_analysis: 100 từ  
+- recommendations: 50 từ
 
-QUAN TRỌNG: 
-- Chỉ trả về JSON object hợp lệ, KHÔNG có bất kỳ văn bản nào khác.
-- KHÔNG thêm lời chào, giải thích, hoặc markdown code blocks.
-- Chỉ trả về đúng JSON theo schema dưới đây:
-
+Chỉ trả JSON:
 {
-  "risk_level": "string",
-  "risk_score": number,
-  "peak_days": "string",
-  "summary": "string",
-  "detailed_analysis": "string",
-  "recommendations": "string",
-  "daily_risks": [
-    {
-      "date": "string",
-      "risk_score": number,
-      "risk_level": "string",
-      "main_factors": ["string"]
-    }
-  ]
+  "risk_level": "THẤP|TRUNG BÌNH|CAO|RẤT CAO",
+  "risk_score": 0-10,
+  "peak_days": "dates",
+  "summary": "max 50 từ",
+  "detailed_analysis": "max 100 từ",
+  "recommendations": "max 50 từ",
+  "daily_risks": [{"date":"","risk_score":0,"risk_level":"","main_factors":[]}]
 }
 `;
 
@@ -127,7 +113,7 @@ QUAN TRỌNG:
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
             generationConfig: {
               temperature: 0.7,
-              maxOutputTokens: 4096,
+              maxOutputTokens: 6144,
               responseMimeType: 'application/json',
             }
           })
@@ -149,13 +135,22 @@ QUAN TRỌNG:
         }
 
         const data = await response.json();
-        const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const candidate = data.candidates?.[0];
+        const responseText = candidate?.content?.parts?.[0]?.text || '';
+        const finishReason = candidate?.finishReason;
+        
+        // Check if response was truncated
+        if (finishReason === 'MAX_TOKENS') {
+          this.logger.warn(`⚠️ Response bị cắt do MAX_TOKENS. Tăng maxOutputTokens hoặc rút gọn prompt.`);
+        }
         
         if (!responseText) {
           this.logger.warn('⚠️ AI trả về phản hồi trống.');
           if (attempt < maxRetries) continue;
           throw new Error('AI returned empty response');
         }
+
+        this.logger.debug(`📊 Response length: ${responseText.length} chars, finishReason: ${finishReason}`);
 
         // Parse JSON response (đã được đảm bảo là JSON bởi responseMimeType)
         try {
@@ -164,7 +159,9 @@ QUAN TRỌNG:
           this.logger.log(`✅ Phân tích AI hoàn tất: ${analysis.risk_level} (${analysis.risk_score}/100)`);
           return analysis;
         } catch (parseError) {
-          this.logger.error(`❌ Parse Error. Raw response: ${responseText.substring(0, 300)}...`);
+          this.logger.error(`❌ Parse Error. Response length: ${responseText.length}`);
+          this.logger.error(`First 500 chars: ${responseText.substring(0, 500)}`);
+          this.logger.error(`Last 500 chars: ${responseText.substring(Math.max(0, responseText.length - 500))}`);
           if (attempt < maxRetries) {
             continue; // Retry
           }
