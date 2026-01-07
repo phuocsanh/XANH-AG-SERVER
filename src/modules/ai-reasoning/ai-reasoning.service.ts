@@ -64,7 +64,7 @@ export class AiReasoningService {
     const simplifiedWeather = this.simplifyWeatherData(weatherData);
 
     const prompt = `
-Bạn là chuyên gia nông nghiệp AI. Hãy phân tích nguy cơ ${diseaseName} tại ${locationName} dựa trên dự báo thời tiết 7 ngày tới.
+Bạn là chuyên gia nông nghiệp AI. Phân tích nguy cơ ${diseaseName} tại ${locationName} dựa trên dự báo thời tiết 7 ngày tới.
 
 THÔNG TIN BỆNH:
 ${additionalContext}
@@ -77,7 +77,12 @@ YÊU CẦU:
 2. Xác định những ngày có nguy cơ cao nhất (peak_days).
 3. Đưa ra phân tích chi tiết nhưng NGẮN GỌN, SÚC TÍCH (không quá 500 từ).
 4. Đưa ra khuyến nghị cụ thể cho nông dân.
-5. Trả về kết quả dưới dạng JSON hợp lệ theo schema sau:
+
+QUAN TRỌNG: 
+- Chỉ trả về JSON object hợp lệ, KHÔNG có bất kỳ văn bản nào khác.
+- KHÔNG thêm lời chào, giải thích, hoặc markdown code blocks.
+- Chỉ trả về đúng JSON theo schema dưới đây:
+
 {
   "risk_level": "string",
   "risk_score": number,
@@ -123,6 +128,7 @@ YÊU CẦU:
             generationConfig: {
               temperature: 0.7,
               maxOutputTokens: 4096,
+              responseMimeType: 'application/json',
             }
           })
         });
@@ -151,34 +157,18 @@ YÊU CẦU:
           throw new Error('AI returned empty response');
         }
 
-        // 1. Clean response text (remove markdown formatting if present)
-        let cleanJson = responseText;
-        
-        // Check for markdown code blocks first
-        const markdownMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/) || responseText.match(/```\s*([\s\S]*?)\s*```/);
-        if (markdownMatch) {
-          cleanJson = markdownMatch[1];
-        } else {
-          // Fallback to finding the first '{' and last '}'
-          const firstOpen = responseText.indexOf('{');
-          const lastClose = responseText.lastIndexOf('}');
-          if (firstOpen !== -1 && lastClose !== -1 && lastClose > firstOpen) {
-            cleanJson = responseText.substring(firstOpen, lastClose + 1);
-          }
-        }
-
-        // 2. Validate and Parse
+        // Parse JSON response (đã được đảm bảo là JSON bởi responseMimeType)
         try {
-          // Remove potential control characters that JSON.parse dislikes
-          cleanJson = cleanJson.replace(/[\u0000-\u001F\u007F-\u009F]/g, '').trim();
-          
-          const analysis: AiAnalysisResult = JSON.parse(cleanJson);
+          const analysis: AiAnalysisResult = JSON.parse(responseText);
           
           this.logger.log(`✅ Phân tích AI hoàn tất: ${analysis.risk_level} (${analysis.risk_score}/100)`);
           return analysis;
         } catch (parseError) {
-           this.logger.error(`❌ Parse Error. Raw text prefix: ${responseText.substring(0, 200)}...`);
-           throw new Error('Failed to parse AI response as JSON');
+          this.logger.error(`❌ Parse Error. Raw response: ${responseText.substring(0, 300)}...`);
+          if (attempt < maxRetries) {
+            continue; // Retry
+          }
+          throw new Error('Failed to parse AI response as JSON');
         }
 
       } catch (error: any) {
