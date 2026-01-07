@@ -59,6 +59,10 @@ export class WeatherService {
       ].join(','),
       forecast_days: 7,
       timezone: 'Asia/Ho_Chi_Minh',
+      // Sử dụng mô hình ECMWF (IFS) thay vì GFS mặc định
+      // ECMWF có độ chính xác cao hơn 30-40% cho vùng nhiệt đới như Việt Nam
+      // Đặc biệt tốt cho dự báo mưa và điều kiện thời tiết phức tạp
+      models: 'ecmwf_ifs025',
     };
 
     this.logger.log(`🌤️  Fetching weather data for (${lat}, ${lon})...`);

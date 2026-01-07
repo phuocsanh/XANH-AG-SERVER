@@ -3,9 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { GallMidgeWarning, GallMidgeDailyRiskData } from '../../entities/gall-midge-warning.entity';
 import { LocationService } from '../location/location.service';
+import { WeatherService } from '../location/weather.service';
 import { AiReasoningService, WeatherData } from '../ai-reasoning/ai-reasoning.service';
-import axios from 'axios';
-import * as https from 'https';
 
 @Injectable()
 export class AiGallMidgeService {
@@ -15,6 +14,7 @@ export class AiGallMidgeService {
     @InjectRepository(GallMidgeWarning)
     private warningRepository: Repository<GallMidgeWarning>,
     private locationService: LocationService,
+    private weatherService: WeatherService,
     private aiReasoningService: AiReasoningService,
   ) {}
 
@@ -37,7 +37,7 @@ export class AiGallMidgeService {
     this.logger.log('🦟 Bắt đầu phân tích Muỗi Hành (AI Powered)...');
     try {
       const location = await this.locationService.getLocation();
-      const weatherData = await this.fetchWeatherData(location.lat, location.lon);
+      const weatherData = await this.weatherService.fetchWeatherData(location.lat, location.lon);
       return this.runAnalysisWithWeatherData(weatherData);
     } catch (error) {
       const err = error as Error;
@@ -118,37 +118,7 @@ ${aiResult.recommendations}
     }
   }
 
-  private async fetchWeatherData(lat: number, lon: number): Promise<WeatherData> {
-    const url = 'https://api.open-meteo.com/v1/forecast';
-    const params = {
-      latitude: lat,
-      longitude: lon,
-      hourly: [
-        'temperature_2m',
-        'relative_humidity_2m',
-        'precipitation',
-        'precipitation_probability',
-        'wind_speed_10m',
-        'weather_code',
-        'cloud_cover',
-        'visibility',
-        'rain',
-        'showers',
-        'dew_point_2m'
-      ].join(','),
-      forecast_days: 7,
-      timezone: 'Asia/Ho_Chi_Minh',
-    };
-
-    try {
-      const agent = new https.Agent({ family: 4 });
-      const response = await axios.get(url, { params, timeout: 10000, httpsAgent: agent });
-      return response.data;
-    } catch (error) {
-      this.logger.error(`❌ Lỗi kết nối Open-Meteo: ${error}`);
-      throw new Error('Lỗi kết nối API thời tiết.');
-    }
-  }
+  // Method fetchWeatherData() đã được xóa - sử dụng WeatherService chung
 
   private calculateBasicStats(weatherData: WeatherData): any[] {
     const hourly = weatherData.hourly;

@@ -3,9 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { RiceBlastWarning, DailyRiskData } from '../../entities/rice-blast-warning.entity';
 import { LocationService } from '../location/location.service';
+import { WeatherService } from '../location/weather.service';
 import { AiReasoningService, WeatherData } from '../ai-reasoning/ai-reasoning.service';
-import axios from 'axios';
-import * as https from 'https';
 
 /**
  * Interface cho dữ liệu thời tiết từ Open-Meteo API
@@ -23,6 +22,7 @@ export class AiRiceBlastService {
     @InjectRepository(RiceBlastWarning)
     private warningRepository: Repository<RiceBlastWarning>,
     private locationService: LocationService,
+    private weatherService: WeatherService,
     private aiReasoningService: AiReasoningService,
   ) {}
 
@@ -56,8 +56,8 @@ export class AiRiceBlastService {
       const location = await this.locationService.getLocation();
       this.logger.log(`📍 Vị trí: ${location.name} (${location.lat}, ${location.lon})`);
 
-      // 2. Gọi API Open-Meteo để lấy dữ liệu thời tiết 7 ngày
-      const weatherData = await this.fetchWeatherData(location.lat, location.lon);
+      // 2. Sử dụng WeatherService chung để lấy dữ liệu thời tiết 7 ngày
+      const weatherData = await this.weatherService.fetchWeatherData(location.lat, location.lon);
 
       // 3. Chạy phân tích với dữ liệu thời tiết
       return this.runAnalysisWithWeatherData(weatherData);
@@ -174,46 +174,7 @@ ${aiResult.recommendations}
     }
   }
 
-  /**
-   * Gọi API Open-Meteo để lấy dữ liệu thời tiết hourly 7 ngày
-   */
-  private async fetchWeatherData(lat: number, lon: number): Promise<WeatherData> {
-    const url = 'https://api.open-meteo.com/v1/forecast';
-    const params = {
-      latitude: lat,
-      longitude: lon,
-      hourly: [
-        'temperature_2m',
-        'relative_humidity_2m',
-        'dew_point_2m',
-        'precipitation',
-        'precipitation_probability', // Thêm trường này
-        'cloud_cover',
-        'visibility',
-        'weather_code',
-        'rain',
-        'showers',
-        'wind_speed_10m'
-      ].join(','),
-      forecast_days: 7,
-      timezone: 'Asia/Ho_Chi_Minh',
-    };
-
-    this.logger.log(`🌤️  Đang lấy dữ liệu thời tiết từ Open-Meteo...`);
-    try {
-      // Force IPv4 to avoid Docker IPv6 resolution issues
-      const agent = new https.Agent({ family: 4 });
-      const response = await axios.get(url, { 
-        params, 
-        timeout: 10000, // Tăng timeout lên 10s
-        httpsAgent: agent
-      });
-      return response.data;
-    } catch (error) {
-      this.logger.error(`❌ Lỗi kết nối Open-Meteo: ${error}`);
-      throw new Error('Lỗi kết nối API thời tiết.');
-    }
-  }
+  // Method fetchWeatherData() đã được xóa - sử dụng WeatherService chung thay thế
 
   private calculateBasicStats(weatherData: WeatherData): any[] {
     const hourly = weatherData.hourly;
