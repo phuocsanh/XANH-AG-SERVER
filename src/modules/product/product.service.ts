@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
+import { Injectable, Logger, Inject, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from '../../entities/products.entity';
@@ -65,7 +65,7 @@ export class ProductService extends BaseSearchService<Product> {
    * @param name - Tên sản phẩm
    * @param tradeName - Tên thương mại
    * @param excludeId - ID sản phẩm cần loại trừ (khi update)
-   * @throws Error nếu tìm thấy trùng
+   * @throws ConflictException nếu tìm thấy trùng
    */
   private async checkDuplicateName(
     name: string,
@@ -84,7 +84,7 @@ export class ProductService extends BaseSearchService<Product> {
 
     const existingByName = await queryName.getOne();
     if (existingByName) {
-      throw new Error(
+      throw new ConflictException(
         `Sản phẩm với tên "${name}" đã tồn tại. Vui lòng chọn tên khác.`,
       );
     }
@@ -102,7 +102,7 @@ export class ProductService extends BaseSearchService<Product> {
 
       const existingByTradeName = await queryTradeName.getOne();
       if (existingByTradeName) {
-        throw new Error(
+        throw new ConflictException(
           `Sản phẩm với tên thương mại "${tradeName}" đã tồn tại. Vui lòng chọn tên khác.`,
         );
       }
