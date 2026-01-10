@@ -19,6 +19,7 @@ export class SearchProductDto extends BaseSearchDto {
   @IsString() @IsOptional() status?: string; // active/inactive if any
   @IsDateString() @IsOptional() created_at?: string;
   @IsDateString() @IsOptional() updated_at?: string;
+  @IsOptional() has_input_invoice?: boolean;
 
   // Relations
   @IsString() @IsOptional() unit_name?: string;

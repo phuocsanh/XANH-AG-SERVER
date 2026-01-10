@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsArray,
   IsEnum,
+  IsBoolean,
 } from 'class-validator';
 import { BaseStatus } from '../../../entities/base-status.enum';
 
@@ -134,4 +135,9 @@ export class CreateProductDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  /** Trạng thái hóa đơn đầu vào (tùy chọn) */
+  @IsOptional()
+  @IsBoolean()
+  has_input_invoice?: boolean;
 }
