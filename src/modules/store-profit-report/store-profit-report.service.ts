@@ -26,6 +26,7 @@ import {
   CustomerInvoiceDto,
   CustomerSeasonSummaryDto,
 } from './dto/customer-profit-report.dto';
+import { PeriodReportDto, PeriodSummaryDto } from './dto/period-report.dto';
 
 /**
  * Service xử lý logic tính lợi nhuận cho cửa hàng
@@ -1042,6 +1043,113 @@ export class StoreProfitReportService {
     } catch (error) {
       const err = error as Error;
       this.logger.error(`❌ Lỗi báo cáo vụ lúa: ${err.message}`, err.stack);
+      throw error;
+    }
+  }
+
+  /**
+   * Báo cáo lợi nhuận cửa hàng theo khoảng thời gian
+   */
+  async getPeriodProfitReport(startDate: Date, endDate: Date): Promise<PeriodReportDto> {
+    try {
+      this.logger.log(`📊 Báo cáo lợi nhuận từ ${startDate.toISOString()} đến ${endDate.toISOString()}`);
+
+      // 1. Lấy tất cả hóa đơn trong khoảng thời gian (không bao gồm cancelled)
+      const invoices = await this.salesInvoiceRepository.find({
+        where: {
+          created_at: Between(startDate, endDate),
+          status: Not(SalesInvoiceStatus.CANCELLED),
+        },
+        relations: ['items', 'items.product'],
+      });
+
+      // 2. Tính toán doanh thu và giá vốn (phân loại theo has_input_invoice)
+      let totalRevenue = 0;
+      let revenueWithInvoice = 0;
+      let revenueNoInvoice = 0;
+      
+      let totalCOGS = 0;
+      let cogsWithInvoice = 0;
+      let cogsNoInvoice = 0;
+
+      for (const invoice of invoices) {
+        const invoiceFinalAmount = Number(invoice.final_amount);
+        totalRevenue += invoiceFinalAmount;
+        
+        // Tính tổng giá trị các item trong hóa đơn này (trước khi trừ chiết khấu cấp hóa đơn)
+        const invoiceItemsGross = (invoice.items || []).reduce((sum, item) => sum + Number(item.total_price), 0);
+
+        for (const item of invoice.items || []) {
+          const itemGrossPrice = Number(item.total_price);
+          const avgCost = Number(item.product?.average_cost_price || 0);
+          const itemCOGS = Number(item.quantity) * avgCost;
+          
+          const hasInvoice = item.product?.has_input_invoice ?? true;
+
+          // Tính doanh thu thực tế của item sau khi phân bổ tỷ lệ chiết khấu của hóa đơn
+          const itemNetRevenue = invoiceItemsGross > 0 
+            ? (itemGrossPrice / invoiceItemsGross) * invoiceFinalAmount 
+            : 0;
+
+          if (hasInvoice) {
+            revenueWithInvoice += itemNetRevenue;
+            cogsWithInvoice += itemCOGS;
+          } else {
+            revenueNoInvoice += itemNetRevenue;
+            cogsNoInvoice += itemCOGS;
+          }
+          
+          totalCOGS += itemCOGS;
+        }
+      }
+
+      // 3. Lấy chi phí vận hành cửa hàng
+      const operatingCostsResult = await this.operatingCostRepository.find({
+        where: {
+          expense_date: Between(startDate, endDate),
+        },
+      });
+      const totalOperatingCosts = operatingCostsResult.reduce((sum, cost) => sum + Number(cost.value), 0);
+
+      // 4. Lấy chi phí quà tặng/dịch vụ
+      const giftCostsResult = await this.farmServiceCostRepository.find({
+        where: {
+          expense_date: Between(startDate, endDate),
+        },
+      });
+      const totalGiftCosts = giftCostsResult.reduce((sum, cost) => sum + Number(cost.amount), 0);
+
+      // 5. Thống kê giao hàng (tùy chọn, nếu cần tích hợp sâu hơn)
+      const deliveryStats = await this.getSeasonDeliveryStats(startDate, endDate);
+      const totalDeliveryCosts = deliveryStats?.total_delivery_cost || 0;
+
+      // 6. Tính toán lợi nhuận
+      const grossProfit = totalRevenue - totalCOGS;
+      const netProfit = grossProfit - totalOperatingCosts - totalGiftCosts - totalDeliveryCosts;
+
+      const summary: PeriodSummaryDto = {
+        total_revenue: Math.round(totalRevenue),
+        revenue_with_invoice: Math.round(revenueWithInvoice),
+        revenue_no_invoice: Math.round(revenueNoInvoice),
+        taxable_revenue: Math.round(revenueWithInvoice), // Doanh thu khai báo thuế = doanh thu từ sản phẩm có hóa đơn đầu vào
+        total_cogs: Math.round(totalCOGS),
+        cogs_with_invoice: Math.round(cogsWithInvoice),
+        cogs_no_invoice: Math.round(cogsNoInvoice),
+        gross_profit: Math.round(grossProfit),
+        total_operating_costs: Math.round(totalOperatingCosts),
+        total_gift_costs: Math.round(totalGiftCosts + totalDeliveryCosts), // Gộp phí giao hàng vào chi phí dịch vụ/quà tặng
+        net_profit: Math.round(netProfit),
+        invoice_count: invoices.length,
+      };
+
+      return {
+        summary,
+        start_date: startDate,
+        end_date: endDate,
+      };
+    } catch (error) {
+      const err = error as Error;
+      this.logger.error(`❌ Lỗi báo cáo doanh thu theo kỳ: ${err.message}`, err.stack);
       throw error;
     }
   }

@@ -4,6 +4,7 @@ import { StoreProfitReportService } from './store-profit-report.service';
 import { InvoiceProfitDto } from './dto/invoice-profit.dto';
 import { SeasonStoreProfitDto } from './dto/season-store-profit.dto';
 import { CustomerProfitReportDto } from './dto/customer-profit-report.dto';
+import { PeriodReportDto } from './dto/period-report.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -110,5 +111,31 @@ export class StoreProfitReportController {
     @Param('riceCropId', ParseIntPipe) riceCropId: number,
   ): Promise<any> {
     return this.service.getRiceCropProfitReport(riceCropId);
+  }
+
+  @Get('period')
+  @RequirePermissions('store_profit_report:read')
+  @ApiOperation({
+    summary: 'Báo cáo doanh thu và lợi nhuận theo khoảng thời gian',
+    description: 'Thống kê doanh thu (tất cả, có hóa đơn, không hóa đơn) và lợi nhuận ròng'
+  })
+  @ApiQuery({ name: 'startDate', required: true, type: String, description: 'Từ ngày (YYYY-MM-DD)' })
+  @ApiQuery({ name: 'endDate', required: true, type: String, description: 'Đến ngày (YYYY-MM-DD)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Báo cáo doanh thu theo kỳ',
+    type: PeriodReportDto,
+  })
+  async getPeriodReport(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+  ): Promise<PeriodReportDto> {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    // Đặt giờ cuối ngày cho endDate để bao gồm cả ngày đó
+    end.setHours(23, 59, 59, 999);
+    
+    return this.service.getPeriodProfitReport(start, end);
   }
 }
