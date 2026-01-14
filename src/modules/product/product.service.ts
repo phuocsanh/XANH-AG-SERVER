@@ -256,9 +256,10 @@ export class ProductService extends BaseSearchService<Product> {
     // Đây là cách tiếp cận tạm thời, trong thực tế nên sử dụng một DTO riêng
     const inventoryService = (this as any).inventoryService;
     if (inventoryService) {
-      const latestPurchasePrice =
-        await inventoryService.getLatestPurchasePrice(id);
-      product.latest_purchase_price = latestPurchasePrice;
+      const latestPurchasePrice = await inventoryService.getLatestPurchasePrice(id);
+      if (latestPurchasePrice !== null) {
+        product.latest_purchase_price = latestPurchasePrice.toString();
+      }
     }
 
     return product;
