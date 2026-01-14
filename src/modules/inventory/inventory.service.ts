@@ -1149,6 +1149,13 @@ export class InventoryService {
         receiptData.images = createInventoryReceiptDto.images;
       }
 
+      // Thêm is_shipping_paid_to_supplier nếu có
+      if (createInventoryReceiptDto.is_shipping_paid_to_supplier !== undefined) {
+        receiptData.is_shipping_paid_to_supplier = createInventoryReceiptDto.is_shipping_paid_to_supplier;
+      } else {
+        receiptData.is_shipping_paid_to_supplier = true; // Mặc định là true
+      }
+
       // ===== XỬ LÝ THANH TOÁN =====
       const paidAmount = Number(createInventoryReceiptDto.paid_amount) || 0;
       const totalAmount = Number(createInventoryReceiptDto.total_amount);
@@ -1187,10 +1194,19 @@ export class InventoryService {
       
       // Tính giá trị thực tế sau khi trừ trả hàng
       const finalAmount = totalAmount - returnedAmount;
-      const debtAmount = finalAmount - paidAmount;
+      
+      // Tính số tiền thực sự nợ NCC (loại trừ shipping nếu user tự trả ngoài)
+      let excludedShipping = 0;
+      if (receiptData.is_shipping_paid_to_supplier === false) {
+          excludedShipping += Number(createInventoryReceiptDto.shared_shipping_cost) || 0;
+          excludedShipping += createInventoryReceiptDto.items.reduce((sum, item) => sum + (Number(item.individual_shipping_cost) || 0), 0);
+      }
+      
+      const supplierAmount = finalAmount - excludedShipping;
+      const debtAmount = supplierAmount - paidAmount;
       
       let paymentStatus = 'unpaid';
-      if (paidAmount >= finalAmount) {
+      if (paidAmount >= supplierAmount) {
         paymentStatus = 'paid';
       } else if (paidAmount > 0) {
         paymentStatus = 'partial';
@@ -1202,7 +1218,8 @@ export class InventoryService {
         receiptData.paid_amount = 0;
         receiptData.payment_status = 'unpaid';
         receiptData.final_amount = finalAmount;
-        receiptData.debt_amount = finalAmount; // Toàn bộ là nợ
+        receiptData.supplier_amount = supplierAmount;
+        receiptData.debt_amount = supplierAmount; // Toàn bộ là nợ NCC
         receiptData.payment_method = null;
         receiptData.payment_due_date = null;
       } else {
@@ -1210,7 +1227,14 @@ export class InventoryService {
         receiptData.paid_amount = paidAmount;
         receiptData.payment_status = paymentStatus;
         receiptData.final_amount = finalAmount;
+        receiptData.supplier_amount = supplierAmount;
         receiptData.debt_amount = debtAmount;
+        
+        // Nếu tạo phiếu với trạng thái APPROVED, cần set luôn ngày duyệt và người duyệt
+        if (createInventoryReceiptDto.status === ReceiptStatus.APPROVED) {
+          receiptData.approved_at = new Date();
+          receiptData.approved_by = userId;
+        }
         
         if (createInventoryReceiptDto.payment_method) {
           receiptData.payment_method = createInventoryReceiptDto.payment_method;
@@ -1349,7 +1373,8 @@ export class InventoryService {
           
           // Cập nhật thời gian duyệt
           await queryRunner.manager.update(InventoryReceipt, receiptEntity.id, {
-             approved_at: new Date()
+             approved_at: new Date(),
+             approved_by: userId
           });
         } catch (error) {
            this.logger.error(`Lỗi nhập kho tự động cho phiếu ${receiptEntity.code}:`, error);
@@ -2002,12 +2027,18 @@ export class InventoryService {
           const totalAmount = Number(receipt.total_amount);
           const adjustedAmount = Number(receipt.adjusted_amount || 0);
           const newFinalAmount = totalAmount + adjustedAmount - newReturnedAmount;
+          
+          // Cập nhật supplier_amount (giảm trừ theo giá trị hàng trả)
+          const currentSupplierAmount = Number(receipt.supplier_amount) || Number(receipt.final_amount) || totalAmount;
+          const newSupplierAmount = currentSupplierAmount - Number(createInventoryReturnDto.total_amount);
+          
           const paidAmount = Number(receipt.paid_amount || 0);
-          const newDebtAmount = newFinalAmount - paidAmount;
+          const newDebtAmount = newSupplierAmount - paidAmount;
           
           await queryRunner.manager.update(InventoryReceipt, createInventoryReturnDto.receipt_id, {
             returned_amount: newReturnedAmount,
             final_amount: newFinalAmount,
+            supplier_amount: newSupplierAmount,
             debt_amount: newDebtAmount,
             has_returns: true,
           });
@@ -2223,6 +2254,7 @@ export class InventoryService {
 
     returnDoc.status = ReturnStatus.APPROVED;
     returnDoc.approved_at = new Date();
+    returnDoc.approved_by = userId;
     return this.inventoryReturnRepository.save(returnDoc);
   }
 
@@ -2421,7 +2453,8 @@ export class InventoryService {
         
         // Cập nhật approved_at
         await this.inventoryAdjustmentRepository.update(adjustmentEntity.id, {
-          approved_at: new Date()
+          approved_at: new Date(),
+          approved_by: userId
         });
       }
 
@@ -2650,6 +2683,7 @@ export class InventoryService {
 
     adjustment.status = AdjustmentStatus.APPROVED;
     adjustment.approved_at = new Date();
+    adjustment.approved_by = userId;
     return this.inventoryAdjustmentRepository.save(adjustment);
   }
 
@@ -2791,7 +2825,7 @@ export class InventoryService {
     }
     
     const currentPaidAmount = Number(receipt.paid_amount) || 0;
-    const finalAmount = Number(receipt.final_amount) || Number(receipt.total_amount);
+    const finalAmount = Number(receipt.supplier_amount) || Number(receipt.final_amount) || Number(receipt.total_amount);
     const newPaidAmount = currentPaidAmount + Number(paymentDto.amount);
     
     if (newPaidAmount > finalAmount) {

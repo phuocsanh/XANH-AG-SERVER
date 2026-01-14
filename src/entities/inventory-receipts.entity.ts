@@ -112,6 +112,10 @@ export class InventoryReceipt {
   @Column({ name: 'shipping_allocation_method', length: 20, default: 'by_value' })
   shipping_allocation_method?: string;
 
+  /** Phí vận chuyển có trả cho nhà cung cấp không? (Mặc định là có, tính vào công nợ) */
+  @Column({ name: 'is_shipping_paid_to_supplier', default: true })
+  is_shipping_paid_to_supplier!: boolean;
+
   /** Thời gian xóa phiếu nhập kho (soft delete) */
   @DeleteDateColumn({ name: 'deleted_at' })
   deleted_at?: Date;
@@ -146,9 +150,13 @@ export class InventoryReceipt {
   @Column({ name: 'final_amount', type: 'decimal', precision: 15, scale: 2, nullable: true })
   final_amount?: number;
 
-  /** Số tiền còn nợ (final_amount - paid_amount) */
+  /** Số tiền còn nợ (supplier_amount - paid_amount) */
   @Column({ name: 'debt_amount', type: 'decimal', precision: 15, scale: 2, nullable: true })
   debt_amount?: number;
+
+  /** Tổng số tiền thực tế nợ nhà cung cấp (đã trừ trả hàng và phí vận chuyển nếu trả ngoài) */
+  @Column({ name: 'supplier_amount', type: 'decimal', precision: 15, scale: 2, nullable: true })
+  supplier_amount?: number;
 
   // ===== CỜ TRẠNG THÁI =====
   /** Có phiếu trả hàng liên quan */

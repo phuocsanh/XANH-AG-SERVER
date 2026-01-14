@@ -13,6 +13,7 @@ import { InventoryReturnItem } from './inventory-return-items.entity';
 import { InventoryReturnRefund } from './inventory-return-refunds.entity';
 import { Supplier } from './suppliers.entity';
 import { InventoryReceipt } from './inventory-receipts.entity';
+import { User } from './users.entity';
 
 /**
  * Entity biểu diễn thông tin phiếu xuất trả hàng
@@ -85,6 +86,15 @@ export class InventoryReturn {
   /** Thời gian duyệt phiếu xuất trả hàng */
   @Column({ name: 'approved_at', nullable: true })
   approved_at?: Date;
+
+  /** ID của người duyệt */
+  @Column({ name: 'approved_by', nullable: true })
+  approved_by?: number;
+
+  /** Người duyệt phiếu */
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'approved_by' })
+  approver?: User;
 
 
   /** Thời gian hủy phiếu xuất trả hàng */

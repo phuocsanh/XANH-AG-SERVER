@@ -6,8 +6,11 @@ import {
   UpdateDateColumn,
   DeleteDateColumn,
   OneToMany,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { InventoryAdjustmentItem } from './inventory-adjustment-items.entity';
+import { User } from './users.entity';
 
 /**
  * Entity biểu diễn thông tin phiếu điều chỉnh kho
@@ -62,6 +65,15 @@ export class InventoryAdjustment {
   /** Thời gian duyệt phiếu điều chỉnh kho */
   @Column({ name: 'approved_at', nullable: true })
   approved_at?: Date;
+
+  /** ID của người duyệt */
+  @Column({ name: 'approved_by', nullable: true })
+  approved_by?: number;
+
+  /** Người duyệt phiếu */
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'approved_by' })
+  approver?: User;
 
 
   /** Thời gian hủy phiếu điều chỉnh kho */
