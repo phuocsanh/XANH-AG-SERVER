@@ -49,6 +49,10 @@ export class InventoryReceipt {
   @Column({ name: 'notes', nullable: true })
   notes?: string;
 
+  /** Ngày trên hóa đơn / ngày thực tế nhập hàng */
+  @Column({ name: 'bill_date', type: 'timestamp', nullable: true })
+  bill_date?: Date;
+
   /** Danh sách URL hình ảnh hóa đơn / chứng từ */
   @Column({ name: 'images', nullable: true, type: 'json' })
   images?: string[];

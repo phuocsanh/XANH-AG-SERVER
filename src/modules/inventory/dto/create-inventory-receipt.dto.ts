@@ -63,6 +63,10 @@ export class CreateInventoryReceiptDto {
   notes?: string;
 
   @IsString()
+  @IsOptional()
+  bill_date?: string; // Format: YYYY-MM-DD
+
+  @IsString()
   @IsIn(Object.values(ReceiptStatus), {
     message: 'Trạng thái không hợp lệ',
   })

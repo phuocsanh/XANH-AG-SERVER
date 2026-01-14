@@ -1113,6 +1113,11 @@ export class InventoryService {
         receiptData.notes = createInventoryReceiptDto.notes;
       }
 
+      // Thêm ngày hóa đơn nếu có
+      if (createInventoryReceiptDto.bill_date) {
+        receiptData.bill_date = new Date(createInventoryReceiptDto.bill_date);
+      }
+
       // Thêm phí vận chuyển chung nếu có
       if (createInventoryReceiptDto.shared_shipping_cost !== undefined) {
         receiptData.shared_shipping_cost = createInventoryReceiptDto.shared_shipping_cost;
