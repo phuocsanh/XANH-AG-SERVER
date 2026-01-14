@@ -339,20 +339,27 @@ export class InventoryService {
    * @returns Tổng hợp tồn kho của sản phẩm
    */
   async getInventorySummary(productId: number) {
-    // Lấy tất cả lô hàng của sản phẩm
+    // 1. Lấy tất cả lô hàng của sản phẩm
     const batches = await this.inventoryBatchRepository.find({
       where: { product_id: productId },
     });
 
-    // Tính tổng số lượng tồn kho
-    const totalQuantity = batches.reduce(
+    // 2. Tính tổng số lượng từ các lô hàng (số lượng thực theo lô)
+    const batchTotalQuantity = batches.reduce(
       (sum, batch) => sum + batch.remaining_quantity,
       0,
     );
+    
+    // 3. Lấy con số số lượng từ bảng Product (có thể đã được chỉnh sửa thủ công)
+    const product = await this.productService.findOne(productId);
+    const productQuantity = product?.quantity || 0;
 
+    // Trả về số lượng từ bảng Product làm số lượng chính để đảm bảo tính nhất quán với UI
+    // nhưng vẫn giữ thông tin số lượng lô hàng nếu cần đối soát
     return {
       productId,
-      totalQuantity,
+      totalQuantity: productQuantity,
+      batchTotalQuantity: batchTotalQuantity,
       batches: batches.length,
     };
   }
@@ -585,9 +592,18 @@ export class InventoryService {
     // Lấy giá vốn trung bình hiện tại
     const currentAverageCost = await this.getWeightedAverageCost(productId);
 
-    // Lấy tổng số lượng tồn kho hiện tại
+    // Lấy thông tin sản phẩm để lấy số lượng tồn kho hiện tại (ưu tiên con số ở bảng Product vì có thể đã được chỉnh sửa thủ công)
+    const productRepo = queryRunner ? queryRunner.manager.getRepository(Product) : this.productService['productRepository'];
+    const product = await productRepo.findOne({ where: { id: productId } });
+    const currentQuantity = product?.quantity || 0;
+
+    // Lấy tổng số lượng từ các lô hàng để theo dõi tính nhất quán
     const currentInventory = await this.getInventorySummary(productId);
-    const currentQuantity = currentInventory.totalQuantity;
+    const batchTotalQuantity = currentInventory.totalQuantity;
+    
+    if (batchTotalQuantity !== currentQuantity) {
+      this.logger.warn(`Phát hiện sự không đồng nhất về tồn kho cho sản phẩm ${productId}: Số lượng trên bảng Product (${currentQuantity}) khác với tổng số lượng trong các lô hàng (${batchTotalQuantity}). Hệ thống sẽ sử dụng con số từ bảng Product.`);
+    }
 
     // Tính giá vốn trung bình mới theo công thức WAC
     const currentTotalValue = currentQuantity * currentAverageCost;
