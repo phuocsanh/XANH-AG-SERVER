@@ -1700,6 +1700,7 @@ export class InventoryService {
 
     receipt.status = ReceiptStatus.APPROVED;
     receipt.approved_at = new Date();
+    receipt.approved_by = userId;
     return this.inventoryReceiptRepository.save(receipt);
   }
 
