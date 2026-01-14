@@ -611,10 +611,10 @@ export class InventoryService {
 
     // Cập nhật giá nhập mới nhất cho sản phẩm
     if (queryRunner) {
-        await queryRunner.manager.update(Product, productId, { latest_purchase_price: unitCostPrice });
+        await queryRunner.manager.update(Product, productId, { latest_purchase_price: unitCostPrice.toString() });
     } else {
         await this.productService.update(productId, {
-            latest_purchase_price: unitCostPrice,
+            latest_purchase_price: unitCostPrice.toString(),
         });
     }
 
@@ -641,13 +641,13 @@ export class InventoryService {
     // Cập nhật giá sản phẩm
     if (queryRunner) {
         await queryRunner.manager.update(Product, productId, { 
-            latest_purchase_price: unitCostPrice,
+            latest_purchase_price: unitCostPrice.toString(),
             quantity: newTotalQuantity,
             average_cost_price: newAverageCost.toFixed(2),
         });
     } else {
         await this.productService.update(productId, {
-            latest_purchase_price: unitCostPrice,
+            latest_purchase_price: unitCostPrice.toString(),
             quantity: newTotalQuantity,
             average_cost_price: newAverageCost.toFixed(2),
         });

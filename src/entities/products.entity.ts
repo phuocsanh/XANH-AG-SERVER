@@ -152,7 +152,7 @@ export class Product {
 
   /** Giá nhập mới nhất của sản phẩm */
   @Column({ name: 'latest_purchase_price', nullable: true })
-  latest_purchase_price?: number;
+  latest_purchase_price?: string;
 
   /** Mã ký hiệu của sản phẩm (liên kết với bảng symbols) */
   @Column({ name: 'symbol_id', nullable: true })

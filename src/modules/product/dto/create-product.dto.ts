@@ -117,8 +117,8 @@ export class CreateProductDto {
 
   /** Giá nhập mới nhất của sản phẩm (tùy chọn) */
   @IsOptional()
-  @IsNumber()
-  latest_purchase_price?: number;
+  @IsString()
+  latest_purchase_price?: string;
 
   /** Mã ký hiệu của sản phẩm (tùy chọn) */
   @IsOptional()
