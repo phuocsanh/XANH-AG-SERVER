@@ -9,6 +9,8 @@ import { DeliveryLogItem } from '../../entities/delivery-log-item.entity';
 import { OperatingCost } from '../../entities/operating-costs.entity';
 import { CustomerRewardTracking } from '../../entities/customer-reward-tracking.entity';
 import { CustomerRewardHistory } from '../../entities/customer-reward-history.entity';
+import { Payment } from '../../entities/payment.entity';
+import { PaymentAllocation } from '../../entities/payment-allocation.entity';
 import { SalesService } from './sales.service';
 import { SalesController } from './sales.controller';
 import { DeliveryController } from './delivery.controller';
@@ -48,6 +50,8 @@ import { FarmServiceCostModule } from '../farm-service-cost/farm-service-cost.mo
       UserProfile, // Entity profile người dùng (fcm_token)
       CustomerRewardTracking, // Entity theo dõi tích lũy quà tặng khách hàng
       CustomerRewardHistory, // Entity lịch sử tặng quà khách hàng
+      Payment,
+      PaymentAllocation,
     ]),
     FirebaseModule, // Module Firebase cho push notification
     OperatingCostModule, // Module chi phí vận hành (cho chức năng tạo phiếu chi quà tặng)

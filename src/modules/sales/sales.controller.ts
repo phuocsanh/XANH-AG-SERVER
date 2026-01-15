@@ -217,11 +217,14 @@ export class SalesController {
    * @returns Thông tin hóa đơn bán hàng đã cập nhật
    */
   @Patch('invoice/:id/add-payment')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('sales:manage')
   addPartialPayment(
     @Param('id') id: string,
     @Body('amount') amount: number,
+    @CurrentUser('id') userId: number,
   ) {
-    return this.salesService.addPartialPayment(+id, amount);
+    return this.salesService.addPartialPayment(+id, amount, userId);
   }
 
 

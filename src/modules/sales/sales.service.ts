@@ -15,12 +15,15 @@ import { UpdateSalesInvoiceDto } from './dto/update-sales-invoice.dto';
 import { SearchSalesDto } from './dto/search-sales.dto';
 import { CreateDeliveryLogDto } from './dto/delivery-log.dto';
 import { QueryHelper } from '../../common/helpers/query-helper';
-import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
+import { DebtNote, DebtNoteStatus } from '../../entities/debt-note.entity';
+import { Payment } from '../../entities/payment.entity';
+import { PaymentAllocation } from '../../entities/payment-allocation.entity';
 import { DebtNoteService } from '../debt-note/debt-note.service';
 import { DeliveryStatus } from './enums/delivery-status.enum';
 import { DeliveryNotificationService } from './delivery-notification.service';
 import { FarmServiceCostService } from '../farm-service-cost/farm-service-cost.service';
+import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến quản lý bán hàng
@@ -52,6 +55,12 @@ export class SalesService {
     private dataSource: DataSource,
     private deliveryNotificationService: DeliveryNotificationService,
     private farmServiceCostService: FarmServiceCostService,
+    @InjectRepository(Payment)
+    private paymentRepository: Repository<Payment>,
+    @InjectRepository(PaymentAllocation)
+    private paymentAllocationRepository: Repository<PaymentAllocation>,
+    @InjectRepository(DebtNote)
+    private debtNoteRepository: Repository<DebtNote>,
   ) {}
 
   /**
@@ -606,33 +615,107 @@ export class SalesService {
   async addPartialPayment(
     id: number,
     amount: number,
+    userId?: number,
   ): Promise<SalesInvoice | null> {
-    const invoice = await this.findOne(id);
-    if (!invoice) {
-      return null;
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const invoice = await queryRunner.manager.findOne(SalesInvoice, {
+        where: { id },
+        relations: ['customer', 'season'],
+      });
+
+      if (!invoice) {
+        throw new Error('Hóa đơn không tồn tại');
+      }
+
+      // 1. Cập nhật số tiền trên hóa đơn
+      const currentPartialPayment = parseFloat(invoice.partial_payment_amount?.toString() || '0');
+      const finalAmount = parseFloat(invoice.final_amount?.toString() || '0');
+      const newPartialPayment = currentPartialPayment + amount;
+      const newRemainingAmount = finalAmount - newPartialPayment;
+
+      if (newRemainingAmount <= 0) {
+        invoice.status = SalesInvoiceStatus.PAID;
+        invoice.payment_status = SalesPaymentStatus.PAID;
+        invoice.partial_payment_amount = finalAmount;
+        invoice.remaining_amount = 0;
+      } else {
+        invoice.partial_payment_amount = newPartialPayment;
+        invoice.remaining_amount = newRemainingAmount;
+        invoice.payment_status = SalesPaymentStatus.PARTIAL;
+      }
+
+      const savedInvoice = await queryRunner.manager.save(invoice);
+
+      // 2. Tạo phiếu thu (Payment)
+      if (invoice.customer_id) {
+        const paymentCode = CodeGeneratorHelper.generateUniqueCode('PAY');
+        const paymentData: any = {
+          code: paymentCode,
+          customer_id: invoice.customer_id,
+          amount: amount,
+          payment_date: new Date(),
+          payment_method: invoice.payment_method || 'cash',
+          notes: `Thanh toán cho hóa đơn #${invoice.code}`,
+          created_by: userId,
+        };
+        const payment = queryRunner.manager.create(Payment, paymentData);
+        const savedPayment = await queryRunner.manager.save(payment);
+
+        // 3. Tạo phân bổ thanh toán (PaymentAllocation)
+        const allocation = queryRunner.manager.create(PaymentAllocation, {
+          payment_id: savedPayment.id,
+          invoice_id: invoice.id,
+          allocation_type: 'invoice',
+          amount: amount,
+        });
+        await queryRunner.manager.save(allocation);
+
+        // 4. Cập nhật phiếu công nợ (DebtNote) nếu có
+        if (invoice.season_id) {
+          const debtNote = await queryRunner.manager.findOne(DebtNote, {
+            where: {
+              customer_id: invoice.customer_id,
+              season_id: invoice.season_id,
+            },
+          });
+
+          if (debtNote) {
+            const currentPaid = parseFloat(debtNote.paid_amount?.toString() || '0');
+            const currentRemaining = parseFloat(debtNote.remaining_amount?.toString() || '0');
+            
+            debtNote.paid_amount = currentPaid + amount;
+            debtNote.remaining_amount = currentRemaining - amount;
+
+            if (debtNote.remaining_amount <= 0) {
+              debtNote.status = DebtNoteStatus.PAID;
+              debtNote.remaining_amount = 0;
+            }
+
+            await queryRunner.manager.save(debtNote);
+            this.logger.log(`✅ Đã cập nhật phiếu nợ #${debtNote.code}: -${amount.toLocaleString()} đ`);
+
+            // Liên kết phiếu thu với mã phiếu nợ
+            savedPayment.debt_note_code = debtNote.code;
+            await queryRunner.manager.save(savedPayment);
+          }
+        }
+      }
+
+      await queryRunner.commitTransaction();
+      this.logger.log(`✅ Thanh toán thành công cho hóa đơn #${invoice.code}: ${amount.toLocaleString()} đ`);
+      
+      return savedInvoice;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      this.logger.error(`❌ Lỗi khi thanh toán hóa đơn: ${(error as any).message}`);
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
-
-    // Cập nhật số tiền đã thanh toán và số tiền còn nợ
-    // Convert decimal strings to numbers for calculation
-    const currentPartialPayment = parseFloat(invoice.partial_payment_amount?.toString() || '0');
-    const finalAmount = parseFloat(invoice.final_amount?.toString() || '0');
-    
-    const newPartialPayment = currentPartialPayment + amount;
-    const newRemainingAmount = finalAmount - newPartialPayment;
-
-    // Nếu thanh toán đủ, cập nhật trạng thái
-    if (newRemainingAmount <= 0) {
-      invoice.status = SalesInvoiceStatus.PAID;
-      invoice.payment_status = SalesPaymentStatus.PAID;
-      invoice.partial_payment_amount = finalAmount;
-      invoice.remaining_amount = 0;
-    } else {
-      invoice.partial_payment_amount = newPartialPayment;
-      invoice.remaining_amount = newRemainingAmount;
-      invoice.payment_status = SalesPaymentStatus.PARTIAL;
-    }
-
-    return this.salesInvoiceRepository.save(invoice);
   }
 
 
