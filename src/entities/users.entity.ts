@@ -52,7 +52,6 @@ export class User {
     name: 'status',
     type: 'enum',
     enum: BaseStatus,
-    default: BaseStatus.ACTIVE,
   })
   status!: BaseStatus;
 
@@ -83,7 +82,6 @@ export class User {
 
   /** Thông tin profile của user */
   @OneToOne(() => UserProfile, (profile) => profile.user)
-  @JoinColumn({ name: 'id', referencedColumnName: 'user_id' })
   user_profile?: UserProfile;
 
   /** ID của customer (nếu user này là customer) */

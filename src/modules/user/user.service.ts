@@ -549,7 +549,7 @@ export class UserService {
     try {
       // 1. Kiểm tra customer có tồn tại không
       const customer = await this.userRepository.manager
-        .getRepository('Customer')
+        .getRepository(require('../../entities/customer.entity').Customer)
         .findOne({ where: { id: customerId } });
 
       if (!customer) {
@@ -565,10 +565,10 @@ export class UserService {
         throw new Error('Khách hàng này đã có tài khoản đăng nhập');
       }
 
-      // 3. Kiểm tra số điện thoại đã được dùng chưa
-      if (customer.phone_number) {
+      // 3. Kiểm tra số điện thoại đã được dùng chưa (account sẽ dùng số điện thoại)
+      if (customer.phone) {
         const existingUserWithPhone = await this.userRepository.findOne({
-          where: { account: customer.phone_number },
+          where: { account: customer.phone },
         });
 
         if (existingUserWithPhone) {
@@ -578,15 +578,15 @@ export class UserService {
 
       // 4. Lấy role USER (không phải CUSTOMER vì CUSTOMER không có tài khoản đăng nhập)
       const userRole = await this.userRepository.manager
-        .getRepository('Role')
-        .findOne({ where: { code: 'USER' } });
+        .getRepository(require('../../entities/role.entity').Role)
+        .findOne({ where: { code: RoleCode.USER } });
 
       if (!userRole) {
         throw new Error('Role USER chưa được tạo trong hệ thống');
       }
 
-      // 5. Tạo tài khoản tự động
-      const account = customer.phone_number || `CUS-${customer.id}`;
+      // 5. Tạo tài khoản tự động (Ưu tiên dùng số điện thoại làm account)
+      const account = customer.phone || `CUS-${customer.id}`;
       const tempPassword = Math.random().toString(36).slice(-6).toUpperCase(); // Mật khẩu ngẫu nhiên 6 ký tự
       const salt = await bcrypt.genSalt();
       const hashedPassword = await bcrypt.hash(tempPassword, salt);
@@ -596,8 +596,8 @@ export class UserService {
         account,
         password: hashedPassword,
         salt: salt,
-        role_id: userRole.id, // Gán role USER
-        customer_id: customerId,
+        role: userRole, // Gán role qua relation object
+        customer: customer, // Gán customer qua relation object
         status: BaseStatus.ACTIVE,
       });
 
@@ -608,8 +608,9 @@ export class UserService {
         user_id: newUser.id,
         account: newUser.account,
         nickname: customer.name,
-        mobile: customer.phone_number,
+        mobile: customer.phone,
         email: customer.email,
+        is_authentication: 1, // Tự động xác thực vì admin tạo cho
       });
       await this.userProfileRepository.save(userProfile);
 
