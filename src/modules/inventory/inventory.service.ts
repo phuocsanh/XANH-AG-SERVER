@@ -1149,12 +1149,7 @@ export class InventoryService {
         receiptData.images = createInventoryReceiptDto.images;
       }
 
-      // Thêm is_shipping_paid_to_supplier nếu có
-      if (createInventoryReceiptDto.is_shipping_paid_to_supplier !== undefined) {
-        receiptData.is_shipping_paid_to_supplier = createInventoryReceiptDto.is_shipping_paid_to_supplier;
-      } else {
-        receiptData.is_shipping_paid_to_supplier = true; // Mặc định là true
-      }
+
 
       // ===== XỬ LÝ THANH TOÁN =====
       const paidAmount = Number(createInventoryReceiptDto.paid_amount) || 0;
@@ -1195,12 +1190,12 @@ export class InventoryService {
       // Tính giá trị thực tế sau khi trừ trả hàng
       const finalAmount = totalAmount - returnedAmount;
       
-      // Tính số tiền thực sự nợ NCC (loại trừ shipping nếu user tự trả ngoài)
-      let excludedShipping = 0;
-      if (receiptData.is_shipping_paid_to_supplier === false) {
-          excludedShipping += Number(createInventoryReceiptDto.shared_shipping_cost) || 0;
-          excludedShipping += createInventoryReceiptDto.items.reduce((sum, item) => sum + (Number(item.individual_shipping_cost) || 0), 0);
-      }
+      // Tính số tiền thực sự nợ NCC
+      // LUÔN LUÔN loại trừ phí vận chuyển (cả chung và riêng) khỏi công nợ NCC
+      // Phí vận chuyển do người dùng tự chịu, không liên quan đến nhà cung cấp
+      const excludedShipping = 
+        (Number(createInventoryReceiptDto.shared_shipping_cost) || 0) +
+        createInventoryReceiptDto.items.reduce((sum, item) => sum + (Number(item.individual_shipping_cost) || 0), 0);
       
       const supplierAmount = finalAmount - excludedShipping;
       const debtAmount = supplierAmount - paidAmount;

@@ -112,9 +112,7 @@ export class InventoryReceipt {
   @Column({ name: 'shipping_allocation_method', length: 20, default: 'by_value' })
   shipping_allocation_method?: string;
 
-  /** Phí vận chuyển có trả cho nhà cung cấp không? (Mặc định là có, tính vào công nợ) */
-  @Column({ name: 'is_shipping_paid_to_supplier', default: true })
-  is_shipping_paid_to_supplier!: boolean;
+
 
   /** Thời gian xóa phiếu nhập kho (soft delete) */
   @DeleteDateColumn({ name: 'deleted_at' })

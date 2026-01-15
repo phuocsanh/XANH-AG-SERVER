@@ -81,9 +81,7 @@ export class CreateInventoryReceiptDto {
   @IsString()
   shipping_allocation_method?: 'by_value' | 'by_quantity';
 
-  @IsOptional()
-  @IsBoolean()
-  is_shipping_paid_to_supplier?: boolean;
+
 
   @ValidateNested({ each: true })
   @Type(() => CreateInventoryReceiptItemDto)
