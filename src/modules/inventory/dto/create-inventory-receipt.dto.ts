@@ -6,7 +6,6 @@ import {
   ValidateNested,
   IsArray,
   IsIn,
-  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ReceiptStatus } from '../enums/receipt-status.enum';
