@@ -1553,15 +1553,15 @@ export class InventoryService {
 
   /**
    * Lấy thống kê cho phiếu nhập hàng
+   * @param supplier_id - ID nhà cung cấp (tùy chọn). Nếu có, chỉ thống kê phiếu của NCC đó
    */
-  /**
-   * Lấy thống kê cho phiếu nhập hàng
-   */
-  /**
-   * Lấy thống kê cho phiếu nhập hàng
-   */
-  async getReceiptStats() {
+  async getReceiptStats(supplier_id?: number) {
     const queryBuilder = this.inventoryReceiptRepository.createQueryBuilder('receipt');
+    
+    // Lọc theo nhà cung cấp nếu có
+    if (supplier_id) {
+      queryBuilder.where('receipt.supplier_id = :supplier_id', { supplier_id });
+    }
     
     // Nhóm các mã trạng thái để tương thích với dữ liệu thực tế trong DB
     const draftStatuses = "'draft', '1'";

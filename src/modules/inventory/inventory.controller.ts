@@ -379,11 +379,13 @@ export class InventoryController {
 
   /**
    * Lấy thống kê cho phiếu nhập hàng
+   * @param supplier_id - ID nhà cung cấp (tùy chọn). Nếu có, trả về thống kê riêng của NCC đó
    */
   @Get('receipts/stats')
   @RequirePermissions('inventory:read')
-  getReceiptStats() {
-    return this.inventoryService.getReceiptStats();
+  getReceiptStats(@Query('supplier_id') supplier_id?: string) {
+    const supplierId = supplier_id ? parseInt(supplier_id, 10) : undefined;
+    return this.inventoryService.getReceiptStats(supplierId);
   }
 
   /**
