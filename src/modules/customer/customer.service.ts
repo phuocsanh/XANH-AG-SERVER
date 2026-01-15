@@ -8,6 +8,8 @@ import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { SearchCustomerDto } from './dto/search-customer.dto';
 import { QueryHelper } from '../../common/helpers/query-helper';
 import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
+import { User } from '../../entities/users.entity';
+import { UserProfile } from '../../entities/user-profiles.entity';
 
 @Injectable()
 export class CustomerService {
@@ -72,8 +74,45 @@ export class CustomerService {
 
   async update(id: number, updateCustomerDto: UpdateCustomerDto): Promise<Customer> {
     const customer = await this.findOne(id);
+    const oldPhone = customer.phone;
+    
+    // Cập nhật thông tin khách hàng
     Object.assign(customer, updateCustomerDto);
-    return await this.customerRepository.save(customer);
+    const updatedCustomer = await this.customerRepository.save(customer);
+
+    // Nếu số điện thoại thay đổi, cập nhật tài khoản đăng nhập nếu có
+    if (updateCustomerDto.phone && updateCustomerDto.phone !== oldPhone) {
+      const userRepository = this.customerRepository.manager.getRepository(User);
+      const userProfileRepository = this.customerRepository.manager.getRepository(UserProfile);
+
+      // Tìm user liên kết với khách hàng này
+      const user = await userRepository.findOne({ where: { customer_id: id } });
+
+      if (user) {
+        // Kiểm tra xem số điện thoại mới đã được ai khác dùng làm account chưa
+        const existingUser = await userRepository.findOne({
+          where: { account: updateCustomerDto.phone },
+        });
+
+        if (existingUser && existingUser.id !== user.id) {
+          throw new Error('Số điện thoại mới đã được sử dụng cho một tài khoản khác');
+        }
+
+        // Cập nhật account cho User
+        user.account = updateCustomerDto.phone;
+        await userRepository.save(user);
+
+        // Cập nhật profile liên kết
+        const profile = await userProfileRepository.findOne({ where: { user_id: user.id } });
+        if (profile) {
+          profile.account = updateCustomerDto.phone;
+          profile.mobile = updateCustomerDto.phone;
+          await userProfileRepository.save(profile);
+        }
+      }
+    }
+
+    return updatedCustomer;
   }
 
   async remove(id: number): Promise<void> {
