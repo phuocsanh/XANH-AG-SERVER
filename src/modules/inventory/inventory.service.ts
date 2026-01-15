@@ -1178,13 +1178,6 @@ export class InventoryService {
             );
           }
         }
-        
-        // 2. Nếu thanh toán chưa đủ, phải có hạn thanh toán
-        if (paidAmount < totalAmount && !createInventoryReceiptDto.payment_due_date) {
-          throw new BadRequestException(
-            'Khi còn nợ, phải có hạn thanh toán'
-          );
-        }
       }
       
       // Tính giá trị thực tế sau khi trừ trả hàng
@@ -1198,6 +1191,15 @@ export class InventoryService {
         createInventoryReceiptDto.items.reduce((sum, item) => sum + (Number(item.individual_shipping_cost) || 0), 0);
       
       const supplierAmount = finalAmount - excludedShipping;
+      
+      // VALIDATION: Nếu còn nợ NCC, phải có hạn thanh toán
+      // So sánh với supplierAmount (chỉ tiền hàng), KHÔNG phải totalAmount (bao gồm phí ship)
+      if (paidAmount < supplierAmount && !createInventoryReceiptDto.payment_due_date) {
+        throw new BadRequestException(
+          'Khi còn nợ, phải có hạn thanh toán'
+        );
+      }
+      
       const debtAmount = supplierAmount - paidAmount;
       
       let paymentStatus = 'unpaid';
