@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { GoogleGenAI } from '@google/genai';
 import { McpServerService } from './mcp-server.service';
 import { RiceAnalysisResult } from './interfaces/rice-analysis.interface';
@@ -21,6 +22,7 @@ export class AiAnalysisService {
     private readonly mcpServerService: McpServerService,
     @InjectRepository(RiceMarketData)
     private readonly riceMarketRepository: Repository<RiceMarketData>,
+    private readonly configService: ConfigService,
   ) {
     this.logger.log(
       'AiAnalysisService đã được khởi tạo với MCP Server integration',
@@ -216,8 +218,8 @@ export class AiAnalysisService {
         );
       }
 
-      // Sử dụng model Gemini 2.5 flash - model ổn định nhất hiện tại
-      const selectedModel = 'gemini-2.5-flash';
+      // Sử dụng model Gemini - ưu tiên từ config
+      const selectedModel = this.configService?.get<string>('GOOGLE_AI_MODEL') || 'gemini-1.5-flash';
 
       // Tạo prompt chi tiết với yêu cầu trích dẫn nguồn và tránh hallucination
       const prompt = `
@@ -295,7 +297,7 @@ export class AiAnalysisService {
         model: selectedModel,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: {
-          maxOutputTokens: 8192,
+          maxOutputTokens: 16384,
           temperature: 0.7,
         },
       });
@@ -461,7 +463,7 @@ Hãy trả lời câu hỏi một cách chính xác và có trích dẫn nguồn
       const genAI = new GoogleGenAI({ apiKey: apiKeyConfig.key });
       
       const result = await genAI.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: this.configService?.get<string>('GOOGLE_AI_MODEL') || 'gemini-1.5-flash',
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: {
           maxOutputTokens: 1024,

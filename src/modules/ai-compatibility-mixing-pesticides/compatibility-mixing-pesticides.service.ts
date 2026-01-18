@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { GoogleGenAI } from '@google/genai';
 import {
   PESTICIDE_MIXING_DOCUMENT_TEXT,
@@ -9,9 +10,14 @@ import { FirebaseService } from '../firebase/firebase.service';
 @Injectable()
 export class CompatibilityMixingPesticidesService {
   private readonly logger = new Logger(CompatibilityMixingPesticidesService.name);
-  private readonly model = 'gemini-2.5-flash';
+  constructor(
+    private readonly firebaseService: FirebaseService,
+    private readonly configService: ConfigService,
+  ) {}
 
-  constructor(private firebaseService: FirebaseService) {}
+  private get model(): string {
+    return this.configService.get<string>('GOOGLE_AI_MODEL') || 'gemini-1.5-flash';
+  }
 
   /**
    * Thực hiện truy vấn AI, kết hợp RAG (tài liệu nội bộ) và trả lời câu hỏi.

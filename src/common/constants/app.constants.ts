@@ -15,6 +15,8 @@ export const ALLOWED_IMAGE_TYPES = [
   'image/png',
   'image/gif',
   'image/webp',
+  'image/heic', // iPhone HEIC format
+  'image/heif', // HEIF variant
 ];
 
 // JWT

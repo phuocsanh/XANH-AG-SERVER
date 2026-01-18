@@ -70,20 +70,22 @@ BỆNH: ${additionalContext}
 
 THỜI TIẾT 7 NGÀY: ${JSON.stringify(simplifiedWeather)}
 
-YÊU CẦU - TỐI ĐA 250 TỪ TỔNG:
-- summary: 50 từ
-- detailed_analysis: 100 từ  
-- recommendations: 50 từ
+YÊU CẦU BẮT BUỘC - PHẢI NGẮN GỌN:
+- summary: ĐÚNG 2-3 CÂU, KHÔNG QUÁ 40 TỪ
+- detailed_analysis: ĐÚNG 4-5 CÂU, KHÔNG QUÁ 80 TỪ
+- recommendations: ĐÚNG 3-4 CÂU, KHÔNG QUÁ 50 TỪ
+- main_factors: MỖI NGÀY TỐI ĐA 3 YẾU TỐ, MỖI YẾU TỐ TỐI ĐA 5 TỪ
+- TUYỆT ĐỐI KHÔNG DÀI DÒNG, LẶP LẠI
 
 Chỉ trả JSON:
 {
   "risk_level": "THẤP|TRUNG BÌNH|CAO|RẤT CAO",
   "risk_score": 0-10,
   "peak_days": "dates",
-  "summary": "max 50 từ",
-  "detailed_analysis": "max 100 từ",
-  "recommendations": "max 50 từ",
-  "daily_risks": [{"date":"","risk_score":0,"risk_level":"","main_factors":[]}]
+  "summary": "2-3 câu ngắn gọn",
+  "detailed_analysis": "4-5 câu phân tích cốt lõi",
+  "recommendations": "3-4 câu khuyến nghị thiết thực",
+  "daily_risks": [{"date":"","risk_score":0,"risk_level":"","main_factors":["tối đa 3 yếu tố ngắn"]}]
 }
 `;
 
@@ -113,7 +115,7 @@ Chỉ trả JSON:
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
             generationConfig: {
               temperature: 0.7,
-              maxOutputTokens: 6144,
+              maxOutputTokens: 8192,
               responseMimeType: 'application/json',
             }
           })

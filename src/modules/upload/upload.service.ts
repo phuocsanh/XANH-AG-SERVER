@@ -36,13 +36,21 @@ export class UploadService {
         ? `${CLOUDINARY_FOLDER}/${subFolder}`
         : CLOUDINARY_FOLDER;
 
-      // Upload to Cloudinary with compression and optimization
+      // Upload to Cloudinary với tối ưu hóa cho HEIC từ iPhone
       const result = await cloudinary.uploader.upload(file.path, {
         folder: folderPath,
         resource_type: 'image',
+        format: 'jpg', // Bắt buộc convert HEIC → JPEG
         transformation: [
-          { quality: 'auto', fetch_format: 'auto' }, // Tự động tối ưu chất lượng và định dạng
-          { aspect_ratio: '1.0', gravity: 'center', crop: 'pad', background: 'auto' }, // Tự động đưa về hình vuông 1:1, thêm viền nếu cần
+          { 
+            width: 1920, 
+            height: 1920, 
+            crop: 'limit' // Giới hạn kích thước tối đa, giữ nguyên tỷ lệ
+          },
+          { 
+            quality: 85, // Nén vừa phải (85% chất lượng, ~500KB-1MB)
+            fetch_format: 'jpg' // Đảm bảo output là JPEG
+          },
         ],
       });
 
