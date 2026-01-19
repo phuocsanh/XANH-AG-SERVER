@@ -84,6 +84,7 @@ export class SalesController {
    * @returns Thông tin hóa đơn bán hàng
    */
   @Get('invoice/:id')
+  @UseGuards(JwtAuthGuard)
   findOne(@Param('id') id: string) {
     return this.salesService.findOne(+id);
   }

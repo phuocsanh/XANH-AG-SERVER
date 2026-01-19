@@ -281,48 +281,52 @@ export class SalesService {
    * Lấy danh sách tất cả hóa đơn bán hàng (không bao gồm đã xóa mềm)
    * @returns Danh sách hóa đơn bán hàng
    */
-  async findAll(): Promise<SalesInvoice[]> {
-    return this.salesInvoiceRepository.find({
-      where: { deleted_at: IsNull() },
-      order: { created_at: 'DESC' }, // Sắp xếp theo thời gian tạo giảm dần
-    });
-  }
+   async findAll(): Promise<SalesInvoice[]> {
+     return this.salesInvoiceRepository.find({
+       where: { deleted_at: IsNull() },
+       relations: ['items', 'items.product', 'season', 'rice_crop', 'customer'],
+       order: { created_at: 'DESC' }, // Sắp xếp theo thời gian tạo giảm dần
+     });
+   }
 
   /**
    * Lấy danh sách hóa đơn bán hàng theo trạng thái
    * @param status - Trạng thái cần lọc
    * @returns Danh sách hóa đơn bán hàng theo trạng thái
    */
-  async findByStatus(status: SalesInvoiceStatus): Promise<SalesInvoice[]> {
-    return this.salesInvoiceRepository.createQueryBuilder('invoice')
-      .leftJoinAndSelect('invoice.season', 'season')
-      .leftJoinAndSelect('invoice.rice_crop', 'rice_crop')
-      .leftJoinAndSelect('invoice.customer', 'customer')
-      .leftJoin('invoice.creator', 'creator')
-      .addSelect(['creator.id', 'creator.account'])
-      .where('invoice.status = :status', { status })
-      .andWhere('invoice.deleted_at IS NULL')
-      .orderBy('invoice.created_at', 'DESC')
-      .getMany();
-  }
+   async findByStatus(status: SalesInvoiceStatus): Promise<SalesInvoice[]> {
+     return this.salesInvoiceRepository.createQueryBuilder('invoice')
+       .leftJoinAndSelect('invoice.items', 'items')
+       .leftJoinAndSelect('items.product', 'product')
+       .leftJoinAndSelect('invoice.season', 'season')
+       .leftJoinAndSelect('invoice.rice_crop', 'rice_crop')
+       .leftJoinAndSelect('invoice.customer', 'customer')
+       .leftJoin('invoice.creator', 'creator')
+       .addSelect(['creator.id', 'creator.account'])
+       .where('invoice.status = :status', { status })
+       .andWhere('invoice.deleted_at IS NULL')
+       .orderBy('invoice.created_at', 'DESC')
+       .getMany();
+   }
 
   /**
    * Lấy danh sách hóa đơn bán hàng đã xóa mềm
    * @returns Danh sách hóa đơn bán hàng đã xóa mềm
    */
-  async findDeleted(): Promise<SalesInvoice[]> {
-    return this.salesInvoiceRepository.createQueryBuilder('invoice')
-      .withDeleted()
-      // .leftJoinAndSelect('invoice.items', 'items') // Commented out items for list view performance, similar to search
-      .leftJoinAndSelect('invoice.season', 'season')
-      .leftJoinAndSelect('invoice.rice_crop', 'rice_crop')
-      .leftJoinAndSelect('invoice.customer', 'customer')
-      .leftJoin('invoice.creator', 'creator')
-      .addSelect(['creator.id', 'creator.account'])
-      .where('invoice.deleted_at IS NOT NULL')
-      .orderBy('invoice.deleted_at', 'DESC')
-      .getMany();
-  }
+   async findDeleted(): Promise<SalesInvoice[]> {
+     return this.salesInvoiceRepository.createQueryBuilder('invoice')
+       .withDeleted()
+       .leftJoinAndSelect('invoice.items', 'items')
+       .leftJoinAndSelect('items.product', 'product')
+       .leftJoinAndSelect('invoice.season', 'season')
+       .leftJoinAndSelect('invoice.rice_crop', 'rice_crop')
+       .leftJoinAndSelect('invoice.customer', 'customer')
+       .leftJoin('invoice.creator', 'creator')
+       .addSelect(['creator.id', 'creator.account'])
+       .where('invoice.deleted_at IS NOT NULL')
+       .orderBy('invoice.deleted_at', 'DESC')
+       .getMany();
+   }
 
   /**
    * Tìm hóa đơn bán hàng theo ID
@@ -768,6 +772,8 @@ export class SalesService {
 
     // Join các bảng liên quan để lấy tên hiển thị
     queryBuilder
+      .leftJoinAndSelect('invoice.items', 'items') // Thêm join items
+      .leftJoinAndSelect('items.product', 'product') // Thêm join product chi tiết
       .leftJoin('invoice.season', 'season')
       .leftJoin('invoice.rice_crop', 'rice_crop')
       .leftJoin('invoice.customer', 'customer') // Thêm join customer
