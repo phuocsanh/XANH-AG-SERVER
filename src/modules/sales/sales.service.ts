@@ -1220,4 +1220,36 @@ export class SalesService {
     
     return deliveryLog;
   }
+
+  /**
+   * Lấy lịch sử mua hàng của một khách hàng theo mùa vụ (Tổng hợp tất cả items)
+   */
+  async getCustomerPurchaseHistory(customerId: number, seasonId?: number) {
+    const queryBuilder = this.salesInvoiceItemRepository.createQueryBuilder('item')
+      .innerJoinAndSelect('item.invoice', 'invoice')
+      .leftJoinAndSelect('item.product', 'product')
+      .leftJoinAndSelect('product.unit', 'unit')
+      .where('invoice.customer_id = :customerId', { customerId })
+      .andWhere('invoice.deleted_at IS NULL');
+
+    if (seasonId) {
+      queryBuilder.andWhere('invoice.season_id = :seasonId', { seasonId });
+    }
+
+    queryBuilder.orderBy('invoice.created_at', 'ASC');
+
+    const items = await queryBuilder.getMany();
+
+    // Chuẩn hóa dữ liệu trả về giống mẫu Excel
+    return items.map(item => ({
+      date: item.invoice.created_at,
+      product_name: item.product_name || item.product?.trade_name || item.product?.name || 'Sản phẩm không tên',
+      unit: item.product?.unit?.name || 'Cái', 
+      quantity: Number(item.quantity || 0),
+      unit_price: Number(item.unit_price || 0),
+      total_price: Number(item.total_price || 0),
+      invoice_code: item.invoice.code,
+      invoice_id: item.invoice.id,
+    }));
+  }
 }

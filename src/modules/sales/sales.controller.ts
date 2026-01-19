@@ -9,7 +9,7 @@ import {
   UseGuards,
   HttpException,
   HttpStatus,
-
+  Query,
 } from '@nestjs/common';
 import { SalesService } from './sales.service';
 import { CreateSalesInvoiceDto } from './dto/create-sales-invoice.dto';
@@ -280,5 +280,19 @@ export class SalesController {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+  /**
+   * Lấy lịch sử mua hàng tổng hợp của một khách hàng theo mùa vụ
+   * @param id - ID của khách hàng
+   * @param seasonId - ID của mùa vụ (query param)
+   * @returns Danh sách các sản phẩm khách hàng đã mua
+   */
+  @Get('customer/:id/purchase-history')
+  @UseGuards(JwtAuthGuard)
+  getCustomerPurchaseHistory(
+    @Param('id') id: string,
+    @Query('seasonId') seasonId?: string,
+  ) {
+    return this.salesService.getCustomerPurchaseHistory(+id, seasonId ? +seasonId : undefined);
   }
 }
