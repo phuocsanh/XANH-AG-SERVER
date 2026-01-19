@@ -55,12 +55,6 @@ export class SalesService {
     private dataSource: DataSource,
     private deliveryNotificationService: DeliveryNotificationService,
     private farmServiceCostService: FarmServiceCostService,
-    @InjectRepository(Payment)
-    private paymentRepository: Repository<Payment>,
-    @InjectRepository(PaymentAllocation)
-    private paymentAllocationRepository: Repository<PaymentAllocation>,
-    @InjectRepository(DebtNote)
-    private debtNoteRepository: Repository<DebtNote>,
   ) {}
 
   /**
