@@ -30,6 +30,10 @@ export class CreateInventoryReceiptItemDto {
   @IsOptional()
   notes?: string;
 
+  @IsString()
+  @IsOptional()
+  unit_name?: string;
+
   @IsOptional()
   @IsNumber()
   individual_shipping_cost?: number;

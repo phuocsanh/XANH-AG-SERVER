@@ -45,6 +45,10 @@ export class InventoryReceiptItem {
   @Column({ name: 'notes', nullable: true })
   notes?: string;
 
+  /** Tên đơn vị tính tại thời điểm nhập (snapshot) */
+  @Column({ name: 'unit_name', nullable: true })
+  unit_name?: string;
+
   /** Phí vận chuyển riêng cho sản phẩm này (tùy chọn) */
   @Column({ name: 'individual_shipping_cost', type: 'decimal', precision: 15, scale: 2, default: 0 })
   individual_shipping_cost?: number;

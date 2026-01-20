@@ -1319,7 +1319,8 @@ export class InventoryService {
            allocated_shipping_cost: item.allocated_shipping_cost,
            final_unit_cost: item.final_unit_cost,
            batch_number: item.batch_number,
-        };
+            unit_name: item.unit_name,
+         };
 
         // Only add notes if it's not undefined
         if (item.notes !== undefined) {
