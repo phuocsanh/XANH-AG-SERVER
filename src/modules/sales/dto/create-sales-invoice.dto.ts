@@ -17,6 +17,11 @@ export class CreateSalesInvoiceItemDto {
   @IsOptional()
   product_name?: string;
 
+  /** Đơn vị tính của sản phẩm tại thời điểm mua - snapshot (tùy chọn, sẽ tự động lấy từ DB nếu không có) */
+  @IsString()
+  @IsOptional()
+  unit_name?: string;
+
   /** Số lượng sản phẩm trong hóa đơn (bắt buộc) */
   @IsNumber()
   quantity!: number;

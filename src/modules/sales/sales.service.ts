@@ -121,20 +121,31 @@ export class SalesService {
           const totalPrice =
             item.unit_price * item.quantity - (item.discount_amount || 0);
 
-            // Lấy tên sản phẩm từ DB nếu không có trong DTO
+            // Lấy tên sản phẩm và đơn vị tính từ DB nếu không có trong DTO
             let productName = item.product_name;
-            if (!productName) {
+            let unitName = item.unit_name;
+            
+            if (!productName || !unitName) {
               const product = await queryRunner.manager.findOne(Product, {
                 where: { id: item.product_id },
+                relations: ['unit'],
               });
-              productName = product?.trade_name || product?.name;
+              
+              if (!productName) {
+                productName = product?.trade_name || product?.name;
+              }
+              
+              if (!unitName) {
+                unitName = product?.unit?.name;
+              }
             }
 
             return queryRunner.manager.create(SalesInvoiceItem, {
               ...item,
               invoice_id: savedInvoice.id,
               total_price: totalPrice,
-              ...(productName && { product_name: productName }), // Chỉ set nếu có giá trị
+              ...(productName && { product_name: productName }),
+              ...(unitName && { unit_name: unitName }),
             });
           })
         );

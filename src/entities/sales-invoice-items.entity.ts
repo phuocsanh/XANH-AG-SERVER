@@ -33,6 +33,10 @@ export class SalesInvoiceItem {
   @Column({ name: 'product_name', nullable: true })
   product_name?: string;
 
+  /** Đơn vị tính của sản phẩm tại thời điểm mua (snapshot) */
+  @Column({ name: 'unit_name', nullable: true })
+  unit_name?: string;
+
   /** Số lượng sản phẩm trong hóa đơn */
   @Column({ name: 'quantity' })
   quantity!: number;
