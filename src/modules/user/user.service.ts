@@ -89,7 +89,7 @@ export class UserService {
    */
   async findAll(): Promise<User[]> {
     return this.userRepository.find({
-      relations: ['profile'],
+      relations: ['user_profile'],
       select: {
         id: true,
         account: true,
@@ -667,8 +667,8 @@ export class UserService {
   }> {
     const queryBuilder = this.userRepository.createQueryBuilder('u');
 
-    // Join profile và role để search và display
-    queryBuilder.leftJoinAndSelect('u.profile', 'profile');
+    // Join user_profile và role để search và display
+    queryBuilder.leftJoinAndSelect('u.user_profile', 'user_profile');
     queryBuilder.leftJoinAndSelect('u.role', 'role');
 
     // Thêm điều kiện mặc định
@@ -679,7 +679,7 @@ export class UserService {
       queryBuilder,
       searchDto,
       'u',
-      ['account', 'profile.nickname', 'profile.email', 'profile.mobile'] // Global search
+      ['account', 'user_profile.nickname', 'user_profile.email', 'user_profile.mobile'] // Global search
     );
 
     // 2. Simple Filters
@@ -689,10 +689,10 @@ export class UserService {
       'u',
       ['filters', 'nested_filters', 'operator'],
       {
-        full_name: 'profile.nickname',
-        nickname: 'profile.nickname',
-        phone_number: 'profile.mobile',
-        email: 'profile.email',
+        full_name: 'user_profile.nickname',
+        nickname: 'user_profile.nickname',
+        phone_number: 'user_profile.mobile',
+        email: 'user_profile.email',
         role: 'role.code',
         role_id: 'u.role_id',
         status: 'u.status',
