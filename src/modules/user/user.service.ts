@@ -246,6 +246,33 @@ export class UserService {
   }
 
   /**
+   * Admin đặt lại mật khẩu cho người dùng
+   * @param userId - ID của người dùng cần đặt lại mật khẩu
+   * @param newPassword - Mật khẩu mới
+   */
+  async resetPassword(userId: number, newPassword: string): Promise<boolean> {
+    try {
+      const user = await this.userRepository.findOne({ where: { id: userId } });
+      if (!user) {
+        return false;
+      }
+
+      const salt = await bcrypt.genSalt();
+      const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+      await this.userRepository.update(userId, {
+        password: hashedPassword,
+        salt: salt,
+      });
+
+      return true;
+    } catch (error) {
+      ErrorHandler.handleUpdateError(error, 'đặt lại mật khẩu');
+      return false;
+    }
+  }
+
+  /**
    * Cập nhật thông tin profile người dùng
    * @param id - ID của người dùng cần cập nhật profile
    * @param profileData - Dữ liệu cập nhật profile
@@ -587,7 +614,8 @@ export class UserService {
 
       // 5. Tạo tài khoản tự động (Ưu tiên dùng số điện thoại làm account)
       const account = customer.phone || `CUS-${customer.id}`;
-      const tempPassword = Math.random().toString(36).slice(-6).toUpperCase(); // Mật khẩu ngẫu nhiên 6 ký tự
+      // Lấy mật khẩu mặc định từ .env hoặc dùng 123456
+      const tempPassword = process.env.CUSTOMER_DEFAULT_PASSWORD || '123456';
       const salt = await bcrypt.genSalt();
       const hashedPassword = await bcrypt.hash(tempPassword, salt);
 

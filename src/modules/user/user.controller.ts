@@ -17,6 +17,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { SearchUserDto } from './dto/search-user.dto';
 import { CreateCustomerAccountDto } from './dto/create-customer-account.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -199,6 +200,21 @@ export class UserController {
   @RequirePermissions('customer:manage')
   async createCustomerAccount(@Body() createCustomerAccountDto: CreateCustomerAccountDto) {
     return this.userService.createCustomerAccount(createCustomerAccountDto.customer_id);
+  }
+
+  /**
+   * Endpoint đặt lại mật khẩu người dùng bởi Admin
+   * @param id - ID của người dùng cần đặt lại mật khẩu
+   * @param resetPasswordDto - Mật khẩu mới
+   */
+  @Post(':id/reset-password')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('user:update')
+  async resetPassword(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() resetPasswordDto: ResetPasswordDto,
+  ) {
+    return this.userService.resetPassword(id, resetPasswordDto.password);
   }
 
 
