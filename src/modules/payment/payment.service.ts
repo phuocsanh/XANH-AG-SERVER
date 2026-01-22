@@ -23,10 +23,6 @@ export class PaymentService {
     private paymentRepository: Repository<Payment>,
     @InjectRepository(PaymentAllocation)
     private paymentAllocationRepository: Repository<PaymentAllocation>,
-    @InjectRepository(DebtNote)
-    private debtNoteRepository: Repository<DebtNote>,
-    @InjectRepository(SalesInvoice)
-    private salesInvoiceRepository: Repository<SalesInvoice>,
     private operatingCostService: OperatingCostService,
     private operatingCostCategoryService: OperatingCostCategoryService,
   ) {}
