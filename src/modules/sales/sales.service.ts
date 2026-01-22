@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull, Not, DataSource } from 'typeorm';
+import { Repository, IsNull, Not, DataSource, QueryRunner } from 'typeorm';
 import {
   SalesInvoice,
   SalesInvoiceStatus,
@@ -346,9 +346,13 @@ export class SalesService {
    * @param id - ID của hóa đơn bán hàng cần tìm
    * @returns Thông tin hóa đơn bán hàng với thông tin số lượng đã trả và có thể trả
    */
-  async findOne(id: number): Promise<SalesInvoice | null> {
+  async findOne(id: number, queryRunner?: QueryRunner): Promise<SalesInvoice | null> {
     // Lấy hóa đơn với các relations
-    const invoice = await this.salesInvoiceRepository.createQueryBuilder('invoice')
+    const qb = queryRunner 
+      ? queryRunner.manager.createQueryBuilder(SalesInvoice, 'invoice')
+      : this.salesInvoiceRepository.createQueryBuilder('invoice');
+
+    const invoice = await qb
       .leftJoinAndSelect('invoice.items', 'items')
       .leftJoinAndSelect('items.product', 'product')
       .leftJoinAndSelect('invoice.customer', 'customer')
@@ -367,9 +371,10 @@ export class SalesService {
 
     // ✅ Tính số lượng đã trả cho mỗi item
     if (invoice.items && invoice.items.length > 0) {
+      const manager = queryRunner ? queryRunner.manager : this.dataSource.manager;
       for (const item of invoice.items) {
         // Query tổng số lượng đã trả của sản phẩm này trong hóa đơn
-        const returnedData = await this.dataSource
+        const returnedData = await manager
           .createQueryBuilder()
           .select('COALESCE(SUM(return_item.quantity), 0)', 'total_returned')
           .from('sales_return_items', 'return_item')
@@ -491,27 +496,34 @@ export class SalesService {
     updateSalesInvoiceDto: UpdateSalesInvoiceDto,
     userId?: number,
   ): Promise<SalesInvoice | null> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
     try {
-      await this.salesInvoiceRepository.update(id, updateSalesInvoiceDto);
-      const updatedInvoice = await this.findOne(id);
+      await queryRunner.manager.update(SalesInvoice, id, updateSalesInvoiceDto);
+      const updatedInvoice = await this.findOne(id, queryRunner);
       
-      // 🆕 Nếu cập nhật trạng thái sang CONFIRMED hoặc PAID, thực hiện trừ kho
-      if (updatedInvoice && (updatedInvoice.status === SalesInvoiceStatus.CONFIRMED || updatedInvoice.status === SalesInvoiceStatus.PAID)) {
-        if (userId) {
-          await this.handleInventoryDeduction(id, userId);
+      if (updatedInvoice && userId) {
+        // 🆕 Nếu cập nhật trạng thái sang CONFIRMED hoặc PAID, thực hiện trừ kho
+        if (updatedInvoice.status === SalesInvoiceStatus.CONFIRMED || updatedInvoice.status === SalesInvoiceStatus.PAID) {
+          await this.handleInventoryDeduction(id, userId, queryRunner);
+        }
+        
+        // 🆕 Nếu cập nhật trạng thái sang CANCELLED hoặc REFUNDED, thực hiện hoàn kho
+        if (updatedInvoice.status === SalesInvoiceStatus.CANCELLED || updatedInvoice.status === SalesInvoiceStatus.REFUNDED) {
+          await this.handleInventoryRestoration(id, userId, queryRunner);
         }
       }
       
-      // 🆕 Nếu cập nhật trạng thái sang CANCELLED hoặc REFUNDED, thực hiện hoàn kho
-      if (updatedInvoice && (updatedInvoice.status === SalesInvoiceStatus.CANCELLED || updatedInvoice.status === SalesInvoiceStatus.REFUNDED)) {
-        if (userId) {
-          await this.handleInventoryRestoration(id, userId);
-        }
-      }
-      
+      await queryRunner.commitTransaction();
       return updatedInvoice;
     } catch (error) {
+      await queryRunner.rollbackTransaction();
       ErrorHandler.handleUpdateError(error, 'hóa đơn bán hàng');
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
   }
 
@@ -544,11 +556,34 @@ export class SalesService {
    * @returns Thông tin hóa đơn bán hàng đã xác nhận
    */
   async confirmInvoice(id: number, userId?: number): Promise<SalesInvoice | null> {
-    const invoice = await this.updateStatus(id, SalesInvoiceStatus.CONFIRMED);
-    if (invoice && userId) {
-      await this.handleInventoryDeduction(invoice.id, userId);
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const invoice = await queryRunner.manager.findOne(SalesInvoice, { where: { id } });
+      if (!invoice) {
+        await queryRunner.release();
+        return null;
+      }
+
+      invoice.status = SalesInvoiceStatus.CONFIRMED;
+      invoice.updated_at = new Date();
+      const savedInvoice = await queryRunner.manager.save(invoice);
+
+      if (userId) {
+        await this.handleInventoryDeduction(savedInvoice.id, userId, queryRunner);
+      }
+
+      await queryRunner.commitTransaction();
+      return savedInvoice;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      this.logger.error(`❌ Lỗi khi xác nhận hóa đơn #${id}: ${(error as any).message}`);
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
-    return invoice;
   }
 
   /**
@@ -557,11 +592,34 @@ export class SalesService {
    * @returns Thông tin hóa đơn bán hàng đã thanh toán
    */
   async markAsPaid(id: number, userId?: number): Promise<SalesInvoice | null> {
-    const invoice = await this.updateStatus(id, SalesInvoiceStatus.PAID);
-    if (invoice && userId) {
-      await this.handleInventoryDeduction(invoice.id, userId);
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const invoice = await queryRunner.manager.findOne(SalesInvoice, { where: { id } });
+      if (!invoice) {
+        await queryRunner.release();
+        return null;
+      }
+
+      invoice.status = SalesInvoiceStatus.PAID;
+      invoice.updated_at = new Date();
+      const savedInvoice = await queryRunner.manager.save(invoice);
+
+      if (userId) {
+        await this.handleInventoryDeduction(savedInvoice.id, userId, queryRunner);
+      }
+
+      await queryRunner.commitTransaction();
+      return savedInvoice;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      this.logger.error(`❌ Lỗi khi đánh dấu đã thanh toán hóa đơn #${id}: ${(error as any).message}`);
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
-    return invoice;
   }
 
   /**
@@ -570,11 +628,34 @@ export class SalesService {
    * @returns Thông tin hóa đơn bán hàng đã hủy
    */
   async cancelInvoice(id: number, userId?: number): Promise<SalesInvoice | null> {
-    const invoice = await this.updateStatus(id, SalesInvoiceStatus.CANCELLED);
-    if (invoice && userId) {
-      await this.handleInventoryRestoration(invoice.id, userId);
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const invoice = await queryRunner.manager.findOne(SalesInvoice, { where: { id } });
+      if (!invoice) {
+        await queryRunner.release();
+        return null;
+      }
+
+      invoice.status = SalesInvoiceStatus.CANCELLED;
+      invoice.updated_at = new Date();
+      const savedInvoice = await queryRunner.manager.save(invoice);
+
+      if (userId) {
+        await this.handleInventoryRestoration(savedInvoice.id, userId, queryRunner);
+      }
+
+      await queryRunner.commitTransaction();
+      return savedInvoice;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      this.logger.error(`❌ Lỗi khi hủy hóa đơn #${id}: ${(error as any).message}`);
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
-    return invoice;
   }
 
   /**
@@ -583,11 +664,34 @@ export class SalesService {
    * @returns Thông tin hóa đơn bán hàng đã hoàn tiền
    */
   async refundInvoice(id: number, userId?: number): Promise<SalesInvoice | null> {
-    const invoice = await this.updateStatus(id, SalesInvoiceStatus.REFUNDED);
-    if (invoice && userId) {
-      await this.handleInventoryRestoration(invoice.id, userId);
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const invoice = await queryRunner.manager.findOne(SalesInvoice, { where: { id } });
+      if (!invoice) {
+        await queryRunner.release();
+        return null;
+      }
+
+      invoice.status = SalesInvoiceStatus.REFUNDED;
+      invoice.updated_at = new Date();
+      const savedInvoice = await queryRunner.manager.save(invoice);
+
+      if (userId) {
+        await this.handleInventoryRestoration(savedInvoice.id, userId, queryRunner);
+      }
+
+      await queryRunner.commitTransaction();
+      return savedInvoice;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      this.logger.error(`❌ Lỗi khi hoàn tiền hóa đơn #${id}: ${(error as any).message}`);
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
-    return invoice;
   }
 
   /**
@@ -1302,11 +1406,14 @@ export class SalesService {
    * Xử lý trừ tồn kho cho hóa đơn
    * @param invoiceId - ID hóa đơn
    * @param userId - ID người thực hiện
+   * @param queryRunner - Đối tượng QueryRunner để xử lý transaction
    */
-  async handleInventoryDeduction(invoiceId: number, userId: number): Promise<void> {
+  async handleInventoryDeduction(invoiceId: number, userId: number, queryRunner?: QueryRunner): Promise<void> {
     try {
+      const repo = queryRunner ? queryRunner.manager.getRepository(InventoryTransaction) : this.dataSource.getRepository(InventoryTransaction);
+      
       // 1. Kiểm tra xem hóa đơn đã được trừ tồn kho chưa
-      const existingTransaction = await this.dataSource.getRepository(InventoryTransaction).findOne({
+      const existingTransaction = await repo.findOne({
         where: {
           reference_type: 'SALE',
           reference_id: invoiceId,
@@ -1319,7 +1426,7 @@ export class SalesService {
       }
 
       // 2. Lấy thông tin hóa đơn và các item
-      const invoice = await this.findOne(invoiceId);
+      const invoice = await this.findOne(invoiceId, queryRunner);
       if (!invoice || !invoice.items || invoice.items.length === 0) {
         this.logger.warn(`⚠️ Hóa đơn #${invoiceId} không tồn tại hoặc không có sản phẩm để trừ kho.`);
         return;
@@ -1339,7 +1446,8 @@ export class SalesService {
             'SALE',
             performerId,
             invoice.id,
-            `Bán hàng theo hóa đơn #${invoice.code}`
+            `Bán hàng theo hóa đơn #${invoice.code}`,
+            queryRunner
           );
           this.logger.log(`✅ Đã trừ kho sản phẩm ID ${item.product_id}, SL: ${item.quantity}`);
         } catch (error) {
@@ -1397,11 +1505,16 @@ export class SalesService {
   }
   /**
    * Hoàn tồn kho cho hóa đơn bị hủy/hoàn tiền
+   * @param invoiceId - ID hóa đơn
+   * @param userId - ID người thực hiện
+   * @param queryRunner - Đối tượng QueryRunner để xử lý transaction
    */
-  async handleInventoryRestoration(invoiceId: number, userId: number): Promise<void> {
+  async handleInventoryRestoration(invoiceId: number, userId: number, queryRunner?: QueryRunner): Promise<void> {
     try {
+      const transRepo = queryRunner ? queryRunner.manager.getRepository(InventoryTransaction) : this.dataSource.getRepository(InventoryTransaction);
+      
       // 1. Kiểm tra xem hóa đơn đã được trừ tồn kho chưa
-      const outTransactions = await this.dataSource.getRepository(InventoryTransaction).find({
+      const outTransactions = await transRepo.find({
         where: {
           reference_type: 'SALE',
           reference_id: invoiceId,
@@ -1415,7 +1528,7 @@ export class SalesService {
       }
 
       // Kiểm tra xem đã hoàn kho chưa (có giao dịch IN tham chiếu đến hóa đơn này)
-      const inTransaction = await this.dataSource.getRepository(InventoryTransaction).findOne({
+      const inTransaction = await transRepo.findOne({
         where: {
           reference_type: 'STOCK_IN_CANCEL',
           reference_id: invoiceId,
@@ -1428,7 +1541,7 @@ export class SalesService {
         return;
       }
 
-      const invoice = await this.findOne(invoiceId);
+      const invoice = await this.findOne(invoiceId, queryRunner);
       if (!invoice || !invoice.items) return;
 
       this.logger.log(`🚀 Bắt đầu hoàn tồn kho cho hóa đơn #${invoice.code}`);
@@ -1446,7 +1559,7 @@ export class SalesService {
           undefined,
           `CANCEL_${invoice.code}_${item.product_id}`,
           undefined,
-          undefined // queryRunner
+          queryRunner
         );
 
         // Cập nhật reference cho giao dịch vừa tạo
@@ -1459,7 +1572,7 @@ export class SalesService {
            latestTrans.reference_type = 'STOCK_IN_CANCEL';
            latestTrans.reference_id = invoiceId;
            latestTrans.notes = `Hoàn kho từ hóa đơn hủy #${invoice.code}`;
-           await this.dataSource.getRepository(InventoryTransaction).save(latestTrans);
+           await transRepo.save(latestTrans);
         }
       }
 
