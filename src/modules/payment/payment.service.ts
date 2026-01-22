@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, QueryRunner } from 'typeorm';
 import { Payment } from '../../entities/payment.entity';
 import { PaymentAllocation } from '../../entities/payment-allocation.entity';
 import { DebtNote, DebtNoteStatus } from '../../entities/debt-note.entity';
@@ -167,15 +167,20 @@ export class PaymentService {
     gift_description?: string | undefined;
     gift_value: number;
   }> {
+    const queryRunner = this.paymentRepository.manager.connection.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
     try {
-      // 1. Lấy tất cả hóa đơn chưa thanh toán của khách hàng trong mùa vụ
-      const unpaidInvoices = await this.salesInvoiceRepository
-        .createQueryBuilder('si')
+      // 1. Lấy tất cả hóa đơn chưa thanh toán
+      const unpaidInvoices = await queryRunner.manager
+        .createQueryBuilder(SalesInvoice, 'si')
         .leftJoinAndSelect('si.rice_crop', 'rice_crop')
         .where('si.customer_id = :customerId', { customerId: dto.customer_id })
         .andWhere('si.season_id = :seasonId', { seasonId: dto.season_id })
         .andWhere('si.remaining_amount > 0')
-        .orderBy('si.created_at', 'ASC') // Trả hóa đơn cũ trước
+        .orderBy('si.created_at', 'ASC')
+        .setLock('pessimistic_write') // Khóa bản ghi để tránh tranh chấp khi thanh toán
         .getMany();
 
       if (unpaidInvoices.length === 0) {
@@ -188,34 +193,19 @@ export class PaymentService {
         0,
       );
 
-      // 3. Tạo breakdown theo rice_crop
-      const riceCropMap = new Map<number | null, {
-        rice_crop_id: number | null;
-        field_name: string;
-        invoice_count: number;
-        total_debt: number;
-        invoices: Array<{
-          id: number;
-          code: string;
-          amount: number;
-          remaining_amount: number;
-        }>;
-      }>();
-
+      // 3. Tạo breakdown (giữ nguyên logic view)
+      const riceCropMap = new Map<number | null, any>();
       unpaidInvoices.forEach(invoice => {
         const riceCropId = invoice.rice_crop_id || null;
-        const fieldName = invoice.rice_crop?.field_name || 'Không thuộc vụ lúa nào';
-
         if (!riceCropMap.has(riceCropId)) {
           riceCropMap.set(riceCropId, {
             rice_crop_id: riceCropId,
-            field_name: fieldName,
+            field_name: invoice.rice_crop?.field_name || 'Không thuộc vụ lúa nào',
             invoice_count: 0,
             total_debt: 0,
             invoices: [],
           });
         }
-
         const cropData = riceCropMap.get(riceCropId)!;
         cropData.invoice_count++;
         cropData.total_debt += Number(invoice.remaining_amount);
@@ -227,23 +217,22 @@ export class PaymentService {
         });
       });
 
-      const breakdownByRiceCrop = Array.from(riceCropMap.values());
-
-      // 4. Tìm phiếu công nợ trước
-      const oldDebtNote = await this.debtNoteRepository
-        .createQueryBuilder('dn')
+      // 4. Tìm phiếu công nợ (LOCK)
+      const oldDebtNote = await queryRunner.manager
+        .createQueryBuilder(DebtNote, 'dn')
         .where('dn.customer_id = :customer_id', { customer_id: dto.customer_id })
         .andWhere('dn.season_id = :season_id', { season_id: dto.season_id })
         .andWhere('dn.status IN (:...statuses)', { statuses: [DebtNoteStatus.ACTIVE, DebtNoteStatus.OVERDUE] })
+        .setLock('pessimistic_write')
         .getOne();
 
       if (!oldDebtNote) {
         throw new Error('Không tìm thấy phiếu công nợ cho mùa vụ này');
       }
 
-      // 5. Tạo Payment record với debt_note_code
+      // 5. Tạo Payment record
       const paymentCode = CodeGeneratorHelper.generateUniqueCode('PAY');
-      const payment = this.paymentRepository.create({
+      const payment = queryRunner.manager.create(Payment, {
         code: paymentCode,
         customer_id: dto.customer_id,
         amount: dto.amount,
@@ -251,9 +240,9 @@ export class PaymentService {
         payment_method: dto.payment_method,
         notes: dto.notes || `Chốt sổ công nợ mùa vụ #${dto.season_id}`,
         created_by: userId,
-        debt_note_code: oldDebtNote.code, // ✅ Lưu mã phiếu công nợ
+        debt_note_code: oldDebtNote.code,
       });
-      const savedPayment = await this.paymentRepository.save(payment);
+      const savedPayment = await queryRunner.manager.save(payment);
 
       // 6. Phân bổ thanh toán cho các hóa đơn
       let remainingPayment = dto.amount;
@@ -265,79 +254,71 @@ export class PaymentService {
         const invoiceDebt = Number(invoice.remaining_amount);
         const amountToAllocate = Math.min(remainingPayment, invoiceDebt);
 
-        // Tạo PaymentAllocation
-        await this.paymentAllocationRepository.save({
+        // Tạo PaymentAllocation thông qua manager
+        await queryRunner.manager.save(PaymentAllocation, {
           payment_id: savedPayment.id,
           invoice_id: invoice.id,
-          allocation_type: 'invoice', // ✅ Set đúng loại phân bổ
+          allocation_type: 'invoice',
           amount: amountToAllocate,
         });
 
         // Cập nhật hóa đơn
         invoice.partial_payment_amount = Number(invoice.partial_payment_amount || 0) + amountToAllocate;
         invoice.remaining_amount = invoiceDebt - amountToAllocate;
-        
         if (invoice.remaining_amount <= 0) {
           invoice.payment_status = SalesPaymentStatus.PAID;
         }
-
-        await this.salesInvoiceRepository.save(invoice);
+        await queryRunner.manager.save(invoice);
+        
         settledInvoices.push(invoice);
         remainingPayment -= amountToAllocate;
       }
 
-      // 7. Cập nhật phiếu công nợ cũ + Lưu gift - Tránh lỗi cộng chuỗi
+      // 7. Cập nhật phiếu công nợ
       const currentPaidDebt = Number(oldDebtNote.paid_amount) || 0;
       const paymentAmount = Number(dto.amount) || 0;
       oldDebtNote.paid_amount = currentPaidDebt + paymentAmount;
-      oldDebtNote.remaining_amount = totalDebt - Number(dto.amount);
+      oldDebtNote.remaining_amount = totalDebt - paymentAmount;
       
-      // Lưu thông tin quà tặng
-      if (dto.gift_description) {
-        oldDebtNote.gift_description = dto.gift_description;
-      }
-      if (dto.gift_value !== undefined) {
-        oldDebtNote.gift_value = dto.gift_value;
-      }
+      if (dto.gift_description) oldDebtNote.gift_description = dto.gift_description;
+      if (dto.gift_value !== undefined) oldDebtNote.gift_value = dto.gift_value;
 
-      // 8. Cập nhật trạng thái
       if (oldDebtNote.remaining_amount <= 0) {
-        // Trả hết nợ
         oldDebtNote.status = DebtNoteStatus.PAID;
       } else {
-        // Còn nợ → Vẫn cho phép trả tiếp (ACTIVE) thay vì chốt sổ cứng (SETTLED)
         oldDebtNote.status = DebtNoteStatus.ACTIVE;
       }
+      await queryRunner.manager.save(oldDebtNote);
 
-      await this.debtNoteRepository.save(oldDebtNote);
-
-      // 8.5. Tạo phiếu chi phí quà tặng (nếu có gift_value)
+      // 8. Tạo phiếu chi phí quà tặng (trong cùng transaction)
       if (dto.gift_value && dto.gift_value > 0) {
         await this.createGiftOperatingCost({
           paymentCode: paymentCode,
-          customerName: payment.customer?.name || 'Khách hàng',
+          customerName: savedPayment.customer?.name || 'Khách hàng',
           giftValue: dto.gift_value,
           giftDescription: dto.gift_description,
           debtNoteCode: oldDebtNote.code,
-        });
+        }, queryRunner);
       }
 
-      this.logger.log(
-        `✅ Chốt sổ công nợ thành công: ${settledInvoices.length} hóa đơn, số tiền: ${dto.amount}, Quà tặng: ${dto.gift_value || 0}`,
-      );
+      await queryRunner.commitTransaction();
+      this.logger.log(`✅ Chốt sổ thành công cho đơn PAY #${paymentCode}`);
 
       return {
         payment: savedPayment,
         settled_invoices: settledInvoices,
         total_debt: totalDebt,
-        remaining_debt: totalDebt - dto.amount,
-        breakdown_by_rice_crop: breakdownByRiceCrop,
+        remaining_debt: oldDebtNote.remaining_amount,
+        breakdown_by_rice_crop: Array.from(riceCropMap.values()),
         gift_description: dto.gift_description,
         gift_value: dto.gift_value || 0,
       };
     } catch (error) {
-      this.logger.error('Lỗi khi chốt sổ công nợ:', error);
+      await queryRunner.rollbackTransaction();
+      this.logger.error('❌ Lỗi khi chốt sổ công nợ:', error);
       throw error;
+    } finally {
+      await queryRunner.release();
     }
   }
 
@@ -356,90 +337,91 @@ export class PaymentService {
     affected_invoices: number;
     affected_debt_note: DebtNote | null;
   }> {
+    const queryRunner = this.paymentRepository.manager.connection.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
     try {
-      // 1. Lấy thông tin payment và allocations
-      const payment = await this.paymentRepository.findOne({
+      // 1. Lấy thông tin payment
+      const payment = await queryRunner.manager.findOne(Payment, {
         where: { id: paymentId },
-        relations: ['allocations', 'customer'],
+        relations: ['customer']
       });
 
       if (!payment) {
+        await queryRunner.release();
         throw new Error(`Payment #${paymentId} không tồn tại`);
       }
 
-      const allocations = await this.paymentAllocationRepository.find({
+      // 2. Lấy allocations và khóa invoices
+      const allocations = await queryRunner.manager.find(PaymentAllocation, {
         where: { payment_id: paymentId },
-        relations: ['invoice'],
+        relations: ['invoice']
       });
 
       this.logger.log(`🔄 Bắt đầu rollback payment #${payment.code}...`);
 
-      // 2. Hoàn tác từng invoice
+      // 3. Hoàn tác từng invoice
       let affectedInvoiceCount = 0;
       for (const allocation of allocations) {
-        const invoice = allocation.invoice;
-        if (!invoice) continue;
+        if (!allocation.invoice || !allocation.invoice_id) continue;
 
-        // Trả lại số tiền đã thanh toán - Tránh lỗi cộng chuỗi
-        const currentPartial = Number(invoice.partial_payment_amount) || 0;
-        const currentRemaining = Number(invoice.remaining_amount) || 0;
-        const allocationAmount = Number(allocation.amount) || 0;
-        
-        invoice.partial_payment_amount = currentPartial - allocationAmount;
-        invoice.remaining_amount = currentRemaining + allocationAmount;
+        // Khóa invoice để cập nhật
+        const invoice = await queryRunner.manager.findOne(SalesInvoice, {
+          where: { id: allocation.invoice_id },
+          lock: { mode: 'pessimistic_write' }
+        });
 
-        // Cập nhật trạng thái
-        if (invoice.remaining_amount > 0) {
-          invoice.payment_status = invoice.partial_payment_amount > 0 ? SalesPaymentStatus.PARTIAL : SalesPaymentStatus.PENDING;
-        }
+        if (invoice) {
+          const allocationAmount = Number(allocation.amount) || 0;
+          invoice.partial_payment_amount = (Number(invoice.partial_payment_amount) || 0) - allocationAmount;
+          invoice.remaining_amount = (Number(invoice.remaining_amount) || 0) + allocationAmount;
 
-        await this.salesInvoiceRepository.save(invoice);
-        affectedInvoiceCount++;
-
-        this.logger.log(`  ↩️  Invoice #${invoice.code}: +${allocation.amount.toLocaleString()} đ`);
-      }
-
-      // 3. Tìm và cập nhật debt_note
-      let affectedDebtNote: DebtNote | null = null;
-      
-      // Lấy customer_id và season_id từ invoice đầu tiên
-      const firstInvoice = allocations[0]?.invoice;
-      if (firstInvoice) {
-        const debtNote = await this.debtNoteRepository
-          .createQueryBuilder('dn')
-          .where('dn.customer_id = :customer_id', { customer_id: firstInvoice.customer_id })
-          .andWhere('dn.season_id = :season_id', { season_id: firstInvoice.season_id })
-          .getOne();
-
-        if (debtNote) {
-          // Trả lại số tiền vào nợ - Tránh lỗi cộng chuỗi
-          const currentPaidDebtNote = Number(debtNote.paid_amount) || 0;
-          const currentRemainingDebtNote = Number(debtNote.remaining_amount) || 0;
-          const paymentAmountToReturn = Number(payment.amount) || 0;
-          
-          debtNote.paid_amount = currentPaidDebtNote - paymentAmountToReturn;
-          debtNote.remaining_amount = currentRemainingDebtNote + paymentAmountToReturn;
-
-          // Cập nhật trạng thái
-          if (debtNote.remaining_amount > 0) {
-            debtNote.status = DebtNoteStatus.ACTIVE;
+          if (invoice.remaining_amount > 0) {
+            invoice.payment_status = invoice.partial_payment_amount > 0 ? SalesPaymentStatus.PARTIAL : SalesPaymentStatus.PENDING;
+          } else {
+            invoice.payment_status = SalesPaymentStatus.PAID;
           }
 
-          await this.debtNoteRepository.save(debtNote);
-          affectedDebtNote = debtNote;
-
-          this.logger.log(`  ↩️  DebtNote #${debtNote.code}: +${payment.amount.toLocaleString()} đ`);
+          await queryRunner.manager.save(invoice);
+          affectedInvoiceCount++;
+          this.logger.log(`  ↩️  Invoice #${invoice.code}: +${allocationAmount.toLocaleString()} đ`);
         }
       }
 
-      // 4. Xóa payment allocations
-      await this.paymentAllocationRepository.delete({ payment_id: paymentId });
-      this.logger.log(`  🗑️  Đã xóa ${allocations.length} payment allocations`);
+      // 4. Cập nhật debt_note
+      let affectedDebtNote: DebtNote | null = null;
+      if (allocations.length > 0 && allocations[0].invoice) {
+        const firstInvoice = allocations[0].invoice;
+        if (firstInvoice.customer_id && firstInvoice.season_id) {
+          const debtNote = await queryRunner.manager.findOne(DebtNote, {
+            where: { 
+              customer_id: firstInvoice.customer_id,
+              season_id: firstInvoice.season_id
+            },
+            lock: { mode: 'pessimistic_write' }
+          });
 
-      // 5. Xóa payment
-      await this.paymentRepository.delete(paymentId);
-      this.logger.log(`  🗑️  Đã xóa payment #${payment.code}`);
+          if (debtNote) {
+            const paymentAmountToReturn = Number(payment.amount) || 0;
+            debtNote.paid_amount = (Number(debtNote.paid_amount) || 0) - paymentAmountToReturn;
+            debtNote.remaining_amount = (Number(debtNote.remaining_amount) || 0) + paymentAmountToReturn;
 
+            if (debtNote.remaining_amount > 0) {
+              debtNote.status = DebtNoteStatus.ACTIVE;
+            }
+            await queryRunner.manager.save(debtNote);
+            affectedDebtNote = debtNote;
+            this.logger.log(`  ↩️  DebtNote #${debtNote.code}: +${paymentAmountToReturn.toLocaleString()} đ`);
+          }
+        }
+      }
+
+      // 5. Xóa allocations và payment
+      await queryRunner.manager.delete(PaymentAllocation, { payment_id: paymentId });
+      await queryRunner.manager.delete(Payment, paymentId);
+
+      await queryRunner.commitTransaction();
       this.logger.log(`✅ Rollback thành công payment #${payment.code}`);
 
       return {
@@ -450,8 +432,11 @@ export class PaymentService {
         affected_debt_note: affectedDebtNote,
       };
     } catch (error) {
+      await queryRunner.rollbackTransaction();
       this.logger.error(`❌ Lỗi khi rollback payment #${paymentId}:`, error);
       throw error;
+    } finally {
+      await queryRunner.release();
     }
   }
 
@@ -465,7 +450,7 @@ export class PaymentService {
     giftValue: number;
     giftDescription?: string | undefined;
     debtNoteCode: string;
-  }): Promise<void> {
+  }, queryRunner?: QueryRunner): Promise<void> {
     try {
       // Lấy category "Quà tặng khách hàng"
       const giftCategory = await this.operatingCostCategoryService.findByCode('GIFT');
@@ -492,14 +477,16 @@ export class PaymentService {
         value: params.giftValue,
         description: descriptionParts,
         expense_date: new Date().toISOString(),
-      });
+      }, queryRunner);
 
       this.logger.log(
         `✅ Đã tạo phiếu chi phí quà tặng: ${costName} - ${params.giftValue.toLocaleString()} đ`
       );
     } catch (error) {
       this.logger.error('❌ Lỗi khi tạo phiếu chi phí quà tặng:', error);
-      // Không throw error để không làm gián đoạn quá trình thanh toán
+      // Không throw error nếu không có queryRunner để không làm gián đoạn quá trình thanh toán
+      // Nhưng nếu có queryRunner (đang trong transaction), ta NÊN throw để rollback
+      if (queryRunner) throw error;
     }
   }
 }

@@ -1459,6 +1459,7 @@ export class SalesService {
       this.logger.log(`✅ Hoàn tất trừ tồn kho cho hóa đơn #${invoice.code}`);
     } catch (error) {
       this.logger.error(`❌ Lỗi nghiêm trọng khi xử lý trừ tồn kho cho hóa đơn #${invoiceId}: ${(error as any).message}`);
+      throw error;
     }
   }
 
@@ -1563,7 +1564,7 @@ export class SalesService {
         );
 
         // Cập nhật reference cho giao dịch vừa tạo
-        const latestTrans = await this.dataSource.getRepository(InventoryTransaction).findOne({
+        const latestTrans = await transRepo.findOne({
           where: { product_id: item.product_id },
           order: { created_at: 'DESC' }
         });
@@ -1579,6 +1580,7 @@ export class SalesService {
       this.logger.log(`✅ Hoàn tất hoàn tồn kho cho hóa đơn #${invoice.code}`);
     } catch (error) {
       this.logger.error(`❌ Lỗi khi hoàn tồn kho hóa đơn #${invoiceId}: ${(error as any).message}`);
+      throw error;
     }
   }
 }

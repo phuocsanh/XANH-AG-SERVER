@@ -1,6 +1,6 @@
 import { Injectable, Logger, Inject, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, QueryRunner } from 'typeorm';
 import { Product } from '../../entities/products.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -231,8 +231,9 @@ export class ProductService extends BaseSearchService<Product> {
    * @param id - ID của sản phẩm cần tìm
    * @returns Thông tin sản phẩm hoặc null nếu không tìm thấy
    */
-  async findOne(id: number): Promise<Product | null> {
-    return this.productRepository
+  async findOne(id: number, queryRunner?: QueryRunner): Promise<Product | null> {
+    const repo = queryRunner ? queryRunner.manager.getRepository(Product) : this.productRepository;
+    return repo
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.unit', 'unit')
       .leftJoinAndSelect('product.symbol', 'symbol')
@@ -274,10 +275,11 @@ export class ProductService extends BaseSearchService<Product> {
   async update(
     id: number,
     updateProductDto: UpdateProductDto,
+    queryRunner?: QueryRunner,
   ): Promise<Product | null> {
     try {
       // Lấy thông tin sản phẩm hiện tại để so sánh ảnh
-      const currentProduct = await this.findOne(id);
+      const currentProduct = await this.findOne(id, queryRunner);
       if (!currentProduct) {
         throw new Error(`Không tìm thấy sản phẩm với ID: ${id}`);
       }
@@ -297,12 +299,13 @@ export class ProductService extends BaseSearchService<Product> {
       }
 
       // Cập nhật sản phẩm
-      await this.productRepository.update(id, updateProductDto);
+      const repo = queryRunner ? queryRunner.manager.getRepository(Product) : this.productRepository;
+      await repo.update(id, updateProductDto);
 
       // Xử lý xóa ảnh cũ nếu có thay đổi
       await this.cleanupOldImages(currentProduct, updateProductDto);
 
-      return this.findOne(id);
+      return this.findOne(id, queryRunner);
     } catch (error) {
       ErrorHandler.handleUpdateError(error, 'sản phẩm');
     }
@@ -525,9 +528,10 @@ export class ProductService extends BaseSearchService<Product> {
   async updateProductAverageCostAndPrice(
     productId: number,
     averageCostPrice: number,
+    queryRunner?: QueryRunner,
   ): Promise<Product | null> {
     // Lấy thông tin sản phẩm hiện tại để có phần trăm lợi nhuận và discount
-    const product = await this.findOne(productId);
+    const product = await this.findOne(productId, queryRunner);
     if (!product) {
       throw new Error(`Không tìm thấy sản phẩm với ID: ${productId}`);
     }

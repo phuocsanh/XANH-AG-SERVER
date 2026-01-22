@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, QueryRunner } from 'typeorm';
 import { OperatingCost } from '../../entities/operating-costs.entity';
 import { CreateOperatingCostDto } from './dto/create-operating-cost.dto';
 import { UpdateOperatingCostDto } from './dto/update-operating-cost.dto';
@@ -28,11 +28,13 @@ export class OperatingCostService {
    */
   async create(
     createOperatingCostDto: CreateOperatingCostDto,
+    queryRunner?: QueryRunner
   ): Promise<OperatingCost> {
-    const operatingCost = this.operatingCostRepository.create(
+    const repo = queryRunner ? queryRunner.manager.getRepository(OperatingCost) : this.operatingCostRepository;
+    const operatingCost = repo.create(
       createOperatingCostDto,
     );
-    return this.operatingCostRepository.save(operatingCost);
+    return repo.save(operatingCost);
   }
 
   /**
