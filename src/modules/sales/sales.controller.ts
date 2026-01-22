@@ -121,8 +121,9 @@ export class SalesController {
   update(
     @Param('id') id: string,
     @Body() updateSalesInvoiceDto: UpdateSalesInvoiceDto,
+    @CurrentUser('id') userId: number,
   ) {
-    return this.salesService.update(+id, updateSalesInvoiceDto);
+    return this.salesService.update(+id, updateSalesInvoiceDto, userId);
   }
 
   /**
@@ -131,8 +132,9 @@ export class SalesController {
    * @returns Thông tin hóa đơn bán hàng đã xác nhận
    */
   @Patch('invoice/:id/confirm')
-  confirmInvoice(@Param('id') id: string) {
-    return this.salesService.confirmInvoice(+id);
+  @UseGuards(JwtAuthGuard)
+  confirmInvoice(@Param('id') id: string, @CurrentUser('id') userId: number) {
+    return this.salesService.confirmInvoice(+id, userId);
   }
 
   /**
@@ -141,8 +143,9 @@ export class SalesController {
    * @returns Thông tin hóa đơn bán hàng đã thanh toán
    */
   @Patch('invoice/:id/paid')
-  markAsPaid(@Param('id') id: string) {
-    return this.salesService.markAsPaid(+id);
+  @UseGuards(JwtAuthGuard)
+  markAsPaid(@Param('id') id: string, @CurrentUser('id') userId: number) {
+    return this.salesService.markAsPaid(+id, userId);
   }
 
   /**
@@ -151,8 +154,9 @@ export class SalesController {
    * @returns Thông tin hóa đơn bán hàng đã hủy
    */
   @Patch('invoice/:id/cancel')
-  cancelInvoice(@Param('id') id: string) {
-    return this.salesService.cancelInvoice(+id);
+  @UseGuards(JwtAuthGuard)
+  cancelInvoice(@Param('id') id: string, @CurrentUser('id') userId: number) {
+    return this.salesService.cancelInvoice(+id, userId);
   }
 
   /**
@@ -161,8 +165,9 @@ export class SalesController {
    * @returns Thông tin hóa đơn bán hàng đã hoàn tiền
    */
   @Patch('invoice/:id/refund')
-  refundInvoice(@Param('id') id: string) {
-    return this.salesService.refundInvoice(+id);
+  @UseGuards(JwtAuthGuard)
+  refundInvoice(@Param('id') id: string, @CurrentUser('id') userId: number) {
+    return this.salesService.refundInvoice(+id, userId);
   }
 
   /**
@@ -294,5 +299,15 @@ export class SalesController {
     @Query('seasonId') seasonId?: string,
   ) {
     return this.salesService.getCustomerPurchaseHistory(+id, seasonId ? +seasonId : undefined);
+  }
+
+  /**
+   * Đồng bộ tồn kho cho tất cả các hóa đơn cũ
+   */
+  @Post('sync-inventory')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('sales:manage')
+  syncAllInventory(@CurrentUser('id') userId: number) {
+    return this.salesService.syncAllInventory(userId);
   }
 }

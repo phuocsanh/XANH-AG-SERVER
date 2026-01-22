@@ -22,6 +22,7 @@ import { User } from '../../entities/users.entity';
 import { UserProfile } from '../../entities/user-profiles.entity';
 import { DeliveryNotificationService } from './delivery-notification.service';
 import { FarmServiceCostModule } from '../farm-service-cost/farm-service-cost.module';
+import { InventoryModule } from '../inventory/inventory.module';
 
 /**
  * SalesModule - Module quản lý bán hàng
@@ -57,6 +58,7 @@ import { FarmServiceCostModule } from '../farm-service-cost/farm-service-cost.mo
     OperatingCostModule, // Module chi phí vận hành (cho chức năng tạo phiếu chi quà tặng)
     OperatingCostCategoryModule, // Module loại chi phí (cho chức năng tạo phiếu chi quà tặng)
     FarmServiceCostModule,
+    InventoryModule,
   ],
   controllers: [SalesController, DeliveryController], // Controllers xử lý các request
   providers: [SalesService, DebtNoteService, DeliveryNotificationService], // Service xử lý logic nghiệp vụ bán hàng và công nợ

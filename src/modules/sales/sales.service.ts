@@ -24,6 +24,8 @@ import { DeliveryStatus } from './enums/delivery-status.enum';
 import { DeliveryNotificationService } from './delivery-notification.service';
 import { FarmServiceCostService } from '../farm-service-cost/farm-service-cost.service';
 import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
+import { InventoryService } from '../inventory/inventory.service';
+import { InventoryTransaction } from '../../entities/inventory-transactions.entity';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến quản lý bán hàng
@@ -55,6 +57,7 @@ export class SalesService {
     private dataSource: DataSource,
     private deliveryNotificationService: DeliveryNotificationService,
     private farmServiceCostService: FarmServiceCostService,
+    private inventoryService: InventoryService,
   ) {}
 
   /**
@@ -265,6 +268,11 @@ export class SalesService {
 
       await queryRunner.commitTransaction();
       this.logger.log(`Đã commit transaction cho hóa đơn ${savedInvoice.id}`);
+
+      // 🆕 Trừ tồn kho nếu trạng thái là CONFIRMED hoặc PAID
+      if (savedInvoice.status === SalesInvoiceStatus.CONFIRMED || savedInvoice.status === SalesInvoiceStatus.PAID) {
+        await this.handleInventoryDeduction(savedInvoice.id, userId);
+      }
 
       return savedInvoice;
     } catch (error) {
@@ -481,10 +489,27 @@ export class SalesService {
   async update(
     id: number,
     updateSalesInvoiceDto: UpdateSalesInvoiceDto,
+    userId?: number,
   ): Promise<SalesInvoice | null> {
     try {
       await this.salesInvoiceRepository.update(id, updateSalesInvoiceDto);
-      return this.findOne(id);
+      const updatedInvoice = await this.findOne(id);
+      
+      // 🆕 Nếu cập nhật trạng thái sang CONFIRMED hoặc PAID, thực hiện trừ kho
+      if (updatedInvoice && (updatedInvoice.status === SalesInvoiceStatus.CONFIRMED || updatedInvoice.status === SalesInvoiceStatus.PAID)) {
+        if (userId) {
+          await this.handleInventoryDeduction(id, userId);
+        }
+      }
+      
+      // 🆕 Nếu cập nhật trạng thái sang CANCELLED hoặc REFUNDED, thực hiện hoàn kho
+      if (updatedInvoice && (updatedInvoice.status === SalesInvoiceStatus.CANCELLED || updatedInvoice.status === SalesInvoiceStatus.REFUNDED)) {
+        if (userId) {
+          await this.handleInventoryRestoration(id, userId);
+        }
+      }
+      
+      return updatedInvoice;
     } catch (error) {
       ErrorHandler.handleUpdateError(error, 'hóa đơn bán hàng');
     }
@@ -518,8 +543,12 @@ export class SalesService {
    * @param id - ID của hóa đơn bán hàng cần xác nhận
    * @returns Thông tin hóa đơn bán hàng đã xác nhận
    */
-  async confirmInvoice(id: number): Promise<SalesInvoice | null> {
-    return this.updateStatus(id, SalesInvoiceStatus.CONFIRMED);
+  async confirmInvoice(id: number, userId?: number): Promise<SalesInvoice | null> {
+    const invoice = await this.updateStatus(id, SalesInvoiceStatus.CONFIRMED);
+    if (invoice && userId) {
+      await this.handleInventoryDeduction(invoice.id, userId);
+    }
+    return invoice;
   }
 
   /**
@@ -527,8 +556,12 @@ export class SalesService {
    * @param id - ID của hóa đơn bán hàng cần đánh dấu đã thanh toán
    * @returns Thông tin hóa đơn bán hàng đã thanh toán
    */
-  async markAsPaid(id: number): Promise<SalesInvoice | null> {
-    return this.updateStatus(id, SalesInvoiceStatus.PAID);
+  async markAsPaid(id: number, userId?: number): Promise<SalesInvoice | null> {
+    const invoice = await this.updateStatus(id, SalesInvoiceStatus.PAID);
+    if (invoice && userId) {
+      await this.handleInventoryDeduction(invoice.id, userId);
+    }
+    return invoice;
   }
 
   /**
@@ -536,8 +569,12 @@ export class SalesService {
    * @param id - ID của hóa đơn bán hàng cần hủy
    * @returns Thông tin hóa đơn bán hàng đã hủy
    */
-  async cancelInvoice(id: number): Promise<SalesInvoice | null> {
-    return this.updateStatus(id, SalesInvoiceStatus.CANCELLED);
+  async cancelInvoice(id: number, userId?: number): Promise<SalesInvoice | null> {
+    const invoice = await this.updateStatus(id, SalesInvoiceStatus.CANCELLED);
+    if (invoice && userId) {
+      await this.handleInventoryRestoration(invoice.id, userId);
+    }
+    return invoice;
   }
 
   /**
@@ -545,8 +582,12 @@ export class SalesService {
    * @param id - ID của hóa đơn bán hàng cần hoàn tiền
    * @returns Thông tin hóa đơn bán hàng đã hoàn tiền
    */
-  async refundInvoice(id: number): Promise<SalesInvoice | null> {
-    return this.updateStatus(id, SalesInvoiceStatus.REFUNDED);
+  async refundInvoice(id: number, userId?: number): Promise<SalesInvoice | null> {
+    const invoice = await this.updateStatus(id, SalesInvoiceStatus.REFUNDED);
+    if (invoice && userId) {
+      await this.handleInventoryRestoration(invoice.id, userId);
+    }
+    return invoice;
   }
 
   /**
@@ -1257,4 +1298,176 @@ export class SalesService {
       invoice_id: item.invoice.id,
     }));
   }
+  /**
+   * Xử lý trừ tồn kho cho hóa đơn
+   * @param invoiceId - ID hóa đơn
+   * @param userId - ID người thực hiện
+   */
+  async handleInventoryDeduction(invoiceId: number, userId: number): Promise<void> {
+    try {
+      // 1. Kiểm tra xem hóa đơn đã được trừ tồn kho chưa
+      const existingTransaction = await this.dataSource.getRepository(InventoryTransaction).findOne({
+        where: {
+          reference_type: 'SALE',
+          reference_id: invoiceId,
+        },
+      });
+
+      if (existingTransaction) {
+        this.logger.log(`ℹ️ Hóa đơn #${invoiceId} đã được trừ tồn kho trước đó, bỏ qua.`);
+        return;
+      }
+
+      // 2. Lấy thông tin hóa đơn và các item
+      const invoice = await this.findOne(invoiceId);
+      if (!invoice || !invoice.items || invoice.items.length === 0) {
+        this.logger.warn(`⚠️ Hóa đơn #${invoiceId} không tồn tại hoặc không có sản phẩm để trừ kho.`);
+        return;
+      }
+
+      this.logger.log(`🚀 Bắt đầu trừ tồn kho cho hóa đơn #${invoice.code} (${invoiceId})`);
+
+      // 3. Trừ tồn kho cho từng sản phẩm theo phương pháp FIFO
+      for (const item of invoice.items) {
+        try {
+          // Lưu ý: userId có thể truyền từ JWT, nếu không có lấy người tạo hóa đơn
+          const performerId = userId || invoice.created_by;
+          
+          await this.inventoryService.processStockOut(
+            item.product_id,
+            item.quantity,
+            'SALE',
+            performerId,
+            invoice.id,
+            `Bán hàng theo hóa đơn #${invoice.code}`
+          );
+          this.logger.log(`✅ Đã trừ kho sản phẩm ID ${item.product_id}, SL: ${item.quantity}`);
+        } catch (error) {
+          this.logger.error(`❌ Lỗi khi trừ kho sản phẩm ID ${item.product_id}: ${(error as any).message}`);
+          // Vẫn tiếp tục với các sản phẩm khác
+        }
+      }
+
+      this.logger.log(`✅ Hoàn tất trừ tồn kho cho hóa đơn #${invoice.code}`);
+    } catch (error) {
+      this.logger.error(`❌ Lỗi nghiêm trọng khi xử lý trừ tồn kho cho hóa đơn #${invoiceId}: ${(error as any).message}`);
+    }
+  }
+
+  /**
+   * Đồng bộ tồn kho cho tất cả các hóa đơn đã xác nhận hoặc đã thanh toán
+   * Dùng để sửa dữ liệu cũ
+   */
+  async syncAllInventory(userId: number): Promise<{ processed: number; success: number; skipped: number }> {
+    const invoices = await this.salesInvoiceRepository.find({
+      where: [
+        { status: SalesInvoiceStatus.CONFIRMED, deleted_at: IsNull() },
+        { status: SalesInvoiceStatus.PAID, deleted_at: IsNull() },
+      ],
+    });
+
+    this.logger.log(`🔍 Tìm thấy ${invoices.length} hóa đơn cần kiểm tra đồng bộ tồn kho.`);
+
+    let success = 0;
+    let skipped = 0;
+
+    for (const invoice of invoices) {
+      // Kiểm tra xem đã có transaction chưa
+      const existing = await this.dataSource.getRepository(InventoryTransaction).findOne({
+        where: {
+          reference_type: 'SALE',
+          reference_id: invoice.id,
+        },
+      });
+
+      if (existing) {
+        skipped++;
+        continue;
+      }
+
+      await this.handleInventoryDeduction(invoice.id, userId);
+      success++;
+    }
+
+    return {
+      processed: invoices.length,
+      success,
+      skipped,
+    };
+  }
+  /**
+   * Hoàn tồn kho cho hóa đơn bị hủy/hoàn tiền
+   */
+  async handleInventoryRestoration(invoiceId: number, userId: number): Promise<void> {
+    try {
+      // 1. Kiểm tra xem hóa đơn đã được trừ tồn kho chưa
+      const outTransactions = await this.dataSource.getRepository(InventoryTransaction).find({
+        where: {
+          reference_type: 'SALE',
+          reference_id: invoiceId,
+          type: 'OUT'
+        },
+      });
+
+      if (outTransactions.length === 0) {
+        this.logger.log(`ℹ️ Hóa đơn #${invoiceId} chưa được trừ tồn kho, không cần hoàn lại.`);
+        return;
+      }
+
+      // Kiểm tra xem đã hoàn kho chưa (có giao dịch IN tham chiếu đến hóa đơn này)
+      const inTransaction = await this.dataSource.getRepository(InventoryTransaction).findOne({
+        where: {
+          reference_type: 'STOCK_IN_CANCEL',
+          reference_id: invoiceId,
+          type: 'IN'
+        }
+      });
+
+      if (inTransaction) {
+        this.logger.log(`ℹ️ Hóa đơn #${invoiceId} đã được hoàn tồn kho trước đó, bỏ qua.`);
+        return;
+      }
+
+      const invoice = await this.findOne(invoiceId);
+      if (!invoice || !invoice.items) return;
+
+      this.logger.log(`🚀 Bắt đầu hoàn tồn kho cho hóa đơn #${invoice.code}`);
+
+      for (const item of invoice.items) {
+        // Lấy giá vốn từ giao dịch xuất kho tương ứng để hoàn lại đúng giá
+        const outTrans = outTransactions.find(t => t.product_id === item.product_id);
+        const unitCostPrice = outTrans ? parseFloat(outTrans.unit_cost_price) : 0;
+
+        await this.inventoryService.processStockIn(
+          item.product_id,
+          item.quantity,
+          unitCostPrice,
+          userId || invoice.created_by,
+          undefined,
+          `CANCEL_${invoice.code}_${item.product_id}`,
+          undefined,
+          undefined // queryRunner
+        );
+
+        // Cập nhật reference cho giao dịch vừa tạo
+        const latestTrans = await this.dataSource.getRepository(InventoryTransaction).findOne({
+          where: { product_id: item.product_id },
+          order: { created_at: 'DESC' }
+        });
+
+        if (latestTrans && latestTrans.reference_type === 'STOCK_IN') {
+           latestTrans.reference_type = 'STOCK_IN_CANCEL';
+           latestTrans.reference_id = invoiceId;
+           latestTrans.notes = `Hoàn kho từ hóa đơn hủy #${invoice.code}`;
+           await this.dataSource.getRepository(InventoryTransaction).save(latestTrans);
+        }
+      }
+
+      this.logger.log(`✅ Hoàn tất hoàn tồn kho cho hóa đơn #${invoice.code}`);
+    } catch (error) {
+      this.logger.error(`❌ Lỗi khi hoàn tồn kho hóa đơn #${invoiceId}: ${(error as any).message}`);
+    }
+  }
 }
+
+
