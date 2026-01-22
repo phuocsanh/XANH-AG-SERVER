@@ -70,6 +70,14 @@ export class SearchSalesDto extends BaseSearchDto {
 
   @IsString()
   @IsOptional()
+  sale_date_start?: string;
+
+  @IsString()
+  @IsOptional()
+  sale_date_end?: string;
+
+  @IsString()
+  @IsOptional()
   payment_status?: string | string[]; // Hỗ trợ filter nhiều payment_status
 
   @IsOptional()

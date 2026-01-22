@@ -391,8 +391,9 @@ export class PaymentService {
 
       // 4. Cập nhật debt_note
       let affectedDebtNote: DebtNote | null = null;
-      if (allocations.length > 0 && allocations[0].invoice) {
-        const firstInvoice = allocations[0].invoice;
+      const firstAllocation = allocations[0];
+      if (firstAllocation?.invoice) {
+        const firstInvoice = firstAllocation.invoice;
         if (firstInvoice.customer_id && firstInvoice.season_id) {
           const debtNote = await queryRunner.manager.findOne(DebtNote, {
             where: { 

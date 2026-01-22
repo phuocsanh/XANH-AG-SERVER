@@ -143,4 +143,9 @@ export class CreateSalesInvoiceDto {
   @IsNumber()
   @IsOptional()
   gift_value?: number;
+
+  /** Ngày bán hàng (tùy chọn - định dạng ISO string) */
+  @IsString()
+  @IsOptional()
+  sale_date?: string;
 }

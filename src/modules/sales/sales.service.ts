@@ -106,6 +106,7 @@ export class SalesService {
         remaining_amount: remainingAmount,
         rice_crop_id: createSalesInvoiceDto.rice_crop_id,
         season_id: createSalesInvoiceDto.season_id,
+        sale_date: createSalesInvoiceDto.sale_date ? new Date(createSalesInvoiceDto.sale_date) : new Date(),
       };
       
       const invoice = queryRunner.manager.create(SalesInvoice, invoiceData);
@@ -944,12 +945,30 @@ export class SalesService {
       ['code', 'customer.name', 'customer.phone', 'notes'] // Global search fields
     );
 
-    // 2. Simple Filters (code, customer_id, season_id, payment_status...)
+    // Mặc định sắp xếp theo sale_date giảm dần nếu không có sort tùy chỉnh
+    if (!searchDto.sort && !searchDto.sort_by) {
+      queryBuilder.orderBy('invoice.sale_date', 'DESC')
+                  .addOrderBy('invoice.created_at', 'DESC');
+    }
+
+    // 2. Lọc theo ngày bán (Sale Date Range)
+    if (searchDto.sale_date_start) {
+      queryBuilder.andWhere('invoice.sale_date >= :saleStartDate', {
+        saleStartDate: searchDto.sale_date_start,
+      });
+    }
+    if (searchDto.sale_date_end) {
+      queryBuilder.andWhere('invoice.sale_date <= :saleEndDate', {
+        saleEndDate: searchDto.sale_date_end,
+      });
+    }
+
+    // 3. Simple Filters (code, customer_id, season_id, payment_status...)
     QueryHelper.applyFilters(
       queryBuilder,
       searchDto,
       'invoice',
-      ['filters', 'nested_filters', 'operator'], // Ignore complex fields
+      ['filters', 'nested_filters', 'operator', 'sale_date_start', 'sale_date_end'], // Ignore complex fields
       {
         customer_name: 'customer.name',
         customer_phone: 'customer.phone',

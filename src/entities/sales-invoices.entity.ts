@@ -201,6 +201,10 @@ export class SalesInvoice {
   })
   gift_value!: number;
 
+  /** Ngày bán hàng (có thể khác ngày tạo) */
+  @Column({ name: 'sale_date', type: 'timestamptz', nullable: true })
+  sale_date?: Date;
+
   /** Thời gian tạo */
   @CreateDateColumn({ name: 'created_at' })
 
