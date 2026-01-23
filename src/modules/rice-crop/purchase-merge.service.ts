@@ -54,7 +54,7 @@ export class PurchaseMergeService {
     const systemData: MergedPurchase[] = systemInvoices.map((inv) => ({
       id: inv.id,
       code: inv.code,
-      date: inv.created_at,
+      date: inv.sale_date || inv.created_at,
       supplier: 'Cửa hàng XANH',
       total_amount: Number(inv.final_amount || 0),
       paid_amount: Number(inv.partial_payment_amount || 0),
