@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, Between, In } from 'typeorm';
+import { Repository, Not, Between, In, IsNull } from 'typeorm';
 import { SalesInvoice, SalesInvoiceStatus } from '../../entities/sales-invoices.entity';
 import { Season } from '../../entities/season.entity';
 import { OperatingCost } from '../../entities/operating-costs.entity';
@@ -121,7 +121,7 @@ export class StoreProfitReportService {
         invoice_id: invoice.id,
         invoice_code: invoice.code,
         customer_name: invoice.customer_name,
-        created_at: invoice.created_at,
+        created_at: invoice.sale_date || invoice.created_at,
         total_amount: invoice.final_amount,
         cost_of_goods_sold: totalCOGS,
         gross_profit: grossProfit,
@@ -528,7 +528,7 @@ export class StoreProfitReportService {
           status: Not(SalesInvoiceStatus.CANCELLED),
         },
         relations: ['items', 'items.product', 'season'],
-        order: { created_at: 'DESC' },
+        order: { sale_date: 'DESC', created_at: 'DESC' },
       });
 
       if (allInvoices.length === 0) {
@@ -608,7 +608,7 @@ export class StoreProfitReportService {
         : 0;
 
       // 3. Build where conditions cho filtered invoices
-      const where: any = {
+      let where: any = {
         customer_id: customerId,
         status: Not(SalesInvoiceStatus.CANCELLED),
       };
@@ -618,14 +618,17 @@ export class StoreProfitReportService {
       }
 
       if (startDate && endDate) {
-        where.created_at = Between(startDate, endDate);
+        where = [
+          { ...where, sale_date: Between(startDate, endDate) },
+          { ...where, sale_date: IsNull(), created_at: Between(startDate, endDate) },
+        ];
       }
 
       // 4. Lấy hóa đơn theo filter (để hiển thị chi tiết)
       const invoices = await this.salesInvoiceRepository.find({
         where,
         relations: ['items', 'items.product', 'season'],
-        order: { created_at: 'DESC' },
+        order: { sale_date: 'DESC', created_at: 'DESC' },
       });
 
       // 5. Tính toán cho từng đơn hàng (filtered)
@@ -677,7 +680,7 @@ export class StoreProfitReportService {
         invoiceDetails.push({
           invoice_id: invoice.id,
           invoice_code: invoice.code,
-          date: invoice.created_at,
+          date: invoice.sale_date || invoice.created_at,
 
           revenue: finalAmount,
           cost: invoiceCOGS,
@@ -847,7 +850,7 @@ export class StoreProfitReportService {
           status: Not(SalesInvoiceStatus.CANCELLED),
         },
         relations: ['items', 'items.product', 'customer', 'season', 'rice_crop'],
-        order: { created_at: 'DESC' },
+        order: { sale_date: 'DESC', created_at: 'DESC' },
       });
 
       if (invoices.length === 0) {
@@ -959,7 +962,7 @@ export class StoreProfitReportService {
         invoiceDetails.push({
           invoice_id: invoice.id,
           invoice_code: invoice.code,
-          date: invoice.created_at,
+          date: invoice.sale_date || invoice.created_at,
           revenue: invoice.final_amount,
           cost: invoiceCOGS,
           profit: invoiceProfit,
@@ -1056,10 +1059,10 @@ export class StoreProfitReportService {
 
       // 1. Lấy tất cả hóa đơn trong khoảng thời gian (không bao gồm cancelled)
       const invoices = await this.salesInvoiceRepository.find({
-        where: {
-          created_at: Between(startDate, endDate),
-          status: Not(SalesInvoiceStatus.CANCELLED),
-        },
+        where: [
+          { sale_date: Between(startDate, endDate), status: Not(SalesInvoiceStatus.CANCELLED) },
+          { sale_date: IsNull(), created_at: Between(startDate, endDate), status: Not(SalesInvoiceStatus.CANCELLED) },
+        ],
         relations: ['items', 'items.product'],
       });
 
