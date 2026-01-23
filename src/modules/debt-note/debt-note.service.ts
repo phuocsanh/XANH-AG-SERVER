@@ -232,6 +232,41 @@ export class DebtNoteService {
   }
 
   /**
+   * Loại bỏ hóa đơn khỏi phiếu công nợ (khi hủy/hoàn tiền)
+   * Giảm amount và remaining_amount
+   */
+  async removeInvoiceFromDebtNote(
+    invoiceId: number,
+    invoiceAmount: number,
+    manager?: any, // Optional EntityManager
+  ): Promise<void> {
+    const repo = manager ? manager.getRepository(DebtNote) : this.debtNoteRepository;
+
+    // Tìm phiếu nợ chứa hóa đơn này
+    const debtNotes = await repo.createQueryBuilder('dn')
+      .where(':invoiceId = ANY(dn.source_invoices)', { invoiceId })
+      .getMany();
+
+    for (const debtNote of debtNotes) {
+      // Loại bỏ ID hóa đơn khỏi mảng
+      if (debtNote.source_invoices) {
+        debtNote.source_invoices = debtNote.source_invoices.filter(id => id !== invoiceId);
+      }
+
+      // Giảm số tiền
+      const currentAmount = Number(debtNote.amount) || 0;
+      const currentRemaining = Number(debtNote.remaining_amount) || 0;
+      const removeAmount = Number(invoiceAmount) || 0;
+
+      debtNote.amount = Math.max(0, currentAmount - removeAmount);
+      debtNote.remaining_amount = Math.max(0, currentRemaining - removeAmount);
+
+      await repo.save(debtNote);
+      this.logger.log(`✅ Đã trừ công nợ hóa đơn #${invoiceId} khỏi phiếu nợ #${debtNote.code}`);
+    }
+  }
+
+  /**
    * Xem trước thông tin tích lũy trước khi chốt sổ
    * Hiển thị lịch sử tích lũy từng vụ và tổng hợp
    */

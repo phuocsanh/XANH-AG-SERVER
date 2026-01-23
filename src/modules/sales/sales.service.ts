@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull, Not, DataSource, QueryRunner } from 'typeorm';
 import {
@@ -651,6 +651,15 @@ export class SalesService {
         await this.handleInventoryRestoration(savedInvoice.id, userId, queryRunner);
       }
 
+      // 🆕 Trừ nợ trong công nợ (nếu có)
+      if (savedInvoice.remaining_amount > 0 && savedInvoice.customer_id) {
+        await this.debtNoteService.removeInvoiceFromDebtNote(
+          savedInvoice.id,
+          savedInvoice.remaining_amount,
+          queryRunner.manager,
+        );
+      }
+
       await queryRunner.commitTransaction();
       return savedInvoice;
     } catch (error) {
@@ -686,6 +695,15 @@ export class SalesService {
 
       if (userId) {
         await this.handleInventoryRestoration(savedInvoice.id, userId, queryRunner);
+      }
+
+      // 🆕 Trừ nợ trong công nợ (nếu có)
+      if (savedInvoice.remaining_amount > 0 && savedInvoice.customer_id) {
+        await this.debtNoteService.removeInvoiceFromDebtNote(
+          savedInvoice.id,
+          savedInvoice.remaining_amount,
+          queryRunner.manager,
+        );
       }
 
       await queryRunner.commitTransaction();
@@ -744,6 +762,16 @@ export class SalesService {
    * @param id - ID của hóa đơn bán hàng cần xóa
    */
   async remove(id: number): Promise<void> {
+    const invoice = await this.salesInvoiceRepository.findOne({ where: { id } });
+    if (!invoice) return;
+
+    // CHỈ cho phép xóa nếu là bản nháp (DRAFT)
+    if (invoice.status !== SalesInvoiceStatus.DRAFT) {
+      throw new BadRequestException(
+        `Không thể xóa hóa đơn đã ${invoice.status === SalesInvoiceStatus.PAID ? 'thanh toán' : 'xác nhận'}. Hãy dùng chức năng Hủy hoặc Hoàn tiền để đảm bảo tồn kho và công nợ.`
+      );
+    }
+    
     await this.salesInvoiceRepository.delete(id);
   }
 
