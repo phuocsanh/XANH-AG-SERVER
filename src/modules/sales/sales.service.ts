@@ -104,6 +104,7 @@ export class SalesService {
         status: createSalesInvoiceDto.status || SalesInvoiceStatus.DRAFT, // Trạng thái từ DTO hoặc mặc định là DRAFT
         partial_payment_amount: partialPayment,
         remaining_amount: remainingAmount,
+        payment_status: remainingAmount <= 0 ? SalesPaymentStatus.PAID : (partialPayment > 0 ? SalesPaymentStatus.PARTIAL : SalesPaymentStatus.PENDING),
         rice_crop_id: createSalesInvoiceDto.rice_crop_id,
         season_id: createSalesInvoiceDto.season_id,
         sale_date: createSalesInvoiceDto.sale_date ? new Date(createSalesInvoiceDto.sale_date) : new Date(),
@@ -605,6 +606,7 @@ export class SalesService {
       }
 
       invoice.status = SalesInvoiceStatus.PAID;
+      invoice.payment_status = SalesPaymentStatus.PAID; // Đã thanh toán thì payment_status cũng phải là PAID
       invoice.updated_at = new Date();
       const savedInvoice = await queryRunner.manager.save(invoice);
 
@@ -641,6 +643,7 @@ export class SalesService {
       }
 
       invoice.status = SalesInvoiceStatus.CANCELLED;
+      invoice.payment_status = SalesPaymentStatus.CANCELLED; // Đồng bộ trạng thái thanh toán
       invoice.updated_at = new Date();
       const savedInvoice = await queryRunner.manager.save(invoice);
 
@@ -677,6 +680,7 @@ export class SalesService {
       }
 
       invoice.status = SalesInvoiceStatus.REFUNDED;
+      invoice.payment_status = SalesPaymentStatus.REFUNDED; // Đồng bộ trạng thái thanh toán
       invoice.updated_at = new Date();
       const savedInvoice = await queryRunner.manager.save(invoice);
 
