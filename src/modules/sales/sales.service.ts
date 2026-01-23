@@ -967,12 +967,23 @@ export class SalesService {
       });
     }
 
+    // 2.1 Special handling for rice_crop_id (has_crop/no_crop/id)
+    if (searchDto.rice_crop_id) {
+       if (searchDto.rice_crop_id === 'has_crop' as any) {
+         queryBuilder.andWhere('invoice.rice_crop_id IS NOT NULL');
+         delete searchDto.rice_crop_id;
+       } else if (searchDto.rice_crop_id === 'no_crop' as any) {
+         queryBuilder.andWhere('invoice.rice_crop_id IS NULL');
+         delete searchDto.rice_crop_id;
+       }
+    }
+
     // 3. Simple Filters (code, customer_id, season_id, payment_status...)
     QueryHelper.applyFilters(
       queryBuilder,
       searchDto,
       'invoice',
-      ['filters', 'nested_filters', 'operator', 'sale_date_start', 'sale_date_end'], // Ignore complex fields
+      ['filters', 'nested_filters', 'operator', 'sale_date_start', 'sale_date_end', 'start_date', 'end_date'], // Ignore complex fields
       {
         customer_name: 'customer.name',
         customer_phone: 'customer.phone',
