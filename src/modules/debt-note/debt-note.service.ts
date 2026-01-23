@@ -242,9 +242,11 @@ export class DebtNoteService {
   ): Promise<void> {
     const repo = manager ? manager.getRepository(DebtNote) : this.debtNoteRepository;
 
-    // Tìm phiếu nợ chứa hóa đơn này
+    // Tìm phiếu nợ chứa hóa đơn này - dùng JSONB operator để tìm trong JSON array
     const debtNotes = await repo.createQueryBuilder('dn')
-      .where(':invoiceId = ANY(dn.source_invoices)', { invoiceId })
+      .where('dn.source_invoices::jsonb @> :invoiceIdJson::jsonb', { 
+        invoiceIdJson: JSON.stringify([invoiceId]) 
+      })
       .getMany();
 
     for (const debtNote of debtNotes) {
