@@ -42,6 +42,9 @@ export class InvoiceProfitDto {
   @ApiProperty({ description: 'Ngày tạo' })
   created_at!: Date;
 
+  @ApiProperty({ description: 'Ngày bán' })
+  sale_date?: Date;
+
   @ApiProperty({ description: 'Tổng doanh thu', example: 2300000 })
   total_amount!: number;
 

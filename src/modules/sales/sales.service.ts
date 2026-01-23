@@ -300,7 +300,7 @@ export class SalesService {
      return this.salesInvoiceRepository.find({
        where: { deleted_at: IsNull() },
        relations: ['items', 'items.product', 'season', 'rice_crop', 'customer'],
-       order: { created_at: 'DESC' }, // Sắp xếp theo thời gian tạo giảm dần
+       order: { sale_date: 'DESC', created_at: 'DESC' }, // Ưu tiên ngày bán, sau đó đến ngày tạo
      });
    }
 
@@ -320,7 +320,8 @@ export class SalesService {
        .addSelect(['creator.id', 'creator.account'])
        .where('invoice.status = :status', { status })
        .andWhere('invoice.deleted_at IS NULL')
-       .orderBy('invoice.created_at', 'DESC')
+       .orderBy('invoice.sale_date', 'DESC')
+       .addOrderBy('invoice.created_at', 'DESC')
        .getMany();
    }
 
@@ -457,7 +458,7 @@ export class SalesService {
         customer_id, 
         deleted_at: IsNull() 
       },
-      order: { created_at: 'DESC' },
+      order: { sale_date: 'DESC', created_at: 'DESC' },
       take: 5,
     });
     
@@ -468,7 +469,7 @@ export class SalesService {
         code: allInvoices[0]?.code,
         customer_id: allInvoices[0]?.customer_id,
         customer_name: allInvoices[0]?.customer_name,
-        created_at: allInvoices[0]?.created_at,
+        date: allInvoices[0]?.sale_date || allInvoices[0]?.created_at,
       });
     }
     
@@ -479,7 +480,7 @@ export class SalesService {
         deleted_at: IsNull() 
       },
       relations: ['items', 'customer', 'season'], // Bao gồm cả các item, thông tin khách hàng và mùa vụ
-      order: { created_at: 'DESC' }, // Sắp xếp theo thời gian tạo giảm dần để lấy đơn gần nhất
+      order: { sale_date: 'DESC', created_at: 'DESC' }, // Ưu tiên ngày bán gần nhất
     });
     
     this.logger.log('[findLatestByCustomer] Latest invoice with relations:', latestInvoice ? 'Found' : 'Not found');
@@ -1448,13 +1449,14 @@ export class SalesService {
       queryBuilder.andWhere('invoice.season_id = :seasonId', { seasonId });
     }
 
-    queryBuilder.orderBy('invoice.created_at', 'ASC');
+    queryBuilder.orderBy('invoice.sale_date', 'ASC')
+                .addOrderBy('invoice.created_at', 'ASC');
 
     const items = await queryBuilder.getMany();
 
     // Chuẩn hóa dữ liệu trả về giống mẫu Excel
     return items.map(item => ({
-      date: item.invoice.created_at,
+      date: item.invoice.sale_date || item.invoice.created_at,
       product_name: item.product_name || item.product?.trade_name || item.product?.name || 'Sản phẩm không tên',
       unit: item.product?.unit?.name || 'Cái', 
       quantity: Number(item.quantity || 0),
