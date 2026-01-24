@@ -4,7 +4,9 @@ import { ApplicationRecordService } from './application-record.service';
 import { CreateApplicationRecordDto, UpdateApplicationRecordDto } from './application-record.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { OwnershipGuard } from '../../common/guards/ownership.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { CheckOwnership } from '../../common/decorators/check-ownership.decorator';
 
 @ApiTags('Application Records')
 @ApiBearerAuth()
@@ -32,13 +34,17 @@ export class ApplicationRecordController {
   }
 
   @Patch(':id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard, OwnershipGuard)
   @RequirePermissions('application:update')
+  @CheckOwnership('ApplicationRecord')
   update(@Param('id', ParseIntPipe) id: number, @Body() updateDto: UpdateApplicationRecordDto) {
     return this.service.update(id, updateDto);
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard, OwnershipGuard)
   @RequirePermissions('application:delete')
+  @CheckOwnership('ApplicationRecord')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.service.remove(id);

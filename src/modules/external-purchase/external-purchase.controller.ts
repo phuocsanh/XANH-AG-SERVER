@@ -15,11 +15,14 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { ExternalPurchaseService } from './external-purchase.service';
 import { CreateExternalPurchaseDto, UpdateExternalPurchaseDto } from './dto/external-purchase.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { OwnershipGuard } from '../../common/guards/ownership.guard';
+import { CheckOwnership } from '../../common/decorators/check-ownership.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('External Purchases')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('external-purchases')
 export class ExternalPurchaseController {
   constructor(private readonly service: ExternalPurchaseService) {}
@@ -46,6 +49,8 @@ export class ExternalPurchaseController {
   }
 
   @Put(':id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard, OwnershipGuard)
+  @CheckOwnership('ExternalPurchase')
   @ApiOperation({ summary: 'Cập nhật hóa đơn' })
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -56,6 +61,8 @@ export class ExternalPurchaseController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard, OwnershipGuard)
+  @CheckOwnership('ExternalPurchase')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Xóa hóa đơn' })
   remove(

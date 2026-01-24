@@ -24,7 +24,9 @@ import {
 import { RiceCrop } from '../../entities/rice-crop.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { OwnershipGuard } from '../../common/guards/ownership.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { CheckOwnership } from '../../common/decorators/check-ownership.decorator';
 
 @ApiTags('Rice Crop Management')
 @ApiBearerAuth()
@@ -67,7 +69,9 @@ export class RiceCropController {
    * Lấy chi tiết mảnh ruộng
    */
   @Get(':id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard, OwnershipGuard)
   @RequirePermissions('rice_crop:read')
+  @CheckOwnership('RiceCrop')
   @ApiOperation({ summary: 'Lấy chi tiết mảnh ruộng theo ID' })
   @ApiResponse({ status: 200, description: 'Chi tiết vụ lúa', type: RiceCrop })
   @ApiResponse({ status: 404, description: 'Không tìm thấy vụ lúa' })
@@ -81,7 +85,9 @@ export class RiceCropController {
    * Cập nhật thông tin mảnh ruộng
    */
   @Patch(':id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard, OwnershipGuard)
   @RequirePermissions('rice_crop:update')
+  @CheckOwnership('RiceCrop')
   @ApiOperation({ summary: 'Cập nhật thông tin mảnh ruộng' })
   @ApiResponse({ status: 200, description: 'Mảnh ruộng đã được cập nhật', type: RiceCrop })
   @ApiResponse({ status: 404, description: 'Không tìm thấy vụ lúa' })
@@ -135,7 +141,9 @@ export class RiceCropController {
    * Xóa mảnh ruộng
    */
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard, OwnershipGuard)
   @RequirePermissions('rice_crop:delete')
+  @CheckOwnership('RiceCrop')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Xóa mảnh ruộng' })
   @ApiResponse({ status: 204, description: 'Mảnh ruộng đã được xóa' })

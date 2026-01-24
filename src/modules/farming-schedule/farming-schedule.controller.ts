@@ -4,7 +4,9 @@ import { FarmingScheduleService } from './farming-schedule.service';
 import { CreateFarmingScheduleDto, UpdateFarmingScheduleDto } from './farming-schedule.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { OwnershipGuard } from '../../common/guards/ownership.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { CheckOwnership } from '../../common/decorators/check-ownership.decorator';
 
 @ApiTags('Farming Schedule')
 @ApiBearerAuth()
@@ -41,20 +43,26 @@ export class FarmingScheduleController {
   }
 
   @Patch(':id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard, OwnershipGuard)
   @RequirePermissions('schedule:update')
+  @CheckOwnership('FarmingSchedule')
   update(@Param('id', ParseIntPipe) id: number, @Body() updateDto: UpdateFarmingScheduleDto) {
     return this.service.update(id, updateDto);
   }
 
   @Patch(':id/complete')
+  @UseGuards(JwtAuthGuard, PermissionsGuard, OwnershipGuard)
   @RequirePermissions('schedule:update')
+  @CheckOwnership('FarmingSchedule')
   @ApiOperation({ summary: 'Đánh dấu hoàn thành' })
   markAsCompleted(@Param('id', ParseIntPipe) id: number) {
     return this.service.markAsCompleted(id);
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard, OwnershipGuard)
   @RequirePermissions('schedule:delete')
+  @CheckOwnership('FarmingSchedule')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.service.remove(id);
