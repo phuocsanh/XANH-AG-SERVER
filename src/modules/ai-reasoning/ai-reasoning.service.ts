@@ -203,6 +203,9 @@ Chỉ trả JSON:
       const dailyHumid = hourly.relative_humidity_2m.slice(startIdx, startIdx + 24);
       const dailyRainProb = hourly.precipitation_probability.slice(startIdx, startIdx + 24);
       const dailyRain = hourly.precipitation.slice(startIdx, startIdx + 24);
+      const dailyWeatherCodes = hourly.weather_code.slice(startIdx, startIdx + 24);
+      const dailyCloudCover = hourly.cloud_cover.slice(startIdx, startIdx + 24);
+      const dailyVisibility = hourly.visibility.slice(startIdx, startIdx + 24);
 
       let reliableRainHours = 0;
       let reliableRainTotal = 0;
@@ -213,6 +216,9 @@ Chỉ trả JSON:
         }
       }
 
+      // Lấy weather_code phổ biến nhất trong ngày
+      const modeWeatherCode = this.getMode(dailyWeatherCodes);
+
       days.push({
         date: date,
         temp_min: Math.min(...dailyTemps),
@@ -221,10 +227,33 @@ Chỉ trả JSON:
         humidity_max: Math.max(...dailyHumid),
         rain_total_mm: Math.round(reliableRainTotal * 10) / 10,
         rain_hours: reliableRainHours,
-        max_rain_prob: Math.max(...dailyRainProb)
+        max_rain_prob: Math.max(...dailyRainProb),
+        weather_condition_code: modeWeatherCode,
+        cloud_cover_avg: Math.round(dailyCloudCover.reduce((a, b) => (a ?? 0) + (b ?? 0), 0) / 24),
+        min_visibility_m: Math.min(...dailyVisibility.filter(v => v !== null))
       });
     }
     return days;
+  }
+
+  private getMode(arr: number[]): number {
+    if (!arr || arr.length === 0) return 0;
+    const modeMap: Record<number, number> = {};
+    let maxEl = 0;
+    let maxCount = 0;
+    
+    for (const el of arr) {
+      if (el === null || el === undefined) continue;
+      
+      if (modeMap[el] == null) modeMap[el] = 1;
+      else modeMap[el]++;
+      
+      if (modeMap[el] > maxCount) {
+        maxEl = el;
+        maxCount = modeMap[el];
+      }
+    }
+    return maxEl;
   }
 
   private getFallbackResult(diseaseName: string): AiAnalysisResult {

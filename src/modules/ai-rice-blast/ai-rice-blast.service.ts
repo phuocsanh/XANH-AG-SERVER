@@ -82,7 +82,7 @@ export class AiRiceBlastService {
         'Bệnh Đạo Ôn (Rice Blast)',
         location.name,
         weatherData,
-        'Bệnh thường phát triển mạnh khi trời âm u, sương mù, độ ẩm cao và nhiệt độ 20-28 độ C. Mưa phùn kéo dài nguy hiểm hơn mưa rào.'
+        'Bệnh Đạo Ôn thường phát triển mạnh trong điều kiện nhiệt độ 20-30°C, độ ẩm trên 80%, và có độ chênh lệch nhiệt độ giữa ngày và đêm cao. Các yếu tố như trời âm u, mưa phùn, và sương mù kéo dài nhiều ngày là điều kiện lý tưởng để bệnh phát triển và lây lan trên diện rộng.'
       );
 
       // 2. Tính toán số liệu thống kê cơ bản từ dữ liệu thời tiết (để hiển thị biểu đồ)
