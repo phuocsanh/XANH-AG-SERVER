@@ -51,65 +51,51 @@ export class OwnershipGuard implements CanActivate {
     // Lấy repository của entity
     const repository = this.dataSource.getRepository(entityName);
 
-    // Chuyển resourceId sang number nếu cần (nếu ID column là number)
+    // Tìm resource chỉ theo ID trước để xác định sự tồn tại (404 vs 403)
+    // Chuyển sang kiểu dữ liệu phù hợp (Postgres integers/bigint)
     const numericId = !isNaN(Number(resourceId)) ? Number(resourceId) : resourceId;
-
-    // Tìm resource theo ID, tự động load rice_crop nếu có thể để check ownership cho CostItem/Schedule
+    
     const resource = await repository.findOne({
-      where: { id: numericId } as any,
-      relations: (repository.metadata.columns.some(c => c.propertyName === 'rice_crop_id') || 
-                  repository.metadata.relations.some(r => r.propertyName === 'rice_crop')) 
-                  ? ['rice_crop'] : [],
-    }) as any;
+      where: { id: numericId } as any
+    });
 
-    // Nếu không tìm thấy resource
+    // Nếu thực sự không tồn tại trong DB -> 404
     if (!resource) {
       throw new NotFoundException(
-        `${entityName} with ID ${resourceId} not found`,
+        `${entityName} với ID ${resourceId} không tồn tại trên hệ thống`,
       );
     }
 
-    // Kiểm tra ownership theo nhiều cách:
-    // 1. created_by_user_id (cho các entity có field này)
-    // 2. user_id (cho các entity liên kết trực tiếp với user)
-    // 3. customer_id (cho rice-crop và các entity thuộc customer)
-    // 4. rice_crop -> customer_id (cho các entity con của vụ lúa)
-    
-    const creatorId = resource.created_by_user_id || resource.user_id;
-    const resourceCustomerId = resource.customer_id || resource.rice_crop?.customer_id;
-
-    // Nếu resource có created_by_user_id hoặc user_id
-    if (creatorId) {
-      if (creatorId !== user.id) {
-        throw new ForbiddenException(
-          `You can only modify your own ${entityName.toLowerCase()}`,
-        );
-      }
+    // Nếu tồn tại, kiểm tra quyền sở hữu (Ownership)
+    // 1. Kiểm tra trực tiếp: created_by_user_id (cho các entity có field này)
+    const creatorId = (resource as any).created_by_user_id || (resource as any).user_id;
+    if (creatorId && creatorId === user.id) {
       return true;
     }
 
-    // Nếu resource có customer_id (trực tiếp hoặc qua rice_crop)
-    if (resourceCustomerId) {
-      // Kiểm tra user có customer_id không
-      if (!user.customer_id) {
-        throw new ForbiddenException(
-          'You must be a customer to access this resource',
-        );
-      }
+    // 2. Kiểm tra thông qua Vụ lúa (RiceCrop) - Dành cho CostItem, Schedule...
+    // Nếu có rice_crop_id, chúng ta cần xem vụ lúa đó là của ai
+    const targetRiceCropId = (resource as any).rice_crop_id;
+    if (targetRiceCropId) {
+      const riceCropRepository = this.dataSource.getRepository('RiceCrop');
+      const riceCrop = await riceCropRepository.findOne({
+        where: { id: targetRiceCropId }
+      });
 
-      const userCustomerId = Number(user.customer_id);
-      const targetCustomerId = Number(resourceCustomerId);
-
-      if (userCustomerId !== targetCustomerId) {
-        throw new ForbiddenException(
-          `You can only modify your own ${entityName.toLowerCase()}`,
-        );
+      if (riceCrop && Number(riceCrop.customer_id) === Number(user.customer_id)) {
+        return true;
       }
+    }
+
+    // 3. Kiểm tra trực tiếp customer_id (cho bản thân RiceCrop)
+    const resourceCustomerId = (resource as any).customer_id;
+    if (resourceCustomerId && Number(resourceCustomerId) === Number(user.customer_id)) {
       return true;
     }
 
-    // Nếu resource không có thông tin ownership, cho phép
-    // (có thể là data cũ hoặc entity không track ownership)
-    return true;
+    // Mặc định: Nếu có cơ chế kiểm tra mà không khớp -> 403 (Không có quyền)
+    throw new ForbiddenException(
+      `Bạn không có quyền thao tác trên ${entityName.toLowerCase()} này`,
+    );
   }
 }
