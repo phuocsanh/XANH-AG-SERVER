@@ -54,7 +54,7 @@ export class AiGrainDiscolorationService {
         'Bệnh Lem Lép Hạt (Grain Discoloration)',
         location.name,
         weatherData,
-        'Bệnh lem lép hạt phát triển mạnh khi trời mưa nhiều trong giai đoạn trỗ bông - chín. Nhiệt độ 25-30°C, độ ẩm cao >85% rất thuận lợi. Mưa kéo dài làm hạt bị nhiễm nấm, giảm chất lượng gạo.'
+        'Bệnh lem lép hạt phát triển mạnh khi trời mưa nhiều, sương mù dày và độ ẩm cao >80% trong giai đoạn trỗ bông - chín. Thời tiết âm u, ít nắng làm hạt bị nhiễm nấm/vi khuẩn nhanh hơn.'
       );
 
       const basicStats = this.calculateBasicStats(weatherData);

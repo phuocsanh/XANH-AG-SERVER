@@ -55,7 +55,7 @@ export class AiBacterialBlightService {
         'Bệnh Cháy Bìa Lá (Bacterial Blight)',
         location.name,
         weatherData,
-        'Bệnh phát triển mạnh khi mưa nhiều, gió mạnh làm lá bị rách, nhiệt độ 25-30°C, độ ẩm cao >80%. Ngập úng kéo dài làm bệnh bùng phát nhanh.'
+        'Bệnh phát triển mạnh khi mưa nhiều, gió mạnh làm lá bị rách, nhiệt độ 25-30°C, độ ẩm cao >80%. Sương mù và trời âm u kéo dài cũng là điều kiện thuận lợi để vi khuẩn xâm nhiễm.'
       );
 
       // 2. Tính toán số liệu thống kê cơ bản

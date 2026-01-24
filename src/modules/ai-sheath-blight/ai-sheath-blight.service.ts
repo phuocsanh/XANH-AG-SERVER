@@ -54,7 +54,7 @@ export class AiSheathBlightService {
         'Bệnh Đốm Vằn Lá (Sheath Blight)',
         location.name,
         weatherData,
-        'Bệnh đốm vằn lá phát triển mạnh ở nhiệt độ cao 28-32°C, độ ẩm rất cao >85%, mưa nhiều. Bệnh lây lan nhanh khi lúa sum suê, tán lá che kín. Giai đoạn nguy hiểm: làm đòng - trỗ bông.'
+        'Bệnh đốm vằn lá phát triển mạnh ở nhiệt độ cao 25-32°C, độ ẩm cao >80%, mưa nhiều. Sương mù kéo dài và trời ít nắng làm lá lúa luôn ẩm ướt là điều kiện lý tưởng để nấm phát tán.'
       );
 
       const basicStats = this.calculateBasicStats(weatherData);
