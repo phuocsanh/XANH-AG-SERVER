@@ -122,14 +122,17 @@ export class AiRiceBlastService {
         };
       });
 
-      // 4. Tạo nội dung cảnh báo từ AI
+      // 4. Format peak_days từ AI (chuyển từ ISO sang định dạng Việt Nam)
+      const formattedPeakDays = this.formatPeakDays(aiResult.peak_days);
+
+      // 5. Tạo nội dung cảnh báo từ AI
       const message = `
 ${this.getRiskEmoji(aiResult.risk_level)} CẢNH BÁO: ${aiResult.risk_level}
 📍 ${location.name}
 
 ${aiResult.summary}
 
-⚠️ Thời gian nguy cơ cao: ${aiResult.peak_days}
+⚠️ Thời gian nguy cơ cao: ${formattedPeakDays}
 
 🔍 PHÂN TÍCH CHI TIẾT:
 ${aiResult.detailed_analysis}
@@ -138,12 +141,12 @@ ${aiResult.detailed_analysis}
 ${aiResult.recommendations}
       `.trim();
 
-      // 5. Lưu vào database
+      // 6. Lưu vào database
       const warningData = {
         generated_at: new Date(),
         risk_level: aiResult.risk_level,
         message: message,
-        peak_days: aiResult.peak_days,
+        peak_days: formattedPeakDays,
         daily_data: dailyData,
       };
 
@@ -214,8 +217,36 @@ ${aiResult.recommendations}
         if (isWetByDew || isWetByRain) lwdHours++;
       }
 
-      // Fog hours
-      const fogHours = weatherCodes.filter(code => code === 45 || code === 48).length;
+      // Fog hours - Cải thiện logic tính sương mù
+      // Phương pháp 1: Dựa vào weather_code từ API
+      let fogHours = weatherCodes.filter(code => code === 45 || code === 48).length;
+      
+      // Phương pháp 2: Tính toán dựa trên điều kiện thời tiết thực tế
+      // Sương mù xảy ra khi: độ ẩm rất cao + nhiệt độ gần điểm sương + tầm nhìn thấp
+      let fogHoursCalculated = 0;
+      for (let i = 0; i < 24; i++) {
+        const humidity = humidities[i] ?? 0;
+        const temp = temps[i] ?? 0;
+        const dewPoint = dewPoints[i] ?? 0;
+        const visibility = visibilities[i] ?? 10000; // mặc định 10km nếu không có dữ liệu
+        
+        // Điều kiện sương mù:
+        // 1. Độ ẩm >= 95%
+        // 2. Nhiệt độ gần điểm sương (chênh lệch <= 0.5°C)
+        // 3. Tầm nhìn < 1000m (1km)
+        const isHighHumidity = humidity >= 95;
+        const isNearDewPoint = temp <= dewPoint + 0.5;
+        const isLowVisibility = visibility < 1000;
+        
+        // Nếu có ít nhất 2/3 điều kiện thì coi như có sương mù
+        const fogConditions = [isHighHumidity, isNearDewPoint, isLowVisibility].filter(Boolean).length;
+        if (fogConditions >= 2) {
+          fogHoursCalculated++;
+        }
+      }
+      
+      // Lấy giá trị lớn hơn giữa 2 phương pháp
+      fogHours = Math.max(fogHours, fogHoursCalculated);
 
       const dateStr = hourly.time[startIdx]?.split('T')[0] || '';
       const date = new Date(dateStr);
@@ -256,5 +287,28 @@ ${aiResult.recommendations}
       case 'TRUNG BÌNH': return '🟡';
       default: return '🟢';
     }
+  }
+
+  /**
+   * Format peak_days từ định dạng ISO (YYYY-MM-DD) sang định dạng Việt Nam (DD-MM-YYYY)
+   * VD: "2026-01-24, 2026-01-25" -> "24-01-2026, 25-01-2026"
+   */
+  private formatPeakDays(peakDays: string): string {
+    if (!peakDays || peakDays === 'Đang cập nhật') return peakDays;
+    
+    // Tìm tất cả các ngày theo định dạng YYYY-MM-DD
+    const isoDateRegex = /\d{4}-\d{2}-\d{2}/g;
+    const matches = peakDays.match(isoDateRegex);
+    
+    if (!matches) return peakDays;
+    
+    let formatted = peakDays;
+    matches.forEach(isoDate => {
+      const [year, month, day] = isoDate.split('-');
+      const vnDate = `${day}-${month}-${year}`;
+      formatted = formatted.replace(isoDate, vnDate);
+    });
+    
+    return formatted;
   }
 }

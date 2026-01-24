@@ -82,14 +82,16 @@ export class AiBrownPlantHopperService {
         };
       });
 
-      // 4. Tạo tin nhắn cảnh báo
+      // 4. Format peak_days và tạo tin nhắn cảnh báo
+      const formattedPeakDays = this.formatPeakDays(aiResult.peak_days);
+
       const message = `
 ${this.getRiskEmoji(aiResult.risk_level)} CẢNH BÁO: ${aiResult.risk_level}
 📍 ${location.name}
 
 ${aiResult.summary}
 
-⚠️ Thời gian nguy cơ cao: ${aiResult.peak_days}
+⚠️ Thời gian nguy cơ cao: ${formattedPeakDays}
 
 🔍 PHÂN TÍCH CHI TIẾT:
 ${aiResult.detailed_analysis}
@@ -102,7 +104,7 @@ ${aiResult.recommendations}
         generated_at: new Date(),
         risk_level: aiResult.risk_level,
         message: message,
-        peak_days: aiResult.peak_days,
+        peak_days: formattedPeakDays,
         daily_data: dailyData,
       };
 
@@ -189,5 +191,18 @@ ${aiResult.recommendations}
       case 'TRUNG BÌNH': return '🟡';
       default: return '🟢';
     }
+  }
+
+  private formatPeakDays(peakDays: string): string {
+    if (!peakDays || peakDays === 'Đang cập nhật') return peakDays;
+    const isoDateRegex = /\d{4}-\d{2}-\d{2}/g;
+    const matches = peakDays.match(isoDateRegex);
+    if (!matches) return peakDays;
+    let formatted = peakDays;
+    matches.forEach(isoDate => {
+      const [year, month, day] = isoDate.split('-');
+      formatted = formatted.replace(isoDate, `${day}-${month}-${year}`);
+    });
+    return formatted;
   }
 }
