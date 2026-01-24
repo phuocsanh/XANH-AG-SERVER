@@ -1,10 +1,12 @@
-import { Controller, Get, Post } from '@nestjs/common';
+import { Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AiGrainDiscolorationService } from './ai-grain-discoloration.service';
 import { GrainDiscolorationWarning } from '../../entities/grain-discoloration-warning.entity';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @ApiTags('AI Grain Discoloration Warning')
 @Controller('ai-grain-discoloration')
+@UseGuards(JwtAuthGuard)
 export class AiGrainDiscolorationController {
   constructor(private readonly service: AiGrainDiscolorationService) {}
 

@@ -3,8 +3,6 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AiBacterialBlightService } from './ai-bacterial-blight.service';
 import { BacterialBlightWarning } from '../../entities/bacterial-blight-warning.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 /**
  * Controller xử lý các API endpoint cho cảnh báo bệnh cháy bìa lá
@@ -21,8 +19,7 @@ export class AiBacterialBlightController {
    * Lấy cảnh báo bệnh cháy bìa lá mới nhất
    */
   @Get('warning')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('ai:rice_blast:read')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Lấy cảnh báo bệnh cháy bìa lá mới nhất' })
   @ApiResponse({ 
     status: 200, 
@@ -39,8 +36,7 @@ export class AiBacterialBlightController {
    * Chạy phân tích bệnh cháy bìa lá ngay lập tức
    */
   @Post('run-now')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('ai:rice_blast:manage')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Chạy phân tích bệnh cháy bìa lá ngay lập tức' })
   @ApiResponse({ 
     status: 200, 

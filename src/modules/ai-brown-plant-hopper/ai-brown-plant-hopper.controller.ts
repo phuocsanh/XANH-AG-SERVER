@@ -1,10 +1,12 @@
-import { Controller, Get, Post } from '@nestjs/common';
+import { Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AiBrownPlantHopperService } from './ai-brown-plant-hopper.service';
 import { BrownPlantHopperWarning } from '../../entities/brown-plant-hopper-warning.entity';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @ApiTags('AI Brown Plant Hopper Warning')
 @Controller('ai-brown-plant-hopper')
+@UseGuards(JwtAuthGuard)
 export class AiBrownPlantHopperController {
   constructor(private readonly service: AiBrownPlantHopperService) {}
 

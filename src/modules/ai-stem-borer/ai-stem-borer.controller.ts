@@ -1,10 +1,12 @@
-import { Controller, Get, Post } from '@nestjs/common';
+import { Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AiStemBorerService } from './ai-stem-borer.service';
 import { StemBorerWarning } from '../../entities/stem-borer-warning.entity';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @ApiTags('AI Stem Borer Warning')
 @Controller('ai-stem-borer')
+@UseGuards(JwtAuthGuard)
 export class AiStemBorerController {
   constructor(private readonly service: AiStemBorerService) {}
 

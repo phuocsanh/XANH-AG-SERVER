@@ -4,8 +4,6 @@ import { LocationService } from './location.service';
 import { UpdateLocationDto } from './dto/update-location.dto';
 import { Location } from '../../entities/location.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 /**
  * Controller xử lý các API endpoint cho quản lý vị trí ruộng lúa
@@ -22,8 +20,7 @@ export class LocationController {
    * Lấy vị trí ruộng lúa hiện tại
    */
   @Get()
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('ai:rice_blast:read')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Lấy vị trí ruộng lúa hiện tại' })
   @ApiResponse({ 
     status: 200, 
@@ -38,11 +35,9 @@ export class LocationController {
   /**
    * POST /location
    * Cập nhật vị trí ruộng lúa (UPSERT id = 1)
-   * Chỉ Admin/Super Admin
    */
   @Post()
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('ai:rice_blast:manage')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Cập nhật vị trí ruộng lúa' })
   @ApiResponse({ 
     status: 200, 
