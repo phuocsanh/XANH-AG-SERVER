@@ -51,10 +51,16 @@ export class OwnershipGuard implements CanActivate {
     // Lấy repository của entity
     const repository = this.dataSource.getRepository(entityName);
 
-    // Tìm resource theo ID
+    // Chuyển resourceId sang number nếu cần (nếu ID column là number)
+    const numericId = !isNaN(Number(resourceId)) ? Number(resourceId) : resourceId;
+
+    // Tìm resource theo ID, tự động load rice_crop nếu có thể để check ownership cho CostItem/Schedule
     const resource = await repository.findOne({
-      where: { id: resourceId },
-    });
+      where: { id: numericId } as any,
+      relations: (repository.metadata.columns.some(c => c.propertyName === 'rice_crop_id') || 
+                  repository.metadata.relations.some(r => r.propertyName === 'rice_crop')) 
+                  ? ['rice_crop'] : [],
+    }) as any;
 
     // Nếu không tìm thấy resource
     if (!resource) {
@@ -67,9 +73,10 @@ export class OwnershipGuard implements CanActivate {
     // 1. created_by_user_id (cho các entity có field này)
     // 2. user_id (cho các entity liên kết trực tiếp với user)
     // 3. customer_id (cho rice-crop và các entity thuộc customer)
+    // 4. rice_crop -> customer_id (cho các entity con của vụ lúa)
     
     const creatorId = resource.created_by_user_id || resource.user_id;
-    const resourceCustomerId = resource.customer_id;
+    const resourceCustomerId = resource.customer_id || resource.rice_crop?.customer_id;
 
     // Nếu resource có created_by_user_id hoặc user_id
     if (creatorId) {
@@ -81,7 +88,7 @@ export class OwnershipGuard implements CanActivate {
       return true;
     }
 
-    // Nếu resource có customer_id (như RiceCrop)
+    // Nếu resource có customer_id (trực tiếp hoặc qua rice_crop)
     if (resourceCustomerId) {
       // Kiểm tra user có customer_id không
       if (!user.customer_id) {
@@ -90,7 +97,10 @@ export class OwnershipGuard implements CanActivate {
         );
       }
 
-      if (resourceCustomerId !== user.customer_id) {
+      const userCustomerId = Number(user.customer_id);
+      const targetCustomerId = Number(resourceCustomerId);
+
+      if (userCustomerId !== targetCustomerId) {
         throw new ForbiddenException(
           `You can only modify your own ${entityName.toLowerCase()}`,
         );
