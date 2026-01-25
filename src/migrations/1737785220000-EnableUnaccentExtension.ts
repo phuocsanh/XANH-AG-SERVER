@@ -11,7 +11,7 @@ export class EnableUnaccentExtension1737785220000 implements MigrationInterface 
         console.log('✅ Đã kích hoạt extension "unaccent" thành công.');
     }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
+    public async down(_queryRunner: QueryRunner): Promise<void> {
         // Hủy kích hoạt extension nếu cần rollback
         // Lưu ý: Thông thường không nên DROP extension nếu có nhiều module phụ thuộc
         // await queryRunner.query(`DROP EXTENSION IF EXISTS unaccent`);

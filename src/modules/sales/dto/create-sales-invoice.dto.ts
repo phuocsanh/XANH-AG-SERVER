@@ -61,10 +61,9 @@ export class CreateSalesInvoiceDto {
   @IsOptional()
   customer_id?: number;
 
-  /** ID mùa vụ (bắt buộc nếu quản lý theo mùa) */
+  /** ID mùa vụ (bắt buộc) */
   @IsNumber()
-  @IsOptional()
-  season_id?: number;
+  season_id!: number;
 
   /** ID mảnh ruộng (tùy chọn) */
   @IsNumber()
