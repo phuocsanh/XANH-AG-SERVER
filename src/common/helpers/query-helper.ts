@@ -38,12 +38,20 @@ export class QueryHelper {
 
     // 3. Global Search (Keyword)
     if (dto.keyword && searchFields.length > 0) {
-      const conditions = searchFields.map(field => {
-        const col = field.includes('.') ? field : `${alias}.${field}`;
-        return `${col} ILIKE :keyword`;
-      });
-      
-      query.andWhere(`(${conditions.join(' OR ')})`, { keyword: `%${dto.keyword}%` });
+      const keyword = String(dto.keyword).trim().normalize('NFC');
+      const words = keyword.split(/\s+/).filter(Boolean);
+
+      if (words.length > 0) {
+          words.forEach((word, index) => {
+              const paramName = `keyword_${index}`;
+              const conditions = searchFields.map(field => {
+                  const col = field.includes('.') ? field : `${alias}.${field}`;
+                  // Sử dụng unaccent để tìm kiếm không dấu
+                  return `unaccent(${col}) ILIKE unaccent(:${paramName})`;
+              });
+              query.andWhere(`(${conditions.join(' OR ')})`, { [paramName]: `%${word}%` });
+          });
+      }
     }
 
     // 4. Date Range Search
