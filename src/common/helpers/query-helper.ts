@@ -39,19 +39,14 @@ export class QueryHelper {
     // 3. Global Search (Keyword)
     if (dto.keyword && searchFields.length > 0) {
       const keyword = String(dto.keyword).trim().normalize('NFC');
-      const words = keyword.split(/\s+/).filter(Boolean);
-
-      if (words.length > 0) {
-          words.forEach((word, index) => {
-              const paramName = `keyword_${index}`;
-              const conditions = searchFields.map(field => {
-                  const col = field.includes('.') ? field : `${alias}.${field}`;
-                  // Sử dụng unaccent để tìm kiếm không dấu và không phụ thuộc kiểu gõ Unicode
-                  return `unaccent(${col}::text) ILIKE unaccent(:${paramName})`;
-              });
-              query.andWhere(`(${conditions.join(' OR ')})`, { [paramName]: `%${word}%` });
-          });
-      }
+      
+      const conditions = searchFields.map(field => {
+        const col = field.includes('.') ? field : `${alias}.${field}`;
+        // Tìm kiếm chính xác cụm từ (không tách từ) nhưng vẫn hỗ trợ bỏ dấu
+        return `unaccent(${col}::text) ILIKE unaccent(:keyword)`;
+      });
+      
+      query.andWhere(`(${conditions.join(' OR ')})`, { keyword: `%${keyword}%` });
     }
 
     // 4. Date Range Search
