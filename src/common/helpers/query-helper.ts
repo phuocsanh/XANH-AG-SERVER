@@ -46,8 +46,8 @@ export class QueryHelper {
               const paramName = `keyword_${index}`;
               const conditions = searchFields.map(field => {
                   const col = field.includes('.') ? field : `${alias}.${field}`;
-                  // Sử dụng unaccent để tìm kiếm không dấu
-                  return `unaccent(${col}) ILIKE unaccent(:${paramName})`;
+                  // Sử dụng unaccent để tìm kiếm không dấu và không phụ thuộc kiểu gõ Unicode
+                  return `unaccent(${col}::text) ILIKE unaccent(:${paramName})`;
               });
               query.andWhere(`(${conditions.join(' OR ')})`, { [paramName]: `%${word}%` });
           });
