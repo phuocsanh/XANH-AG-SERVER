@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Customer } from '../../entities/customer.entity';
@@ -10,6 +10,7 @@ import { QueryHelper } from '../../common/helpers/query-helper';
 import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 import { User } from '../../entities/users.entity';
 import { UserProfile } from '../../entities/user-profiles.entity';
+import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 
 @Injectable()
 export class CustomerService {
@@ -19,24 +20,36 @@ export class CustomerService {
   ) {}
 
   async create(createCustomerDto: CreateCustomerDto): Promise<Customer> {
-    // Kiểm tra số điện thoại đã được dùng làm account của USER chưa
-    if (createCustomerDto.phone) {
-      const existingUser = await this.customerRepository.manager
-        .getRepository('User')
-        .findOne({ where: { account: createCustomerDto.phone } });
-      
-      if (existingUser) {
-        throw new Error('Số điện thoại này đã được sử dụng cho tài khoản đăng nhập');
+    try {
+      // 1. Kiểm tra số điện thoại đã tồn tại trong bảng Customer chưa
+      if (createCustomerDto.phone) {
+        const existingCustomer = await this.findByPhone(createCustomerDto.phone);
+        if (existingCustomer) {
+          throw new ConflictException(`Số điện thoại ${createCustomerDto.phone} đã tồn tại trong hệ thống khách hàng.`);
+        }
       }
-    }
 
-    // Auto-generate code nếu không được cung cấp
-    if (!createCustomerDto.code) {
-      createCustomerDto.code = CodeGeneratorHelper.generateCode('CUS');
-    }
+      // 2. Kiểm tra số điện thoại đã được dùng làm account của USER chưa
+      if (createCustomerDto.phone) {
+        const existingUser = await this.customerRepository.manager
+          .getRepository('User')
+          .findOne({ where: { account: createCustomerDto.phone } });
+        
+        if (existingUser) {
+          throw new ConflictException('Số điện thoại này đã được sử dụng cho một tài khoản đăng nhập khác.');
+        }
+      }
 
-    const customer = this.customerRepository.create(createCustomerDto);
-    return await this.customerRepository.save(customer);
+      // Auto-generate code nếu không được cung cấp
+      if (!createCustomerDto.code) {
+        createCustomerDto.code = CodeGeneratorHelper.generateCode('CUS');
+      }
+
+      const customer = this.customerRepository.create(createCustomerDto);
+      return await this.customerRepository.save(customer);
+    } catch (error) {
+      ErrorHandler.handleCreateError(error, 'khách hàng');
+    }
   }
 
   async findAll(page: number = 1, limit: number = 20, search?: string): Promise<{ data: Customer[]; total: number }> {
@@ -73,46 +86,58 @@ export class CustomerService {
   }
 
   async update(id: number, updateCustomerDto: UpdateCustomerDto): Promise<Customer> {
-    const customer = await this.findOne(id);
-    const oldPhone = customer.phone;
-    
-    // Cập nhật thông tin khách hàng
-    Object.assign(customer, updateCustomerDto);
-    const updatedCustomer = await this.customerRepository.save(customer);
-
-    // Nếu số điện thoại thay đổi, cập nhật tài khoản đăng nhập nếu có
-    if (updateCustomerDto.phone && updateCustomerDto.phone !== oldPhone) {
-      const userRepository = this.customerRepository.manager.getRepository(User);
-      const userProfileRepository = this.customerRepository.manager.getRepository(UserProfile);
-
-      // Tìm user liên kết với khách hàng này
-      const user = await userRepository.findOne({ where: { customer_id: id } });
-
-      if (user) {
-        // Kiểm tra xem số điện thoại mới đã được ai khác dùng làm account chưa
-        const existingUser = await userRepository.findOne({
-          where: { account: updateCustomerDto.phone },
-        });
-
-        if (existingUser && existingUser.id !== user.id) {
-          throw new Error('Số điện thoại mới đã được sử dụng cho một tài khoản khác');
-        }
-
-        // Cập nhật account cho User
-        user.account = updateCustomerDto.phone;
-        await userRepository.save(user);
-
-        // Cập nhật profile liên kết
-        const profile = await userProfileRepository.findOne({ where: { user_id: user.id } });
-        if (profile) {
-          profile.account = updateCustomerDto.phone;
-          profile.mobile = updateCustomerDto.phone;
-          await userProfileRepository.save(profile);
+    try {
+      const customer = await this.findOne(id);
+      const oldPhone = customer.phone;
+      
+      // 1. Kiểm tra trùng số điện thoại nếu thay đổi
+      if (updateCustomerDto.phone && updateCustomerDto.phone !== oldPhone) {
+        const existingCustomer = await this.findByPhone(updateCustomerDto.phone);
+        if (existingCustomer && existingCustomer.id !== id) {
+          throw new ConflictException(`Số điện thoại ${updateCustomerDto.phone} đã được sử dụng bởi khách hàng khác.`);
         }
       }
-    }
 
-    return updatedCustomer;
+      // Cập nhật thông tin khách hàng
+      Object.assign(customer, updateCustomerDto);
+      const updatedCustomer = await this.customerRepository.save(customer);
+
+      // Nếu số điện thoại thay đổi, cập nhật tài khoản đăng nhập nếu có
+      if (updateCustomerDto.phone && updateCustomerDto.phone !== oldPhone) {
+        const userRepository = this.customerRepository.manager.getRepository(User);
+        const userProfileRepository = this.customerRepository.manager.getRepository(UserProfile);
+
+        // Tìm user liên kết với khách hàng này
+        const user = await userRepository.findOne({ where: { customer_id: id } });
+
+        if (user) {
+          // Kiểm tra xem số điện thoại mới đã được ai khác dùng làm account chưa
+          const existingUser = await userRepository.findOne({
+            where: { account: updateCustomerDto.phone },
+          });
+
+          if (existingUser && existingUser.id !== user.id) {
+            throw new ConflictException('Số điện thoại mới đã được sử dụng cho một tài khoản khác');
+          }
+
+          // Cập nhật account cho User
+          user.account = updateCustomerDto.phone;
+          await userRepository.save(user);
+
+          // Cập nhật profile liên kết
+          const profile = await userProfileRepository.findOne({ where: { user_id: user.id } });
+          if (profile) {
+            profile.account = updateCustomerDto.phone;
+            profile.mobile = updateCustomerDto.phone;
+            await userProfileRepository.save(profile);
+          }
+        }
+      }
+
+      return updatedCustomer;
+    } catch (error) {
+      ErrorHandler.handleUpdateError(error, 'khách hàng');
+    }
   }
 
   async remove(id: number): Promise<void> {
