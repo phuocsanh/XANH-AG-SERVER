@@ -156,6 +156,7 @@ export class SalesService {
         );
 
         await queryRunner.manager.save(items);
+        savedInvoice.items = items;
 
         // 🆕 Tự động tính lợi nhuận ngay trong transaction
         try {
@@ -322,6 +323,7 @@ export class SalesService {
        .andWhere('invoice.deleted_at IS NULL')
        .orderBy('invoice.sale_date', 'DESC')
        .addOrderBy('invoice.created_at', 'DESC')
+       .addOrderBy('items.id', 'ASC')
        .getMany();
    }
 
@@ -366,6 +368,7 @@ export class SalesService {
       .addSelect(['creator.id', 'creator.account'])
       .where('invoice.id = :id', { id })
       .andWhere('invoice.deleted_at IS NULL')
+      .addOrderBy('items.id', 'ASC')
       .getOne();
 
     if (!invoice) {
@@ -414,6 +417,7 @@ export class SalesService {
       .addSelect(['creator.id', 'creator.account'])
       .where('invoice.code = :code', { code })
       .andWhere('invoice.deleted_at IS NULL')
+      .addOrderBy('items.id', 'ASC')
       .getOne();
 
     if (!invoice) {
@@ -906,7 +910,6 @@ export class SalesService {
     }
   }
 
-
   /**
    * Lấy danh sách các item trong hóa đơn bán hàng
    * @param invoice_id - ID của hóa đơn bán hàng
@@ -915,6 +918,7 @@ export class SalesService {
   async getInvoiceItems(invoice_id: number): Promise<SalesInvoiceItem[]> {
     return this.salesInvoiceItemRepository.find({
       where: { invoice_id },
+      order: { id: 'ASC' },
     });
   }
 
@@ -1020,6 +1024,9 @@ export class SalesService {
         rice_crop_name: 'rice_crop.field_name',
       }
     );
+
+    // Sắp xếp items trong mỗi hóa đơn theo thứ tự insert
+    queryBuilder.addOrderBy('items.id', 'ASC');
 
     // Thực hiện truy vấn
     const [data, total] = await queryBuilder.getManyAndCount();
