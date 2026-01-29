@@ -176,6 +176,6 @@ export class Product {
   has_input_invoice!: boolean;
 
   /** Giá bán khai thuế */
-  @Column({ name: 'tax_selling_price' })
+  @Column({ name: 'tax_selling_price', default: '0' })
   tax_selling_price!: string;
 }
