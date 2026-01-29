@@ -1070,6 +1070,7 @@ export class StoreProfitReportService {
       let totalRevenue = 0;
       let revenueWithInvoice = 0;
       let revenueNoInvoice = 0;
+      let taxableRevenue = 0;
       
       let totalCOGS = 0;
       let cogsWithInvoice = 0;
@@ -1097,6 +1098,9 @@ export class StoreProfitReportService {
           if (hasInvoice) {
             revenueWithInvoice += itemNetRevenue;
             cogsWithInvoice += itemCOGS;
+            // Doanh thu khai thuế = số lượng * giá khai thuế (ưu tiên lấy từ snapshot của item)
+            const effectiveTaxPrice = Number(item.tax_selling_price || item.product?.tax_selling_price || 0);
+            taxableRevenue += Number(item.quantity) * effectiveTaxPrice;
           } else {
             revenueNoInvoice += itemNetRevenue;
             cogsNoInvoice += itemCOGS;
@@ -1134,7 +1138,7 @@ export class StoreProfitReportService {
         total_revenue: Math.round(totalRevenue),
         revenue_with_invoice: Math.round(revenueWithInvoice),
         revenue_no_invoice: Math.round(revenueNoInvoice),
-        taxable_revenue: Math.round(revenueWithInvoice), // Doanh thu khai báo thuế = doanh thu từ sản phẩm có hóa đơn đầu vào
+        taxable_revenue: Math.round(taxableRevenue), // Doanh thu khai báo thuế = số lượng * giá bán khai thuế (của sản phẩm có hóa đơn đầu vào)
         total_cogs: Math.round(totalCOGS),
         cogs_with_invoice: Math.round(cogsWithInvoice),
         cogs_no_invoice: Math.round(cogsNoInvoice),

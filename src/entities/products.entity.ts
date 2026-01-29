@@ -174,4 +174,8 @@ export class Product {
   /** Trạng thái hóa đơn đầu vào (true: có hóa đơn, false: không có) */
   @Column({ name: 'has_input_invoice', type: 'boolean', default: true })
   has_input_invoice!: boolean;
+
+  /** Giá bán khai thuế */
+  @Column({ name: 'tax_selling_price' })
+  tax_selling_price!: string;
 }

@@ -140,4 +140,8 @@ export class CreateProductDto {
   @IsOptional()
   @IsBoolean()
   has_input_invoice?: boolean;
+
+  /** Giá bán khai thuế */
+  @IsString()
+  tax_selling_price!: string;
 }

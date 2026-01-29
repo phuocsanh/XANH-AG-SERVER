@@ -126,11 +126,12 @@ export class SalesService {
           const totalPrice =
             item.unit_price * item.quantity - (item.discount_amount || 0);
 
-            // Lấy tên sản phẩm và đơn vị tính từ DB nếu không có trong DTO
+            // Lấy tên sản phẩm, đơn vị tính và giá khai thuế từ DB nếu không có trong DTO
             let productName = item.product_name;
             let unitName = item.unit_name;
+            let taxSellingPrice = item.tax_selling_price;
             
-            if (!productName || !unitName) {
+            if (!productName || !unitName || !taxSellingPrice) {
               const product = await queryRunner.manager.findOne(Product, {
                 where: { id: item.product_id },
                 relations: ['unit'],
@@ -143,6 +144,10 @@ export class SalesService {
               if (!unitName) {
                 unitName = product?.unit?.name;
               }
+
+              if (!taxSellingPrice) {
+                taxSellingPrice = product?.tax_selling_price;
+              }
             }
 
             return queryRunner.manager.create(SalesInvoiceItem, {
@@ -151,6 +156,7 @@ export class SalesService {
               total_price: totalPrice,
               ...(productName && { product_name: productName }),
               ...(unitName && { unit_name: unitName }),
+              ...(taxSellingPrice && { tax_selling_price: taxSellingPrice }),
             });
           })
         );

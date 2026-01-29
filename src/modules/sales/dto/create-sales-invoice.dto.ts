@@ -39,6 +39,11 @@ export class CreateSalesInvoiceItemDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  /** Giá bán khai thuế tại thời điểm mua (tùy chọn) */
+  @IsString()
+  @IsOptional()
+  tax_selling_price?: string;
 }
 
 /**

@@ -57,6 +57,10 @@ export class SalesInvoiceItem {
   @Column({ name: 'notes', nullable: true })
   notes?: string;
 
+  /** Giá bán khai thuế tại thời điểm bán (snapshot) */
+  @Column({ name: 'tax_selling_price', nullable: true })
+  tax_selling_price?: string;
+
   /** Thời gian tạo chi tiết hóa đơn */
   @CreateDateColumn({ name: 'created_at' })
   created_at!: Date;
