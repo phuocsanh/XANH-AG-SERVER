@@ -169,6 +169,10 @@ export class InventoryReceipt {
   @Column({ name: 'is_payment_locked', default: false })
   is_payment_locked!: boolean;
 
+  /** Phiếu đạt điều kiện khai thuế (có hóa đơn đầu vào) */
+  @Column({ name: 'is_taxable', default: false })
+  is_taxable!: boolean;
+
   // ===== QUAN HỆ =====
   /** Quan hệ với các item trong phiếu nhập kho */
   @OneToMany(() => InventoryReceiptItem, (item) => item.receipt)

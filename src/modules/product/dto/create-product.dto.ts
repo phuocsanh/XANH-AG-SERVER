@@ -144,4 +144,9 @@ export class CreateProductDto {
   /** Giá bán khai thuế */
   @IsString()
   tax_selling_price!: string;
+
+  /** Số lượng tồn kho có hóa đơn đầu vào (bể thuế) */
+  @IsOptional()
+  @IsNumber()
+  taxable_quantity_stock?: number;
 }

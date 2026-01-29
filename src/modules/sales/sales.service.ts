@@ -1517,7 +1517,7 @@ export class SalesService {
           // Lưu ý: userId có thể truyền từ JWT, nếu không có lấy người tạo hóa đơn
           const performerId = userId || invoice.created_by;
           
-          await this.inventoryService.processStockOut(
+          const result = await this.inventoryService.processStockOut(
             item.product_id,
             item.quantity,
             'SALE',
@@ -1526,7 +1526,14 @@ export class SalesService {
             `Bán hàng theo hóa đơn #${invoice.code}`,
             queryRunner
           );
-          this.logger.log(`✅ Đã trừ kho sản phẩm ID ${item.product_id}, SL: ${item.quantity}`);
+
+          // Cập nhật số lượng tính thuế vào item
+          const manager = queryRunner ? queryRunner.manager : this.salesInvoiceItemRepository.manager;
+          await manager.update(SalesInvoiceItem, item.id, {
+            taxable_quantity: result.taxableQuantity
+          });
+
+          this.logger.log(`✅ Đã trừ kho sản phẩm ID ${item.product_id}, SL: ${item.quantity}, SL Thuế: ${result.taxableQuantity}`);
         } catch (error) {
           this.logger.error(`❌ Lỗi khi trừ kho sản phẩm ID ${item.product_id}: ${(error as any).message}`);
           // Vẫn tiếp tục với các sản phẩm khác
@@ -1637,7 +1644,8 @@ export class SalesService {
           undefined,
           `CANCEL_${invoice.code}_${item.product_id}`,
           undefined,
-          queryRunner
+          queryRunner,
+          Number(item.taxable_quantity) > 0 // Chuyển đổi giá trị sang number để tính toán. Chuyển đổi giá trị sang number để tính toán.
         );
 
         // Cập nhật reference cho giao dịch vừa tạo

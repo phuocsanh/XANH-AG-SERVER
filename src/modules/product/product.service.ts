@@ -212,6 +212,17 @@ export class ProductService extends BaseSearchService<Product> {
   }
 
   /**
+   * Lấy danh sách tất cả sản phẩm (bao gồm cả không hoạt động, chỉ trừ đã xóa)
+   * @returns Danh sách tất cả sản phẩm
+   */
+  async findAllIncludingInactive(): Promise<Product[]> {
+    return this.productRepository
+      .createQueryBuilder('product')
+      .andWhere('product.deleted_at IS NULL')
+      .getMany();
+  }
+
+  /**
    * Lấy danh sách sản phẩm theo trạng thái
    * @param status - Trạng thái cần lọc (active, inactive, archived)
    * @returns Danh sách sản phẩm theo trạng thái

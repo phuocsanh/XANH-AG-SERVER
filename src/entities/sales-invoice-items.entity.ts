@@ -61,6 +61,10 @@ export class SalesInvoiceItem {
   @Column({ name: 'tax_selling_price', nullable: true })
   tax_selling_price?: string;
 
+  /** Số lượng trong item này được tính vào doanh thu thuế */
+  @Column({ name: 'taxable_quantity', type: 'decimal', precision: 15, scale: 2, default: 0 })
+  taxable_quantity!: number;
+
   /** Thời gian tạo chi tiết hóa đơn */
   @CreateDateColumn({ name: 'created_at' })
   created_at!: Date;

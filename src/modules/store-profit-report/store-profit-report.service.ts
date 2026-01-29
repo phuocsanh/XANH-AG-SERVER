@@ -1088,22 +1088,29 @@ export class StoreProfitReportService {
           const avgCost = Number(item.product?.average_cost_price || 0);
           const itemCOGS = Number(item.quantity) * avgCost;
           
-          const hasInvoice = item.product?.has_input_invoice ?? true;
 
           // Tính doanh thu thực tế của item sau khi phân bổ tỷ lệ chiết khấu của hóa đơn
           const itemNetRevenue = invoiceItemsGross > 0 
             ? (itemGrossPrice / invoiceItemsGross) * invoiceFinalAmount 
             : 0;
 
-          if (hasInvoice) {
-            revenueWithInvoice += itemNetRevenue;
-            cogsWithInvoice += itemCOGS;
-            // Doanh thu khai thuế = số lượng * giá khai thuế (ưu tiên lấy từ snapshot của item)
+          const taxableQty = Number(item.taxable_quantity || 0);
+          const totalQty = Number(item.quantity || 1); // Tránh chia cho 0
+          const taxableRatio = taxableQty / totalQty;
+
+          if (taxableQty > 0) {
+            revenueWithInvoice += itemNetRevenue * taxableRatio;
+            cogsWithInvoice += itemCOGS * taxableRatio;
+            
+            // Doanh thu khai thuế = số lượng khai thuế * giá khai thuế (ưu tiên lấy từ snapshot của item)
             const effectiveTaxPrice = Number(item.tax_selling_price || item.product?.tax_selling_price || 0);
-            taxableRevenue += Number(item.quantity) * effectiveTaxPrice;
-          } else {
-            revenueNoInvoice += itemNetRevenue;
-            cogsNoInvoice += itemCOGS;
+            taxableRevenue += taxableQty * effectiveTaxPrice;
+          }
+          
+          if (totalQty > taxableQty) {
+            const nonTaxableRatio = (totalQty - taxableQty) / totalQty;
+            revenueNoInvoice += itemNetRevenue * nonTaxableRatio;
+            cogsNoInvoice += itemCOGS * nonTaxableRatio;
           }
           
           totalCOGS += itemCOGS;

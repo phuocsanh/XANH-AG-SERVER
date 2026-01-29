@@ -848,4 +848,13 @@ export class InventoryController {
   removeAdjustment(@Param('id') id: string) {
     return this.inventoryService.removeAdjustment(+id);
   }
+
+  /**
+   * Đồng bộ dữ liệu tồn kho thuế từ cũ sang mới
+   */
+  @Post('sync-taxable-data')
+  @RequirePermissions('inventory:manage')
+  syncTaxableData() {
+    return this.inventoryService.syncTaxableData();
+  }
 }
