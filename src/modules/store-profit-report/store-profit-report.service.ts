@@ -26,7 +26,7 @@ import {
   CustomerInvoiceDto,
   CustomerSeasonSummaryDto,
 } from './dto/customer-profit-report.dto';
-import { PeriodReportDto, PeriodSummaryDto } from './dto/period-report.dto';
+import { PeriodReportDto, PeriodSummaryDto, PeriodInvoiceDto, PeriodInvoiceItemDto } from './dto/period-report.dto';
 
 /**
  * Service xử lý logic tính lợi nhuận cho cửa hàng
@@ -1064,7 +1064,10 @@ export class StoreProfitReportService {
           { sale_date: IsNull(), created_at: Between(startDate, endDate), status: Not(SalesInvoiceStatus.CANCELLED) },
         ],
         relations: ['items', 'items.product'],
+        order: { sale_date: 'DESC', created_at: 'DESC' },
       });
+
+      const invoiceDtoList: PeriodInvoiceDto[] = [];
 
       // 2. Tính toán doanh thu và giá vốn (phân loại theo has_input_invoice)
       let totalRevenue = 0;
@@ -1082,13 +1085,13 @@ export class StoreProfitReportService {
         
         // Tính tổng giá trị các item trong hóa đơn này (trước khi trừ chiết khấu cấp hóa đơn)
         const invoiceItemsGross = (invoice.items || []).reduce((sum, item) => sum + Number(item.total_price), 0);
+        const itemsDto: PeriodInvoiceItemDto[] = [];
 
         for (const item of invoice.items || []) {
           const itemGrossPrice = Number(item.total_price);
           const avgCost = Number(item.product?.average_cost_price || 0);
           const itemCOGS = Number(item.quantity) * avgCost;
           
-
           // Tính doanh thu thực tế của item sau khi phân bổ tỷ lệ chiết khấu của hóa đơn
           const itemNetRevenue = invoiceItemsGross > 0 
             ? (itemGrossPrice / invoiceItemsGross) * invoiceFinalAmount 
@@ -1114,7 +1117,28 @@ export class StoreProfitReportService {
           }
           
           totalCOGS += itemCOGS;
+
+          // Thêm vào danh sách item của DTO
+          itemsDto.push({
+            product_name: item.product_name || item.product?.trade_name || item.product?.name || 'Unknown',
+            quantity: Number(item.quantity),
+            unit_name: item.unit_name || 'Đơn vị',
+            unit_price: Number(item.unit_price),
+            total_price: Number(item.total_price),
+            has_input_invoice: taxableQty > 0,
+            taxable_quantity: taxableQty,
+          });
         }
+
+        // Thêm vào danh sách hóa đơn của DTO
+        invoiceDtoList.push({
+          invoice_id: invoice.id,
+          invoice_code: invoice.code,
+          customer_name: invoice.customer_name,
+          sale_date: invoice.sale_date || invoice.created_at,
+          total_amount: invoiceFinalAmount,
+          items: itemsDto,
+        });
       }
 
       // 3. Lấy chi phí vận hành cửa hàng
@@ -1158,6 +1182,7 @@ export class StoreProfitReportService {
 
       return {
         summary,
+        invoices: invoiceDtoList,
         start_date: startDate,
         end_date: endDate,
       };

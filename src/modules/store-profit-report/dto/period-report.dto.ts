@@ -38,9 +38,55 @@ export class PeriodSummaryDto {
   invoice_count!: number;
 }
 
+export class PeriodInvoiceItemDto {
+  @ApiProperty({ description: 'Tên sản phẩm' })
+  product_name!: string;
+
+  @ApiProperty({ description: 'Số lượng' })
+  quantity!: number;
+
+  @ApiProperty({ description: 'Đơn vị tính' })
+  unit_name!: string;
+
+  @ApiProperty({ description: 'Đơn giá' })
+  unit_price!: number;
+
+  @ApiProperty({ description: 'Thành tiền' })
+  total_price!: number;
+
+  @ApiProperty({ description: 'Có hóa đơn đầu vào hay không' })
+  has_input_invoice!: boolean;
+  
+  @ApiProperty({ description: 'Số lượng có hóa đơn đầu vào' })
+  taxable_quantity!: number;
+}
+
+export class PeriodInvoiceDto {
+  @ApiProperty({ description: 'ID hóa đơn' })
+  invoice_id!: number;
+
+  @ApiProperty({ description: 'Mã hóa đơn' })
+  invoice_code!: string;
+
+  @ApiProperty({ description: 'Tên khách hàng' })
+  customer_name!: string;
+
+  @ApiProperty({ description: 'Ngày bán' })
+  sale_date!: Date;
+
+  @ApiProperty({ description: 'Tổng tiền' })
+  total_amount!: number;
+
+  @ApiProperty({ description: 'Danh sách sản phẩm', type: [PeriodInvoiceItemDto] })
+  items!: PeriodInvoiceItemDto[];
+}
+
 export class PeriodReportDto {
   @ApiProperty({ description: 'Thông tin tổng hợp' })
   summary!: PeriodSummaryDto;
+
+  @ApiProperty({ description: 'Danh sách hóa đơn', type: [PeriodInvoiceDto] })
+  invoices!: PeriodInvoiceDto[];
 
   @ApiProperty({ description: 'Ngày bắt đầu' })
   start_date!: Date;
