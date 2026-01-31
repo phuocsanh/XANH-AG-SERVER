@@ -3159,34 +3159,54 @@ export class InventoryService {
   async syncTaxableData(): Promise<{ productsUpdated: number; salesItemsUpdated: number }> {
     this.logger.log('🚀 Bắt đầu chi tiết đồng bộ dữ liệu tồn kho thuế...');
     
-    // 1. Đồng bộ Sản phẩm: Nếu has_input_invoice = true, gán bể thuế = tồn kho hiện tại
+    // 1. Đồng bộ Sản phẩm
     const products = await this.productService.findAllIncludingInactive();
     let productsUpdated = 0;
     
     for (const product of products) {
       if (product.has_input_invoice) {
+        // Nếu có hóa đơn, gán bể thuế = tồn kho hiện tại
         await this.productService.update(product.id, {
           taxable_quantity_stock: Number(product.quantity || 0)
+        });
+        productsUpdated++;
+      } else if (Number(product.taxable_quantity_stock) > 0) {
+        // Nếu không có hóa đơn nhưng bể thuế đang > 0, reset về 0
+        await this.productService.update(product.id, {
+          taxable_quantity_stock: 0
         });
         productsUpdated++;
       }
     }
     
-    // 2. Đồng bộ Sales Items: Nếu product.has_input_invoice = true, gán taxable_quantity = quantity
-    // Sử dụng repository manager để update hàng loạt cho nhanh
+    // 2. Đồng bộ Sales Items
     const salesInvoiceItemRepo = this.inventoryReceiptRepository.manager.getRepository(SalesInvoiceItem);
     
-    // Lấy danh sách item của các product có hóa đơn
-    const itemsToUpdate = await salesInvoiceItemRepo.createQueryBuilder('item')
+    // Bước 2.1: Cập nhật taxable_quantity = quantity cho các sản phẩm CÓ hóa đơn mà taxable_quantity đang là 0
+    const itemsToSetTaxable = await salesInvoiceItemRepo.createQueryBuilder('item')
       .leftJoinAndSelect('item.product', 'product')
       .where('product.has_input_invoice = :hasInvoice', { hasInvoice: true })
-      .andWhere('item.taxable_quantity = 0') // Chỉ update những cái chưa được xử lý
+      .andWhere('item.taxable_quantity = 0')
       .getMany();
       
     let salesItemsUpdated = 0;
-    for (const item of itemsToUpdate) {
+    for (const item of itemsToSetTaxable) {
       await salesInvoiceItemRepo.update(item.id, {
         taxable_quantity: item.quantity
+      });
+      salesItemsUpdated++;
+    }
+
+    // Bước 2.2: Reset taxable_quantity = 0 cho các sản phẩm KHÔNG CÓ hóa đơn mà taxable_quantity đang > 0
+    const itemsToResetTaxable = await salesInvoiceItemRepo.createQueryBuilder('item')
+      .leftJoinAndSelect('item.product', 'product')
+      .where('product.has_input_invoice = :hasInvoice', { hasInvoice: false })
+      .andWhere('item.taxable_quantity > 0')
+      .getMany();
+      
+    for (const item of itemsToResetTaxable) {
+      await salesInvoiceItemRepo.update(item.id, {
+        taxable_quantity: 0
       });
       salesItemsUpdated++;
     }
