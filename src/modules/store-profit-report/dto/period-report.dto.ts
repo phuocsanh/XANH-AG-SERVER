@@ -59,6 +59,12 @@ export class PeriodInvoiceItemDto {
   
   @ApiProperty({ description: 'Số lượng có hóa đơn đầu vào' })
   taxable_quantity!: number;
+
+  @ApiProperty({ description: 'Giá bán khai thuế (GBKT)' })
+  tax_selling_price!: number;
+
+  @ApiProperty({ description: 'Thành tiền khai thuế (TTKT)' })
+  taxable_total_amount!: number;
 }
 
 export class PeriodInvoiceDto {

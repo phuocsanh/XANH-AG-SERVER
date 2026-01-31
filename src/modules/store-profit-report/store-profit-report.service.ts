@@ -1100,14 +1100,15 @@ export class StoreProfitReportService {
           const taxableQty = Number(item.taxable_quantity || 0);
           const totalQty = Number(item.quantity || 1); // Tránh chia cho 0
           const taxableRatio = taxableQty / totalQty;
+          
+          // Doanh thu khai thuế = số lượng khai thuế * giá khai thuế (ưu tiên lấy từ snapshot của item)
+          const effectiveTaxPrice = Number(item.tax_selling_price || item.product?.tax_selling_price || 0);
+          const itemTaxableTotalAmount = taxableQty * effectiveTaxPrice;
 
           if (taxableQty > 0) {
             revenueWithInvoice += itemNetRevenue * taxableRatio;
             cogsWithInvoice += itemCOGS * taxableRatio;
-            
-            // Doanh thu khai thuế = số lượng khai thuế * giá khai thuế (ưu tiên lấy từ snapshot của item)
-            const effectiveTaxPrice = Number(item.tax_selling_price || item.product?.tax_selling_price || 0);
-            taxableRevenue += taxableQty * effectiveTaxPrice;
+            taxableRevenue += itemTaxableTotalAmount;
           }
           
           if (totalQty > taxableQty) {
@@ -1127,6 +1128,8 @@ export class StoreProfitReportService {
             total_price: Number(item.total_price),
             has_input_invoice: taxableQty > 0,
             taxable_quantity: taxableQty,
+            tax_selling_price: effectiveTaxPrice,
+            taxable_total_amount: itemTaxableTotalAmount,
           });
         }
 
