@@ -38,7 +38,7 @@ export class InventoryReceipt {
   supplier!: Supplier;
 
   /** Tổng số tiền của phiếu nhập kho */
-  @Column({ name: 'total_amount' })
+  @Column({ name: 'total_amount', type: 'decimal', precision: 15, scale: 2, default: 0 })
   total_amount!: number;
 
   /** Trạng thái phiếu nhập kho (draft, approved, cancelled) */

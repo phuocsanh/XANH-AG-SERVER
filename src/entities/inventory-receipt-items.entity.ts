@@ -34,11 +34,11 @@ export class InventoryReceiptItem {
   quantity!: number;
 
   /** Giá vốn đơn vị của sản phẩm */
-  @Column({ name: 'unit_cost' })
+  @Column({ name: 'unit_cost', type: 'decimal', precision: 15, scale: 2, default: 0 })
   unit_cost!: number;
 
   /** Tổng giá tiền của sản phẩm */
-  @Column({ name: 'total_price' })
+  @Column({ name: 'total_price', type: 'decimal', precision: 15, scale: 2, default: 0 })
   total_price!: number;
 
   /** Ghi chú về chi tiết phiếu nhập kho */

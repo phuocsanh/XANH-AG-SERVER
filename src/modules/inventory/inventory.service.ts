@@ -1189,9 +1189,9 @@ export class InventoryService {
 
 
       // ===== XỬ LÝ THANH TOÁN =====
-      const paidAmount = Number(createInventoryReceiptDto.paid_amount) || 0;
-      const totalAmount = Number(createInventoryReceiptDto.total_amount);
-      const returnedAmount = Number(receiptData.returned_amount) || 0;
+      const paidAmount = Math.round(Number(createInventoryReceiptDto.paid_amount) || 0);
+      const totalAmount = Math.round(Number(createInventoryReceiptDto.total_amount));
+      const returnedAmount = Math.round(Number(receiptData.returned_amount) || 0);
       
       // ===== VALIDATION: KHÔNG CHO PHÉP THANH TOÁN KHI TẠO PHIẾU NHÁP =====
       if (createInventoryReceiptDto.status === ReceiptStatus.DRAFT && paidAmount > 0) {
@@ -1218,7 +1218,7 @@ export class InventoryService {
       }
       
       // Tính giá trị thực tế sau khi trừ trả hàng
-      const finalAmount = totalAmount - returnedAmount;
+      const finalAmount = Math.round(totalAmount - returnedAmount);
       
       // Tính số tiền thực sự nợ NCC
       // LUÔN LUÔN loại trừ phí vận chuyển (cả chung và riêng) khỏi công nợ NCC
@@ -1227,7 +1227,7 @@ export class InventoryService {
         (Number(createInventoryReceiptDto.shared_shipping_cost) || 0) +
         createInventoryReceiptDto.items.reduce((sum, item) => sum + (Number(item.individual_shipping_cost) || 0), 0);
       
-      const supplierAmount = finalAmount - excludedShipping;
+      const supplierAmount = Math.round(finalAmount - excludedShipping);
       
       // VALIDATION: Nếu còn nợ NCC, phải có hạn thanh toán
       // So sánh với supplierAmount (chỉ tiền hàng), KHÔNG phải totalAmount (bao gồm phí ship)
@@ -1237,7 +1237,7 @@ export class InventoryService {
         );
       }
       
-      const debtAmount = supplierAmount - paidAmount;
+      const debtAmount = Math.round(supplierAmount - paidAmount);
       
       let paymentStatus = 'unpaid';
       if (paidAmount >= supplierAmount) {
@@ -1338,8 +1338,8 @@ export class InventoryService {
         
         return {
           ...item,
-          allocated_shipping_cost: Math.round(allocatedShipping * 100) / 100,
-          final_unit_cost: Math.round(finalUnitCost * 100) / 100,
+          allocated_shipping_cost: Math.round(allocatedShipping),
+          final_unit_cost: Math.round(finalUnitCost),
         };
       });
 
@@ -1663,7 +1663,7 @@ export class InventoryService {
     if (updateData.supplier_id !== undefined)
       entityUpdateData.supplier_id = updateData.supplier_id;
     if (updateData.total_amount !== undefined)
-      entityUpdateData.total_amount = updateData.total_amount;
+      entityUpdateData.total_amount = Math.round(updateData.total_amount);
     if (updateData.status !== undefined)
       entityUpdateData.status = updateData.status;
     if (updateData.notes !== undefined)
@@ -1671,7 +1671,7 @@ export class InventoryService {
     if (updateData.images !== undefined)
       entityUpdateData.images = updateData.images;
     if (updateData.shared_shipping_cost !== undefined)
-      entityUpdateData.shared_shipping_cost = updateData.shared_shipping_cost;
+      entityUpdateData.shared_shipping_cost = Math.round(updateData.shared_shipping_cost);
     if (updateData.shipping_allocation_method !== undefined)
       entityUpdateData.shipping_allocation_method = updateData.shipping_allocation_method;
 
