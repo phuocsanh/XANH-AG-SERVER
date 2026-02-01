@@ -1186,17 +1186,6 @@ export class InventoryService {
         receiptData.images = createInventoryReceiptDto.images;
       }
 
-      // Thêm chiết khấu nếu có
-      if (createInventoryReceiptDto.discount_amount !== undefined) {
-        receiptData.discount_amount = createInventoryReceiptDto.discount_amount;
-      }
-      if (createInventoryReceiptDto.discount_value !== undefined) {
-        receiptData.discount_value = createInventoryReceiptDto.discount_value;
-      }
-      if (createInventoryReceiptDto.discount_type !== undefined) {
-        receiptData.discount_type = createInventoryReceiptDto.discount_type;
-      }
-
 
 
       // ===== XỬ LÝ THANH TOÁN =====
@@ -1321,7 +1310,6 @@ export class InventoryService {
       // Tính phí vận chuyển cho từng item
       const itemsWithShipping = createInventoryReceiptDto.items.map((item) => {
         let allocatedShipping = 0;
-        
         // Phân bổ phí chung nếu có
         if (sharedShippingCost > 0) {
           if (allocationMethod === 'by_value') {
@@ -1333,32 +1321,15 @@ export class InventoryService {
             allocatedShipping = (item.quantity / totalQuantity) * sharedShippingCost;
           }
         }
-
-        // 1. Chiết khấu riêng của từng item (Nhập trực tiếp trên dòng sản phẩm)
-        const itemLevelDiscount = Number(item.discount_amount) || 0;
-
-        // 2. Chiết khấu phân bổ từ đơn hàng (Global discount)
-        let allocatedGlobalDiscount = 0;
-        const globalDiscountAmount = Number(createInventoryReceiptDto.discount_amount) || 0;
-        if (globalDiscountAmount > 0) {
-          // Phân bổ chiết khấu tổng theo tỷ lệ giá trị của sản phẩm sau khi đã trừ chiết khấu riêng của chính nó
-          const itemBaseValue = item.quantity * item.unit_cost - itemLevelDiscount;
-          const totalBaseValueAfterItemDiscounts = totalValue - createInventoryReceiptDto.items.reduce((sum, i) => sum + (Number(i.discount_amount) || 0), 0);
-          
-          if (totalBaseValueAfterItemDiscounts > 0) {
-            allocatedGlobalDiscount = (itemBaseValue / totalBaseValueAfterItemDiscounts) * globalDiscountAmount;
-          }
-        }
         
         // Tính tổng phí vận chuyển cho item
         const individualShipping = item.individual_shipping_cost || 0;
         const totalShippingForItem = individualShipping + allocatedShipping;
         
         // Tính giá vốn cuối cùng trên đơn vị
-        // Giá vốn = (Tiền hàng - Chiết khấu item - Chiết khấu tổng phân bổ) / Số lượng + Phí vận chuyển/Số lượng
-        const discountTotalPerUnit = (itemLevelDiscount + allocatedGlobalDiscount) / item.quantity;
+        // unit_cost gửi từ FE đã là giá NET (đã trừ chiết khấu)
         const shippingPerUnit = totalShippingForItem / item.quantity;
-        const finalUnitCost = item.unit_cost - discountTotalPerUnit + shippingPerUnit;
+        const finalUnitCost = item.unit_cost + shippingPerUnit;
         
         // DEBUG: Log để kiểm tra
         this.logger.log('=== TÍNH PHÍ VẬN CHUYỂN ===');
@@ -1383,12 +1354,9 @@ export class InventoryService {
            total_price: item.total_price,
            individual_shipping_cost: item.individual_shipping_cost || 0,
            allocated_shipping_cost: item.allocated_shipping_cost,
-           final_unit_cost: item.final_unit_cost,
-           batch_number: item.batch_number,
+            final_unit_cost: item.final_unit_cost,
+            batch_number: item.batch_number,
             unit_name: item.unit_name,
-            discount_amount: item.discount_amount || 0,
-            discount_value: item.discount_value || 0,
-            discount_type: item.discount_type || 'fixed_amount',
          };
 
         // Only add notes if it's not undefined
@@ -1706,12 +1674,6 @@ export class InventoryService {
       entityUpdateData.shared_shipping_cost = updateData.shared_shipping_cost;
     if (updateData.shipping_allocation_method !== undefined)
       entityUpdateData.shipping_allocation_method = updateData.shipping_allocation_method;
-    if (updateData.discount_amount !== undefined)
-      entityUpdateData.discount_amount = updateData.discount_amount;
-    if (updateData.discount_value !== undefined)
-      entityUpdateData.discount_value = updateData.discount_value;
-    if (updateData.discount_type !== undefined)
-      entityUpdateData.discount_type = updateData.discount_type;
 
     await this.inventoryReceiptRepository.update(id, entityUpdateData);
     return this.findReceiptById(id);
