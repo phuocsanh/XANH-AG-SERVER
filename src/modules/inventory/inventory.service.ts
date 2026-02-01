@@ -1186,6 +1186,17 @@ export class InventoryService {
         receiptData.images = createInventoryReceiptDto.images;
       }
 
+      // Thêm chiết khấu nếu có
+      if (createInventoryReceiptDto.discount_amount !== undefined) {
+        receiptData.discount_amount = createInventoryReceiptDto.discount_amount;
+      }
+      if (createInventoryReceiptDto.discount_value !== undefined) {
+        receiptData.discount_value = createInventoryReceiptDto.discount_value;
+      }
+      if (createInventoryReceiptDto.discount_type !== undefined) {
+        receiptData.discount_type = createInventoryReceiptDto.discount_type;
+      }
+
 
 
       // ===== XỬ LÝ THANH TOÁN =====
@@ -1322,6 +1333,15 @@ export class InventoryService {
             allocatedShipping = (item.quantity / totalQuantity) * sharedShippingCost;
           }
         }
+
+        // Phân bổ chiết khấu nếu có
+        let allocatedDiscount = 0;
+        const discountAmount = Number(createInventoryReceiptDto.discount_amount) || 0;
+        if (discountAmount > 0) {
+          // Luôn phân bổ chiết khấu theo tỷ lệ giá trị
+          const itemValue = item.quantity * item.unit_cost;
+          allocatedDiscount = (itemValue / totalValue) * discountAmount;
+        }
         
         // Tính tổng phí vận chuyển cho item
         const individualShipping = item.individual_shipping_cost || 0;
@@ -1329,7 +1349,8 @@ export class InventoryService {
         
         // Tính giá vốn cuối cùng trên đơn vị
         const shippingPerUnit = totalShippingForItem / item.quantity;
-        const finalUnitCost = item.unit_cost + shippingPerUnit;
+        const discountPerUnit = allocatedDiscount / item.quantity;
+        const finalUnitCost = item.unit_cost - discountPerUnit + shippingPerUnit;
         
         // DEBUG: Log để kiểm tra
         this.logger.log('=== TÍNH PHÍ VẬN CHUYỂN ===');
@@ -1674,6 +1695,12 @@ export class InventoryService {
       entityUpdateData.shared_shipping_cost = updateData.shared_shipping_cost;
     if (updateData.shipping_allocation_method !== undefined)
       entityUpdateData.shipping_allocation_method = updateData.shipping_allocation_method;
+    if (updateData.discount_amount !== undefined)
+      entityUpdateData.discount_amount = updateData.discount_amount;
+    if (updateData.discount_value !== undefined)
+      entityUpdateData.discount_value = updateData.discount_value;
+    if (updateData.discount_type !== undefined)
+      entityUpdateData.discount_type = updateData.discount_type;
 
     await this.inventoryReceiptRepository.update(id, entityUpdateData);
     return this.findReceiptById(id);

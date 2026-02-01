@@ -84,6 +84,19 @@ export class CreateInventoryReceiptDto {
   @IsString()
   shipping_allocation_method?: 'by_value' | 'by_quantity';
 
+  @IsOptional()
+  @IsNumber()
+  discount_amount?: number;
+
+  @IsOptional()
+  @IsNumber()
+  discount_value?: number;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['percentage', 'fixed_amount'])
+  discount_type?: 'percentage' | 'fixed_amount';
+
 
 
   @ValidateNested({ each: true })

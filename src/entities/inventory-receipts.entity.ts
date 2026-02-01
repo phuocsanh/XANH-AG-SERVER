@@ -112,6 +112,18 @@ export class InventoryReceipt {
   @Column({ name: 'shipping_allocation_method', length: 20, default: 'by_value' })
   shipping_allocation_method?: string;
 
+  /** Số tiền giảm giá của phiếu nhập kho */
+  @Column({ name: 'discount_amount', type: 'decimal', precision: 15, scale: 2, default: 0 })
+  discount_amount!: number;
+
+  /** Giá trị giảm giá (có thể là % hoặc số tiền tuyệt đối tùy logic UI) */
+  @Column({ name: 'discount_value', type: 'decimal', precision: 15, scale: 2, default: 0 })
+  discount_value!: number;
+
+  /** Loại giảm giá (percentage hoặc fixed_amount) */
+  @Column({ name: 'discount_type', length: 20, default: 'fixed_amount' })
+  discount_type!: string;
+
 
 
   /** Thời gian xóa phiếu nhập kho (soft delete) */
