@@ -1334,13 +1334,20 @@ export class InventoryService {
           }
         }
 
-        // Phân bổ chiết khấu nếu có
-        let allocatedDiscount = 0;
-        const discountAmount = Number(createInventoryReceiptDto.discount_amount) || 0;
-        if (discountAmount > 0) {
-          // Luôn phân bổ chiết khấu theo tỷ lệ giá trị
-          const itemValue = item.quantity * item.unit_cost;
-          allocatedDiscount = (itemValue / totalValue) * discountAmount;
+        // 1. Chiết khấu riêng của từng item (Nhập trực tiếp trên dòng sản phẩm)
+        const itemLevelDiscount = Number(item.discount_amount) || 0;
+
+        // 2. Chiết khấu phân bổ từ đơn hàng (Global discount)
+        let allocatedGlobalDiscount = 0;
+        const globalDiscountAmount = Number(createInventoryReceiptDto.discount_amount) || 0;
+        if (globalDiscountAmount > 0) {
+          // Phân bổ chiết khấu tổng theo tỷ lệ giá trị của sản phẩm sau khi đã trừ chiết khấu riêng của chính nó
+          const itemBaseValue = item.quantity * item.unit_cost - itemLevelDiscount;
+          const totalBaseValueAfterItemDiscounts = totalValue - createInventoryReceiptDto.items.reduce((sum, i) => sum + (Number(i.discount_amount) || 0), 0);
+          
+          if (totalBaseValueAfterItemDiscounts > 0) {
+            allocatedGlobalDiscount = (itemBaseValue / totalBaseValueAfterItemDiscounts) * globalDiscountAmount;
+          }
         }
         
         // Tính tổng phí vận chuyển cho item
@@ -1348,9 +1355,10 @@ export class InventoryService {
         const totalShippingForItem = individualShipping + allocatedShipping;
         
         // Tính giá vốn cuối cùng trên đơn vị
+        // Giá vốn = (Tiền hàng - Chiết khấu item - Chiết khấu tổng phân bổ) / Số lượng + Phí vận chuyển/Số lượng
+        const discountTotalPerUnit = (itemLevelDiscount + allocatedGlobalDiscount) / item.quantity;
         const shippingPerUnit = totalShippingForItem / item.quantity;
-        const discountPerUnit = allocatedDiscount / item.quantity;
-        const finalUnitCost = item.unit_cost - discountPerUnit + shippingPerUnit;
+        const finalUnitCost = item.unit_cost - discountTotalPerUnit + shippingPerUnit;
         
         // DEBUG: Log để kiểm tra
         this.logger.log('=== TÍNH PHÍ VẬN CHUYỂN ===');
@@ -1378,6 +1386,9 @@ export class InventoryService {
            final_unit_cost: item.final_unit_cost,
            batch_number: item.batch_number,
             unit_name: item.unit_name,
+            discount_amount: item.discount_amount || 0,
+            discount_value: item.discount_value || 0,
+            discount_type: item.discount_type || 'fixed_amount',
          };
 
         // Only add notes if it's not undefined

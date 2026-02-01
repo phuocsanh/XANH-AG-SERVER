@@ -69,6 +69,18 @@ export class InventoryReceiptItem {
   @Column({ name: 'batch_number', nullable: true })
   batch_number?: string;
 
+  /** Số tiền giảm giá cho riêng item này */
+  @Column({ name: 'discount_amount', type: 'decimal', precision: 15, scale: 2, default: 0 })
+  discount_amount!: number;
+
+  /** Giá trị giảm giá cho riêng item này (có thể là % hoặc số tiền) */
+  @Column({ name: 'discount_value', type: 'decimal', precision: 15, scale: 2, default: 0 })
+  discount_value!: number;
+
+  /** Loại giảm giá cho riêng item này (percentage hoặc fixed_amount) */
+  @Column({ name: 'discount_type', length: 20, default: 'fixed_amount' })
+  discount_type!: string;
+
   /** Thời gian tạo chi tiết phiếu nhập kho */
   @CreateDateColumn({ name: 'created_at' })
   created_at!: Date;

@@ -49,6 +49,20 @@ export class CreateInventoryReceiptItemDto {
   @IsOptional()
   @IsString()
   batch_number?: string;
+
+  // ===== TRƯỜNG MỚI - CHIẾT KHẤU THEO ITEM =====
+  @IsOptional()
+  @IsNumber()
+  discount_amount?: number;
+
+  @IsOptional()
+  @IsNumber()
+  discount_value?: number;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['percentage', 'fixed_amount'])
+  discount_type?: 'percentage' | 'fixed_amount';
 }
 
 export class CreateInventoryReceiptDto {
