@@ -10,6 +10,7 @@ export class SearchInventoryDto extends BaseSearchDto {
   
   @IsNumber() @IsOptional() @Type(() => Number) quantity?: number;
   @IsString() @IsOptional() status?: string;
+  @IsString() @IsOptional() payment_status?: string;
   @IsString() @IsOptional() notes?: string;
   @IsDateString() @IsOptional() created_at?: string;
   @IsDateString() @IsOptional() import_date?: string;
