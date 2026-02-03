@@ -668,6 +668,8 @@ export class InventoryService {
         // Cộng số lượng thuế nếu có
         if (taxableQuantity && taxableQuantity > 0) {
           updateData.taxable_quantity_stock = Number(product?.taxable_quantity_stock || 0) + taxableQuantity;
+          // Tự động chuyển trạng thái sản phẩm sang "Có hóa đơn đầu vào"
+          updateData.has_input_invoice = true;
         }
         
         await queryRunner.manager.update(Product, productId, updateData);
@@ -681,6 +683,8 @@ export class InventoryService {
         // Cộng số lượng thuế nếu có
         if (taxableQuantity && taxableQuantity > 0) {
           updateData.taxable_quantity_stock = Number(product?.taxable_quantity_stock || 0) + taxableQuantity;
+          // Tự động chuyển trạng thái sản phẩm sang "Có hóa đơn đầu vào"
+          updateData.has_input_invoice = true;
         }
         
         await this.productService.update(productId, updateData);
