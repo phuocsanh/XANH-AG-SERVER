@@ -49,6 +49,10 @@ export class CreateInventoryReceiptItemDto {
   @IsOptional()
   @IsString()
   batch_number?: string;
+
+  @IsOptional()
+  @IsNumber()
+  taxable_quantity?: number;
 }
 
 export class CreateInventoryReceiptDto {

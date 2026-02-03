@@ -1645,7 +1645,7 @@ export class SalesService {
           `CANCEL_${invoice.code}_${item.product_id}`,
           undefined,
           queryRunner,
-          Number(item.taxable_quantity) > 0 // Chuyển đổi giá trị sang number để tính toán. Chuyển đổi giá trị sang number để tính toán.
+          Number(item.taxable_quantity) || 0 // Số lượng thuế cần hoàn lại
         );
 
         // Cập nhật reference cho giao dịch vừa tạo

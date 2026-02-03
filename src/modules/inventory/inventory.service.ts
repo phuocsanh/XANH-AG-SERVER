@@ -590,7 +590,7 @@ export class InventoryService {
     code?: string,
     expiryDate?: Date,
     queryRunner?: QueryRunner,
-    isTaxable?: boolean,
+    taxableQuantity?: number,
   ) {
     // Lấy giá vốn trung bình hiện tại
     const currentAverageCost = await this.getWeightedAverageCost(productId, queryRunner);
@@ -665,8 +665,9 @@ export class InventoryService {
           average_cost_price: newAverageCost.toFixed(2),
         };
         
-        if (isTaxable) {
-          updateData.taxable_quantity_stock = Number(product?.taxable_quantity_stock || 0) + quantity;
+        // Cộng số lượng thuế nếu có
+        if (taxableQuantity && taxableQuantity > 0) {
+          updateData.taxable_quantity_stock = Number(product?.taxable_quantity_stock || 0) + taxableQuantity;
         }
         
         await queryRunner.manager.update(Product, productId, updateData);
@@ -677,8 +678,9 @@ export class InventoryService {
           average_cost_price: newAverageCost.toFixed(2),
         };
         
-        if (isTaxable) {
-          updateData.taxable_quantity_stock = Number(product?.taxable_quantity_stock || 0) + quantity;
+        // Cộng số lượng thuế nếu có
+        if (taxableQuantity && taxableQuantity > 0) {
+          updateData.taxable_quantity_stock = Number(product?.taxable_quantity_stock || 0) + taxableQuantity;
         }
         
         await this.productService.update(productId, updateData);
@@ -1756,6 +1758,9 @@ export class InventoryService {
             ? Number(item.final_unit_cost)
             : Number(item.unit_cost);
 
+        // Lấy số lượng khai thuế từ item (nếu không có thì mặc định = 0)
+        const taxableQty = item.taxable_quantity || 0;
+
         const batch = await this.processStockIn(
           item.product_id,
           item.quantity,
@@ -1765,7 +1770,7 @@ export class InventoryService {
           `LOT-${receipt.code.replace('REC-', '')}-${itemIndex}`,
           item.expiry_date ? new Date(item.expiry_date) : undefined,
           queryRunner,
-          receipt.is_taxable
+          taxableQty // Truyền số lượng thuế thay vì boolean
         );
 
         // Cập nhật số lô ngược lại chi tiết phiếu nhập

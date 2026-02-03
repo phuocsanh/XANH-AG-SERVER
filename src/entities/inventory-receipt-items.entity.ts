@@ -69,6 +69,10 @@ export class InventoryReceiptItem {
   @Column({ name: 'batch_number', nullable: true })
   batch_number?: string;
 
+  /** Số lượng có hóa đơn đầu vào (để khai thuế) */
+  @Column({ name: 'taxable_quantity', type: 'int', default: 0 })
+  taxable_quantity?: number;
+
   /** Thời gian tạo chi tiết phiếu nhập kho */
   @CreateDateColumn({ name: 'created_at' })
   created_at!: Date;
