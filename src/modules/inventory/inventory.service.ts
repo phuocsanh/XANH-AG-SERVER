@@ -752,20 +752,7 @@ export class InventoryService {
     const product = await productRepo.findOne({ where: { id: productId } });
     const currentTaxableStock = Number(product?.taxable_quantity_stock || 0);
     
-    // Logic: Ưu tiên trừ vào hàng "Không hóa đơn" trước, sau đó mới trừ vào bể thuế
-    // Hàng không hóa đơn = Tổng tồn hiện tại - Bể thuế hiện tại
-    const nonTaxableStock = Math.max(0, currentInventory.totalQuantity - currentTaxableStock);
-    
-    // Số lượng sẽ trừ vào phần "Không hóa đơn"
-    const nonTaxableToDeduct = Math.min(quantity, nonTaxableStock);
-    
-    // Số lượng còn lại sẽ phải trừ vào "Bể thuế"
-    const taxableQuantityToDeduct = Math.max(0, quantity - nonTaxableToDeduct);
-
-    // Lấy giá vốn trung bình hiện tại
-    const currentAverageCost = await this.getWeightedAverageCost(productId, queryRunner);
-
-    // Lấy các lô hàng theo thứ tự FIFO (First In, First Out)
+    // 2. Chuẩn bị dữ liệu thuế của từng đợt nhập kho để tính toán FIFO chính xác
     const batchRepo = queryRunner ? queryRunner.manager.getRepository(InventoryBatch) : this.inventoryBatchRepository;
     const batches = await batchRepo.find({
       where: {
@@ -775,11 +762,24 @@ export class InventoryService {
       order: { created_at: 'ASC' }, // FIFO: lô cũ nhất trước
     });
 
+    const receiptItemRepo = queryRunner ? queryRunner.manager.getRepository(InventoryReceiptItem) : this.inventoryReceiptItemRepository;
+    const receiptItemIds = batches.map(b => b.receipt_item_id).filter(id => id != null) as number[];
+    const receiptItemsMap = new Map<number, InventoryReceiptItem>();
+    
+    if (receiptItemIds.length > 0) {
+      const items = await receiptItemRepo.find({ where: { id: In(receiptItemIds) } });
+      items.forEach(item => receiptItemsMap.set(item.id, item));
+    }
+
+    // Lấy giá vốn trung bình hiện tại
+    const currentAverageCost = await this.getWeightedAverageCost(productId, queryRunner);
+
     let remainingToDeduct = quantity;
     let totalCostValue = 0;
+    let totalTaxableDeducted = 0;
     const affectedBatches: any[] = [];
 
-    // Trừ số lượng từ các lô theo FIFO
+    // 3. Trừ số lượng từ các lô theo FIFO
     for (const batch of batches) {
       if (remainingToDeduct <= 0) break;
 
@@ -787,6 +787,35 @@ export class InventoryService {
         batch.remaining_quantity,
         remainingToDeduct,
       );
+
+      // --- LOGIC TÍNH TOÁN THUẾ THEO TỪNG LÔ ---
+      let batchTaxableRemaining = 0;
+      const receiptItem = batch.receipt_item_id ? receiptItemsMap.get(batch.receipt_item_id) : null;
+      
+      if (receiptItem) {
+        // Nếu lô này có thông tin từ phiếu nhập
+        const initialTaxable = Number(receiptItem.taxable_quantity || 0);
+        const initialNonTaxable = Math.max(0, Number(batch.original_quantity) - initialTaxable);
+        const alreadySoldFromBatch = Number(batch.original_quantity) - Number(batch.remaining_quantity);
+        
+        // Ưu tiên coi những phần đã bán trước đó là hàng không hóa đơn
+        const nonTaxableRemaining = Math.max(0, initialNonTaxable - alreadySoldFromBatch);
+        batchTaxableRemaining = Number(batch.remaining_quantity) - nonTaxableRemaining;
+      } else {
+        // Nếu lô hàng không có phiếu nhập (ví dụ hàng tồn cũ), 
+        // tạm thời coi tỷ lệ thuế dựa trên bể thuế hiện tại của sản phẩm so với tồn kho (logic fallback)
+        const taxableRatio = currentInventory.totalQuantity > 0 ? (currentTaxableStock / currentInventory.totalQuantity) : 0;
+        batchTaxableRemaining = Number(batch.remaining_quantity) * taxableRatio;
+      }
+
+      // Trong số lượng trừ từ lô này, bao nhiêu là hàng thuế? (Vẫn ưu tiên trừ không hóa đơn trước trong nội bộ lô)
+      const batchNonTaxableRemaining = Math.max(0, Number(batch.remaining_quantity) - batchTaxableRemaining);
+      const deductNonTaxable = Math.min(deductFromBatch, batchNonTaxableRemaining);
+      const deductTaxable = Math.max(0, deductFromBatch - deductNonTaxable);
+      
+      totalTaxableDeducted += deductTaxable;
+      // ---------------------------------------
+
       batch.remaining_quantity -= deductFromBatch;
       remainingToDeduct -= deductFromBatch;
 
@@ -795,11 +824,12 @@ export class InventoryService {
       totalCostValue += deductFromBatch * batchCost;
 
       // Cập nhật batch
-      await batchRepo.save(batch);
+      await (queryRunner ? queryRunner.manager.getRepository(InventoryBatch) : this.inventoryBatchRepository).save(batch);
       
       affectedBatches.push({
         batchId: batch.id,
         deductedQuantity: deductFromBatch,
+        taxableQuantity: deductTaxable,
         remainingQuantity: batch.remaining_quantity,
         cost: batchCost
       });
@@ -807,6 +837,7 @@ export class InventoryService {
 
     // Tính số lượng tồn kho mới
     const newTotalQuantity = currentInventory.totalQuantity - quantity;
+    const taxableQuantityToDeduct = totalTaxableDeducted; // Sử dụng kết quả tính toán chi tiết
     const newTaxableQuantityStock = Math.max(0, currentTaxableStock - taxableQuantityToDeduct);
 
     // Tạo giao dịch xuất kho
@@ -1406,8 +1437,9 @@ export class InventoryService {
               userId,
               item.id,
               `LOT-${receiptEntity.code.replace('REC-', '')}-${itemIndex}`,
-              item.expiry_date ? new Date(item.expiry_date) : undefined, // Truyền expiry_date
-              queryRunner // Sử dụng cùng queryRunner
+              item.expiry_date ? new Date(item.expiry_date) : undefined,
+              queryRunner,
+              Number(item.taxable_quantity || 0)
             );
 
             // Cập nhật số lô ngược lại chi tiết phiếu nhập
@@ -3175,61 +3207,103 @@ export class InventoryService {
   async syncTaxableData(): Promise<{ productsUpdated: number; salesItemsUpdated: number }> {
     this.logger.log('🚀 Bắt đầu chi tiết đồng bộ dữ liệu tồn kho thuế (Refined)...');
     
-    // 1. Đồng bộ Sản phẩm
-    const products = await this.productService.findAllIncludingInactive();
-    let productsUpdated = 0;
-    
-    for (const product of products) {
-      // Chỉ tự động đồng bộ lên "Full thuế" nếu bể thuế đang bằng 0 và sản phẩm được đánh dấu có hóa đơn
-      if (product.has_input_invoice && Number(product.taxable_quantity_stock) === 0 && Number(product.quantity) > 0) {
-        await this.productService.update(product.id, {
-          taxable_quantity_stock: Number(product.quantity || 0)
-        });
-        productsUpdated++;
-      } 
-      // Nếu sản phẩm đánh dấu KHÔNG có hóa đơn, nhưng bể thuế đang > 0, reset về 0
-      else if (!product.has_input_invoice && Number(product.taxable_quantity_stock) > 0) {
-        await this.productService.update(product.id, {
-          taxable_quantity_stock: 0
-        });
-        productsUpdated++;
-      }
-    }
-    
-    // 2. Đồng bộ Sales Items (Hóa đơn đã bán)
+    // 1. Đồng bộ Sản phẩm & Hóa đơn chi tiết theo logic "Bể thuế"
+    const receiptItemRepo = this.inventoryReceiptRepository.manager.getRepository(InventoryReceiptItem);
     const salesInvoiceItemRepo = this.inventoryReceiptRepository.manager.getRepository(SalesInvoiceItem);
+    
+    let productsUpdated = 0;
     let salesItemsUpdated = 0;
 
+    const products = await this.productService.findAllIncludingInactive();
+    
     for (const product of products) {
-      const items = await salesInvoiceItemRepo.find({ where: { product_id: product.id } });
-      if (items.length === 0) continue;
+      // 1. Lấy lịch sử nhập hàng (để tạo các lô - batches)
+      const receiptItems = await receiptItemRepo.find({ 
+        where: { product_id: product.id }, 
+        order: { created_at: 'ASC' } 
+      });
 
-      const totalQty = Number(product.quantity || 0);
-      const taxableStock = Number(product.taxable_quantity_stock || 0);
+      // 2. Lấy lịch sử bán hàng (để mô phỏng xuất kho)
+      const salesItems = await salesInvoiceItemRepo.find({ 
+        where: { product_id: product.id }, 
+        order: { created_at: 'ASC' } 
+      });
 
-      // Logic: Nếu hiện tại vẫn còn hàng "Không hóa đơn" (total > taxable), 
-      // thì theo quy tắc "Trừ không hóa đơn trước", các món đã bán nên được coi là hàng không hóa đơn.
-      if (taxableStock < totalQty) {
-        for (const item of items) {
-          if (Number(item.taxable_quantity) > 0) {
-            await salesInvoiceItemRepo.update(item.id, { taxable_quantity: 0 });
-            salesItemsUpdated++;
+      if (receiptItems.length === 0 && salesItems.length === 0) continue;
+
+      // Cấu trúc các lô hàng để mô phỏng
+      let batches = receiptItems.map(r => ({
+        taxable: Number(r.taxable_quantity || 0),
+        nonTaxable: Math.max(0, Number(r.quantity) - Number(r.taxable_quantity || 0))
+      }));
+
+      // Nếu không có phiếu nhập nhưng có tồn kho (dữ liệu cũ), coi như 1 lô hàng ảo
+      if (batches.length === 0 && Number(product.quantity) > 0) {
+        const taxableStock = Number(product.taxable_quantity_stock || 0);
+        batches.push({
+          taxable: taxableStock,
+          nonTaxable: Math.max(0, Number(product.quantity) - taxableStock)
+        });
+      }
+
+      let itemsUpdatedForProduct = 0;
+
+      // 3. Mô phỏng quá trình bán hàng theo FIFO từng lô
+      for (const item of salesItems) {
+        let remainingToSell = Number(item.quantity);
+        let calculatedTaxableQty = 0;
+
+        while (remainingToSell > 0 && batches.length > 0) {
+          const currentBatch = batches[0];
+          if (!currentBatch) break; // Bảo vệ TypeScript
+
+          const batchTotal = currentBatch.taxable + currentBatch.nonTaxable;
+
+          if (batchTotal <= 0) {
+            batches.shift();
+            continue;
+          }
+
+          const canTakeFromThisBatch = Math.min(remainingToSell, batchTotal);
+          
+          // Trong lô này, ưu tiên trừ vào phần không hóa đơn của nó trước
+          const takeNonTaxable = Math.min(canTakeFromThisBatch, currentBatch.nonTaxable);
+          const takeTaxable = canTakeFromThisBatch - takeNonTaxable;
+
+          calculatedTaxableQty += takeTaxable;
+          
+          // Cập nhật lô hàng
+          currentBatch.nonTaxable -= takeNonTaxable;
+          currentBatch.taxable -= takeTaxable;
+          
+          remainingToSell -= canTakeFromThisBatch;
+
+          if (currentBatch.taxable + currentBatch.nonTaxable <= 0) {
+            batches.shift();
           }
         }
-      } 
-      // Ngược lại, nếu toàn bộ tồn kho là hàng "Có hóa đơn" và sp đánh dấu has_input_invoice
-      // thì có thể coi các món đã bán là hàng có hóa đơn (logic cũ)
-      else if (product.has_input_invoice) {
-        for (const item of items) {
-          if (Number(item.taxable_quantity) !== Number(item.quantity)) {
-            await salesInvoiceItemRepo.update(item.id, { taxable_quantity: item.quantity });
-            salesItemsUpdated++;
-          }
+
+        // Cập nhật item nếu có thay đổi
+        if (Number(item.taxable_quantity) !== calculatedTaxableQty) {
+          await salesInvoiceItemRepo.update(item.id, { taxable_quantity: calculatedTaxableQty });
+          itemsUpdatedForProduct++;
         }
       }
+
+      // 4. Tính toán Bể thuế còn lại của sản phẩm
+      const hasTaxPrice = Number(product.tax_selling_price || 0) > 0;
+      const remainingTaxableInBatches = batches.reduce((sum, b) => sum + b.taxable, 0);
+      const finalTaxableStock = (product.has_input_invoice && hasTaxPrice) ? Math.max(0, remainingTaxableInBatches) : 0;
+
+      if (Number(product.taxable_quantity_stock) !== finalTaxableStock) {
+        await this.productService.update(product.id, { taxable_quantity_stock: finalTaxableStock });
+        productsUpdated++;
+      }
+
+      salesItemsUpdated += itemsUpdatedForProduct;
     }
     
-    this.logger.log(`✅ Hoàn tất đồng bộ: ${productsUpdated} sản phẩm, ${salesItemsUpdated} item hóa đơn.`);
+    this.logger.log(`✅ Hoàn tất đồng bộ theo logic Bể thuế: ${productsUpdated} sản phẩm, ${salesItemsUpdated} item hóa đơn.`);
     return { productsUpdated, salesItemsUpdated };
   }
 }
