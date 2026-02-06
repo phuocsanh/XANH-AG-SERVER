@@ -752,8 +752,15 @@ export class InventoryService {
     const product = await productRepo.findOne({ where: { id: productId } });
     const currentTaxableStock = Number(product?.taxable_quantity_stock || 0);
     
-    // Tính toán số lượng thuế sẽ trừ (FIFO cho bể thuế)
-    const taxableQuantityToDeduct = Math.min(quantity, currentTaxableStock);
+    // Logic: Ưu tiên trừ vào hàng "Không hóa đơn" trước, sau đó mới trừ vào bể thuế
+    // Hàng không hóa đơn = Tổng tồn hiện tại - Bể thuế hiện tại
+    const nonTaxableStock = Math.max(0, currentInventory.totalQuantity - currentTaxableStock);
+    
+    // Số lượng sẽ trừ vào phần "Không hóa đơn"
+    const nonTaxableToDeduct = Math.min(quantity, nonTaxableStock);
+    
+    // Số lượng còn lại sẽ phải trừ vào "Bể thuế"
+    const taxableQuantityToDeduct = Math.max(0, quantity - nonTaxableToDeduct);
 
     // Lấy giá vốn trung bình hiện tại
     const currentAverageCost = await this.getWeightedAverageCost(productId, queryRunner);
@@ -3166,21 +3173,22 @@ export class InventoryService {
    * sang hệ thống mới (taxable_quantity_stock / taxable_quantity)
    */
   async syncTaxableData(): Promise<{ productsUpdated: number; salesItemsUpdated: number }> {
-    this.logger.log('🚀 Bắt đầu chi tiết đồng bộ dữ liệu tồn kho thuế...');
+    this.logger.log('🚀 Bắt đầu chi tiết đồng bộ dữ liệu tồn kho thuế (Refined)...');
     
     // 1. Đồng bộ Sản phẩm
     const products = await this.productService.findAllIncludingInactive();
     let productsUpdated = 0;
     
     for (const product of products) {
-      if (product.has_input_invoice) {
-        // Nếu có hóa đơn, gán bể thuế = tồn kho hiện tại
+      // Chỉ tự động đồng bộ lên "Full thuế" nếu bể thuế đang bằng 0 và sản phẩm được đánh dấu có hóa đơn
+      if (product.has_input_invoice && Number(product.taxable_quantity_stock) === 0 && Number(product.quantity) > 0) {
         await this.productService.update(product.id, {
           taxable_quantity_stock: Number(product.quantity || 0)
         });
         productsUpdated++;
-      } else if (Number(product.taxable_quantity_stock) > 0) {
-        // Nếu không có hóa đơn nhưng bể thuế đang > 0, reset về 0
+      } 
+      // Nếu sản phẩm đánh dấu KHÔNG có hóa đơn, nhưng bể thuế đang > 0, reset về 0
+      else if (!product.has_input_invoice && Number(product.taxable_quantity_stock) > 0) {
         await this.productService.update(product.id, {
           taxable_quantity_stock: 0
         });
@@ -3188,36 +3196,37 @@ export class InventoryService {
       }
     }
     
-    // 2. Đồng bộ Sales Items
+    // 2. Đồng bộ Sales Items (Hóa đơn đã bán)
     const salesInvoiceItemRepo = this.inventoryReceiptRepository.manager.getRepository(SalesInvoiceItem);
-    
-    // Bước 2.1: Cập nhật taxable_quantity = quantity cho các sản phẩm CÓ hóa đơn mà taxable_quantity đang là 0
-    const itemsToSetTaxable = await salesInvoiceItemRepo.createQueryBuilder('item')
-      .leftJoinAndSelect('item.product', 'product')
-      .where('product.has_input_invoice = :hasInvoice', { hasInvoice: true })
-      .andWhere('item.taxable_quantity = 0')
-      .getMany();
-      
     let salesItemsUpdated = 0;
-    for (const item of itemsToSetTaxable) {
-      await salesInvoiceItemRepo.update(item.id, {
-        taxable_quantity: item.quantity
-      });
-      salesItemsUpdated++;
-    }
 
-    // Bước 2.2: Reset taxable_quantity = 0 cho các sản phẩm KHÔNG CÓ hóa đơn mà taxable_quantity đang > 0
-    const itemsToResetTaxable = await salesInvoiceItemRepo.createQueryBuilder('item')
-      .leftJoinAndSelect('item.product', 'product')
-      .where('product.has_input_invoice = :hasInvoice', { hasInvoice: false })
-      .andWhere('item.taxable_quantity > 0')
-      .getMany();
-      
-    for (const item of itemsToResetTaxable) {
-      await salesInvoiceItemRepo.update(item.id, {
-        taxable_quantity: 0
-      });
-      salesItemsUpdated++;
+    for (const product of products) {
+      const items = await salesInvoiceItemRepo.find({ where: { product_id: product.id } });
+      if (items.length === 0) continue;
+
+      const totalQty = Number(product.quantity || 0);
+      const taxableStock = Number(product.taxable_quantity_stock || 0);
+
+      // Logic: Nếu hiện tại vẫn còn hàng "Không hóa đơn" (total > taxable), 
+      // thì theo quy tắc "Trừ không hóa đơn trước", các món đã bán nên được coi là hàng không hóa đơn.
+      if (taxableStock < totalQty) {
+        for (const item of items) {
+          if (Number(item.taxable_quantity) > 0) {
+            await salesInvoiceItemRepo.update(item.id, { taxable_quantity: 0 });
+            salesItemsUpdated++;
+          }
+        }
+      } 
+      // Ngược lại, nếu toàn bộ tồn kho là hàng "Có hóa đơn" và sp đánh dấu has_input_invoice
+      // thì có thể coi các món đã bán là hàng có hóa đơn (logic cũ)
+      else if (product.has_input_invoice) {
+        for (const item of items) {
+          if (Number(item.taxable_quantity) !== Number(item.quantity)) {
+            await salesInvoiceItemRepo.update(item.id, { taxable_quantity: item.quantity });
+            salesItemsUpdated++;
+          }
+        }
+      }
     }
     
     this.logger.log(`✅ Hoàn tất đồng bộ: ${productsUpdated} sản phẩm, ${salesItemsUpdated} item hóa đơn.`);
