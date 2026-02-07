@@ -1966,8 +1966,41 @@ export class InventoryService {
     id: number,
     updateData: Partial<CreateInventoryReceiptItemDto>,
   ): Promise<InventoryReceiptItem | null> {
+    // Lấy thông tin item và phiếu nhập
+    const item = await this.inventoryReceiptItemRepository.findOne({
+      where: { id },
+      relations: ['receipt'],
+    });
+
+    if (!item) {
+      throw new NotFoundException(`Không tìm thấy chi tiết phiếu nhập #${id}`);
+    }
+
+    const receipt = item.receipt;
+
+    // VALIDATION: Nếu phiếu đã duyệt
+    if (receipt && receipt.status === ReceiptStatus.APPROVED) {
+      // Chỉ cho phép sửa taxable_quantity (để sửa dữ liệu cũ)
+      const allowedFields = ['taxable_quantity'];
+      const attemptedFields = Object.keys(updateData);
+      
+      const invalidFields = attemptedFields.filter(field => !allowedFields.includes(field));
+      
+      if (invalidFields.length > 0) {
+        throw new BadRequestException(
+          `Phiếu đã duyệt chỉ được phép sửa "Số lượng thuế". Không được sửa: ${invalidFields.join(', ')}`
+        );
+      }
+
+      this.logger.log(`Cập nhật SL Thuế cho item #${id} của phiếu đã duyệt ${receipt.code}`);
+    }
+
+    // Thực hiện update
     await this.inventoryReceiptItemRepository.update(id, updateData);
-    return this.inventoryReceiptItemRepository.findOne({ where: { id } });
+    return this.inventoryReceiptItemRepository.findOne({ 
+      where: { id },
+      relations: ['product', 'receipt']
+    });
   }
 
   /**
