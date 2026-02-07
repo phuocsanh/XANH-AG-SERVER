@@ -3217,9 +3217,10 @@ export class InventoryService {
     const products = await this.productService.findAllIncludingInactive();
     
     for (const product of products) {
-      // 1. Lấy lịch sử nhập hàng (để tạo các lô - batches)
+      // 1. Lấy lịch sử nhập hàng (kèm thông tin phiếu để lấy cờ is_taxable)
       const receiptItems = await receiptItemRepo.find({ 
         where: { product_id: product.id }, 
+        relations: ['receipt'],
         order: { created_at: 'ASC' } 
       });
 
@@ -3232,10 +3233,33 @@ export class InventoryService {
       if (receiptItems.length === 0 && salesItems.length === 0) continue;
 
       // Cấu trúc các lô hàng để mô phỏng
-      let batches = receiptItems.map(r => ({
-        taxable: Number(r.taxable_quantity || 0),
-        nonTaxable: Math.max(0, Number(r.quantity) - Number(r.taxable_quantity || 0))
-      }));
+      let batches = receiptItems.map(r => {
+        const qty = Number(r.quantity);
+        // Ưu tiên taxable_quantity trong item, nếu = 0 thì check is_taxable của phiếu
+        // (Đây là fallback quan trọng cho các phiếu bị lỗi không lưu taxable_quantity trước đó)
+        let taxable = Number(r.taxable_quantity || 0);
+        if (taxable === 0 && (r.receipt as any)?.is_taxable) {
+          taxable = qty;
+        }
+        return {
+          taxable: taxable,
+          nonTaxable: Math.max(0, qty - taxable)
+        };
+      });
+
+      // TRƯỜNG HỢP ĐẶC BIỆT: Nếu tổng pool thuế vẫn bằng 0 nhưng sản phẩm được đánh dấu "Có hóa đơn"
+      // và hiện đang có tồn thuế thủ công, ta sẽ dùng tồn thuế đó làm dự phòng (fallback)
+      const totalTaxableInBatches = batches.reduce((sum, b) => sum + b.taxable, 0);
+      if (totalTaxableInBatches === 0 && product.has_input_invoice && Number(product.taxable_quantity_stock) > 0) {
+        if (batches.length > 0) {
+          // Bơm số tồn thuế thủ công vào lô hàng đầu tiên (coi như số dư đầu kỳ)
+          const firstBatch = batches[0];
+          const manualTaxStock = Number(product.taxable_quantity_stock);
+          const currentTotal = firstBatch.taxable + firstBatch.nonTaxable;
+          firstBatch.taxable = Math.min(manualTaxStock, currentTotal);
+          firstBatch.nonTaxable = Math.max(0, currentTotal - firstBatch.taxable);
+        }
+      }
 
       // Nếu không có phiếu nhập nhưng có tồn kho (dữ liệu cũ), coi như 1 lô hàng ảo
       if (batches.length === 0 && Number(product.quantity) > 0) {
