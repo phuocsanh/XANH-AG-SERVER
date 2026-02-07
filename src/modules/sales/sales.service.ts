@@ -961,13 +961,13 @@ export class SalesService {
     page: number;
     limit: number;
   }> {
+    this.logger.log(`[searchSalesInvoices] Params: ${JSON.stringify(searchDto)}`);
+
     const queryBuilder =
       this.salesInvoiceRepository.createQueryBuilder('invoice');
 
     // Join các bảng liên quan để lấy tên hiển thị
     queryBuilder
-      .leftJoinAndSelect('invoice.items', 'items') // Thêm join items
-      .leftJoinAndSelect('items.product', 'product') // Thêm join product chi tiết
       .leftJoin('invoice.season', 'season')
       .leftJoin('invoice.rice_crop', 'rice_crop')
       .leftJoin('invoice.customer', 'customer') // Thêm join customer
@@ -1030,9 +1030,6 @@ export class SalesService {
         rice_crop_name: 'rice_crop.field_name',
       }
     );
-
-    // Sắp xếp items trong mỗi hóa đơn theo thứ tự insert
-    queryBuilder.addOrderBy('items.id', 'ASC');
 
     // Thực hiện truy vấn
     const [data, total] = await queryBuilder.getManyAndCount();
