@@ -3286,7 +3286,7 @@ export class InventoryService {
       if (totalTaxableInBatches === 0 && product.has_input_invoice && Number(product.taxable_quantity_stock) > 0) {
         if (batches.length > 0) {
           // Bơm số tồn thuế thủ công vào lô hàng đầu tiên (coi như số dư đầu kỳ)
-          const firstBatch = batches[0];
+          const firstBatch = batches[0]!; // Non-null assertion vì đã check length > 0
           const manualTaxStock = Number(product.taxable_quantity_stock);
           const currentTotal = firstBatch.taxable + firstBatch.nonTaxable;
           firstBatch.taxable = Math.min(manualTaxStock, currentTotal);
