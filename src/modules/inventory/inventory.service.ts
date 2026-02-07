@@ -3284,9 +3284,9 @@ export class InventoryService {
       // và hiện đang có tồn thuế thủ công, ta sẽ dùng tồn thuế đó làm dự phòng (fallback)
       const totalTaxableInBatches = batches.reduce((sum, b) => sum + b.taxable, 0);
       if (totalTaxableInBatches === 0 && product.has_input_invoice && Number(product.taxable_quantity_stock) > 0) {
-        if (batches.length > 0) {
+        const firstBatch = batches[0];
+        if (firstBatch) {
           // Bơm số tồn thuế thủ công vào lô hàng đầu tiên (coi như số dư đầu kỳ)
-          const firstBatch = batches[0];
           const manualTaxStock = Number(product.taxable_quantity_stock);
           const currentTotal = firstBatch.taxable + firstBatch.nonTaxable;
           firstBatch.taxable = Math.min(manualTaxStock, currentTotal);
