@@ -149,4 +149,14 @@ export class CreateProductDto {
   @IsOptional()
   @IsNumber()
   taxable_quantity_stock?: number;
+
+  /** Cho phép bán trên Web Next.js */
+  @IsOptional()
+  @IsBoolean()
+  is_sold_on_web?: boolean;
+
+  /** Hiển thị giá trên Web Next.js */
+  @IsOptional()
+  @IsBoolean()
+  show_price_on_web?: boolean;
 }

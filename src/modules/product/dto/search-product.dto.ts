@@ -21,6 +21,7 @@ export class SearchProductDto extends BaseSearchDto {
   @IsDateString() @IsOptional() created_at?: string;
   @IsDateString() @IsOptional() updated_at?: string;
   @IsOptional() has_input_invoice?: boolean;
+  @IsOptional() is_sold_on_web?: boolean;
 
   // Relations
   @IsString() @IsOptional() unit_name?: string;
