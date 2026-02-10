@@ -41,12 +41,6 @@ export class CreateRiceCropDto {
   @Type(() => Number)
   field_area!: number;
 
-  @ApiProperty({ description: 'Số lượng đất', example: 10 })
-  @IsNotEmpty({ message: 'Số lượng đất không được để trống' })
-  @IsNumber({}, { message: 'Số lượng đất phải là số' })
-  @Min(0, { message: 'Số lượng đất phải lớn hơn hoặc bằng 0' })
-  @Type(() => Number)
-  amount_of_land!: number;
 
   @ApiPropertyOptional({ description: 'ID vùng/lô đất', example: 1 })
   @IsOptional()
@@ -76,6 +70,17 @@ export class CreateRiceCropDto {
   @IsDateString({}, { message: 'Ngày gieo mạ phải là định dạng ngày hợp lệ (YYYY-MM-DD)' })
   sowing_date?: string;
 
+  @ApiPropertyOptional({ description: 'Ngày gieo âm lịch', example: '15/10 (Âm lịch)' })
+  @IsOptional()
+  @IsString({ message: 'Ngày âm lịch phải là chuỗi' })
+  sowing_lunar_date?: string;
+
+  @ApiPropertyOptional({ description: 'Số công đất', example: 10 })
+  @IsOptional()
+  @IsNumber({}, { message: 'Số công đất phải là số' })
+  @Type(() => Number)
+  amount_of_land?: number;
+
   @ApiPropertyOptional({ description: 'Ngày cấy', example: '2024-11-20' })
   @IsOptional()
   @IsDateString({}, { message: 'Ngày cấy phải là định dạng ngày hợp lệ (YYYY-MM-DD)' })
@@ -85,6 +90,11 @@ export class CreateRiceCropDto {
   @IsOptional()
   @IsDateString({}, { message: 'Ngày dự kiến thu hoạch phải là định dạng ngày hợp lệ (YYYY-MM-DD)' })
   expected_harvest_date?: string;
+
+  @ApiPropertyOptional({ description: 'Ngày thu hoạch dự kiến âm lịch', example: '20/01 (Âm lịch)' })
+  @IsOptional()
+  @IsString({ message: 'Ngày âm lịch phải là chuỗi' })
+  expected_harvest_lunar_date?: string;
 
   @ApiPropertyOptional({ description: 'Ghi chú' })
   @IsOptional()
@@ -109,12 +119,6 @@ export class UpdateRiceCropDto {
   @Type(() => Number)
   field_area?: number;
 
-  @ApiPropertyOptional({ description: 'Số lượng đất', example: 10 })
-  @IsOptional()
-  @IsNumber({}, { message: 'Số lượng đất phải là số' })
-  @Min(0, { message: 'Số lượng đất phải lớn hơn hoặc bằng 0' })
-  @Type(() => Number)
-  amount_of_land?: number;
 
   @ApiPropertyOptional({ description: 'ID vùng/lô đất', example: 1 })
   @IsOptional()
@@ -144,6 +148,17 @@ export class UpdateRiceCropDto {
   @IsDateString({}, { message: 'Ngày gieo mạ phải là định dạng ngày hợp lệ (YYYY-MM-DD)' })
   sowing_date?: string;
 
+  @ApiPropertyOptional({ description: 'Ngày gieo âm lịch', example: '15/10 (Âm lịch)' })
+  @IsOptional()
+  @IsString({ message: 'Ngày âm lịch phải là chuỗi' })
+  sowing_lunar_date?: string;
+
+  @ApiPropertyOptional({ description: 'Số công đất', example: 10 })
+  @IsOptional()
+  @IsNumber({}, { message: 'Số công đất phải là số' })
+  @Type(() => Number)
+  amount_of_land?: number;
+
   @ApiPropertyOptional({ description: 'Ngày cấy', example: '2024-11-20' })
   @IsOptional()
   @IsDateString({}, { message: 'Ngày cấy phải là định dạng ngày hợp lệ (YYYY-MM-DD)' })
@@ -153,6 +168,11 @@ export class UpdateRiceCropDto {
   @IsOptional()
   @IsDateString({}, { message: 'Ngày dự kiến thu hoạch phải là định dạng ngày hợp lệ (YYYY-MM-DD)' })
   expected_harvest_date?: string;
+
+  @ApiPropertyOptional({ description: 'Ngày thu hoạch dự kiến âm lịch', example: '20/01 (Âm lịch)' })
+  @IsOptional()
+  @IsString({ message: 'Ngày âm lịch phải là chuỗi' })
+  expected_harvest_lunar_date?: string;
 
   @ApiPropertyOptional({ description: 'Ngày thu hoạch thực tế', example: '2025-02-18' })
   @IsOptional()

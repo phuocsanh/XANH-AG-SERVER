@@ -75,10 +75,6 @@ export class RiceCrop {
   @Column({ name: 'field_area', type: 'decimal', precision: 10, scale: 2 })
   field_area!: number;
 
-  /** Số lượng đất (amount_of_land) thay cho large_labor_days */
-  @ApiProperty({ description: 'Số lượng đất', example: 10 })
-  @Column({ name: 'amount_of_land', type: 'decimal', precision: 10, scale: 2 })
-  amount_of_land!: number;
 
   /** ID vùng/lô đất */
   @ApiProperty({ description: 'ID vùng/lô đất', example: 1, required: false })
@@ -110,6 +106,16 @@ export class RiceCrop {
   @Column({ name: 'sowing_date', type: 'date', nullable: true })
   sowing_date?: Date;
 
+  /** Ngày gieo âm lịch */
+  @ApiProperty({ description: 'Ngày gieo âm lịch', example: '15/10 (Âm lịch)', required: false })
+  @Column({ name: 'sowing_lunar_date', length: 50, nullable: true })
+  sowing_lunar_date?: string;
+
+  /** Số công đất */
+  @ApiProperty({ description: 'Số công đất', example: 10, required: false })
+  @Column({ name: 'amount_of_land', type: 'decimal', precision: 10, scale: 2, nullable: true })
+  amount_of_land?: number;
+
   /** Ngày cấy */
   @ApiProperty({ description: 'Ngày cấy', example: '2024-11-20', required: false })
   @Column({ name: 'transplanting_date', type: 'date', nullable: true })
@@ -119,6 +125,11 @@ export class RiceCrop {
   @ApiProperty({ description: 'Ngày dự kiến thu hoạch', example: '2025-02-15', required: false })
   @Column({ name: 'expected_harvest_date', type: 'date', nullable: true })
   expected_harvest_date?: Date;
+
+  /** Ngày thu hoạch dự kiến âm lịch */
+  @ApiProperty({ description: 'Ngày thu hoạch dự kiến âm lịch', example: '20/01 (Âm lịch)', required: false })
+  @Column({ name: 'expected_harvest_lunar_date', length: 50, nullable: true })
+  expected_harvest_lunar_date?: string;
 
   /** Ngày thu hoạch thực tế */
   @ApiProperty({ description: 'Ngày thu hoạch thực tế', example: '2025-02-18', required: false })
