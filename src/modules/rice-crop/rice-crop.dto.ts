@@ -86,6 +86,11 @@ export class CreateRiceCropDto {
   @IsDateString({}, { message: 'Ngày cấy phải là định dạng ngày hợp lệ (YYYY-MM-DD)' })
   transplanting_date?: string;
 
+  @ApiPropertyOptional({ description: 'Ngày cấy âm lịch', example: '10/11 (Âm lịch)' })
+  @IsOptional()
+  @IsString({ message: 'Ngày âm lịch phải là chuỗi' })
+  transplanting_lunar_date?: string;
+
   @ApiPropertyOptional({ description: 'Ngày dự kiến thu hoạch', example: '2025-02-15' })
   @IsOptional()
   @IsDateString({}, { message: 'Ngày dự kiến thu hoạch phải là định dạng ngày hợp lệ (YYYY-MM-DD)' })
@@ -163,6 +168,11 @@ export class UpdateRiceCropDto {
   @IsOptional()
   @IsDateString({}, { message: 'Ngày cấy phải là định dạng ngày hợp lệ (YYYY-MM-DD)' })
   transplanting_date?: string;
+
+  @ApiPropertyOptional({ description: 'Ngày cấy âm lịch', example: '10/11 (Âm lịch)' })
+  @IsOptional()
+  @IsString({ message: 'Ngày âm lịch phải là chuỗi' })
+  transplanting_lunar_date?: string;
 
   @ApiPropertyOptional({ description: 'Ngày dự kiến thu hoạch', example: '2025-02-15' })
   @IsOptional()

@@ -121,6 +121,11 @@ export class RiceCrop {
   @Column({ name: 'transplanting_date', type: 'date', nullable: true })
   transplanting_date?: Date;
 
+  /** Ngày cấy âm lịch */
+  @ApiProperty({ description: 'Ngày cấy âm lịch', example: '10/11 (Âm lịch)', required: false })
+  @Column({ name: 'transplanting_lunar_date', length: 50, nullable: true })
+  transplanting_lunar_date?: string;
+
   /** Ngày dự kiến thu hoạch */
   @ApiProperty({ description: 'Ngày dự kiến thu hoạch', example: '2025-02-15', required: false })
   @Column({ name: 'expected_harvest_date', type: 'date', nullable: true })
