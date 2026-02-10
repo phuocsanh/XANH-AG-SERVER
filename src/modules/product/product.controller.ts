@@ -10,6 +10,7 @@ import {
   Query,
   NotFoundException,
   UseGuards,
+  HttpCode,
 } from '@nestjs/common';
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -171,8 +172,7 @@ export class ProductController {
    * @returns Danh sách sản phẩm phù hợp
    */
   @Post('search')
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @RequirePermissions('product:read')
+  @HttpCode(200)
   async searchAdvanced(@Body() searchDto: SearchProductDto): Promise<any> {
     return this.productService.searchProductsAdvanced(searchDto);
   }
