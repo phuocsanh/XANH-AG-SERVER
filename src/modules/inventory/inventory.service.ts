@@ -2016,12 +2016,28 @@ export class InventoryService {
     // Thực hiện update
     await this.inventoryReceiptItemRepository.update(id, updateData);
     
-    // Nếu có thay đổi taxable_quantity, đồng bộ lại tồn kho thuế của sản phẩm
-    if (updateData.taxable_quantity !== undefined) {
-      const updatedItem = await this.inventoryReceiptItemRepository.findOne({ where: { id } });
-      if (updatedItem) {
-        // Gọi hàm đồng bộ cho riêng sản phẩm này (sẽ viết thêm bên dưới)
+    // Lấy item sau khi update để có product_id chính xác
+    const updatedItem = await this.inventoryReceiptItemRepository.findOne({ where: { id } });
+    
+    if (updatedItem) {
+      // 1. Đồng bộ tồn kho thuế (như cũ)
+      if (updateData.taxable_quantity !== undefined) {
         await this.syncTaxableDataForProduct(updatedItem.product_id);
+      }
+      
+      // 2. TỰ ĐỘNG CẬP NHẬT LẠI GIÁ VỐN TRUNG BÌNH (WAC)
+      // Logic này cực kỳ quan trọng để sửa lỗi "kẹt" giá vốn cũ hoặc nhầm sản phẩm
+      try {
+        const wacResult = await this.recalculateWeightedAverageCost(updatedItem.product_id);
+        
+        // Cập nhật con số thực tế vào bảng Product
+        await this.productService.update(updatedItem.product_id, {
+          average_cost_price: wacResult.newAverageCost.toFixed(2)
+        });
+        
+        this.logger.log(`✅ Đã tính lại giá vốn cho SP #${updatedItem.product_id}: ${wacResult.newAverageCost}`);
+      } catch (error) {
+        this.logger.error(`Lỗi khi tính lại giá vốn cho SP #${updatedItem.product_id}:`, error);
       }
     }
 
