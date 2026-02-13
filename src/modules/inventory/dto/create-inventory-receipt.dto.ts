@@ -6,6 +6,7 @@ import {
   ValidateNested,
   IsArray,
   IsIn,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ReceiptStatus } from '../enums/receipt-status.enum';
@@ -113,4 +114,8 @@ export class CreateInventoryReceiptDto {
   @IsOptional()
   @IsString()
   payment_due_date?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  is_taxable?: boolean;
 }

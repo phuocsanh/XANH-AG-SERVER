@@ -1201,6 +1201,7 @@ export class InventoryService {
         supplier_id: createInventoryReceiptDto.supplier_id,
         total_amount: createInventoryReceiptDto.total_amount,
         status: createInventoryReceiptDto.status,
+        is_taxable: createInventoryReceiptDto.is_taxable || false,
         created_by: userId, // Lấy từ JWT token
         updated_by: userId, // Người tạo cũng là người cập nhật đầu tiên
       };
@@ -1416,6 +1417,17 @@ export class InventoryService {
         // Thêm manufacturing_date nếu có
         if (item.manufacturing_date) {
           itemData.manufacturing_date = item.manufacturing_date;
+        }
+
+        // Xử lý taxable_quantity: Ưu tiên giá trị từ item, nếu không có thì dựa vào is_taxable của phiếu
+        if (item.taxable_quantity !== undefined && item.taxable_quantity !== null) {
+          itemData.taxable_quantity = item.taxable_quantity;
+        } else if (receiptData.is_taxable === true) {
+          // Nếu phiếu được đánh dấu "Tất cả là hàng tính thuế", thì taxable_quantity = quantity
+          itemData.taxable_quantity = item.quantity;
+        } else {
+          // Mặc định là 0 nếu không có thông tin
+          itemData.taxable_quantity = 0;
         }
 
         const itemEntity = queryRunner.manager.create(InventoryReceiptItem, itemData);
@@ -1719,6 +1731,8 @@ export class InventoryService {
       entityUpdateData.shared_shipping_cost = Math.round(updateData.shared_shipping_cost);
     if (updateData.shipping_allocation_method !== undefined)
       entityUpdateData.shipping_allocation_method = updateData.shipping_allocation_method;
+    if (updateData.is_taxable !== undefined)
+      entityUpdateData.is_taxable = updateData.is_taxable;
 
     await this.inventoryReceiptRepository.update(id, entityUpdateData);
     return this.findReceiptById(id);
@@ -1802,7 +1816,11 @@ export class InventoryService {
             : Number(item.unit_cost);
 
         // Lấy số lượng khai thuế từ item (nếu không có thì mặc định = 0)
-        const taxableQty = item.taxable_quantity || 0;
+        // Fallback: Nếu item chưa có taxable_quantity nhưng phiếu là is_taxable thì lấy full quantity
+        let taxableQty = Number(item.taxable_quantity || 0);
+        if (taxableQty === 0 && receipt.is_taxable) {
+          taxableQty = item.quantity;
+        }
 
         const batch = await this.processStockIn(
           item.product_id,
@@ -1997,6 +2015,16 @@ export class InventoryService {
 
     // Thực hiện update
     await this.inventoryReceiptItemRepository.update(id, updateData);
+    
+    // Nếu có thay đổi taxable_quantity, đồng bộ lại tồn kho thuế của sản phẩm
+    if (updateData.taxable_quantity !== undefined) {
+      const updatedItem = await this.inventoryReceiptItemRepository.findOne({ where: { id } });
+      if (updatedItem) {
+        // Gọi hàm đồng bộ cho riêng sản phẩm này (sẽ viết thêm bên dưới)
+        await this.syncTaxableDataForProduct(updatedItem.product_id);
+      }
+    }
+
     return this.inventoryReceiptItemRepository.findOne({ 
       where: { id },
       relations: ['product', 'receipt']
@@ -3240,127 +3268,128 @@ export class InventoryService {
   async syncTaxableData(): Promise<{ productsUpdated: number; salesItemsUpdated: number }> {
     this.logger.log('🚀 Bắt đầu chi tiết đồng bộ dữ liệu tồn kho thuế (Refined)...');
     
-    // 1. Đồng bộ Sản phẩm & Hóa đơn chi tiết theo logic "Bể thuế"
-    const receiptItemRepo = this.inventoryReceiptRepository.manager.getRepository(InventoryReceiptItem);
-    const salesInvoiceItemRepo = this.inventoryReceiptRepository.manager.getRepository(SalesInvoiceItem);
-    
     let productsUpdated = 0;
     let salesItemsUpdated = 0;
 
     const products = await this.productService.findAllIncludingInactive();
     
     for (const product of products) {
-      // 1. Lấy lịch sử nhập hàng (kèm thông tin phiếu để lấy cờ is_taxable)
-      const receiptItems = await receiptItemRepo.find({ 
-        where: { product_id: product.id }, 
-        relations: ['receipt'],
-        order: { created_at: 'ASC' } 
-      });
-
-      // 2. Lấy lịch sử bán hàng (để mô phỏng xuất kho)
-      const salesItems = await salesInvoiceItemRepo.find({ 
-        where: { product_id: product.id }, 
-        order: { created_at: 'ASC' } 
-      });
-
-      if (receiptItems.length === 0 && salesItems.length === 0) continue;
-
-      // Cấu trúc các lô hàng để mô phỏng
-      let batches = receiptItems.map(r => {
-        const qty = Number(r.quantity);
-        // Ưu tiên taxable_quantity trong item, nếu = 0 thì check is_taxable của phiếu
-        // (Đây là fallback quan trọng cho các phiếu bị lỗi không lưu taxable_quantity trước đó)
-        let taxable = Number(r.taxable_quantity || 0);
-        if (taxable === 0 && (r.receipt as any)?.is_taxable) {
-          taxable = qty;
-        }
-        return {
-          taxable: taxable,
-          nonTaxable: Math.max(0, qty - taxable)
-        };
-      });
-
-      // TRƯỜNG HỢP ĐẶC BIỆT: Nếu tổng pool thuế vẫn bằng 0 nhưng sản phẩm được đánh dấu "Có hóa đơn"
-      // và hiện đang có tồn thuế thủ công, ta sẽ dùng tồn thuế đó làm dự phòng (fallback)
-      const totalTaxableInBatches = batches.reduce((sum, b) => sum + b.taxable, 0);
-      if (totalTaxableInBatches === 0 && product.has_input_invoice && Number(product.taxable_quantity_stock) > 0) {
-        const firstBatch = batches[0];
-        if (firstBatch) {
-          // Bơm số tồn thuế thủ công vào lô hàng đầu tiên (coi như số dư đầu kỳ)
-          const manualTaxStock = Number(product.taxable_quantity_stock);
-          const currentTotal = firstBatch.taxable + firstBatch.nonTaxable;
-          firstBatch.taxable = Math.min(manualTaxStock, currentTotal);
-          firstBatch.nonTaxable = Math.max(0, currentTotal - firstBatch.taxable);
-        }
-      }
-
-      // Nếu không có phiếu nhập nhưng có tồn kho (dữ liệu cũ), coi như 1 lô hàng ảo
-      if (batches.length === 0 && Number(product.quantity) > 0) {
-        const taxableStock = Number(product.taxable_quantity_stock || 0);
-        batches.push({
-          taxable: taxableStock,
-          nonTaxable: Math.max(0, Number(product.quantity) - taxableStock)
-        });
-      }
-
-      let itemsUpdatedForProduct = 0;
-
-      // 3. Mô phỏng quá trình bán hàng theo FIFO từng lô
-      for (const item of salesItems) {
-        let remainingToSell = Number(item.quantity);
-        let calculatedTaxableQty = 0;
-
-        while (remainingToSell > 0 && batches.length > 0) {
-          const currentBatch = batches[0];
-          if (!currentBatch) break; // Bảo vệ TypeScript
-
-          const batchTotal = currentBatch.taxable + currentBatch.nonTaxable;
-
-          if (batchTotal <= 0) {
-            batches.shift();
-            continue;
-          }
-
-          const canTakeFromThisBatch = Math.min(remainingToSell, batchTotal);
-          
-          // Trong lô này, ưu tiên trừ vào phần không hóa đơn của nó trước
-          const takeNonTaxable = Math.min(canTakeFromThisBatch, currentBatch.nonTaxable);
-          const takeTaxable = canTakeFromThisBatch - takeNonTaxable;
-
-          calculatedTaxableQty += takeTaxable;
-          
-          // Cập nhật lô hàng
-          currentBatch.nonTaxable -= takeNonTaxable;
-          currentBatch.taxable -= takeTaxable;
-          
-          remainingToSell -= canTakeFromThisBatch;
-
-          if (currentBatch.taxable + currentBatch.nonTaxable <= 0) {
-            batches.shift();
-          }
-        }
-
-        // Cập nhật item nếu có thay đổi
-        if (Number(item.taxable_quantity) !== calculatedTaxableQty) {
-          await salesInvoiceItemRepo.update(item.id, { taxable_quantity: calculatedTaxableQty });
-          itemsUpdatedForProduct++;
-        }
-      }
-
-      // 4. Tính toán Bể thuế còn lại của sản phẩm
-      const hasTaxPrice = Number(product.tax_selling_price || 0) > 0;
-      const remainingTaxableInBatches = batches.reduce((sum, b) => sum + b.taxable, 0);
-      const finalTaxableStock = (product.has_input_invoice && hasTaxPrice) ? Math.max(0, remainingTaxableInBatches) : 0;
-
-      if (Number(product.taxable_quantity_stock) !== finalTaxableStock) {
-        await this.productService.update(product.id, { taxable_quantity_stock: finalTaxableStock });
-        productsUpdated++;
-      }
-
-      salesItemsUpdated += itemsUpdatedForProduct;
+      const result = await this.syncTaxableDataForProduct(product.id);
+      if (result.productUpdated) productsUpdated++;
+      salesItemsUpdated += result.salesItemsUpdated;
     }
     
     this.logger.log(`✅ Hoàn tất đồng bộ theo logic Bể thuế: ${productsUpdated} sản phẩm, ${salesItemsUpdated} item hóa đơn.`);
     return { productsUpdated, salesItemsUpdated };
+  }
+
+  /**
+   * Đồng bộ dữ liệu tồn kho thuế cho một sản phẩm cụ thể
+   * @param productId - ID sản phẩm
+   */
+  async syncTaxableDataForProduct(productId: number): Promise<{ productUpdated: boolean; salesItemsUpdated: number }> {
+    const receiptItemRepo = this.inventoryReceiptRepository.manager.getRepository(InventoryReceiptItem);
+    const salesInvoiceItemRepo = this.inventoryReceiptRepository.manager.getRepository(SalesInvoiceItem);
+    
+    const product = await this.productService.findOne(productId);
+    if (!product) return { productUpdated: false, salesItemsUpdated: 0 };
+
+    // 1. Lấy lịch sử nhập hàng (kèm thông tin phiếu để lấy cờ is_taxable)
+    const receiptItems = await receiptItemRepo.find({ 
+      where: { product_id: product.id }, 
+      relations: ['receipt'],
+      order: { created_at: 'ASC' } 
+    });
+
+    // 2. Lấy lịch sử bán hàng (để mô phỏng xuất kho)
+    const salesItems = await salesInvoiceItemRepo.find({ 
+      where: { product_id: product.id }, 
+      order: { created_at: 'ASC' } 
+    });
+
+    if (receiptItems.length === 0 && salesItems.length === 0) return { productUpdated: false, salesItemsUpdated: 0 };
+
+    // Cấu trúc các lô hàng để mô phỏng
+    let batches = receiptItems.map(r => {
+      const qty = Number(r.quantity);
+      let taxable = Number(r.taxable_quantity || 0);
+      if (taxable === 0 && (r.receipt as any)?.is_taxable) {
+        taxable = qty;
+      }
+      return {
+        taxable: taxable,
+        nonTaxable: Math.max(0, qty - taxable)
+      };
+    });
+
+    // TRƯỜNG HỢP ĐẶC BIỆT: Fallback cho tồn thuế thủ công
+    const totalTaxableInBatches = batches.reduce((sum, b) => sum + b.taxable, 0);
+    if (totalTaxableInBatches === 0 && product.has_input_invoice && Number(product.taxable_quantity_stock) > 0) {
+      const firstBatch = batches[0];
+      if (firstBatch) {
+        const manualTaxStock = Number(product.taxable_quantity_stock);
+        const currentTotal = firstBatch.taxable + firstBatch.nonTaxable;
+        firstBatch.taxable = Math.min(manualTaxStock, currentTotal);
+        firstBatch.nonTaxable = Math.max(0, currentTotal - firstBatch.taxable);
+      }
+    }
+
+    if (batches.length === 0 && Number(product.quantity) > 0) {
+      const taxableStock = Number(product.taxable_quantity_stock || 0);
+      batches.push({
+        taxable: taxableStock,
+        nonTaxable: Math.max(0, Number(product.quantity) - taxableStock)
+      });
+    }
+
+    let salesItemsUpdated = 0;
+
+    // 3. Mô phỏng quá trình bán hàng theo FIFO từng lô
+    for (const item of salesItems) {
+      let remainingToSell = Number(item.quantity);
+      let calculatedTaxableQty = 0;
+
+      while (remainingToSell > 0 && batches.length > 0) {
+        const currentBatch = batches[0];
+        if (!currentBatch) break;
+
+        const batchTotal = currentBatch.taxable + currentBatch.nonTaxable;
+        if (batchTotal <= 0) {
+          batches.shift();
+          continue;
+        }
+
+        const canTakeFromThisBatch = Math.min(remainingToSell, batchTotal);
+        const takeNonTaxable = Math.min(canTakeFromThisBatch, currentBatch.nonTaxable);
+        const takeTaxable = canTakeFromThisBatch - takeNonTaxable;
+
+        calculatedTaxableQty += takeTaxable;
+        currentBatch.nonTaxable -= takeNonTaxable;
+        currentBatch.taxable -= takeTaxable;
+        remainingToSell -= canTakeFromThisBatch;
+
+        if (currentBatch.taxable + currentBatch.nonTaxable <= 0) {
+          batches.shift();
+        }
+      }
+
+      if (Number(item.taxable_quantity) !== calculatedTaxableQty) {
+        await salesInvoiceItemRepo.update(item.id, { taxable_quantity: calculatedTaxableQty });
+        salesItemsUpdated++;
+      }
+    }
+
+    // 4. Tính toán Bể thuế còn lại
+    const hasTaxPrice = Number(product.tax_selling_price || 0) > 0;
+    const remainingTaxableInBatches = batches.reduce((sum, b) => sum + b.taxable, 0);
+    const finalTaxableStock = (product.has_input_invoice && hasTaxPrice) ? Math.max(0, remainingTaxableInBatches) : 0;
+
+    let productUpdated = false;
+    if (Number(product.taxable_quantity_stock) !== finalTaxableStock) {
+      await this.productService.update(product.id, { taxable_quantity_stock: finalTaxableStock });
+      productUpdated = true;
+    }
+
+    return { productUpdated, salesItemsUpdated };
   }
 }
