@@ -13,6 +13,7 @@ import { Unit } from './unit.entity';
 import { BaseStatus } from './base-status.enum';
 import { Symbol } from './symbols.entity';
 import { ProductUnitConversion } from './product-unit-conversions.entity';
+import { ProductComponent } from './product-components.entity';
 
 /**
  * Entity biểu diễn thông tin sản phẩm trong hệ thống
@@ -196,4 +197,8 @@ export class Product {
   /** Danh sách các đơn vị tính và quy đổi của sản phẩm */
   @OneToMany(() => ProductUnitConversion, (conversion) => conversion.product)
   unit_conversions!: ProductUnitConversion[];
+
+  /** Danh sách các thành phần cấu tạo (BOM) nếu là sản phẩm phối trộn */
+  @OneToMany(() => ProductComponent, (component) => component.product)
+  components!: ProductComponent[];
 }

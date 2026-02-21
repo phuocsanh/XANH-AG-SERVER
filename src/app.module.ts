@@ -56,6 +56,7 @@ import { ExpiryAlertModule } from './modules/expiry-alert/expiry-alert.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { SeedController } from './seed.controller';
 import { ProductUnitConversionModule } from './modules/product-unit-conversion/product-unit-conversion.module';
+import { ProductMixtureModule } from './modules/product-mixture/product-mixture.module';
 
 
 /**
@@ -147,6 +148,7 @@ import { ProductUnitConversionModule } from './modules/product-unit-conversion/p
     ExpiryAlertModule, // Module quản lý cảnh báo hạn dùng sản phẩm
     NotificationModule, // Module quản lý thông báo (FCM)
     ProductUnitConversionModule, // Module quản lý quy đổi đơn vị tính sản phẩm (1 BAO = 50 KG)
+    ProductMixtureModule, // Module quản lý phối trộn sản phẩm
   ],
   controllers: [SeedController], // Seed controller để seed RBAC qua API
   providers: [

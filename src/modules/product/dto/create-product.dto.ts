@@ -8,6 +8,7 @@ import {
 } from 'class-validator';
 import { BaseStatus } from '../../../entities/base-status.enum';
 import { CreateProductUnitConversionDto } from '../../product-unit-conversion/dto/create-product-unit-conversion.dto';
+import { CreateProductComponentDto } from './create-product-component.dto';
 import { Type } from 'class-transformer';
 import { ValidateNested } from 'class-validator';
 
@@ -168,4 +169,11 @@ export class CreateProductDto {
   @ValidateNested({ each: true })
   @Type(() => CreateProductUnitConversionDto)
   unit_conversions?: CreateProductUnitConversionDto[];
+
+  /** Danh sách thành phần cấu tạo (BOM) (tùy chọn) */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateProductComponentDto)
+  components?: CreateProductComponentDto[];
 }

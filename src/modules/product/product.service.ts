@@ -15,6 +15,7 @@ import { ImageCleanupHelper } from '../../common/helpers/image-cleanup.helper';
 import { UploadService } from '../upload/upload.service';
 import { QueryHelper } from '../../common/helpers/query-helper';
 import { ProductUnitConversionService } from '../product-unit-conversion/product-unit-conversion.service';
+import { ProductComponentService } from '../product-component/product-component.service';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến sản phẩm
@@ -39,6 +40,7 @@ export class ProductService extends BaseSearchService<Product> {
     @Inject(UploadService)
     private uploadService: UploadService,
     private unitConversionService: ProductUnitConversionService,
+    private productComponentService: ProductComponentService,
   ) {
     super();
   }
@@ -136,10 +138,16 @@ export class ProductService extends BaseSearchService<Product> {
       }
       
       const savedProduct = await this.productRepository.save(product);
+      const { components } = createProductDto;
 
       // ✅ Lưu danh sách quy đổi đơn vị tính nếu có
       if (unit_conversions && unit_conversions.length > 0) {
         await this.unitConversionService.saveAllForProduct(savedProduct.id, unit_conversions);
+      }
+
+      // ✅ Lưu danh sách thành phần (BOM) nếu có
+      if (components && components.length > 0) {
+        await this.productComponentService.saveAllForProduct(savedProduct.id, components);
       }
 
       return savedProduct;
@@ -194,7 +202,7 @@ export class ProductService extends BaseSearchService<Product> {
       }
 
       // Lưu sản phẩm
-      const { unit_conversions, ...productData } = createProductDto;
+      const { unit_conversions, components, ...productData } = createProductDto;
       const productToSave = new Product();
       Object.assign(productToSave, productData);
       
@@ -209,6 +217,11 @@ export class ProductService extends BaseSearchService<Product> {
       // ✅ Lưu danh sách quy đổi đơn vị tính nếu có
       if (unit_conversions && unit_conversions.length > 0) {
         await this.unitConversionService.saveAllForProduct(savedProduct.id, unit_conversions);
+      }
+
+      // ✅ Lưu danh sách thành phần (BOM) nếu có
+      if (components && components.length > 0) {
+        await this.productComponentService.saveAllForProduct(savedProduct.id, components);
       }
 
       // Cập nhật lại giá bán đề xuất sau khi lưu
@@ -275,6 +288,9 @@ export class ProductService extends BaseSearchService<Product> {
       .leftJoinAndSelect('product.symbol', 'symbol')
       .leftJoinAndSelect('product.unit_conversions', 'unit_conversions')
       .leftJoinAndSelect('unit_conversions.unit', 'conv_unit')
+      .leftJoinAndSelect('product.components', 'components')
+      .leftJoinAndSelect('components.componentProduct', 'componentProduct')
+      .leftJoinAndSelect('components.unit', 'comp_unit')
       .where('product.id = :id', { id })
       .andWhere('product.deleted_at IS NULL')
       .getOne();
@@ -338,12 +354,17 @@ export class ProductService extends BaseSearchService<Product> {
 
       // Cập nhật sản phẩm
       const repo = queryRunner ? queryRunner.manager.getRepository(Product) : this.productRepository;
-      const { unit_conversions, ...productUpdateData } = updateProductDto;
+      const { unit_conversions, components, ...productUpdateData } = updateProductDto;
       await repo.update(id, productUpdateData);
 
       // ✅ Cập nhật danh sách quy đổi đơn vị tính nếu có
       if (unit_conversions) {
         await this.unitConversionService.saveAllForProduct(id, unit_conversions, queryRunner);
+      }
+
+      // ✅ Cập nhật danh sách thành phần (BOM) nếu có
+      if (components) {
+        await this.productComponentService.saveAllForProduct(id, components, queryRunner);
       }
 
       // Xử lý xóa ảnh cũ nếu có thay đổi

@@ -10,6 +10,7 @@ import { ProductTypeModule } from '../product-type/product-type.module';
 import { OperatingCostModule } from '../operating-cost/operating-cost.module';
 import { UploadModule } from '../upload/upload.module';
 import { ProductUnitConversionModule } from '../product-unit-conversion/product-unit-conversion.module';
+import { ProductComponentModule } from '../product-component/product-component.module';
 
 /**
  * ProductModule - Module quản lý sản phẩm
@@ -39,6 +40,8 @@ import { ProductUnitConversionModule } from '../product-unit-conversion/product-
     UploadModule,
     // Import ProductUnitConversionModule để quản lý quy đổi đơn vị
     ProductUnitConversionModule,
+    // Import ProductComponentModule để quản lý thành phần phối trộn
+    ProductComponentModule,
   ],
   controllers: [
     ProductController, // Controller xử lý các request liên quan đến sản phẩm
