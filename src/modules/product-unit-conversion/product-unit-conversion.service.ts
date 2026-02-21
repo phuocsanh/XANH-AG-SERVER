@@ -104,6 +104,10 @@ export class ProductUnitConversionService {
    * @param dto - Dữ liệu tạo mới
    */
   async create(dto: CreateProductUnitConversionDto): Promise<ProductUnitConversion> {
+    if (!dto.product_id) {
+      throw new BadRequestException('ID sản phẩm là bắt buộc.');
+    }
+
     // Kiểm tra trùng lặp (cùng product + unit)
     const existing = await this.conversionRepository.findOne({
       where: { product_id: dto.product_id, unit_id: dto.unit_id },
