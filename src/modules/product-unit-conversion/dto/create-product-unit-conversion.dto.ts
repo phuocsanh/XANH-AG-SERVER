@@ -11,9 +11,10 @@ import {
  * Ví dụ: Phân NPK - 1 BAO = 50 KG
  */
 export class CreateProductUnitConversionDto {
-  /** ID sản phẩm (bắt buộc) */
+  /** ID sản phẩm (tùy chọn khi tạo mới sản phẩm cùng lúc) */
   @IsNumber()
-  product_id!: number;
+  @IsOptional()
+  product_id?: number;
 
   /** ID đơn vị tính (bắt buộc) */
   @IsNumber()
