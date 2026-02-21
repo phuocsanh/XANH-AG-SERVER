@@ -54,6 +54,29 @@ export class CreateInventoryReceiptItemDto {
   @IsOptional()
   @IsNumber()
   taxable_quantity?: number;
+
+  // ===== QUY ĐỔI ĐƠN VỊ TÍNH =====
+
+  /** ID đơn vị nhập kho (ví dụ: BAO) - để hiển thị trên phiếu */
+  @IsOptional()
+  @IsNumber()
+  unit_id?: number;
+
+  /**
+   * Hệ số quy đổi về đơn vị cơ sở. Mặc định = 1.
+   * Ví dụ: nhập BAO (50kg) thì conversion_factor = 50.
+   */
+  @IsOptional()
+  @IsNumber()
+  conversion_factor?: number;
+
+  /**
+   * Số lượng quy về đơn vị cơ sở (để nhập kho).
+   * Nếu không gửi, backend tự tính: base_quantity = quantity × conversion_factor.
+   */
+  @IsOptional()
+  @IsNumber()
+  base_quantity?: number;
 }
 
 export class CreateInventoryReceiptDto {

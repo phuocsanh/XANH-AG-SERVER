@@ -55,6 +55,7 @@ import { FarmServiceCostModule } from './modules/farm-service-cost/farm-service-
 import { ExpiryAlertModule } from './modules/expiry-alert/expiry-alert.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { SeedController } from './seed.controller';
+import { ProductUnitConversionModule } from './modules/product-unit-conversion/product-unit-conversion.module';
 
 
 /**
@@ -145,6 +146,7 @@ import { SeedController } from './seed.controller';
     FarmServiceCostModule, // Module quản lý chi phí dịch vụ/quà tặng cho nông dân
     ExpiryAlertModule, // Module quản lý cảnh báo hạn dùng sản phẩm
     NotificationModule, // Module quản lý thông báo (FCM)
+    ProductUnitConversionModule, // Module quản lý quy đổi đơn vị tính sản phẩm (1 BAO = 50 KG)
   ],
   controllers: [SeedController], // Seed controller để seed RBAC qua API
   providers: [

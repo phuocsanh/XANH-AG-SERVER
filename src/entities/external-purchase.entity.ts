@@ -84,6 +84,9 @@ export class ExternalPurchaseItem {
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   quantity!: number;
 
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  unit?: string;
+
   @Column({ type: 'decimal', precision: 15, scale: 2 })
   unit_price!: number;
 

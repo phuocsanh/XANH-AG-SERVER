@@ -9,6 +9,7 @@ import { UnitModule } from '../unit/unit.module';
 import { ProductTypeModule } from '../product-type/product-type.module';
 import { OperatingCostModule } from '../operating-cost/operating-cost.module';
 import { UploadModule } from '../upload/upload.module';
+import { ProductUnitConversionModule } from '../product-unit-conversion/product-unit-conversion.module';
 
 /**
  * ProductModule - Module quản lý sản phẩm
@@ -36,6 +37,8 @@ import { UploadModule } from '../upload/upload.module';
     OperatingCostModule,
     // Import UploadModule để sử dụng UploadService (xóa ảnh cũ)
     UploadModule,
+    // Import ProductUnitConversionModule để quản lý quy đổi đơn vị
+    ProductUnitConversionModule,
   ],
   controllers: [
     ProductController, // Controller xử lý các request liên quan đến sản phẩm

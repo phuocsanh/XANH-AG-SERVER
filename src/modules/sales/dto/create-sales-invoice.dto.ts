@@ -44,6 +44,29 @@ export class CreateSalesInvoiceItemDto {
   @IsString()
   @IsOptional()
   tax_selling_price?: string;
+
+  // ===== QUY ĐỔI ĐƠN VỊ TÍNH =====
+
+  /** ID đơn vị bán hàng (ví dụ: BAO, KG) - để in hóa đơn đúng đơn vị */
+  @IsNumber()
+  @IsOptional()
+  sale_unit_id?: number;
+
+  /**
+   * Hệ số quy đổi về đơn vị cơ sở tại thời điểm bán (snapshot).
+   * Ví dụ: bán BAO (50kg) thì conversion_factor = 50. Mặc định = 1.
+   */
+  @IsNumber()
+  @IsOptional()
+  conversion_factor?: number;
+
+  /**
+   * Số lượng thực tế xuất kho (quy về đơn vị cơ sở).
+   * Nếu không gửi, backend tự tính: base_quantity = quantity × conversion_factor.
+   */
+  @IsNumber()
+  @IsOptional()
+  base_quantity?: number;
 }
 
 /**

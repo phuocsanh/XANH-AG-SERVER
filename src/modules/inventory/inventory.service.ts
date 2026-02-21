@@ -1402,6 +1402,12 @@ export class InventoryService {
             final_unit_cost: item.final_unit_cost,
             batch_number: item.batch_number,
             unit_name: item.unit_name,
+            
+            // ✅ QUY ĐỔI ĐƠN VỊ TÍNH
+            unit_id: item.unit_id,
+            conversion_factor: item.conversion_factor || 1,
+            // Nếu không có base_quantity thì tự tính từ quantity * conversion_factor
+            base_quantity: item.base_quantity || (item.quantity * (item.conversion_factor || 1)),
          };
 
         // Only add notes if it's not undefined
@@ -1442,9 +1448,14 @@ export class InventoryService {
           
           let itemIndex = 1;
           for (const item of savedItems) {
+            // ✅ Dùng số lượng đã quy đổi về đơn vị cơ sở (base_quantity) để nhập kho
+            const stockInQuantity = item.base_quantity 
+              ? Number(item.base_quantity) 
+              : item.quantity;
+
             const batch = await this.processStockIn(
               item.product_id,
-              item.quantity,
+              stockInQuantity, // ← dùng số lượng quy đổi
               Number(item.final_unit_cost || item.unit_cost),
               userId,
               item.id,
@@ -1822,9 +1833,16 @@ export class InventoryService {
           taxableQty = item.quantity;
         }
 
+        // ✅ Tính số lượng thực tế nhập kho theo đơn vị cơ sở (base_quantity)
+        // Nếu có base_quantity (người dùng đã chọn BAO → quy đổi ra KG) thì dùng base_quantity
+        // Nếu không có (dữ liệu cũ hoặc không quy đổi) thì dùng quantity như cũ (tương thích ngược)
+        const stockInQuantity = item.base_quantity
+          ? Number(item.base_quantity)
+          : item.quantity;
+
         const batch = await this.processStockIn(
           item.product_id,
-          item.quantity,
+          stockInQuantity, // ← dùng số lượng đã quy đổi về đơn vị cơ sở
           costPrice,
           userId,
           item.id,
@@ -1935,9 +1953,14 @@ export class InventoryService {
       try {
         // Tạo transaction xuất kho (ngược lại với nhập kho)
         // Dùng referenceType đặc biệt để tracking
+        // ✅ Dùng số lượng đã quy đổi về đơn vị cơ sở (base_quantity) để hoàn tác
+        const stockOutQuantity = item.base_quantity 
+          ? Number(item.base_quantity) 
+          : item.quantity;
+
         await this.processStockOut(
           item.product_id,
-          item.quantity,
+          stockOutQuantity, // ← dùng số lượng quy đổi
           'RECEIPT_CANCELLATION',
           userId,
           receiptId,

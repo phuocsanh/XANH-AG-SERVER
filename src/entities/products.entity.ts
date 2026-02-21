@@ -6,11 +6,13 @@ import {
   UpdateDateColumn,
   DeleteDateColumn,
   ManyToOne,
+  OneToMany,
   JoinColumn,
 } from 'typeorm';
 import { Unit } from './unit.entity';
 import { BaseStatus } from './base-status.enum';
 import { Symbol } from './symbols.entity';
+import { ProductUnitConversion } from './product-unit-conversions.entity';
 
 /**
  * Entity biểu diễn thông tin sản phẩm trong hệ thống
@@ -190,4 +192,8 @@ export class Product {
   /** Hiển thị giá trên Web Next.js */
   @Column({ name: 'show_price_on_web', type: 'boolean', default: true })
   show_price_on_web!: boolean;
+
+  /** Danh sách các đơn vị tính và quy đổi của sản phẩm */
+  @OneToMany(() => ProductUnitConversion, (conversion) => conversion.product)
+  unit_conversions!: ProductUnitConversion[];
 }

@@ -73,6 +73,41 @@ export class InventoryReceiptItem {
   @Column({ name: 'taxable_quantity', type: 'int', default: 0 })
   taxable_quantity?: number;
 
+  // ===== QUY ĐỔI ĐƠN VỊ TÍNH =====
+
+  /** ID đơn vị nhập kho (ví dụ: BAO - để hiển thị trên phiếu) */
+  @Column({ name: 'unit_id', nullable: true })
+  unit_id?: number;
+
+  /**
+   * Hệ số quy đổi về đơn vị cơ sở tại thời điểm nhập.
+   * Ví dụ: nhập 2 BAO, 1 BAO = 50 KG thì conversion_factor = 50.
+   * Mặc định = 1 nếu không quy đổi.
+   */
+  @Column({
+    name: 'conversion_factor',
+    type: 'decimal',
+    precision: 15,
+    scale: 6,
+    default: 1,
+    nullable: true,
+  })
+  conversion_factor?: number;
+
+  /**
+   * Số lượng quy về đơn vị cơ sở (để tính kho).
+   * base_quantity = quantity × conversion_factor.
+   * Ví dụ: nhập 2 BAO (50kg/bao) → base_quantity = 100 (kg).
+   */
+  @Column({
+    name: 'base_quantity',
+    type: 'decimal',
+    precision: 15,
+    scale: 4,
+    nullable: true,
+  })
+  base_quantity?: number;
+
   /** Thời gian tạo chi tiết phiếu nhập kho */
   @CreateDateColumn({ name: 'created_at' })
   created_at!: Date;

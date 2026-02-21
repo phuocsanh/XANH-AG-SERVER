@@ -7,6 +7,9 @@ import {
   IsBoolean,
 } from 'class-validator';
 import { BaseStatus } from '../../../entities/base-status.enum';
+import { CreateProductUnitConversionDto } from '../../product-unit-conversion/dto/create-product-unit-conversion.dto';
+import { Type } from 'class-transformer';
+import { ValidateNested } from 'class-validator';
 
 /**
  * DTO (Data Transfer Object) dùng để tạo sản phẩm mới
@@ -159,4 +162,10 @@ export class CreateProductDto {
   @IsOptional()
   @IsBoolean()
   show_price_on_web?: boolean;
+  /** Danh sách quy đổi đơn vị tính (tùy chọn) */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateProductUnitConversionDto)
+  unit_conversions?: CreateProductUnitConversionDto[];
 }

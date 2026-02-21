@@ -14,6 +14,7 @@ import { InventoryService } from './inventory.service';
 import { InventoryController } from './inventory.controller';
 import { ProductModule } from '../product/product.module';
 import { FileTrackingModule } from '../file-tracking/file-tracking.module';
+import { ProductUnitConversionModule } from '../product-unit-conversion/product-unit-conversion.module';
 
 /**
  * InventoryModule - Module quản lý kho hàng
@@ -44,6 +45,8 @@ import { FileTrackingModule } from '../file-tracking/file-tracking.module';
     forwardRef(() => ProductModule),
     // Import FileTrackingModule để quản lý file upload
     FileTrackingModule,
+    // Import ProductUnitConversionModule để quản lý quy đổi đơn vị
+    ProductUnitConversionModule,
   ],
   controllers: [InventoryController], // Controller xử lý các request liên quan đến kho hàng
   providers: [InventoryService], // Service xử lý logic nghiệp vụ kho hàng

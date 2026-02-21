@@ -65,6 +65,42 @@ export class SalesInvoiceItem {
   @Column({ name: 'taxable_quantity', type: 'decimal', precision: 15, scale: 2, default: 0 })
   taxable_quantity!: number;
 
+  // ===== QUY ĐỔI ĐƠN VỊ TÍNH =====
+
+  /** ID đơn vị bán hàng (ví dụ: BAO, KG - để in hóa đơn đúng đơn vị) */
+  @Column({ name: 'sale_unit_id', nullable: true })
+  sale_unit_id?: number;
+
+  /**
+   * Hệ số quy đổi về đơn vị cơ sở tại thời điểm bán.
+   * Ví dụ: bán 1 BAO (50kg) thì conversion_factor = 50, base_quantity = 50.
+   * Mặc định = 1 nếu bán theo đơn vị cơ sở (KG).
+   */
+  @Column({
+    name: 'conversion_factor',
+    type: 'decimal',
+    precision: 15,
+    scale: 6,
+    default: 1,
+    nullable: true,
+  })
+  conversion_factor?: number;
+
+  /**
+   * Số lượng thực tế xuất kho (đơn vị cơ sở).
+   * base_quantity = quantity × conversion_factor.
+   * Đây là con số dùng để trừ tồn kho.
+   * Ví dụ: bán 2 BAO (50kg/bao) → base_quantity = 100 (kg).
+   */
+  @Column({
+    name: 'base_quantity',
+    type: 'decimal',
+    precision: 15,
+    scale: 4,
+    nullable: true,
+  })
+  base_quantity?: number;
+
   /** Thời gian tạo chi tiết hóa đơn */
   @CreateDateColumn({ name: 'created_at' })
   created_at!: Date;

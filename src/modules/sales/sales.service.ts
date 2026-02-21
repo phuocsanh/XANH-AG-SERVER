@@ -150,10 +150,19 @@ export class SalesService {
               }
             }
 
+            // ✅ Tính base_quantity (số lượng quy về đơn vị cơ sở để trừ kho)
+            // Nếu frontend gửi base_quantity thì dùng, không thì tự tính: quantity × conversion_factor
+            const conversionFactor = Number(item.conversion_factor || 1);
+            const baseQty = item.base_quantity
+              ? Number(item.base_quantity)
+              : item.quantity * conversionFactor;
+
             return queryRunner.manager.create(SalesInvoiceItem, {
               ...item,
               invoice_id: savedInvoice.id,
               total_price: totalPrice,
+              conversion_factor: conversionFactor,
+              base_quantity: baseQty,
               ...(productName && { product_name: productName }),
               ...(unitName && { unit_name: unitName }),
               ...(taxSellingPrice && { tax_selling_price: taxSellingPrice }),
@@ -174,7 +183,7 @@ export class SalesService {
              
              if (product) {
                const avgCost = Number(product.average_cost_price || 0);
-               totalCOGS += item.quantity * avgCost;
+                totalCOGS += Number(item.base_quantity || item.quantity) * avgCost;
              }
           }
 
@@ -1468,7 +1477,7 @@ export class SalesService {
     return items.map(item => ({
       date: item.invoice.sale_date || item.invoice.created_at,
       product_name: item.product_name || item.product?.trade_name || item.product?.name || 'Sản phẩm không tên',
-      unit: item.product?.unit?.name || 'Cái', 
+      unit: item.unit_name || item.product?.unit?.name || 'Cái', 
       quantity: Number(item.quantity || 0),
       unit_price: Number(item.unit_price || 0),
       total_price: Number(item.total_price || 0),
@@ -1514,9 +1523,16 @@ export class SalesService {
           // Lưu ý: userId có thể truyền từ JWT, nếu không có lấy người tạo hóa đơn
           const performerId = userId || invoice.created_by;
           
+          // ✅ Tính số lượng thực tế xuất kho theo đơn vị cơ sở (base_quantity)
+          // Nếu có base_quantity (người dùng bán BAO → quy đổi ra KG) thì dùng base_quantity
+          // Nếu không có (dữ liệu cũ hoặc không quy đổi) thì dùng quantity như cũ (tương thích ngược)
+          const stockOutQuantity = item.base_quantity
+            ? Number(item.base_quantity)
+            : item.quantity;
+          
           const result = await this.inventoryService.processStockOut(
             item.product_id,
-            item.quantity,
+            stockOutQuantity, // ← dùng số lượng đã quy đổi về đơn vị cơ sở
             'SALE',
             performerId,
             invoice.id,
