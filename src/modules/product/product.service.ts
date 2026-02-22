@@ -476,14 +476,21 @@ export class ProductService extends BaseSearchService<Product> {
    * @returns Danh sách sản phẩm phù hợp
    */
   async searchProducts(query: string): Promise<Product[]> {
+    const sanitizedQuery = query.replace(/[^a-zA-Z0-9\s]/g, '');
     return this.productRepository
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.unit', 'unit')
       .leftJoinAndSelect('product.symbol', 'symbol')
-      .where('product.name ILIKE :query', { query: `%${query}%` })
-      .orWhere('product.description ILIKE :query', {
-        query: `%${query}%`,
-      })
+      .where(
+        `(regexp_replace(unaccent(product.name), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent(:sanitizedQuery) OR 
+          regexp_replace(unaccent(product.trade_name), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent(:sanitizedQuery) OR
+          product.code ILIKE :query OR
+          regexp_replace(unaccent(product.description), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent(:sanitizedQuery))`,
+        { 
+          query: `%${query}%`,
+          sanitizedQuery: `%${sanitizedQuery}%`
+        },
+      )
       .andWhere('product.status = :status', { status: BaseStatus.ACTIVE })
       .andWhere('product.deleted_at IS NULL')
       .getMany();

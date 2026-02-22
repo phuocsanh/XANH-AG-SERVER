@@ -57,9 +57,15 @@ export class CustomerService {
     const queryBuilder = this.customerRepository.createQueryBuilder('customer');
 
     if (search) {
+      const sanitizedSearch = search.replace(/[^a-zA-Z0-9\s]/g, '');
       queryBuilder.where(
-        'customer.name ILIKE :search OR customer.phone ILIKE :search OR customer.code ILIKE :search',
-        { search: `%${search}%` },
+        `(regexp_replace(unaccent(customer.name), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent(:sanitizedSearch) OR 
+          customer.phone ILIKE :search OR 
+          customer.code ILIKE :search)`,
+        { 
+          search: `%${search}%`,
+          sanitizedSearch: `%${sanitizedSearch}%`
+        },
       );
     }
 

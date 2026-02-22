@@ -39,14 +39,19 @@ export class QueryHelper {
     // 3. Global Search (Keyword)
     if (dto.keyword && searchFields.length > 0) {
       const keyword = String(dto.keyword).trim().normalize('NFC');
+      // Loại bỏ dấu và ký tự đặc biệt khỏi từ khóa để tìm kiếm mờ
+      const sanitizedKeyword = keyword.replace(/[^a-zA-Z0-9\s]/g, '');
       
       const conditions = searchFields.map(field => {
         const col = field.includes('.') ? field : `${alias}.${field}`;
-        // Tìm kiếm chính xác cụm từ (không tách từ) nhưng vẫn hỗ trợ bỏ dấu
-        return `unaccent(${col}::text) ILIKE unaccent(:keyword)`;
+        // Tìm kiếm linh hoạt: bỏ dấu và bỏ ký tự đặc biệt (như dấu chấm)
+        return `regexp_replace(unaccent(${col}::text), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent(:sanitizedKeyword)`;
       });
       
-      query.andWhere(`(${conditions.join(' OR ')})`, { keyword: `%${keyword}%` });
+      query.andWhere(`(${conditions.join(' OR ')})`, { 
+        keyword: `%${keyword}%`,
+        sanitizedKeyword: `%${sanitizedKeyword}%`
+      });
     }
 
     // 4. Date Range Search
@@ -97,12 +102,15 @@ export class QueryHelper {
         query.andWhere(`${field} IN (:...${paramName})`, { [paramName]: value });
       } else if (typeof value === 'string') {
         // Enums (like status) don't support ILIKE in Postgres
-        if (key === 'status' || key === 'payment_status' || field.endsWith('.status') || field.endsWith('.payment_status')) {
+        if (key === 'status' || key === 'payment_status' || field.endsWith('.status') || field.endsWith('.payment_status') || key === 'type' || field.endsWith('.type')) {
           query.andWhere(`${field}::text = :${paramName}`, { [paramName]: value });
         } else {
-          query.andWhere(`${field} ILIKE :${paramName}`, {
-            [paramName]: `%${value}%`,
-          });
+          // Sử dụng unaccent và bỏ ký tự đặc biệt cho tìm kiếm chuỗi văn bản thông thường
+          const sanitizedValue = value.replace(/[^a-zA-Z0-9\s]/g, '');
+          query.andWhere(
+            `regexp_replace(unaccent(${field}::text), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent(:sanitized_${paramName})`, 
+            { [`sanitized_${paramName}`]: `%${sanitizedValue}%` }
+          );
         }
       } else {
         query.andWhere(`${field} = :${paramName}`, { [paramName]: value });
