@@ -476,21 +476,17 @@ export class ProductService extends BaseSearchService<Product> {
    * @returns Danh sách sản phẩm phù hợp
    */
   async searchProducts(query: string): Promise<Product[]> {
-    const sanitizedQuery = query.replace(/[^a-zA-Z0-9\s]/g, '');
-    return this.productRepository
+    const queryBuilder = this.productRepository
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.unit', 'unit')
-      .leftJoinAndSelect('product.symbol', 'symbol')
-      .where(
-        `(regexp_replace(unaccent(product.name), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent(:sanitizedQuery) OR 
-          regexp_replace(unaccent(product.trade_name), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent(:sanitizedQuery) OR
-          product.code ILIKE :query OR
-          regexp_replace(unaccent(product.description), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent(:sanitizedQuery))`,
-        { 
-          query: `%${query}%`,
-          sanitizedQuery: `%${sanitizedQuery}%`
-        },
-      )
+      .leftJoinAndSelect('product.symbol', 'symbol');
+
+    const condName = QueryHelper.applyFuzzyCondition(queryBuilder, 'product.name', query, 'q_name');
+    const condTrade = QueryHelper.applyFuzzyCondition(queryBuilder, 'product.trade_name', query, 'q_trade');
+    const condDesc = QueryHelper.applyFuzzyCondition(queryBuilder, 'product.description', query, 'q_desc');
+
+    return queryBuilder
+      .where(`(${condName} OR ${condTrade} OR product.code ILIKE :query OR ${condDesc})`, { query: `%${query}%` })
       .andWhere('product.status = :status', { status: BaseStatus.ACTIVE })
       .andWhere('product.deleted_at IS NULL')
       .getMany();

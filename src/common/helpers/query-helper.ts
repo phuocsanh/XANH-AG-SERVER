@@ -4,6 +4,35 @@ export class QueryHelper {
   /**
    * Áp dụng các logic search cơ bản: Pagination, Sorting, Keyword Search
    */
+  /**
+   * Làm sạch từ khóa tìm kiếm: chuẩn hóa NFC, trim và bỏ các ký tự đặc biệt (giữ lại chữ cái Unicode/tiếng Việt và số)
+   */
+  static sanitizeKeyword(keyword: any): string {
+    if (!keyword) return '';
+    return String(keyword)
+      .trim()
+      .normalize('NFC')
+      .replace(/[^\p{L}\p{N}\s]/gu, '');
+  }
+
+  /**
+   * Áp dụng điều kiện tìm kiếm mờ (fuzzy) cho một field: unaccent + bỏ ký tự đặc biệt
+   * Trả về chuỗi điều kiện để dùng trong query.andWhere()
+   */
+  static applyFuzzyCondition<T extends ObjectLiteral>(
+    query: SelectQueryBuilder<T>,
+    field: string,
+    keyword: string,
+    paramName: string = 'fuzzyKeyword'
+  ): string {
+    const sanitized = this.sanitizeKeyword(keyword);
+    query.setParameter(paramName, `%${sanitized}%`);
+    return `regexp_replace(unaccent(${field}::text), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent(:${paramName})`;
+  }
+
+  /**
+   * Áp dụng các logic search cơ bản: Pagination, Sorting, Keyword Search
+   */
   static applyBaseSearch<T extends ObjectLiteral>(
     query: SelectQueryBuilder<T>,
     dto: any,
@@ -19,7 +48,8 @@ export class QueryHelper {
 
     // 2. Sắp xếp (Sort)
     if (dto.sort) {
-      const [field, order] = dto.sort.split(':');
+      const field = dto.sort.split(':')[0];
+      const order = dto.sort.split(':')[1];
       if (field) {
          const sortField = field.includes('.') ? field : `${alias}.${field}`;
          const sortOrder = (order || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
@@ -38,20 +68,16 @@ export class QueryHelper {
 
     // 3. Global Search (Keyword)
     if (dto.keyword && searchFields.length > 0) {
-      const keyword = String(dto.keyword).trim().normalize('NFC');
-      // Loại bỏ dấu và ký tự đặc biệt khỏi từ khóa để tìm kiếm mờ
-      const sanitizedKeyword = keyword.replace(/[^a-zA-Z0-9\s]/g, '');
+      const sanitizedKeyword = this.sanitizeKeyword(dto.keyword);
       
-      const conditions = searchFields.map(field => {
+      const conditions = searchFields.map((field, index) => {
         const col = field.includes('.') ? field : `${alias}.${field}`;
-        // Tìm kiếm linh hoạt: bỏ dấu và bỏ ký tự đặc biệt (như dấu chấm)
-        return `regexp_replace(unaccent(${col}::text), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent(:sanitizedKeyword)`;
+        const pName = `global_search_${index}`;
+        query.setParameter(pName, `%${sanitizedKeyword}%`);
+        return `regexp_replace(unaccent(${col}::text), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent(:${pName})`;
       });
       
-      query.andWhere(`(${conditions.join(' OR ')})`, { 
-        keyword: `%${keyword}%`,
-        sanitizedKeyword: `%${sanitizedKeyword}%`
-      });
+      query.andWhere(`(${conditions.join(' OR ')})`);
     }
 
     // 4. Date Range Search
@@ -105,12 +131,9 @@ export class QueryHelper {
         if (key === 'status' || key === 'payment_status' || field.endsWith('.status') || field.endsWith('.payment_status') || key === 'type' || field.endsWith('.type')) {
           query.andWhere(`${field}::text = :${paramName}`, { [paramName]: value });
         } else {
-          // Sử dụng unaccent và bỏ ký tự đặc biệt cho tìm kiếm chuỗi văn bản thông thường
-          const sanitizedValue = value.replace(/[^a-zA-Z0-9\s]/g, '');
-          query.andWhere(
-            `regexp_replace(unaccent(${field}::text), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent(:sanitized_${paramName})`, 
-            { [`sanitized_${paramName}`]: `%${sanitizedValue}%` }
-          );
+          // Sử dụng logic fuzzy chung từ method static
+          const condition = this.applyFuzzyCondition(query, field, value, `filter_${paramName}`);
+          query.andWhere(condition);
         }
       } else {
         query.andWhere(`${field} = :${paramName}`, { [paramName]: value });
