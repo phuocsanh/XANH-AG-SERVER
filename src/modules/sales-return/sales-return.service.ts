@@ -430,7 +430,7 @@ export class SalesReturnService {
       queryBuilder,
       searchDto,
       'sales_return',
-      ['code', 'customer.name', 'customer.phone'] // Global search
+      ['sales_return.code', 'invoice.customer_name', 'invoice.customer_phone', 'customer.name', 'customer.phone'] // Global search
     );
 
     // 2. Simple Filters
@@ -440,8 +440,8 @@ export class SalesReturnService {
       'sales_return',
       ['filters', 'nested_filters', 'operator'],
       {
-        customer_name: 'customer.name',
-        customer_phone: 'customer.phone',
+        customer_name: 'invoice.customer_name',
+        customer_phone: 'invoice.customer_phone',
         invoice_code: 'invoice.code',
       }
     );

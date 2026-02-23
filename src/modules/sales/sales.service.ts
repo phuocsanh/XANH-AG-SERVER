@@ -994,7 +994,7 @@ export class SalesService {
       queryBuilder,
       searchDto,
       'invoice',
-      ['code', 'customer.name', 'customer.phone', 'notes'] // Global search fields
+      ['code', 'invoice.customer_name', 'invoice.customer_phone', 'notes'] // Global search fields
     );
 
     // Mặc định sắp xếp theo sale_date giảm dần nếu không có sort tùy chỉnh
@@ -1033,8 +1033,8 @@ export class SalesService {
       'invoice',
       ['filters', 'nested_filters', 'operator', 'sale_date_start', 'sale_date_end', 'start_date', 'end_date'], // Ignore complex fields
       {
-        customer_name: 'customer.name',
-        customer_phone: 'customer.phone',
+        customer_name: 'invoice.customer_name',
+        customer_phone: 'invoice.customer_phone',
         season_name: 'season.name',
         rice_crop_name: 'rice_crop.field_name',
       }
