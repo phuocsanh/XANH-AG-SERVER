@@ -86,6 +86,7 @@ export class StoreProfitReportController {
   })
   async getCustomerReport(
     @Param('customerId', ParseIntPipe) customerId: number,
+    @Query('customerName') customerName?: string,
     @Query('seasonId') seasonId?: number,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
@@ -94,7 +95,7 @@ export class StoreProfitReportController {
     const end = endDate ? new Date(endDate) : undefined;
     const season = seasonId ? Number(seasonId) : undefined;
     
-    return this.service.getCustomerProfitReport(customerId, season, start, end);
+    return this.service.getCustomerProfitReport(customerId, customerName, season, start, end);
   }
 
   @Get('rice-crop/:riceCropId')

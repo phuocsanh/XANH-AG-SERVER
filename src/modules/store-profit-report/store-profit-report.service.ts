@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, Between, In, IsNull } from 'typeorm';
+import { Repository, Not, Between, In, IsNull, Raw } from 'typeorm';
 import { SalesInvoice, SalesInvoiceStatus } from '../../entities/sales-invoices.entity';
 import { Season } from '../../entities/season.entity';
 import { OperatingCost } from '../../entities/operating-costs.entity';
@@ -8,6 +8,7 @@ import { DeliveryLog } from '../../entities/delivery-log.entity';
 import { RiceCrop } from '../../entities/rice-crop.entity';
 import { Customer } from '../../entities/customer.entity';
 import { FarmServiceCost } from '../../entities/farm-service-cost.entity';
+import { QueryHelper } from '../../common/helpers/query-helper';
 
 import { 
   InvoiceProfitDto, 
@@ -515,17 +516,27 @@ export class StoreProfitReportService {
    */
   async getCustomerProfitReport(
     customerId: number,
+    customerNameParam?: string,
     seasonId?: number,
     startDate?: Date,
     endDate?: Date,
   ): Promise<CustomerProfitReportDto> {
     try {
       // 1. Lấy TOÀN BỘ hóa đơn của khách hàng (lifetime)
+      let customerWhere: any = { status: Not(SalesInvoiceStatus.CANCELLED) };
+      
+      if (customerId && customerId > 0) {
+        customerWhere.customer_id = customerId;
+      } else if (customerNameParam) {
+        // Tìm theo tên khách vãng lai (fuzzy matches)
+        const sanitized = QueryHelper.sanitizeKeyword(customerNameParam);
+        customerWhere.customer_name = Raw(alias => `regexp_replace(unaccent(${alias}), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent('%${sanitized}%')`);
+      } else {
+        throw new Error('Vui lòng cung cấp ID khách hàng hoặc Tên khách hàng');
+      }
+
       const allInvoices = await this.salesInvoiceRepository.find({
-        where: {
-          customer_id: customerId,
-          status: Not(SalesInvoiceStatus.CANCELLED),
-        },
+        where: customerWhere,
         relations: ['items', 'items.product', 'season'],
         order: { sale_date: 'DESC', created_at: 'DESC' },
       });
