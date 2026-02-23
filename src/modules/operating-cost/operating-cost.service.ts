@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, QueryRunner } from 'typeorm';
+import { Repository, QueryRunner, Brackets } from 'typeorm';
 import { OperatingCost } from '../../entities/operating-costs.entity';
 import { CreateOperatingCostDto } from './dto/create-operating-cost.dto';
 import { UpdateOperatingCostDto } from './dto/update-operating-cost.dto';
@@ -131,19 +131,29 @@ export class OperatingCostService {
       ['name', 'description'] // Global search fields (code không có trong entity)
     );
 
-    // 2. Simple Filters
+    // 2. Simple Filters & Guest search
     QueryHelper.applyFilters(
       queryBuilder,
       searchDto,
       'operating_cost',
-      ['filters', 'nested_filters', 'operator'],
+      ['filters', 'nested_filters', 'operator', 'customer_name'],
       {
          season_name: 'season.name',
          rice_crop_name: 'rice_crop.field_name',
          category_name: 'category.name',
-         customer_name: 'customer.name',
       }
     );
+
+    // ✅ Logic tìm kiếm khách hàng (chính thức & vãng lai qua tên chi phí)
+    if (searchDto.customer_name) {
+      const nameKeyword = `%${QueryHelper.sanitizeKeyword(searchDto.customer_name)}%`;
+      queryBuilder.andWhere(new Brackets(qb => {
+        // Tìm trong bảng Customer (nếu có gán)
+        qb.orWhere(`regexp_replace(unaccent(customer.name), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent(:nameKeyword)`, { nameKeyword });
+        // Tìm trong Tên chi phí (thường lưu tên khách vãng lai khi tặng quà)
+        qb.orWhere(`regexp_replace(unaccent(operating_cost.name), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent(:nameKeyword)`, { nameKeyword });
+      }));
+    }
 
     const [data, total] = await queryBuilder.getManyAndCount();
 

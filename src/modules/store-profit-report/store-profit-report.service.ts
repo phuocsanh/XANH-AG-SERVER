@@ -265,22 +265,21 @@ export class StoreProfitReportService {
         totalCOGS += invoiceCOGS;
         const invoiceProfit = finalAmount - invoiceCOGS;
 
-        // Track customer profit
-        if (invoice.customer_id) {
-          if (!customerProfitMap.has(invoice.customer_id)) {
-            customerProfitMap.set(invoice.customer_id, {
-              id: invoice.customer_id,
-              name: invoice.customer_name,
-              invoiceCount: 0,
-              revenue: 0,
-              profit: 0,
-            });
-          }
-          const customerData = customerProfitMap.get(invoice.customer_id)!;
-          customerData.invoiceCount++;
-          customerData.revenue += invoice.final_amount;
-          customerData.profit += invoiceProfit;
+        // Track customer profit (bao gồm cả khách vãng lai)
+        const customerKey = invoice.customer_id || `guest_${invoice.customer_name}`;
+        if (!customerProfitMap.has(customerKey as any)) {
+          customerProfitMap.set(customerKey as any, {
+            id: invoice.customer_id || 0,
+            name: invoice.customer_name,
+            invoiceCount: 0,
+            revenue: 0,
+            profit: 0,
+          });
         }
+        const customerData = customerProfitMap.get(customerKey as any)!;
+        customerData.invoiceCount++;
+        customerData.revenue += Number(invoice.final_amount);
+        customerData.profit += invoiceProfit;
       }
 
       const grossProfit = totalRevenue - totalCOGS;

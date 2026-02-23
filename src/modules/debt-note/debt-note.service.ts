@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, Brackets } from 'typeorm';
 import { DebtNote, DebtNoteStatus } from '../../entities/debt-note.entity';
 import { CustomerRewardTracking } from '../../entities/customer-reward-tracking.entity';
 import { CustomerRewardHistory } from '../../entities/customer-reward-history.entity';
@@ -97,20 +97,52 @@ export class DebtNoteService {
       ['code', 'customer.name', 'customer.phone'] // Global search
     );
 
-    // 2. Simple Filters
+    // 2. Simple Filters & Guest Search logic
     QueryHelper.applyFilters(
       queryBuilder,
       searchDto,
       'debt_note',
-      ['filters', 'nested_filters', 'operator'],
+      ['filters', 'nested_filters', 'operator', 'customer_name', 'customer_phone'], // Bỏ qua mapping mặc định cho name/phone
       {
-        customer_name: 'customer.name',
-        customer_phone: 'customer.phone',
         season_name: 'season.name',
       }
     );
 
-    const [data, total] = await queryBuilder.getManyAndCount();
+    // ✅ Logic tìm kiếm khách hàng (chính thức & vãng lai)
+    if (searchDto.customer_name || searchDto.customer_phone) {
+      const nameKeyword = searchDto.customer_name ? `%${QueryHelper.sanitizeKeyword(searchDto.customer_name)}%` : null;
+      const phoneKeyword = searchDto.customer_phone ? `%${QueryHelper.sanitizeKeyword(searchDto.customer_phone)}%` : null;
+      
+      queryBuilder.andWhere(new Brackets(qb => {
+        if (nameKeyword) {
+          // Tìm trong bảng Customer
+          qb.orWhere(`regexp_replace(unaccent(customer.name), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent(:nameKeyword)`, { nameKeyword });
+          // Tìm trong các hóa đơn liên quan (Guest Name)
+          // Sử dụng subquery để tìm kiếm trong mảng JSON source_invoices
+          qb.orWhere(`EXISTS (
+            SELECT 1 FROM sales_invoices si 
+            WHERE si.id IN (SELECT json_array_elements_text(debt_note.source_invoices)::int)
+            AND regexp_replace(unaccent(si.customer_name), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent(:nameKeyword)
+          )`, { nameKeyword });
+        }
+        
+        if (phoneKeyword) {
+          qb.orWhere(`customer.phone ILIKE :phoneKeyword`, { phoneKeyword });
+          qb.orWhere(`EXISTS (
+            SELECT 1 FROM sales_invoices si 
+            WHERE si.id IN (SELECT json_array_elements_text(debt_note.source_invoices)::int)
+            AND si.customer_phone ILIKE :phoneKeyword
+          )`, { phoneKeyword });
+        }
+      }));
+    }
+
+    // 3. Thực hiện truy vấn dữ liệu và đếm tổng số bản ghi
+    // Tách riêng getMany và getCount để đảm bảo tính đúng đắn khi dùng skip/take với join
+    const data = await queryBuilder.getMany();
+    
+    // Tạo query riêng để đếm tổng, bỏ qua phân trang
+    const total = await queryBuilder.clone().skip(undefined).take(undefined).getCount();
 
     // Tính toán các chỉ số thống kê (Summary) dựa trên điều kiện lọc hiện tại
     const summaryQuery = queryBuilder.clone(); // Clone để không ảnh hưởng offset/limit

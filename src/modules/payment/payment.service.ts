@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, QueryRunner } from 'typeorm';
+import { Repository, QueryRunner, Brackets } from 'typeorm';
 import { Payment } from '../../entities/payment.entity';
 import { PaymentAllocation } from '../../entities/payment-allocation.entity';
 import { DebtNote, DebtNoteStatus } from '../../entities/debt-note.entity';
@@ -115,17 +115,45 @@ export class PaymentService {
       ['code', 'debt_note_code', 'customer.name', 'customer.phone']
     );
 
-    // 2. Simple Filters
+    // 2. Simple Filters & Guest Search logic
     QueryHelper.applyFilters(
       queryBuilder,
       searchDto,
       'payment',
-      ['filters', 'nested_filters', 'operator'],
+      ['filters', 'nested_filters', 'operator', 'customer_name', 'customer_phone'],
       {
-        customer_name: 'customer.name',
         customer_phone: 'customer.phone',
       }
     );
+
+    // ✅ Logic tìm kiếm khách hàng (chính thức & vãng lai qua invoice)
+    if (searchDto.customer_name || searchDto.customer_phone) {
+      const nameKeyword = searchDto.customer_name ? `%${QueryHelper.sanitizeKeyword(searchDto.customer_name)}%` : null;
+      const phoneKeyword = searchDto.customer_phone ? `%${QueryHelper.sanitizeKeyword(searchDto.customer_phone)}%` : null;
+      
+      queryBuilder.andWhere(new Brackets(qb => {
+        if (nameKeyword) {
+          qb.orWhere(`regexp_replace(unaccent(customer.name), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent(:nameKeyword)`, { nameKeyword });
+          // Kiểm tra trong các hóa đơn đã thanh toán bởi phiếu này
+          qb.orWhere(`EXISTS (
+            SELECT 1 FROM payment_allocations pa
+            JOIN sales_invoices si ON si.id = pa.invoice_id
+            WHERE pa.payment_id = payment.id
+            AND regexp_replace(unaccent(si.customer_name), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent(:nameKeyword)
+          )`, { nameKeyword });
+        }
+        
+        if (phoneKeyword) {
+          qb.orWhere(`customer.phone ILIKE :phoneKeyword`, { phoneKeyword });
+          qb.orWhere(`EXISTS (
+            SELECT 1 FROM payment_allocations pa
+            JOIN sales_invoices si ON si.id = pa.invoice_id
+            WHERE pa.payment_id = payment.id
+            AND si.customer_phone ILIKE :phoneKeyword
+          )`, { phoneKeyword });
+        }
+      }));
+    }
 
     const [data, total] = await queryBuilder.getManyAndCount();
 
