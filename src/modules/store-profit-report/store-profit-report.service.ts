@@ -75,7 +75,7 @@ export class StoreProfitReportService {
 
       for (const item of invoice.items || []) {
         const avgCost = Number(item.product?.average_cost_price || 0);
-        const itemCOGS = item.quantity * avgCost;
+        const itemCOGS = Number(item.base_quantity || item.quantity) * avgCost;
         const itemProfit = item.total_price - itemCOGS;
         const itemMargin = item.total_price > 0 
           ? (itemProfit / item.total_price) * 100 
@@ -231,7 +231,7 @@ export class StoreProfitReportService {
           this.logger.warn(`⚠️ Invoice ${invoice.code} has no cost_of_goods_sold. Calculating from items.`);
           for (const item of invoice.items) {
             const avgCost = Number(item.product?.average_cost_price || 0);
-            invoiceCOGS += item.quantity * avgCost;
+            invoiceCOGS += Number(item.base_quantity || item.quantity) * avgCost;
           }
         }
         
@@ -239,7 +239,7 @@ export class StoreProfitReportService {
         if (finalAmount > 0 && invoice.items && invoice.items.length > 0) {
           for (const item of invoice.items) {
             const avgCost = Number(item.product?.average_cost_price || 0);
-            const itemCOGS = item.quantity * avgCost;
+            const itemCOGS = Number(item.base_quantity || item.quantity) * avgCost;
             const itemProfit = item.total_price - itemCOGS;
 
             // Track product profit
@@ -257,7 +257,7 @@ export class StoreProfitReportService {
               });
             }
             const productData = productProfitMap.get(productId)!;
-            productData.quantity += item.quantity;
+            productData.quantity += Number(item.base_quantity || item.quantity);
             productData.revenue += item.total_price;
             productData.profit += itemProfit;
           }
@@ -604,7 +604,7 @@ export class StoreProfitReportService {
           // Fallback only if null/undefined
           for (const item of invoice.items) {
             const avgCost = Number(item.product?.average_cost_price || 0);
-            invoiceCOGS += item.quantity * avgCost;
+            invoiceCOGS += Number(item.base_quantity || item.quantity) * avgCost;
           }
         }
         
@@ -668,7 +668,7 @@ export class StoreProfitReportService {
           // Fallback only if null/undefined
           for (const item of invoice.items) {
             const avgCost = Number(item.product?.average_cost_price || 0);
-            invoiceCOGS += item.quantity * avgCost;
+            invoiceCOGS += Number(item.base_quantity || item.quantity) * avgCost;
           }
         }
 
@@ -953,7 +953,7 @@ export class StoreProfitReportService {
           // Fallback: Tính từ average_cost_price nếu cost_of_goods_sold = null
           for (const item of invoice.items) {
             const avgCost = Number(item.product?.average_cost_price || 0);
-            invoiceCOGS += item.quantity * avgCost;
+            invoiceCOGS += Number(item.base_quantity || item.quantity) * avgCost;
           }
           this.logger.log(`  ⚠️ Fallback tính lại: ${invoiceCOGS}`);
         }
@@ -1100,7 +1100,7 @@ export class StoreProfitReportService {
         for (const item of invoice.items || []) {
           const itemGrossPrice = Number(item.total_price);
           const avgCost = Number(item.product?.average_cost_price || 0);
-          const itemCOGS = Number(item.quantity) * avgCost;
+          const itemCOGS = Number(item.base_quantity || item.quantity) * avgCost;
           
           // Tính doanh thu thực tế của item sau khi phân bổ tỷ lệ chiết khấu của hóa đơn
           const itemNetRevenue = invoiceItemsGross > 0 
