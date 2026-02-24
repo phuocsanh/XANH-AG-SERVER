@@ -39,11 +39,31 @@ export class InventoryBatch {
   unit_cost_price!: string;
 
   /** Số lượng ban đầu của lô hàng */
-  @Column({ name: 'original_quantity' })
+  @Column({
+    name: 'original_quantity',
+    type: 'decimal',
+    precision: 15,
+    scale: 4,
+    default: 0,
+    transformer: {
+      to: (value: number) => value,
+      from: (value: string) => (value ? parseFloat(value) : 0),
+    },
+  })
   original_quantity!: number;
 
   /** Số lượng còn lại của lô hàng */
-  @Column({ name: 'remaining_quantity' })
+  @Column({
+    name: 'remaining_quantity',
+    type: 'decimal',
+    precision: 15,
+    scale: 4,
+    default: 0,
+    transformer: {
+      to: (value: number) => value,
+      from: (value: string) => (value ? parseFloat(value) : 0),
+    },
+  })
   remaining_quantity!: number;
 
   /** Ngày hết hạn của lô hàng (có thể null) */

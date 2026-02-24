@@ -87,7 +87,18 @@ export class Product {
   slug?: string;
 
   /** Số lượng tồn kho của sản phẩm */
-  @Column({ name: 'quantity', nullable: true })
+  @Column({
+    name: 'quantity',
+    type: 'decimal',
+    precision: 15,
+    scale: 4,
+    default: 0,
+    nullable: true,
+    transformer: {
+      to: (value: number) => value,
+      from: (value: string) => (value ? parseFloat(value) : 0),
+    },
+  })
   quantity?: number;
 
   /** Loại sản phẩm (tham chiếu đến product_types) */

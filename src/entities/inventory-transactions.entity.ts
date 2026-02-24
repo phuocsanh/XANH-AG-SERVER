@@ -35,7 +35,17 @@ export class InventoryTransaction {
   type!: string;
 
   /** Số lượng trong giao dịch */
-  @Column({ name: 'quantity' })
+  @Column({
+    name: 'quantity',
+    type: 'decimal',
+    precision: 15,
+    scale: 4,
+    default: 0,
+    transformer: {
+      to: (value: number) => value,
+      from: (value: string) => (value ? parseFloat(value) : 0),
+    },
+  })
   quantity!: number;
 
   /** Giá vốn đơn vị của sản phẩm trong giao dịch */
@@ -47,7 +57,17 @@ export class InventoryTransaction {
   total_value!: string;
 
   /** Số lượng còn lại sau giao dịch */
-  @Column({ name: 'remaining_quantity' })
+  @Column({
+    name: 'remaining_quantity',
+    type: 'decimal',
+    precision: 15,
+    scale: 4,
+    default: 0,
+    transformer: {
+      to: (value: number) => value,
+      from: (value: string) => (value ? parseFloat(value) : 0),
+    },
+  })
   remaining_quantity!: number;
 
   /** Giá vốn trung bình mới sau giao dịch */
