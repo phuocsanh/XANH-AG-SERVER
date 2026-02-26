@@ -57,6 +57,7 @@ import { NotificationModule } from './modules/notification/notification.module';
 import { SeedController } from './seed.controller';
 import { ProductUnitConversionModule } from './modules/product-unit-conversion/product-unit-conversion.module';
 import { ProductMixtureModule } from './modules/product-mixture/product-mixture.module';
+import { SupplierReportModule } from './modules/supplier-report/supplier-report.module';
 
 
 /**
@@ -149,6 +150,7 @@ import { ProductMixtureModule } from './modules/product-mixture/product-mixture.
     NotificationModule, // Module quản lý thông báo (FCM)
     ProductUnitConversionModule, // Module quản lý quy đổi đơn vị tính sản phẩm (1 BAO = 50 KG)
     ProductMixtureModule, // Module quản lý phối trộn sản phẩm
+    SupplierReportModule, // Module báo cáo nhà cung cấp
   ],
   controllers: [SeedController], // Seed controller để seed RBAC qua API
   providers: [
