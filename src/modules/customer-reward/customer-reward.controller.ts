@@ -4,6 +4,7 @@ import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { CustomerRewardService } from './customer-reward.service';
 import { SearchRewardDto } from './dto/search-reward.dto';
+import { CreateManualRewardDto } from './dto/create-manual-reward.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { User } from '../../entities/users.entity';
 
@@ -57,7 +58,7 @@ export class CustomerRewardController {
   @Post()
   @RequirePermissions('sales:create')
   manualCreate(
-    @Body() createDto: any,
+    @Body() createDto: CreateManualRewardDto,
     @CurrentUser() user: User
   ) {
     return this.customerRewardService.manualCreate(createDto, user.id);

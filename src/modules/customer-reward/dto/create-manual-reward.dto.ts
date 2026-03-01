@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class CreateManualRewardDto {
   @IsNumber()
@@ -18,4 +18,12 @@ export class CreateManualRewardDto {
   @IsOptional()
   @IsNumber()
   manual_deduct_amount?: number;
+
+  @IsOptional()
+  @IsNumber()
+  season_id?: number;
+
+  @IsOptional()
+  @IsNumber()
+  rice_crop_id?: number;
 }

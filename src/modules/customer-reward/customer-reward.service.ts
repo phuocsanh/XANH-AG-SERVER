@@ -5,9 +5,13 @@ import { CustomerRewardTracking } from '../../entities/customer-reward-tracking.
 import { CustomerRewardHistory } from '../../entities/customer-reward-history.entity';
 import { DebtNote, DebtNoteStatus } from '../../entities/debt-note.entity';
 import { SystemSetting } from '../../entities/system-setting.entity';
+import { Customer } from '../../entities/customer.entity';
+import { Season } from '../../entities/season.entity';
+import { RiceCrop } from '../../entities/rice-crop.entity';
 import { FarmServiceCostService } from '../farm-service-cost/farm-service-cost.service';
 import { QueryHelper } from '../../common/helpers/query-helper';
 import { SearchRewardDto } from './dto/search-reward.dto';
+import { CreateManualRewardDto } from './dto/create-manual-reward.dto';
 
 @Injectable()
 export class CustomerRewardService {
@@ -427,15 +431,40 @@ export class CustomerRewardService {
   /**
    * Tạo quà tặng thủ công cho khách hàng
    */
-  async manualCreate(dto: any, userId: number) {
-    const { customer_id, gift_description, gift_value, notes, manual_deduct_amount } = dto;
+  /**
+   * Tạo quà tặng thủ công cho khách hàng
+   */
+  async manualCreate(dto: CreateManualRewardDto, userId: number) {
+    const { 
+        customer_id, 
+        gift_description, 
+        gift_value, 
+        notes, 
+        manual_deduct_amount,
+        season_id,
+        rice_crop_id
+    } = dto;
 
-    const customer = await this.debtNoteRepository.manager.findOne('Customer', {
+    const customer = await this.debtNoteRepository.manager.findOne(Customer, {
       where: { id: customer_id }
     });
 
     if (!customer) {
       throw new NotFoundException('Không tìm thấy khách hàng');
+    }
+
+    // Lấy thông tin mùa vụ và ruộng lúa nếu có
+    let seasonName = '';
+    let riceCropName = '';
+
+    if (season_id) {
+        const season = await this.debtNoteRepository.manager.findOne(Season, { where: { id: season_id } });
+        seasonName = season?.name || '';
+    }
+
+    if (rice_crop_id) {
+        const riceCrop = await this.debtNoteRepository.manager.findOne(RiceCrop, { where: { id: rice_crop_id } });
+        riceCropName = riceCrop?.field_name || '';
     }
 
     const threshold = await this.getRewardThreshold();
@@ -446,7 +475,7 @@ export class CustomerRewardService {
         customer_id,
         customer_name: (customer as any).name,
         reward_threshold: threshold,
-        accumulated_amount: 0, // Thủ công nên không tính toán từ vụ
+        accumulated_amount: 0, 
         reward_date: new Date(),
         gift_description,
         gift_value: gift_value || 0,
@@ -454,6 +483,9 @@ export class CustomerRewardService {
         delivered_date: new Date(),
         notes: notes || 'Tặng quà thủ công',
         created_by: userId,
+        season_ids: season_id ? [season_id] : [],
+        season_names: seasonName ? [seasonName] : [],
+        contribution_details: rice_crop_id ? { rice_crop_id, rice_crop_name: riceCropName } : {}
       });
 
       const savedHistory = await manager.save(history);
@@ -481,6 +513,22 @@ export class CustomerRewardService {
       tracking.last_reward_date = new Date();
 
       await manager.save(tracking);
+
+      // 3. Tạo phiếu chi phí nếu có giá trị quà và có mùa vụ
+      if (gift_value && gift_value > 0 && season_id) {
+        await this.createGiftFarmServiceCost({
+            customer_id,
+            debtNoteCode: 'MANUAL_REWARD',
+            customerName: (customer as any).name || 'Khách hàng',
+            season_id,
+            seasonName,
+            rewardCount: 1,
+            giftValue: gift_value,
+            giftDescription: gift_description,
+            totalAccumulated: 0,
+            manager
+        });
+      }
 
       return savedHistory;
     });
