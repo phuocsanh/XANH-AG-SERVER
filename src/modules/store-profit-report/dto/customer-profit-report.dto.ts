@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { OperatingCostBreakdownDto } from './season-store-profit.dto';
 
 /**
  * DTO cho thông tin đơn hàng trong báo cáo khách hàng
@@ -95,6 +96,8 @@ export class CustomerProfitReportDto {
     avg_margin: number;
     delivery_costs: number;
     farm_service_costs: number;
+    service_costs: number;
+    gift_costs: number;
     operating_costs: number;
     net_profit: number;
   };
@@ -122,6 +125,8 @@ export class CustomerProfitReportDto {
     avg_margin: number;
     delivery_costs: number;
     farm_service_costs: number;
+    service_costs: number;
+    gift_costs: number;
     operating_costs: number;
     net_profit: number;
   };
@@ -144,6 +149,8 @@ export class CustomerProfitReportDto {
     avg_margin: number;
     delivery_costs: number;
     farm_service_costs: number;
+    service_costs: number;
+    gift_costs: number;
     operating_costs: number;
     net_profit: number;
   };
@@ -153,6 +160,9 @@ export class CustomerProfitReportDto {
 
   @ApiProperty({ description: 'Tổng hợp theo mùa vụ', type: [CustomerSeasonSummaryDto] })
   by_season!: CustomerSeasonSummaryDto[];
+
+  @ApiProperty({ description: 'Chi tiết chi phí dịch vụ/quà tặng', type: [OperatingCostBreakdownDto] })
+  farm_service_costs_breakdown!: OperatingCostBreakdownDto[];
 
   @ApiProperty({ description: 'Debug version string', required: false })
   debug_version?: string;

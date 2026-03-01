@@ -108,6 +108,12 @@ export class ProfitSummaryDto {
   @ApiProperty({ description: 'Tổng chi phí dịch vụ/quà tặng', example: 45000000 })
   farm_service_costs!: number;
 
+  @ApiProperty({ description: 'Chi phí dịch vụ (máy bay, công thợ...)' })
+  service_costs!: number;
+
+  @ApiProperty({ description: 'Chi phí quà tặng tri ân' })
+  gift_costs!: number;
+
   @ApiProperty({ description: 'Tổng chi phí vận hành cửa hàng (điện, nước, mặt bằng...)', example: 10000000 })
   operating_costs!: number;
 

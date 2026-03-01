@@ -330,6 +330,13 @@ export class StoreProfitReportService {
       );
 
       const totalFarmServiceCosts = farmServiceCostsBreakdown.reduce((sum, c) => sum + c.amount, 0);
+      const totalServiceCosts = farmServiceCostsBreakdown
+        .filter(c => !c.type.includes('reward') && c.type !== 'gift_from_invoice')
+        .reduce((sum, c) => sum + c.amount, 0);
+      const totalGiftCosts = farmServiceCostsBreakdown
+        .filter(c => c.type.includes('reward') || c.type === 'gift_from_invoice')
+        .reduce((sum, c) => sum + c.amount, 0);
+        
       const totalDeliveryCosts = deliveryStats?.total_delivery_cost || 0;
       const totalOperatingCosts = operatingCostsBreakdown.reduce((sum, c) => sum + Number(c.amount), 0);
       
@@ -372,6 +379,8 @@ export class StoreProfitReportService {
         gross_margin: Math.round(grossMargin * 100) / 100,
         delivery_costs: Math.round(totalDeliveryCosts * 100) / 100,
         farm_service_costs: Math.round(totalFarmServiceCosts * 100) / 100,
+        service_costs: Math.round(totalServiceCosts * 100) / 100,
+        gift_costs: Math.round(totalGiftCosts * 100) / 100,
         operating_costs: Math.round(totalOperatingCosts * 100) / 100,
         net_profit: Math.round(netProfit * 100) / 100,
         net_margin: Math.round(netMargin * 100) / 100,
@@ -561,6 +570,8 @@ export class StoreProfitReportService {
             avg_margin: 0,
             delivery_costs: 0,
             farm_service_costs: 0,
+            service_costs: 0,
+            gift_costs: 0,
             operating_costs: 0,
             net_profit: 0,
           },
@@ -572,12 +583,15 @@ export class StoreProfitReportService {
             avg_margin: 0,
             delivery_costs: 0,
             farm_service_costs: 0,
+            service_costs: 0,
+            gift_costs: 0,
             operating_costs: 0,
             net_profit: 0,
           },
           invoices: [],
           by_season: [],
-          debug_version: 'v5_empty_data',
+          farm_service_costs_breakdown: [],
+          debug_version: 'v5_no_invoices',
         };
       }
 
@@ -748,6 +762,12 @@ export class StoreProfitReportService {
         where: { customer_id: customerId }
       });
       const lifetimeFarmServiceCost = farmServiceCosts.reduce((sum, c) => sum + Number(c.amount), 0);
+      const lifetimeServiceCost = farmServiceCosts
+        .filter(c => !c.source.includes('reward') && c.source !== 'gift_from_invoice')
+        .reduce((sum, c) => sum + Number(c.amount), 0);
+      const lifetimeGiftCost = farmServiceCosts
+        .filter(c => c.source.includes('reward') || c.source === 'gift_from_invoice')
+        .reduce((sum, c) => sum + Number(c.amount), 0);
 
       const operatingCostsResult = await this.operatingCostRepository.find({
         where: { customer_id: customerId }
@@ -767,19 +787,31 @@ export class StoreProfitReportService {
 
       // Tính cho filtered generic costs
       let filteredFarmServiceCost = 0;
+      let filteredServiceCost = 0;
+      let filteredGiftCost = 0;
       let filteredOperatingCost = 0;
 
       if (seasonId) {
-        filteredFarmServiceCost = farmServiceCosts
-          .filter(c => c.season_id === seasonId)
+        const seasonCosts = farmServiceCosts.filter(c => c.season_id === seasonId);
+        filteredFarmServiceCost = seasonCosts.reduce((sum, c) => sum + Number(c.amount), 0);
+        filteredServiceCost = seasonCosts
+          .filter(c => !c.source.includes('reward') && c.source !== 'gift_from_invoice')
+          .reduce((sum, c) => sum + Number(c.amount), 0);
+        filteredGiftCost = seasonCosts
+          .filter(c => c.source.includes('reward') || c.source === 'gift_from_invoice')
           .reduce((sum, c) => sum + Number(c.amount), 0);
         
         filteredOperatingCost = operatingCostsResult
           .filter(c => c.season_id === seasonId)
           .reduce((sum, c) => sum + Number(c.value), 0);
       } else if (startDate && endDate) {
-        filteredFarmServiceCost = farmServiceCosts
-          .filter(c => c.expense_date >= startDate && c.expense_date <= endDate)
+        const periodCosts = farmServiceCosts.filter(c => c.expense_date >= startDate && c.expense_date <= endDate);
+        filteredFarmServiceCost = periodCosts.reduce((sum, c) => sum + Number(c.amount), 0);
+        filteredServiceCost = periodCosts
+          .filter(c => !c.source.includes('reward') && c.source !== 'gift_from_invoice')
+          .reduce((sum, c) => sum + Number(c.amount), 0);
+        filteredGiftCost = periodCosts
+          .filter(c => c.source.includes('reward') || c.source === 'gift_from_invoice')
           .reduce((sum, c) => sum + Number(c.amount), 0);
         
         filteredOperatingCost = operatingCostsResult
@@ -787,6 +819,8 @@ export class StoreProfitReportService {
           .reduce((sum, c) => sum + Number(c.value), 0);
       } else {
         filteredFarmServiceCost = lifetimeFarmServiceCost;
+        filteredServiceCost = lifetimeServiceCost;
+        filteredGiftCost = lifetimeGiftCost;
         filteredOperatingCost = lifetimeOperatingCost;
       }
 
@@ -804,10 +838,22 @@ export class StoreProfitReportService {
           avg_margin: s.revenue > 0 ? Math.round((s.profit / s.revenue) * 10000) / 100 : 0,
           delivery_costs: Math.round(filteredDeliveryCost * 100) / 100,
           farm_service_costs: Math.round(filteredFarmServiceCost * 100) / 100,
+          service_costs: Math.round(filteredServiceCost * 100) / 100,
+          gift_costs: Math.round(filteredGiftCost * 100) / 100,
           operating_costs: Math.round(filteredOperatingCost * 100) / 100,
           net_profit: Math.round((s.profit - filteredDeliveryCost - filteredFarmServiceCost - filteredOperatingCost) * 100) / 100,
         };
       }
+
+      const farmServiceCostsBreakdown = (seasonId ? farmServiceCosts.filter(c => c.season_id === seasonId) : 
+        (startDate && endDate ? farmServiceCosts.filter(c => c.expense_date >= startDate && c.expense_date <= endDate) : farmServiceCosts))
+        .map(item => ({
+          type: item.source || 'manual',
+          name: item.name,
+          amount: Number(item.amount),
+          date: item.expense_date,
+          notes: item.notes,
+        }));
 
       return {
         customer_id: customerId,
@@ -822,6 +868,8 @@ export class StoreProfitReportService {
           avg_margin: Math.round(lifetimeMargin * 100) / 100,
           delivery_costs: Math.round(lifetimeDeliveryCost * 100) / 100,
           farm_service_costs: Math.round(lifetimeFarmServiceCost * 100) / 100,
+          service_costs: Math.round(lifetimeServiceCost * 100) / 100,
+          gift_costs: Math.round(lifetimeGiftCost * 100) / 100,
           operating_costs: Math.round(lifetimeOperatingCost * 100) / 100,
           net_profit: Math.round((lifetimeProfit - lifetimeDeliveryCost - lifetimeFarmServiceCost - lifetimeOperatingCost) * 100) / 100,
         },
@@ -834,12 +882,15 @@ export class StoreProfitReportService {
           avg_margin: Math.round(avgMargin * 100) / 100,
           delivery_costs: Math.round(filteredDeliveryCost * 100) / 100,
           farm_service_costs: Math.round(filteredFarmServiceCost * 100) / 100,
+          service_costs: Math.round(filteredServiceCost * 100) / 100,
+          gift_costs: Math.round(filteredGiftCost * 100) / 100,
           operating_costs: Math.round(filteredOperatingCost * 100) / 100,
           net_profit: Math.round((totalProfit - filteredDeliveryCost - filteredFarmServiceCost - filteredOperatingCost) * 100) / 100,
         },
         invoices: invoiceDetails,
         by_season: seasonSummary,
-        debug_version: 'v4_fix_all_final',
+        farm_service_costs_breakdown: farmServiceCostsBreakdown,
+        debug_version: 'v5_filtered_customer',
       };
     } catch (error) {
       const err = error as Error;
@@ -986,6 +1037,12 @@ export class StoreProfitReportService {
         where: { rice_crop_id: riceCropId }
       });
       const totalFarmServiceCosts = farmServiceCosts.reduce((sum, cost) => sum + Number(cost.amount), 0);
+      const totalServiceCosts = farmServiceCosts
+        .filter(c => !c.source.includes('reward') && c.source !== 'gift_from_invoice')
+        .reduce((sum, cost) => sum + Number(cost.amount), 0);
+      const totalGiftCosts = farmServiceCosts
+        .filter(c => c.source.includes('reward') || c.source === 'gift_from_invoice')
+        .reduce((sum, cost) => sum + Number(cost.amount), 0);
 
       const operatingCosts = await this.operatingCostRepository.find({
         where: { rice_crop_id: riceCropId }
@@ -1026,6 +1083,8 @@ export class StoreProfitReportService {
           
           // Chi phí dịch vụ/quà tặng của cửa hàng
           farm_service_costs: Math.round(totalFarmServiceCosts * 100) / 100,
+          service_costs: Math.round(totalServiceCosts * 100) / 100,
+          gift_costs: Math.round(totalGiftCosts * 100) / 100,
 
           // Chi phí vận hành gán cho ruộng
           operating_costs: Math.round(totalOperatingCosts * 100) / 100,
