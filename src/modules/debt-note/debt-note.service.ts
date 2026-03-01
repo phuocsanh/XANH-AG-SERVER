@@ -228,7 +228,8 @@ export class DebtNoteService {
   async addInvoiceToDebtNote(
     debtNoteId: number,
     invoiceId: number,
-    invoiceAmount: number,
+    invoiceFinalAmount: number,
+    invoicePaidAmount: number,
     manager?: any, // Optional EntityManager
   ): Promise<DebtNote> {
     const repo = manager ? manager.getRepository(DebtNote) : this.debtNoteRepository;
@@ -252,13 +253,17 @@ export class DebtNoteService {
     }
 
     // Cập nhật số tiền - Chuyển đổi sang number để tránh lỗi cộng chuỗi
-    // TypeORM có thể trả về decimal dưới dạng string, cần convert trước khi tính toán
     const currentAmount = Number(debtNote.amount) || 0;
+    const currentPaid = Number(debtNote.paid_amount) || 0;
     const currentRemaining = Number(debtNote.remaining_amount) || 0;
-    const addAmount = Number(invoiceAmount) || 0;
+
+    const addAmount = Number(invoiceFinalAmount) || 0;
+    const addPaid = Number(invoicePaidAmount) || 0;
+    const addRemaining = Math.max(0, addAmount - addPaid);
     
     debtNote.amount = currentAmount + addAmount;
-    debtNote.remaining_amount = currentRemaining + addAmount;
+    debtNote.paid_amount = currentPaid + addPaid;
+    debtNote.remaining_amount = currentRemaining + addRemaining;
 
     return await repo.save(debtNote);
   }
@@ -269,7 +274,8 @@ export class DebtNoteService {
    */
   async removeInvoiceFromDebtNote(
     invoiceId: number,
-    invoiceAmount: number,
+    invoiceFinalAmount: number,
+    invoicePaidAmount: number,
     manager?: any, // Optional EntityManager
   ): Promise<void> {
     const repo = manager ? manager.getRepository(DebtNote) : this.debtNoteRepository;
@@ -289,11 +295,16 @@ export class DebtNoteService {
 
       // Giảm số tiền
       const currentAmount = Number(debtNote.amount) || 0;
+      const currentPaid = Number(debtNote.paid_amount) || 0;
       const currentRemaining = Number(debtNote.remaining_amount) || 0;
-      const removeAmount = Number(invoiceAmount) || 0;
+
+      const removeAmount = Number(invoiceFinalAmount) || 0;
+      const removePaid = Number(invoicePaidAmount) || 0;
+      const removeRemaining = Math.max(0, removeAmount - removePaid);
 
       debtNote.amount = Math.max(0, currentAmount - removeAmount);
-      debtNote.remaining_amount = Math.max(0, currentRemaining - removeAmount);
+      debtNote.paid_amount = Math.max(0, currentPaid - removePaid);
+      debtNote.remaining_amount = Math.max(0, currentRemaining - removeRemaining);
 
       await repo.save(debtNote);
       this.logger.log(`✅ Đã trừ công nợ hóa đơn #${invoiceId} khỏi phiếu nợ #${debtNote.code}`);

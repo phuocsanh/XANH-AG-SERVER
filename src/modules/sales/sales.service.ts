@@ -206,8 +206,8 @@ export class SalesService {
         }
       }
 
-      // 🆕 Tự động tạo/cập nhật phiếu công nợ nếu có remaining_amount > 0
-      if (savedInvoice.remaining_amount > 0 && savedInvoice.customer_id) {
+      // 🆕 Tự động tạo/cập nhật phiếu công nợ (Bao gồm cả hóa đơn đã trả tiền mặt để tích lũy doanh số mùa vụ)
+      if (savedInvoice.customer_id && savedInvoice.season_id) {
         try {
           // Tìm hoặc tạo phiếu công nợ cho mùa vụ (PASS MANAGER)
           const debtNote = await this.debtNoteService.findOrCreateForSeason(
@@ -218,10 +218,12 @@ export class SalesService {
           );
 
           // Thêm hóa đơn vào phiếu công nợ (PASS MANAGER)
+          // Ghi nhận cả tổng giá trị đơn và số tiền đã thanh toán (kể cả trả 100% tiền mặt)
           await this.debtNoteService.addInvoiceToDebtNote(
             debtNote.id,
             savedInvoice.id,
-            savedInvoice.remaining_amount,
+            savedInvoice.final_amount,
+            savedInvoice.partial_payment_amount,
             queryRunner.manager, // Pass transaction manager
           );
 
@@ -231,7 +233,6 @@ export class SalesService {
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           // Nếu lỗi cập nhật công nợ, đây là lỗi NGHIÊM TRỌNG liên quan tiền bạc -> NÊN ROLLBACK
-          // Khác với tính lợi nhuận (chỉ là report), công nợ sai là vấn đề lớn.
           throw new Error(`Lỗi cập nhật công nợ: ${errorMessage}`);
         }
       }
@@ -671,11 +672,12 @@ export class SalesService {
         await this.handleInventoryRestoration(savedInvoice.id, userId, queryRunner);
       }
 
-      // 🆕 Trừ nợ trong công nợ (nếu có)
-      if (savedInvoice.remaining_amount > 0 && savedInvoice.customer_id) {
+      // 🆕 Trừ nợ trong công nợ (loại bỏ hóa đơn khỏi tích lũy mùa vụ)
+      if (savedInvoice.customer_id && savedInvoice.season_id) {
         await this.debtNoteService.removeInvoiceFromDebtNote(
           savedInvoice.id,
-          savedInvoice.remaining_amount,
+          savedInvoice.final_amount,
+          savedInvoice.partial_payment_amount,
           queryRunner.manager,
         );
       }
@@ -717,11 +719,12 @@ export class SalesService {
         await this.handleInventoryRestoration(savedInvoice.id, userId, queryRunner);
       }
 
-      // 🆕 Trừ nợ trong công nợ (nếu có)
-      if (savedInvoice.remaining_amount > 0 && savedInvoice.customer_id) {
+      // 🆕 Trừ nợ trong công nợ (loại bỏ hóa đơn khỏi tích lũy mùa vụ)
+      if (savedInvoice.customer_id && savedInvoice.season_id) {
         await this.debtNoteService.removeInvoiceFromDebtNote(
           savedInvoice.id,
-          savedInvoice.remaining_amount,
+          savedInvoice.final_amount,
+          savedInvoice.partial_payment_amount,
           queryRunner.manager,
         );
       }
