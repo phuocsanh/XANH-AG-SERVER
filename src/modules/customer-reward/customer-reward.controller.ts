@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Get, Param, Query, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get, Param, Query, BadRequestException, Patch, Delete } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -62,5 +62,21 @@ export class CustomerRewardController {
     @CurrentUser() user: User
   ) {
     return this.customerRewardService.manualCreate(createDto, user.id);
+  }
+
+  @Patch('history/:id')
+  @RequirePermissions('sales:update')
+  updateHistory(
+    @Param('id') id: string,
+    @Body() updateDto: CreateManualRewardDto,
+    @CurrentUser() user: User
+  ) {
+    return this.customerRewardService.updateHistory(+id, updateDto, user.id);
+  }
+
+  @Delete('history/:id')
+  @RequirePermissions('sales:delete')
+  deleteHistory(@Param('id') id: string) {
+    return this.customerRewardService.deleteHistory(+id);
   }
 }

@@ -72,6 +72,10 @@ export class FarmGiftCost {
   @Column({ name: 'invoice_id', nullable: true })
   invoice_id?: number;
 
+  /** ID lịch sử tặng quà (nếu là quà tặng hệ thống chăm sóc KH) */
+  @Column({ name: 'reward_history_id', nullable: true })
+  reward_history_id?: number;
+
   /** Thời gian tạo bản ghi */
   @CreateDateColumn({ name: 'created_at' })
   created_at!: Date;

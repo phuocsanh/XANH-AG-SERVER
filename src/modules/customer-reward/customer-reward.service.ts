@@ -8,6 +8,7 @@ import { SystemSetting } from '../../entities/system-setting.entity';
 import { Customer } from '../../entities/customer.entity';
 import { Season } from '../../entities/season.entity';
 import { RiceCrop } from '../../entities/rice-crop.entity';
+import { FarmGiftCost } from '../../entities/farm-gift-cost.entity';
 import { FarmGiftCostService } from '../farm-service-cost/farm-gift-cost.service';
 import { QueryHelper } from '../../common/helpers/query-helper';
 import { SearchRewardDto } from './dto/search-reward.dto';
@@ -24,6 +25,8 @@ export class CustomerRewardService {
     private debtNoteRepository: Repository<DebtNote>,
     @InjectRepository(SystemSetting)
     private systemSettingRepository: Repository<SystemSetting>,
+    @InjectRepository(FarmGiftCost)
+    private farmGiftCostRepository: Repository<FarmGiftCost>,
     private readonly farmGiftCostService: FarmGiftCostService,
   ) {}
 
@@ -158,6 +161,8 @@ export class CustomerRewardService {
     giftDescription?: string | null | undefined;
     totalAccumulated: number;
     manager: any;
+    reward_history_id?: number | null | undefined;
+    rice_crop_id?: number | null | undefined;
   }): Promise<void> {
     try {
       const costName = `Quà tặng cuối vụ - ${params.customerName}`;
@@ -174,9 +179,11 @@ export class CustomerRewardService {
         amount: params.giftValue * params.rewardCount,
         season_id: params.season_id,
         customer_id: params.customer_id,
+        rice_crop_id: params.rice_crop_id || undefined,
         notes: descriptionParts,
         gift_date: new Date().toISOString(),
         source: 'reward_from_debt_note',
+        reward_history_id: params.reward_history_id || undefined,
       }, params.manager);
     } catch (error) {
       // Log error but don't stop process
@@ -228,6 +235,7 @@ export class CustomerRewardService {
     const remainingAccumulated = totalAccumulated % threshold;
 
     // 4. Lưu lịch sử tặng quà (nơi lưu vết từng món quà được tặng)
+    const historyIds: number[] = [];
     if (rewardCount > 0) {
       for (let i = 0; i < rewardCount; i++) {
         const rewardHistory = manager.create(CustomerRewardHistory, {
@@ -246,7 +254,8 @@ export class CustomerRewardService {
           created_by: userId,
           gift_value: closeData.gift_value || 0,
         });
-        await manager.save(rewardHistory);
+        const savedHistory = await manager.save(rewardHistory);
+        historyIds.push(savedHistory.id);
       }
     }
 
@@ -265,18 +274,22 @@ export class CustomerRewardService {
 
     // 6. Tạo phiếu chi phí nếu có tặng quà và có giá trị quà
     if (rewardCount > 0 && closeData.gift_value && closeData.gift_value > 0) {
-      await this.createGiftFarmServiceCost({
-        debtNoteCode: debtNote.code,
-        customer_id: debtNote.customer_id,
-        customerName: debtNote.customer?.name || 'Khách hàng',
-        season_id: debtNote.season_id!,
-        seasonName: debtNote.season?.name,
-        rewardCount,
-        giftValue: closeData.gift_value,
-        giftDescription: closeData.gift_description,
-        totalAccumulated: totalAccumulated,
-        manager,
-      });
+       // Chúng ta tạo một phiếu chi phí cho mỗi lần tặng quà để dễ đồng bộ
+       for (let i = 0; i < rewardCount; i++) {
+            await this.createGiftFarmServiceCost({
+                debtNoteCode: debtNote.code,
+                customer_id: debtNote.customer_id,
+                customerName: debtNote.customer?.name || 'Khách hàng',
+                season_id: debtNote.season_id!,
+                seasonName: debtNote.season?.name,
+                rewardCount: 1, // Tạo lẻ từng cái
+                giftValue: closeData.gift_value,
+                giftDescription: closeData.gift_description,
+                totalAccumulated: totalAccumulated,
+                manager,
+                reward_history_id: historyIds[i]
+            });
+       }
     }
 
     // Trả về thông tin tóm tắt để DebtNoteService phản hồi cho Frontend
@@ -388,14 +401,14 @@ export class CustomerRewardService {
         pending_amount: 0,
         total_accumulated: 0,
         reward_count: 0,
-        reward_threshold: threshold, // Thêm dòng này
+        reward_threshold: threshold, 
         shortage_to_next: threshold,
       };
     }
 
     return {
       ...tracking,
-      reward_threshold: threshold, // Thêm dòng này
+      reward_threshold: threshold,
       shortage_to_next: Math.max(0, threshold - Number(tracking.pending_amount)),
     };
   }
@@ -428,9 +441,6 @@ export class CustomerRewardService {
     };
   }
 
-  /**
-   * Tạo quà tặng thủ công cho khách hàng
-   */
   /**
    * Tạo quà tặng thủ công cho khách hàng
    */
@@ -497,7 +507,7 @@ export class CustomerRewardService {
 
       if (!tracking) {
         tracking = manager.create(CustomerRewardTracking, {
-          customer_id,
+          customer_id: customer_id,
           pending_amount: 0,
           total_accumulated: 0,
           reward_count: 0
@@ -526,11 +536,76 @@ export class CustomerRewardService {
             giftValue: gift_value,
             giftDescription: gift_description,
             totalAccumulated: 0,
-            manager
+            manager,
+            reward_history_id: savedHistory.id,
+            rice_crop_id: rice_crop_id || null
         });
       }
 
       return savedHistory;
+    });
+  }
+
+  /**
+   * Cập nhật thông tin lịch sử quà tặng
+   */
+  async updateHistory(id: number, dto: CreateManualRewardDto, _userId: number) {
+    const history = await this.rewardHistoryRepository.findOne({ where: { id } });
+    if (!history) throw new NotFoundException('Không tìm thấy lịch sử quà tặng');
+
+    Object.assign(history, {
+      gift_description: dto.gift_description,
+      gift_value: dto.gift_value,
+      notes: dto.notes,
+    });
+
+    const saved = await this.rewardHistoryRepository.save(history);
+
+    // Cập nhật chi phí tương ứng nếu có
+    const giftCost = await this.farmGiftCostRepository.findOne({
+      where: { reward_history_id: id }
+    });
+
+    if (giftCost) {
+      giftCost.name = `Quà tặng tri ân - ${history.customer_name}`;
+      giftCost.amount = dto.gift_value || 0;
+      giftCost.notes = dto.gift_description;
+      await this.farmGiftCostRepository.save(giftCost);
+    }
+
+    return saved;
+  }
+
+  /**
+   * Xóa lịch sử quà tặng
+   */
+  async deleteHistory(id: number) {
+    const history = await this.rewardHistoryRepository.findOne({ where: { id } });
+    if (!history) throw new NotFoundException('Không tìm thấy lịch sử quà tặng');
+
+    return await this.rewardHistoryRepository.manager.transaction(async (manager) => {
+      // 1. Cập nhật lại số liệu tracking
+      const tracking = await manager.findOne(CustomerRewardTracking, {
+        where: { customer_id: history.customer_id }
+      });
+
+      if (tracking) {
+        tracking.reward_count = Math.max(0, tracking.reward_count - 1);
+        await manager.save(tracking);
+      }
+
+      // 2. Xóa chi phí tương ứng
+      const giftCost = await manager.findOne(FarmGiftCost, {
+        where: { reward_history_id: id }
+      });
+      if (giftCost) {
+        await manager.remove(giftCost);
+      }
+
+      // 3. Xóa lịch sử
+      await manager.remove(history);
+      
+      return { success: true };
     });
   }
 }
