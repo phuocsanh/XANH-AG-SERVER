@@ -56,7 +56,9 @@ export class PaymentAllocationService {
         // Update Invoice
         const currentPaid = parseFloat(invoice.partial_payment_amount?.toString() || '0');
         const finalAmount = parseFloat(invoice.final_amount?.toString() || '0');
-        const newPaid = currentPaid + createDto.amount;
+        // Ép kiểu Number() tường minh để tránh bug cộng chuỗi với NUMERIC từ DB
+        const allocationAmount = Number(createDto.amount) || 0;
+        const newPaid = currentPaid + allocationAmount;
         const newRemaining = finalAmount - newPaid;
 
         if (newRemaining < 0) {
@@ -113,7 +115,9 @@ export class PaymentAllocationService {
         // Update Debt Note
         const currentPaid = parseFloat(debtNote.paid_amount?.toString() || '0');
         const amount = parseFloat(debtNote.amount?.toString() || '0');
-        const newPaid = currentPaid + createDto.amount;
+        // Ép kiểu Number() tường minh để tránh bug cộng chuỗi với NUMERIC từ DB
+        const allocationAmount = Number(createDto.amount) || 0;
+        const newPaid = currentPaid + allocationAmount;
         const newRemaining = amount - newPaid;
 
         debtNote.paid_amount = newPaid;
@@ -131,7 +135,7 @@ export class PaymentAllocationService {
       const allocation = this.allocationRepository.create(createDto);
       const savedAllocation = await queryRunner.manager.save(allocation);
 
-      // 4. Update Payment - Tránh lỗi cộng chuỗi
+      // 4. Update Payment - Ép kiểu Number() để tránh bug cộng chuỗi NUMERIC từ DB
       const currentAllocated = Number(payment.allocated_amount) || 0;
       const addAmount = Number(createDto.amount) || 0;
       payment.allocated_amount = currentAllocated + addAmount;

@@ -271,8 +271,9 @@ export class SalesReturnService {
         invoice.partial_payment_amount = Math.max(0, currentPaid - totalRefund);
         
         // Tăng công nợ (vì đã hoàn tiền nhưng hàng đã trả)
+        // Ép kiểu Number() trước khi tính để tránh bug cộng chuỗi với NUMERIC từ DB
         // Lưu ý: Công nợ mới = final_amount mới - partial_payment mới
-        invoice.remaining_amount = invoice.final_amount - invoice.partial_payment_amount;
+        invoice.remaining_amount = Number(invoice.final_amount) - Number(invoice.partial_payment_amount);
         
         this.logger.log(
           `[Trả hàng ${returnCode}] Hóa đơn ${invoice.code}: ` +
@@ -363,8 +364,8 @@ export class SalesReturnService {
         );
 
         if (inventoryBatch) {
-          // Tăng số lượng tồn kho
-          inventoryBatch.remaining_quantity += item.quantity;
+          // Tăng số lượng tồn kho - ép kiểu Number() để tránh cộng chuỗi
+          inventoryBatch.remaining_quantity = Number(inventoryBatch.remaining_quantity) + Number(item.quantity);
           await queryRunner.manager.save(inventoryBatch);
           
           this.logger.log(

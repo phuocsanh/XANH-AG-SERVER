@@ -230,7 +230,8 @@ export class SalesController {
     @Body('amount') amount: number,
     @CurrentUser('id') userId: number,
   ) {
-    return this.salesService.addPartialPayment(+id, amount, userId);
+    // Ép kiểu Number() tường minh để tránh bug cộng chuỗi khi JSON body không parse đúng type
+    return this.salesService.addPartialPayment(+id, Number(amount), userId);
   }
 
 

@@ -893,9 +893,11 @@ export class SalesService {
           if (debtNote) {
             const currentPaid = parseFloat(debtNote.paid_amount?.toString() || '0');
             const currentRemaining = parseFloat(debtNote.remaining_amount?.toString() || '0');
+            // Ép kiểu Number() tường minh để tránh bug cộng chuỗi khi amount từ controller là string
+            const amountNumber = Number(amount) || 0;
             
-            debtNote.paid_amount = currentPaid + amount;
-            debtNote.remaining_amount = currentRemaining - amount;
+            debtNote.paid_amount = currentPaid + amountNumber;
+            debtNote.remaining_amount = currentRemaining - amountNumber;
 
             if (debtNote.remaining_amount <= 0) {
               debtNote.status = DebtNoteStatus.PAID;
@@ -903,7 +905,7 @@ export class SalesService {
             }
 
             await queryRunner.manager.save(debtNote);
-            this.logger.log(`✅ Đã cập nhật phiếu nợ #${debtNote.code}: -${amount.toLocaleString()} đ`);
+            this.logger.log(`✅ Đã cập nhật phiếu nợ #${debtNote.code}: -${amountNumber.toLocaleString()} đ`);
 
             // Liên kết phiếu thu với mã phiếu nợ
             savedPayment.debt_note_code = debtNote.code;

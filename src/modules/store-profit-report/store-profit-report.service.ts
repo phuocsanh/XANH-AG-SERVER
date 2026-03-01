@@ -258,7 +258,7 @@ export class StoreProfitReportService {
             }
             const productData = productProfitMap.get(productId)!;
             productData.quantity += Number(item.base_quantity || item.quantity);
-            productData.revenue += item.total_price;
+            productData.revenue += Number(item.total_price);
             productData.profit += itemProfit;
           }
         }
@@ -683,7 +683,7 @@ export class StoreProfitReportService {
         });
         const deliveryCost = deliveryLog ? Number(deliveryLog.total_cost || 0) : 0;
 
-        totalRevenue += invoice.final_amount;
+        totalRevenue += Number(invoice.final_amount);
         totalCost += invoiceCOGS;
         totalProfit += invoiceProfit;
 
@@ -715,8 +715,8 @@ export class StoreProfitReportService {
           }
           const seasonData = seasonMap.get(invoice.season_id)!;
           seasonData.invoices++;
-          seasonData.revenue += invoice.final_amount;
-          seasonData.cost += invoiceCOGS;
+          seasonData.revenue += Number(invoice.final_amount);
+          seasonData.cost += Number(invoiceCOGS);
           seasonData.profit += invoiceProfit;
         }
       }

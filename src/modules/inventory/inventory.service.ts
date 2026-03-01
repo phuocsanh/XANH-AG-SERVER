@@ -387,7 +387,7 @@ export class InventoryService {
     for (const batch of batches) {
       totalValue +=
         batch.remaining_quantity * parseFloat(batch.unit_cost_price);
-      totalQuantity += batch.remaining_quantity;
+      totalQuantity += Number(batch.remaining_quantity);
     }
 
     return {
@@ -563,7 +563,7 @@ export class InventoryService {
       const batchValue =
         batch.remaining_quantity * parseFloat(batch.unit_cost_price);
       totalValue += batchValue;
-      totalQuantity += batch.remaining_quantity;
+      totalQuantity += Number(batch.remaining_quantity);
     }
 
     // Trả về giá vốn trung bình gia quyền
@@ -925,7 +925,7 @@ export class InventoryService {
       const batchValue =
         batch.remaining_quantity * parseFloat(batch.unit_cost_price);
       totalValue += batchValue;
-      totalQuantity += batch.remaining_quantity;
+      totalQuantity += Number(batch.remaining_quantity);
     }
 
     const newAverageCost = totalQuantity > 0 ? totalValue / totalQuantity : 0;
@@ -988,7 +988,7 @@ export class InventoryService {
         }
         groups[productId].batches.push(batchData);
 
-        groups[productId].totalQuantity += batch.remaining_quantity;
+        groups[productId].totalQuantity += Number(batch.remaining_quantity);
         groups[productId].totalValue += batchValue;
 
         return groups;
@@ -1052,7 +1052,7 @@ export class InventoryService {
           };
         }
 
-        stocks[productId].totalQuantity += batch.remaining_quantity;
+        stocks[productId].totalQuantity += Number(batch.remaining_quantity);
         const stockBatchData: any = {
           batchId: batch.id,
           code: batch.code || '',
@@ -1348,8 +1348,8 @@ export class InventoryService {
       let totalQuantity = 0;
       
       for (const item of createInventoryReceiptDto.items) {
-        totalValue += item.quantity * item.unit_cost;
-        totalQuantity += item.quantity;
+        totalValue += Number(item.quantity) * Number(item.unit_cost);
+        totalQuantity += Number(item.quantity);
       }
 
       // Tính phí vận chuyển cho từng item
