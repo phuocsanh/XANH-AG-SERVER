@@ -185,6 +185,10 @@ export class Product {
   @Column({ name: 'notes', type: 'text', nullable: true })
   notes?: string;
 
+  /** Cơ chế tác động của các hoạt chất thuốc */
+  @Column({ name: 'mechanism', type: 'text', nullable: true })
+  mechanism?: string;
+
   /** Trạng thái hóa đơn đầu vào (true: có hóa đơn, false: không có) */
   @Column({ name: 'has_input_invoice', type: 'boolean', default: true })
   has_input_invoice!: boolean;

@@ -140,6 +140,11 @@ export class CreateProductDto {
   @IsString()
   notes?: string;
 
+  /** Cơ chế tác động của các hoạt chất thuốc (tùy chọn) */
+  @IsOptional()
+  @IsString()
+  mechanism?: string;
+
   /** Trạng thái hóa đơn đầu vào (tùy chọn) */
   @IsOptional()
   @IsBoolean()
