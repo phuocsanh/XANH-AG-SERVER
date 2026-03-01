@@ -450,7 +450,6 @@ export class CustomerRewardService {
         gift_description, 
         gift_value, 
         notes, 
-        manual_deduct_amount,
         season_id,
         rice_crop_id
     } = dto;
@@ -514,9 +513,13 @@ export class CustomerRewardService {
         });
       }
 
-      // Khấu trừ tiền tích lũy nếu có yêu cầu
-      if (manual_deduct_amount && manual_deduct_amount > 0) {
-        tracking.pending_amount = Math.max(0, Number(tracking.pending_amount) - manual_deduct_amount);
+      if (!tracking) {
+        tracking = manager.create(CustomerRewardTracking, {
+          customer_id: customer_id,
+          pending_amount: 0,
+          total_accumulated: 0,
+          reward_count: 0
+        });
       }
 
       tracking.reward_count += 1;

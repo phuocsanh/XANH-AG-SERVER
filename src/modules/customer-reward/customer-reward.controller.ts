@@ -56,7 +56,7 @@ export class CustomerRewardController {
   }
 
   @Post()
-  @RequirePermissions('sales:create')
+  @RequirePermissions('sales:manage')
   manualCreate(
     @Body() createDto: CreateManualRewardDto,
     @CurrentUser() user: User
@@ -65,7 +65,7 @@ export class CustomerRewardController {
   }
 
   @Patch('history/:id')
-  @RequirePermissions('sales:update')
+  @RequirePermissions('sales:manage')
   updateHistory(
     @Param('id') id: string,
     @Body() updateDto: CreateManualRewardDto,
@@ -75,7 +75,7 @@ export class CustomerRewardController {
   }
 
   @Delete('history/:id')
-  @RequirePermissions('sales:delete')
+  @RequirePermissions('sales:manage')
   deleteHistory(@Param('id') id: string) {
     return this.customerRewardService.deleteHistory(+id);
   }
