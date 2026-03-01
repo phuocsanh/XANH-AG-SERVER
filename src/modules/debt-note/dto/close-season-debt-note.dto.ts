@@ -18,4 +18,9 @@ export class CloseSeasonDebtNoteDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  /** Số dư tích lũy chuyển sang vụ sau (nhập thủ công) */
+  @IsOptional()
+  @IsNumber()
+  manual_remaining_amount?: number;
 }

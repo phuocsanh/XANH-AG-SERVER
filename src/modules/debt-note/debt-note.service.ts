@@ -483,7 +483,12 @@ export class DebtNoteService {
       }
 
       // 6. Cập nhật bản ghi tích lũy
-      rewardTracking.pending_amount = remainingAccumulated;
+      // Sử dụng số dư nhập thủ công nếu có, nếu không dùng số dư tự động tính toán
+      const finalRemainingAmount = closeData.manual_remaining_amount !== undefined 
+        ? Number(closeData.manual_remaining_amount) 
+        : remainingAccumulated;
+
+      rewardTracking.pending_amount = finalRemainingAmount;
       rewardTracking.total_accumulated = Number(rewardTracking.total_accumulated) + seasonTotalDebt;
       rewardTracking.reward_count += rewardCount;
       if (rewardCount > 0) {
