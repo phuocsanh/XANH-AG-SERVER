@@ -307,7 +307,12 @@ export class DebtNoteService {
         throw new BadRequestException('Phiếu công nợ đã được chốt sổ');
       }
 
-      // 2. Xử lý quà tặng và tích lũy thông qua CustomerRewardService
+      // 2. Kiểm tra tính hợp lệ của dữ liệu quà tặng
+      if (closeData.gift_value && closeData.gift_value > 0 && !closeData.gift_description) {
+        throw new BadRequestException('Vui lòng nhập mô tả quà tặng khi có giá trị quà tặng');
+      }
+
+      // 3. Xử lý quà tặng và tích lũy thông qua CustomerRewardService
       // CHỈ CẦN GỌI DUY NHẤT 1 HÀM NÀY, không cần tính toán tại đây.
       const rewardSummary = await this.customerRewardService.handleDebtNoteSettlement(
         manager,

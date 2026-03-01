@@ -341,4 +341,56 @@ export class CustomerRewardService {
       limit,
     };
   }
+
+  /**
+   * Lấy thông tin tích lũy của chính tôi (Dành cho nông dân đăng nhập bên NextJS)
+   */
+  async getMyRewardTracking(customerId: number) {
+    const tracking = await this.rewardTrackingRepository.findOne({
+      where: { customer_id: customerId },
+      relations: ['customer'],
+    });
+
+    if (!tracking) {
+      return {
+        pending_amount: 0,
+        total_accumulated: 0,
+        reward_count: 0,
+        shortage_to_next: this.REWARD_THRESHOLD,
+      };
+    }
+
+    return {
+      ...tracking,
+      shortage_to_next: Math.max(0, this.REWARD_THRESHOLD - Number(tracking.pending_amount)),
+    };
+  }
+
+  /**
+   * Lấy lịch sử quà tặng của chính tôi (Dành cho nông dân đăng nhập bên NextJS)
+   * Ẩn giá trị thực tế của quà tặng (gift_value)
+   */
+  async getMyRewardHistory(customerId: number, page: number = 1, limit: number = 10) {
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await this.rewardHistoryRepository.findAndCount({
+      where: { customer_id: customerId },
+      order: { reward_date: 'DESC' },
+      skip,
+      take: limit,
+    });
+
+    // 🔥 Bảo mật: Xóa gift_value trước khi trả về cho nông dân
+    const safeItems = items.map(item => {
+      const { gift_value, ...safeItem } = item;
+      return safeItem;
+    });
+
+    return {
+      items: safeItems,
+      total,
+      page,
+      limit,
+    };
+  }
 }
