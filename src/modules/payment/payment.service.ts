@@ -204,7 +204,7 @@ export class PaymentService {
         .andWhere('si.season_id = :seasonId', { seasonId: dto.season_id })
         .andWhere('si.remaining_amount > 0')
         .orderBy('si.created_at', 'ASC')
-        .setLock('pessimistic_write') // Khóa bản ghi để tránh tranh chấp khi thanh toán
+        .setLock('pessimistic_write', undefined, ['si']) // Chỉ khóa bảng hóa đơn để tránh lỗi "nullable side of an outer join"
         .getMany();
 
       if (unpaidInvoices.length === 0) {
