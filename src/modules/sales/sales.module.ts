@@ -7,14 +7,12 @@ import { DebtNote } from '../../entities/debt-note.entity';
 import { DeliveryLog } from '../../entities/delivery-log.entity';
 import { DeliveryLogItem } from '../../entities/delivery-log-item.entity';
 import { OperatingCost } from '../../entities/operating-costs.entity';
-import { CustomerRewardTracking } from '../../entities/customer-reward-tracking.entity';
-import { CustomerRewardHistory } from '../../entities/customer-reward-history.entity';
 import { Payment } from '../../entities/payment.entity';
 import { PaymentAllocation } from '../../entities/payment-allocation.entity';
 import { SalesService } from './sales.service';
 import { SalesController } from './sales.controller';
 import { DeliveryController } from './delivery.controller';
-import { DebtNoteService } from '../debt-note/debt-note.service';
+import { DebtNoteModule } from '../debt-note/debt-note.module';
 import { FirebaseModule } from '../firebase/firebase.module';
 import { OperatingCostModule } from '../operating-cost/operating-cost.module';
 import { OperatingCostCategoryModule } from '../operating-cost-category/operating-cost-category.module';
@@ -49,8 +47,6 @@ import { InventoryModule } from '../inventory/inventory.module';
       OperatingCost, // Entity chi phí vận hành (cho quà tặng khách hàng)
       User, // Entity người dùng (tài xế)
       UserProfile, // Entity profile người dùng (fcm_token)
-      CustomerRewardTracking, // Entity theo dõi tích lũy quà tặng khách hàng
-      CustomerRewardHistory, // Entity lịch sử tặng quà khách hàng
       Payment,
       PaymentAllocation,
     ]),
@@ -59,9 +55,10 @@ import { InventoryModule } from '../inventory/inventory.module';
     OperatingCostCategoryModule, // Module loại chi phí (cho chức năng tạo phiếu chi quà tặng)
     FarmServiceCostModule,
     InventoryModule,
+    DebtNoteModule,
   ],
   controllers: [SalesController, DeliveryController], // Controllers xử lý các request
-  providers: [SalesService, DebtNoteService, DeliveryNotificationService], // Service xử lý logic nghiệp vụ bán hàng và công nợ
+  providers: [SalesService, DeliveryNotificationService], // Service xử lý logic nghiệp vụ bán hàng và thông báo
   exports: [SalesService], // Xuất SalesService để các module khác có thể sử dụng
 })
 export class SalesModule {}
