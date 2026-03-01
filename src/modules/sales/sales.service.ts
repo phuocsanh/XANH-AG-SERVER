@@ -22,7 +22,7 @@ import { PaymentAllocation } from '../../entities/payment-allocation.entity';
 import { DebtNoteService } from '../debt-note/debt-note.service';
 import { DeliveryStatus } from './enums/delivery-status.enum';
 import { DeliveryNotificationService } from './delivery-notification.service';
-import { FarmServiceCostService } from '../farm-service-cost/farm-service-cost.service';
+import { FarmGiftCostService } from '../farm-service-cost/farm-gift-cost.service';
 import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 import { InventoryService } from '../inventory/inventory.service';
 import { InventoryTransaction } from '../../entities/inventory-transactions.entity';
@@ -56,7 +56,7 @@ export class SalesService {
     private debtNoteService: DebtNoteService,
     private dataSource: DataSource,
     private deliveryNotificationService: DeliveryNotificationService,
-    private farmServiceCostService: FarmServiceCostService,
+    private farmGiftCostService: FarmGiftCostService,
     private inventoryService: InventoryService,
   ) {}
 
@@ -265,7 +265,7 @@ export class SalesService {
       // 🆕 Tự động tạo Chi phí Dịch vụ nếu có quà tặng
       if (createSalesInvoiceDto.gift_value && createSalesInvoiceDto.gift_value > 0) {
         try {
-          await this.farmServiceCostService.createFromInvoiceGift(
+          await this.farmGiftCostService.createFromInvoiceGift(
             savedInvoice.id,
             savedInvoice.customer_id!,
             savedInvoice.season_id!,

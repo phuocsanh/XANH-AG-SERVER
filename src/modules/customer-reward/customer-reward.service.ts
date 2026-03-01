@@ -8,7 +8,7 @@ import { SystemSetting } from '../../entities/system-setting.entity';
 import { Customer } from '../../entities/customer.entity';
 import { Season } from '../../entities/season.entity';
 import { RiceCrop } from '../../entities/rice-crop.entity';
-import { FarmServiceCostService } from '../farm-service-cost/farm-service-cost.service';
+import { FarmGiftCostService } from '../farm-service-cost/farm-gift-cost.service';
 import { QueryHelper } from '../../common/helpers/query-helper';
 import { SearchRewardDto } from './dto/search-reward.dto';
 import { CreateManualRewardDto } from './dto/create-manual-reward.dto';
@@ -24,7 +24,7 @@ export class CustomerRewardService {
     private debtNoteRepository: Repository<DebtNote>,
     @InjectRepository(SystemSetting)
     private systemSettingRepository: Repository<SystemSetting>,
-    private readonly farmServiceCostService: FarmServiceCostService,
+    private readonly farmGiftCostService: FarmGiftCostService,
   ) {}
 
   private readonly DEFAULT_REWARD_THRESHOLD = 60000000; // 60 Triệu
@@ -169,13 +169,13 @@ export class CustomerRewardService {
         `Phiếu nợ: ${params.debtNoteCode}`,
       ].filter(Boolean).join(' | ');
 
-      await this.farmServiceCostService.create({
+      await this.farmGiftCostService.create({
         name: costName,
         amount: params.giftValue * params.rewardCount,
         season_id: params.season_id,
         customer_id: params.customer_id,
         notes: descriptionParts,
-        expense_date: new Date().toISOString(),
+        gift_date: new Date().toISOString(),
         source: 'reward_from_debt_note',
       }, params.manager);
     } catch (error) {

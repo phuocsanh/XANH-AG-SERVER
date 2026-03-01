@@ -7,6 +7,7 @@ import { Season } from '../../entities/season.entity';
 import { OperatingCost } from '../../entities/operating-costs.entity';
 import { DeliveryLog } from '../../entities/delivery-log.entity';
 import { FarmServiceCost } from '../../entities/farm-service-cost.entity';
+import { FarmGiftCost } from '../../entities/farm-gift-cost.entity';
 import { RiceCrop } from '../../entities/rice-crop.entity';
 import { Customer } from '../../entities/customer.entity';
 
@@ -21,6 +22,7 @@ import { Customer } from '../../entities/customer.entity';
       OperatingCost,
       DeliveryLog,
       FarmServiceCost,
+      FarmGiftCost,
       RiceCrop,
       Customer,
     ]),

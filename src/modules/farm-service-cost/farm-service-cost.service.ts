@@ -7,7 +7,7 @@ import { UpdateFarmServiceCostDto } from './dto/update-farm-service-cost.dto';
 import { SearchFarmServiceCostDto } from './dto/search-farm-service-cost.dto';
 
 /**
- * Service xử lý logic cho chi phí dịch vụ/quà tặng dành cho nông dân
+ * Service xử lý logic cho chi phí dịch vụ nông nghiệp dành cho nông dân
  */
 @Injectable()
 export class FarmServiceCostService {
@@ -141,32 +141,5 @@ export class FarmServiceCostService {
     await this.farmServiceCostRepository.remove(farmServiceCost);
     
     this.logger.log(`✅ Đã xóa chi phí dịch vụ #${id}`);
-  }
-
-  /**
-   * Tạo chi phí dịch vụ từ quà tặng hóa đơn (gọi khi chốt sổ công nợ)
-   */
-  async createFromInvoiceGift(
-    invoiceId: number,
-    customerId: number,
-    seasonId: number,
-    riceCropId: number | undefined,
-    giftDescription: string,
-    giftValue: number,
-    invoiceDate: Date,
-  ): Promise<FarmServiceCost> {
-    const createDto: CreateFarmServiceCostDto = {
-      name: `Quà tặng: ${giftDescription}`,
-      amount: giftValue,
-      season_id: seasonId,
-      customer_id: customerId,
-      ...(riceCropId ? { rice_crop_id: riceCropId } : {}),
-      notes: `Tự động tạo từ hóa đơn #${invoiceId}`,
-      expense_date: invoiceDate.toISOString(),
-      source: 'gift_from_invoice',
-      invoice_id: invoiceId,
-    };
-
-    return this.create(createDto);
   }
 }
