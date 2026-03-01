@@ -53,4 +53,13 @@ export class CustomerRewardController {
       limit ? +limit : 10
     );
   }
+
+  @Post()
+  @RequirePermissions('sales:create')
+  manualCreate(
+    @Body() createDto: any,
+    @CurrentUser() user: User
+  ) {
+    return this.customerRewardService.manualCreate(createDto, user.id);
+  }
 }

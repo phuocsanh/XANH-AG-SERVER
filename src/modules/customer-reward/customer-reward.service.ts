@@ -423,4 +423,66 @@ export class CustomerRewardService {
       limit,
     };
   }
+
+  /**
+   * Tạo quà tặng thủ công cho khách hàng
+   */
+  async manualCreate(dto: any, userId: number) {
+    const { customer_id, gift_description, gift_value, notes, manual_deduct_amount } = dto;
+
+    const customer = await this.debtNoteRepository.manager.findOne('Customer', {
+      where: { id: customer_id }
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Không tìm thấy khách hàng');
+    }
+
+    const threshold = await this.getRewardThreshold();
+
+    return await this.debtNoteRepository.manager.transaction(async (manager) => {
+      // 1. Tạo bản ghi lịch sử quà tặng
+      const history = manager.create(CustomerRewardHistory, {
+        customer_id,
+        customer_name: (customer as any).name,
+        reward_threshold: threshold,
+        accumulated_amount: 0, // Thủ công nên không tính toán từ vụ
+        reward_date: new Date(),
+        gift_description,
+        gift_value: gift_value || 0,
+        gift_status: 'delivered',
+        delivered_date: new Date(),
+        notes: notes || 'Tặng quà thủ công',
+        created_by: userId,
+      });
+
+      const savedHistory = await manager.save(history);
+
+      // 2. Cập nhật bảng tracking tích lũy
+      let tracking = await manager.findOne(CustomerRewardTracking, {
+        where: { customer_id }
+      });
+
+      if (!tracking) {
+        tracking = manager.create(CustomerRewardTracking, {
+          customer_id,
+          pending_amount: 0,
+          total_accumulated: 0,
+          reward_count: 0
+        });
+      }
+
+      // Khấu trừ tiền tích lũy nếu có yêu cầu
+      if (manual_deduct_amount && manual_deduct_amount > 0) {
+        tracking.pending_amount = Math.max(0, Number(tracking.pending_amount) - manual_deduct_amount);
+      }
+
+      tracking.reward_count += 1;
+      tracking.last_reward_date = new Date();
+
+      await manager.save(tracking);
+
+      return savedHistory;
+    });
+  }
 }
