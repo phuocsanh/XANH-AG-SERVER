@@ -190,7 +190,7 @@ export class DebtNoteService {
     const queryBuilder = repo
       .createQueryBuilder('dn')
       .where('dn.customer_id = :customer_id', { customer_id })
-      .andWhere('dn.status IN (:...statuses)', { statuses: ['active', 'overdue'] });
+      .andWhere('dn.status IN (:...statuses)', { statuses: ['active', 'overdue', 'paid'] });
 
     if (season_id) {
       queryBuilder.andWhere('dn.season_id = :season_id', { season_id });
@@ -265,6 +265,15 @@ export class DebtNoteService {
     debtNote.paid_amount = currentPaid + addPaid;
     debtNote.remaining_amount = currentRemaining + addRemaining;
 
+    // Tự động cập nhật trạng thái nếu không phải trạng thái cố định (SETTLED, CANCELLED)
+    if (debtNote.status !== DebtNoteStatus.SETTLED && debtNote.status !== DebtNoteStatus.CANCELLED) {
+      if (debtNote.remaining_amount > 0) {
+        debtNote.status = DebtNoteStatus.ACTIVE;
+      } else {
+        debtNote.status = DebtNoteStatus.PAID;
+      }
+    }
+
     return await repo.save(debtNote);
   }
 
@@ -305,6 +314,15 @@ export class DebtNoteService {
       debtNote.amount = Math.max(0, currentAmount - removeAmount);
       debtNote.paid_amount = Math.max(0, currentPaid - removePaid);
       debtNote.remaining_amount = Math.max(0, currentRemaining - removeRemaining);
+
+      // Cập nhật trạng thái
+      if (debtNote.status !== DebtNoteStatus.SETTLED && debtNote.status !== DebtNoteStatus.CANCELLED) {
+        if (debtNote.remaining_amount > 0) {
+          debtNote.status = DebtNoteStatus.ACTIVE;
+        } else {
+          debtNote.status = DebtNoteStatus.PAID;
+        }
+      }
 
       await repo.save(debtNote);
       this.logger.log(`✅ Đã trừ công nợ hóa đơn #${invoiceId} khỏi phiếu nợ #${debtNote.code}`);
