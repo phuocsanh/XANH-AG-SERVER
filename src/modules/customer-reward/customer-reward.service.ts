@@ -4,6 +4,7 @@ import { Repository, Brackets } from 'typeorm';
 import { CustomerRewardTracking } from '../../entities/customer-reward-tracking.entity';
 import { CustomerRewardHistory } from '../../entities/customer-reward-history.entity';
 import { DebtNote, DebtNoteStatus } from '../../entities/debt-note.entity';
+import { SystemSetting } from '../../entities/system-setting.entity';
 import { FarmServiceCostService } from '../farm-service-cost/farm-service-cost.service';
 import { QueryHelper } from '../../common/helpers/query-helper';
 import { SearchRewardDto } from './dto/search-reward.dto';
@@ -17,10 +18,26 @@ export class CustomerRewardService {
     private rewardHistoryRepository: Repository<CustomerRewardHistory>,
     @InjectRepository(DebtNote)
     private debtNoteRepository: Repository<DebtNote>,
+    @InjectRepository(SystemSetting)
+    private systemSettingRepository: Repository<SystemSetting>,
     private readonly farmServiceCostService: FarmServiceCostService,
   ) {}
 
-  private readonly REWARD_THRESHOLD = 60000000; // 60 Triệu
+  private readonly DEFAULT_REWARD_THRESHOLD = 60000000; // 60 Triệu
+
+  /**
+   * Lấy mốc tích lũy từ database
+   */
+  async getRewardThreshold(manager?: any): Promise<number> {
+    const repo = manager ? manager.getRepository(SystemSetting) : this.systemSettingRepository;
+    const setting = await repo.findOne({ where: { key: 'reward_threshold' } });
+    
+    if (setting && !isNaN(Number(setting.value))) {
+      return Number(setting.value);
+    }
+    
+    return this.DEFAULT_REWARD_THRESHOLD;
+  }
 
   /**
    * Xem trước phần thưởng dựa trên ID phiếu nợ
@@ -49,14 +66,17 @@ export class CustomerRewardService {
 
     const previousPending = Number(rewardTracking?.pending_amount || 0);
     
+    // 🔥 Lấy mốc từ DB
+    const threshold = await this.getRewardThreshold();
+    
     // 🔥 Dùng amount (Tổng phát sinh) của phiếu hiện tại
     const seasonTotalDebt = Number(debtNote.amount);
     const totalAfterClose = previousPending + seasonTotalDebt;
 
     // 2. Tính toán số lần tặng quà
-    const rewardCount = Math.floor(totalAfterClose / this.REWARD_THRESHOLD);
-    const remainingAmount = totalAfterClose % this.REWARD_THRESHOLD;
-    const shortageToNext = this.REWARD_THRESHOLD - remainingAmount;
+    const rewardCount = Math.floor(totalAfterClose / threshold);
+    const remainingAmount = totalAfterClose % threshold;
+    const shortageToNext = threshold - remainingAmount;
 
     // 3. Lấy lịch sử các vụ đã tích lũy (SETTLED)
     const accumulationHistory = await this.debtNoteRepository.find({
@@ -102,7 +122,7 @@ export class CustomerRewardService {
         previous_pending: previousPending,
         current_debt: seasonTotalDebt,
         total_after_close: totalAfterClose,
-        reward_threshold: this.REWARD_THRESHOLD,
+        reward_threshold: threshold,
         reward_count: rewardCount,
         remaining_amount: remainingAmount,
         shortage_to_next: shortageToNext,
@@ -196,9 +216,12 @@ export class CustomerRewardService {
     const previousPending = Number(rewardTracking.pending_amount);
     const totalAccumulated = previousPending + seasonTotalDebt;
 
+    // 🔥 Lấy mốc từ DB (dùng manager để đảm bảo nhất quán trong transaction)
+    const threshold = await this.getRewardThreshold(manager);
+
     // 3. Tính số lần tặng quà và số dư
-    const rewardCount = Math.floor(totalAccumulated / this.REWARD_THRESHOLD);
-    const remainingAccumulated = totalAccumulated % this.REWARD_THRESHOLD;
+    const rewardCount = Math.floor(totalAccumulated / threshold);
+    const remainingAccumulated = totalAccumulated % threshold;
 
     // 4. Lưu lịch sử tặng quà (nơi lưu vết từng món quà được tặng)
     if (rewardCount > 0) {
@@ -206,7 +229,7 @@ export class CustomerRewardService {
         const rewardHistory = manager.create(CustomerRewardHistory, {
           customer_id: debtNote.customer_id,
           customer_name: debtNote.customer?.name || '',
-          reward_threshold: this.REWARD_THRESHOLD,
+          reward_threshold: threshold,
           accumulated_amount: totalAccumulated,
           season_ids: debtNote.season_id ? [debtNote.season_id] : [],
           season_names: debtNote.season?.name ? [debtNote.season.name] : [],
@@ -260,13 +283,13 @@ export class CustomerRewardService {
       reward_given: rewardCount > 0,
       reward_count: rewardCount,
       remaining_accumulated: finalRemainingAmount,
-      message: this.generateCloseMessage(rewardCount, finalRemainingAmount),
+      message: this.generateCloseMessage(rewardCount, finalRemainingAmount, threshold),
     };
   }
 
-  private generateCloseMessage(rewardCount: number, remaining: number): string {
+  private generateCloseMessage(rewardCount: number, remaining: number, threshold: number): string {
     if (rewardCount === 0) {
-      const shortage = this.REWARD_THRESHOLD - remaining;
+      const shortage = threshold - remaining;
       return `Đã chốt sổ thành công. Còn ${this.formatCurrency(shortage)} nữa để đạt mốc tặng quà.`;
     } else if (rewardCount === 1) {
       return `🎉 Đã chốt sổ và tặng 1 phần quà! Số dư chuyển sang: ${this.formatCurrency(remaining)}`;
@@ -305,11 +328,14 @@ export class CustomerRewardService {
       .take(limit)
       .getManyAndCount();
 
+    const threshold = await this.getRewardThreshold();
+
     return {
       items,
       total,
       page,
       limit,
+      reward_threshold: threshold,
     };
   }
 
@@ -351,18 +377,22 @@ export class CustomerRewardService {
       relations: ['customer'],
     });
 
+    const threshold = await this.getRewardThreshold();
+
     if (!tracking) {
       return {
         pending_amount: 0,
         total_accumulated: 0,
         reward_count: 0,
-        shortage_to_next: this.REWARD_THRESHOLD,
+        reward_threshold: threshold, // Thêm dòng này
+        shortage_to_next: threshold,
       };
     }
 
     return {
       ...tracking,
-      shortage_to_next: Math.max(0, this.REWARD_THRESHOLD - Number(tracking.pending_amount)),
+      reward_threshold: threshold, // Thêm dòng này
+      shortage_to_next: Math.max(0, threshold - Number(tracking.pending_amount)),
     };
   }
 

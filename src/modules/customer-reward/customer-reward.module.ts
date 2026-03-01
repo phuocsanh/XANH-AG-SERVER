@@ -6,11 +6,17 @@ import { CustomerRewardService } from './customer-reward.service';
 import { CustomerRewardController } from './customer-reward.controller';
 
 import { DebtNote } from '../../entities/debt-note.entity';
+import { SystemSetting } from '../../entities/system-setting.entity';
 import { FarmServiceCostModule } from '../farm-service-cost/farm-service-cost.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([CustomerRewardTracking, CustomerRewardHistory, DebtNote]),
+    TypeOrmModule.forFeature([
+      CustomerRewardTracking, 
+      CustomerRewardHistory, 
+      DebtNote,
+      SystemSetting
+    ]),
     FarmServiceCostModule,
   ],
   controllers: [CustomerRewardController],

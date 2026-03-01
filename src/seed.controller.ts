@@ -39,6 +39,40 @@ export class SeedController {
   }
 
   /**
+   * Endpoint để seed cấu hình hệ thống ban đầu
+   * POST /seed/settings
+   */
+  @Post('settings')
+  async seedSettings() {
+    try {
+      const repo = this.dataSource.getRepository('SystemSetting');
+      
+      // Seed reward threshold
+      const existingThreshold = await repo.findOne({ where: { key: 'reward_threshold' } });
+      if (!existingThreshold) {
+        await repo.save({
+          key: 'reward_threshold',
+          value: '60000000',
+          description: 'Mốc tích lũy doanh số để nhận quà tặng (VND)',
+        });
+      }
+
+      return {
+        success: true,
+        message: '✅ Đã seed cấu hình hệ thống thành công!',
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: '❌ Lỗi khi seed cấu hình hệ thống',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  /**
    * Endpoint để kiểm tra trạng thái seed
    * GET /seed/status
    * @returns Thông tin về roles và users hiện có
