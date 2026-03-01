@@ -47,12 +47,6 @@ export class DebtNoteController {
     return this.debtNoteService.remove(+id);
   }
 
-  @Get(':id/reward-preview')
-  @RequirePermissions('sales:read')
-  getRewardPreview(@Param('id') id: string) {
-    return this.debtNoteService.getRewardPreview(+id);
-  }
-
   @Post(':id/close-season')
   @RequirePermissions('sales:manage')
   closeSeasonDebtNote(
@@ -62,4 +56,5 @@ export class DebtNoteController {
   ) {
     return this.debtNoteService.closeSeasonDebtNote(+id, closeData, userId);
   }
+
 }

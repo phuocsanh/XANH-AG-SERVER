@@ -3,13 +3,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { DebtNoteService } from './debt-note.service';
 import { DebtNoteController } from './debt-note.controller';
 import { DebtNote } from '../../entities/debt-note.entity';
-import { CustomerRewardTracking } from '../../entities/customer-reward-tracking.entity';
-import { CustomerRewardHistory } from '../../entities/customer-reward-history.entity';
 import { Customer } from '../../entities/customer.entity';
 import { Season } from '../../entities/season.entity';
 import { OperatingCostModule } from '../operating-cost/operating-cost.module';
 import { OperatingCostCategoryModule } from '../operating-cost-category/operating-cost-category.module';
-import { FarmServiceCostModule } from '../farm-service-cost/farm-service-cost.module';
+import { CustomerRewardModule } from '../customer-reward/customer-reward.module';
 
 /**
  * DebtNoteModule - Module quản lý phiếu ghi nợ
@@ -25,14 +23,12 @@ import { FarmServiceCostModule } from '../farm-service-cost/farm-service-cost.mo
   imports: [
     TypeOrmModule.forFeature([
       DebtNote,
-      CustomerRewardTracking,
-      CustomerRewardHistory,
       Customer,
       Season,
     ]),
     OperatingCostModule,
     OperatingCostCategoryModule,
-    FarmServiceCostModule,
+    CustomerRewardModule,
   ],
   controllers: [DebtNoteController],
   providers: [DebtNoteService],
