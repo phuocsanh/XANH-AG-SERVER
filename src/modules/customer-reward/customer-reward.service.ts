@@ -46,10 +46,7 @@ export class CustomerRewardService {
     return this.DEFAULT_REWARD_THRESHOLD;
   }
 
-  /**
-   * Xem trước phần thưởng dựa trên ID phiếu nợ
-   */
-  async getRewardPreviewById(debtNoteId: number) {
+  async getRewardPreviewById(debtNoteId: number, additionalAmount: number = 0) {
     const debtNote = await this.debtNoteRepository.findOne({
       where: { id: debtNoteId },
       relations: ['customer', 'season'],
@@ -59,13 +56,35 @@ export class CustomerRewardService {
       throw new NotFoundException(`Không tìm thấy phiếu công nợ #${debtNoteId}`);
     }
 
-    return this.getRewardPreview(debtNote);
+    return this.getRewardPreview(debtNote, additionalAmount);
+  }
+
+  /**
+   * Xem trước phần thưởng dựa trên Customer và Season
+   */
+  async getRewardPreviewBySeason(customerId: number, seasonId: number, additionalAmount: number = 0) {
+    let debtNote = await this.debtNoteRepository.findOne({
+      where: { customer_id: customerId, season_id: seasonId },
+      relations: ['customer', 'season'],
+    });
+
+    if (!debtNote) {
+      // Nếu chưa có DebtNote, tạo object giả lập để có thể tính tích lũy tồn đọng
+      debtNote = {
+        customer_id: customerId,
+        season_id: seasonId,
+        amount: 0,
+        reward_count: 0
+      } as any;
+    }
+
+    return this.getRewardPreview(debtNote!, additionalAmount);
   }
 
   /**
    * Xem trước phần thưởng tích lũy (Preview)
    */
-  async getRewardPreview(debtNote: DebtNote) {
+  async getRewardPreview(debtNote: DebtNote, additionalAmount: number = 0) {
     // 1. Lấy thông tin tích lũy hiện tại (từ các vụ trước đó)
     const rewardTracking = await this.rewardTrackingRepository.findOne({
       where: { customer_id: debtNote.customer_id },
@@ -76,8 +95,8 @@ export class CustomerRewardService {
     // 🔥 Lấy mốc từ DB
     const threshold = await this.getRewardThreshold();
     
-    // 🔥 Dùng amount (Tổng phát sinh) của phiếu hiện tại
-    const seasonTotalDebt = Number(debtNote.amount);
+    // 🔥 Dùng amount (Tổng phát sinh) của phiếu hiện tại + số tiền cộng thêm (nếu có)
+    const seasonTotalDebt = Number(debtNote.amount || 0) + Number(additionalAmount || 0);
     const totalAfterClose = previousPending + seasonTotalDebt;
 
     // 2. Tính toán số lần tặng quà
@@ -206,7 +225,8 @@ export class CustomerRewardService {
     manager: any, // EntityManager từ transaction
     debtNote: DebtNote,
     closeData: any, // CloseSeasonDebtNoteDto (sử dụng any để tránh import vòng)
-    userId: number
+    userId: number,
+    isFinal: boolean = true
   ) {
     // 1. Lấy hoặc tạo bản ghi tích lũy
     let rewardTracking = await manager.findOne(CustomerRewardTracking, {
@@ -230,14 +250,17 @@ export class CustomerRewardService {
     // 🔥 Lấy mốc từ DB (dùng manager để đảm bảo nhất quán trong transaction)
     const threshold = await this.getRewardThreshold(manager);
 
-    // 3. Tính số lần tặng quà và số dư
-    const rewardCount = Math.floor(totalAccumulated / threshold);
+    // 3. Tính số lần tặng quà có thể nhận (tổng tích lũy / mốc)
+    const totalGiftsEarned = Math.floor(totalAccumulated / threshold);
+    
+    // 4. Tính số quà HIỆN TẠI sẽ tặng (Tổng có thể nhận - Số quà đã tặng trong vụ này trước đó)
+    const currentRewardCount = Math.max(0, totalGiftsEarned - Number(debtNote.reward_count || 0));
     const remainingAccumulated = totalAccumulated % threshold;
 
-    // 4. Lưu lịch sử tặng quà (nơi lưu vết từng món quà được tặng)
+    // 4. Lưu lịch sử tặng quà (chỉ nếu có quà mới được tặng trong lần này)
     const historyIds: number[] = [];
-    if (rewardCount > 0) {
-      for (let i = 0; i < rewardCount; i++) {
+    if (currentRewardCount > 0) {
+      for (let i = 0; i < currentRewardCount; i++) {
         const rewardHistory = manager.create(CustomerRewardHistory, {
           customer_id: debtNote.customer_id,
           customer_name: debtNote.customer?.name || '',
@@ -246,11 +269,11 @@ export class CustomerRewardService {
           season_ids: debtNote.season_id ? [debtNote.season_id] : [],
           season_names: debtNote.season?.name ? [debtNote.season.name] : [],
           reward_date: new Date(),
-          reward_sequence: i + 1,
+          reward_sequence: Number(rewardTracking.reward_count) + i + 1,
           gift_description: closeData.gift_description || 
-            `Quà tặng nông dân (Lần ${rewardTracking.reward_count + i + 1})`,
+            `Quà tặng nông dân (Lần ${Number(rewardTracking.reward_count) + i + 1})`,
           notes: closeData.notes || 
-            `Tích lũy từ ${this.formatCurrency(previousPending)} + ${this.formatCurrency(seasonTotalDebt)} = ${this.formatCurrency(totalAccumulated)}`,
+            `Tích lũy: ${this.formatCurrency(previousPending)} (dư cũ) + ${this.formatCurrency(seasonTotalDebt)} (vụ này) = ${this.formatCurrency(totalAccumulated)}`,
           created_by: userId,
           gift_value: closeData.gift_value || 0,
         });
@@ -259,30 +282,39 @@ export class CustomerRewardService {
       }
     }
 
-    // 5. Cập nhật bản ghi tích lũy tổng quát của khách hàng
-    const finalRemainingAmount = closeData.manual_remaining_amount !== undefined 
-      ? Number(closeData.manual_remaining_amount) 
-      : remainingAccumulated;
-
-    rewardTracking.pending_amount = finalRemainingAmount;
-    rewardTracking.total_accumulated = Number(rewardTracking.total_accumulated) + seasonTotalDebt;
-    rewardTracking.reward_count += rewardCount;
-    if (rewardCount > 0) {
+    // 5. Cập nhật bản ghi tích lũy tổng quát
+    if (currentRewardCount > 0) {
+      rewardTracking.reward_count = Number(rewardTracking.reward_count) + currentRewardCount;
       rewardTracking.last_reward_date = new Date();
     }
+
+    // NẾU LÀ CHỐT SỔ CUỐI VỤ: Mới cập nhật pending_amount và total_accumulated
+    if (isFinal) {
+      const finalRemainingAmount = closeData.manual_remaining_amount !== undefined 
+        ? Number(closeData.manual_remaining_amount) 
+        : remainingAccumulated;
+
+      rewardTracking.pending_amount = finalRemainingAmount;
+      rewardTracking.total_accumulated = Number(rewardTracking.total_accumulated) + seasonTotalDebt;
+    }
+    
     await manager.save(rewardTracking);
 
-    // 6. Tạo phiếu chi phí nếu có tặng quà và có giá trị quà
-    if (rewardCount > 0 && closeData.gift_value && closeData.gift_value > 0) {
-       // Chúng ta tạo một phiếu chi phí cho mỗi lần tặng quà để dễ đồng bộ
-       for (let i = 0; i < rewardCount; i++) {
+    // 6. Cập nhật reward_count trên chính phiếu nợ để theo dõi
+    debtNote.reward_count = Number(debtNote.reward_count || 0) + currentRewardCount;
+    debtNote.reward_given = debtNote.reward_count > 0;
+    await manager.save(debtNote);
+
+    // 7. Tạo phiếu chi phí nếu có tặng quà và có giá trị quà
+    if (currentRewardCount > 0 && closeData.gift_value && closeData.gift_value > 0) {
+       for (let i = 0; i < currentRewardCount; i++) {
             await this.createGiftFarmServiceCost({
                 debtNoteCode: debtNote.code,
                 customer_id: debtNote.customer_id,
                 customerName: debtNote.customer?.name || 'Khách hàng',
                 season_id: debtNote.season_id!,
                 seasonName: debtNote.season?.name,
-                rewardCount: 1, // Tạo lẻ từng cái
+                rewardCount: 1,
                 giftValue: closeData.gift_value,
                 giftDescription: closeData.gift_description,
                 totalAccumulated: totalAccumulated,
@@ -292,15 +324,16 @@ export class CustomerRewardService {
        }
     }
 
-    // Trả về thông tin tóm tắt để DebtNoteService phản hồi cho Frontend
+    // Trả về thông tin tóm tắt để các Service khác phản hồi cho Frontend
     return {
       previous_pending: previousPending,
       season_total: seasonTotalDebt,
       total_accumulated: totalAccumulated,
-      reward_given: rewardCount > 0,
-      reward_count: rewardCount,
-      remaining_accumulated: finalRemainingAmount,
-      message: this.generateCloseMessage(rewardCount, finalRemainingAmount, threshold),
+      reward_given: currentRewardCount > 0,
+      reward_count: currentRewardCount, // Số quà MỚI tặng trong lần này
+      total_reward_count: debtNote.reward_count, // Tổng quà của vụ này tính đến hiện tại
+      remaining_accumulated: remainingAccumulated,
+      message: this.generateCloseMessage(currentRewardCount, remainingAccumulated, threshold),
     };
   }
 

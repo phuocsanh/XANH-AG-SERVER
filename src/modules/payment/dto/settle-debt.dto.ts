@@ -43,4 +43,8 @@ export class SettleDebtDto {
   @IsNumber()
   @IsOptional()
   gift_value?: number;
+
+  /** Xác nhận có muốn chốt sổ mùa vụ này luôn hay không */
+  @IsOptional()
+  is_final?: boolean;
 }

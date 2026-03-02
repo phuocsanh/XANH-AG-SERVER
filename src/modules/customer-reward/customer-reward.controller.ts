@@ -27,8 +27,18 @@ export class CustomerRewardController {
 
   @Get('preview/:debtNoteId')
   @RequirePermissions('sales:read')
-  getRewardPreview(@Param('debtNoteId') debtNoteId: string) {
-    return this.customerRewardService.getRewardPreviewById(+debtNoteId);
+  getRewardPreview(@Param('debtNoteId') debtNoteId: string, @Query('additional_amount') additionalAmount?: string) {
+    return this.customerRewardService.getRewardPreviewById(+debtNoteId, additionalAmount ? +additionalAmount : 0);
+  }
+
+  @Get('preview-by-season')
+  @RequirePermissions('sales:read')
+  getRewardPreviewBySeason(
+    @Query('customer_id') customerId: string,
+    @Query('season_id') seasonId: string,
+    @Query('additional_amount') additionalAmount?: string,
+  ) {
+    return this.customerRewardService.getRewardPreviewBySeason(+customerId, +seasonId, additionalAmount ? +additionalAmount : 0);
   }
 
   @Get('my-tracking')

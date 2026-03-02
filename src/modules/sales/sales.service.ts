@@ -22,7 +22,7 @@ import { PaymentAllocation } from '../../entities/payment-allocation.entity';
 import { DebtNoteService } from '../debt-note/debt-note.service';
 import { DeliveryStatus } from './enums/delivery-status.enum';
 import { DeliveryNotificationService } from './delivery-notification.service';
-import { FarmGiftCostService } from '../farm-service-cost/farm-gift-cost.service';
+import { CustomerRewardService } from '../customer-reward/customer-reward.service';
 import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 import { InventoryService } from '../inventory/inventory.service';
 import { InventoryTransaction } from '../../entities/inventory-transactions.entity';
@@ -56,8 +56,8 @@ export class SalesService {
     private debtNoteService: DebtNoteService,
     private dataSource: DataSource,
     private deliveryNotificationService: DeliveryNotificationService,
-    private farmGiftCostService: FarmGiftCostService,
     private inventoryService: InventoryService,
+    private customerRewardService: CustomerRewardService,
   ) {}
 
   /**
@@ -262,26 +262,37 @@ export class SalesService {
         }
       }
 
-      // 🆕 Tự động tạo Chi phí Dịch vụ nếu có quà tặng
-      if (createSalesInvoiceDto.gift_value && createSalesInvoiceDto.gift_value > 0) {
+      // 🆕 Tự động xử lý Quà tặng tích lũy nếu có thông tin quà tặng
+      if (createSalesInvoiceDto.gift_description || (createSalesInvoiceDto.gift_value && createSalesInvoiceDto.gift_value > 0)) {
         try {
-          await this.farmGiftCostService.createFromInvoiceGift(
-            savedInvoice.id,
-            savedInvoice.customer_id!,
-            savedInvoice.season_id!,
-            savedInvoice.rice_crop_id,
-            createSalesInvoiceDto.gift_description || 'Quà tặng hóa đơn',
-            createSalesInvoiceDto.gift_value,
-            savedInvoice.created_at || new Date(),
-          );
+          // Lấy lại DebtNote mới nhất để đảm bảo số tiền tích lũy chính xác
+          const updatedDebtNote = await queryRunner.manager.findOne(DebtNote, {
+            where: { 
+              customer_id: savedInvoice.customer_id as number, 
+              season_id: savedInvoice.season_id as number 
+            },
+            relations: ['customer', 'season']
+          });
 
-          this.logger.log(
-            `✅ Đã tạo Chi phí dịch vụ cho quà tặng: ${createSalesInvoiceDto.gift_value.toLocaleString()} đ`,
-          );
+          if (updatedDebtNote) {
+            await this.customerRewardService.handleDebtNoteSettlement(
+              queryRunner.manager,
+              updatedDebtNote,
+              {
+                gift_description: createSalesInvoiceDto.gift_description || 'Quà tặng hóa đơn',
+                gift_value: createSalesInvoiceDto.gift_value || 0,
+                notes: `Tặng quà kèm hóa đơn #${savedInvoice.code}`,
+              },
+              userId,
+              false // isFinal = false (vì đây là tặng quà giữa vụ hoặc khi mua hàng)
+            );
+
+            this.logger.log(`✅ Đã ghi nhận quà tặng tích lũy cho hóa đơn #${savedInvoice.code}`);
+          }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          this.logger.error(`❌ Lỗi khi tạo Chi phí dịch vụ cho quà tặng: ${errorMessage}`);
-          // Không throw error để không làm gián đoạn transaction nếu quà tặng gặp lỗi nhẹ
+          this.logger.error(`❌ Lỗi khi xử lý quà tặng tích lũy: ${errorMessage}`);
+          // Không throw error để không làm gián đoạn transaction chính
         }
       }
 

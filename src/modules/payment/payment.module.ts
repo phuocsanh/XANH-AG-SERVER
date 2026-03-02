@@ -8,6 +8,7 @@ import { DebtNote } from '../../entities/debt-note.entity';
 import { SalesInvoice } from '../../entities/sales-invoices.entity';
 import { OperatingCostModule } from '../operating-cost/operating-cost.module';
 import { OperatingCostCategoryModule } from '../operating-cost-category/operating-cost-category.module';
+import { CustomerRewardModule } from '../customer-reward/customer-reward.module';
 
 /**
  * PaymentModule - Module quản lý thanh toán
@@ -28,6 +29,7 @@ import { OperatingCostCategoryModule } from '../operating-cost-category/operatin
     ]),
     OperatingCostModule,
     OperatingCostCategoryModule,
+    CustomerRewardModule,
   ],
   controllers: [PaymentController],
   providers: [PaymentService],

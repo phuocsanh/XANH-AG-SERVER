@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, QueryRunner, Brackets } from 'typeorm';
+import { Repository, Brackets } from 'typeorm';
 import { Payment } from '../../entities/payment.entity';
 import { PaymentAllocation } from '../../entities/payment-allocation.entity';
 import { DebtNote, DebtNoteStatus } from '../../entities/debt-note.entity';
@@ -11,8 +11,7 @@ import { SettleDebtDto } from './dto/settle-debt.dto';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 import { QueryHelper } from '../../common/helpers/query-helper';
-import { OperatingCostService } from '../operating-cost/operating-cost.service';
-import { OperatingCostCategoryService } from '../operating-cost-category/operating-cost-category.service';
+import { CustomerRewardService } from '../customer-reward/customer-reward.service';
 
 @Injectable()
 export class PaymentService {
@@ -23,8 +22,7 @@ export class PaymentService {
     private paymentRepository: Repository<Payment>,
     @InjectRepository(PaymentAllocation)
     private paymentAllocationRepository: Repository<PaymentAllocation>,
-    private operatingCostService: OperatingCostService,
-    private operatingCostCategoryService: OperatingCostCategoryService,
+    private customerRewardService: CustomerRewardService,
   ) {}
 
 
@@ -176,20 +174,10 @@ export class PaymentService {
     settled_invoices: SalesInvoice[];
     total_debt: number;
     remaining_debt: number;
-    breakdown_by_rice_crop: Array<{
-      rice_crop_id: number | null;
-      field_name: string;
-      invoice_count: number;
-      total_debt: number;
-      invoices: Array<{
-        id: number;
-        code: string;
-        amount: number;
-        remaining_amount: number;
-      }>;
-    }>;
+    breakdown_by_rice_crop: any[];
     gift_description?: string | undefined;
     gift_value: number;
+    reward_summary?: any;
   }> {
     const queryRunner = this.paymentRepository.manager.connection.createQueryRunner();
     await queryRunner.connect();
@@ -298,32 +286,42 @@ export class PaymentService {
         remainingPayment -= amountToAllocate;
       }
 
-      // 7. Cập nhật phiếu công nợ
+      // 7. Cập nhật số tiền đã trả và còn nợ trên phiếu công nợ
       const currentPaidDebt = Number(oldDebtNote.paid_amount) || 0;
       const paymentAmount = Number(dto.amount) || 0;
       oldDebtNote.paid_amount = currentPaidDebt + paymentAmount;
       oldDebtNote.remaining_amount = totalDebt - paymentAmount;
-      
-      if (dto.gift_description) oldDebtNote.gift_description = dto.gift_description;
-      if (dto.gift_value !== undefined) oldDebtNote.gift_value = dto.gift_value;
 
       if (oldDebtNote.remaining_amount <= 0) {
         oldDebtNote.status = DebtNoteStatus.PAID;
       } else {
         oldDebtNote.status = DebtNoteStatus.ACTIVE;
       }
-      await queryRunner.manager.save(oldDebtNote);
 
-      // 8. Tạo phiếu chi phí quà tặng (trong cùng transaction)
-      if (dto.gift_value && dto.gift_value > 0) {
-        await this.createGiftOperatingCost({
-          paymentCode: paymentCode,
-          customerName: savedPayment.customer?.name || 'Khách hàng',
-          giftValue: dto.gift_value,
-          giftDescription: dto.gift_description,
-          debtNoteCode: oldDebtNote.code,
-        }, queryRunner);
+      // 8. Xử lý quà tặng tích lũy và Chốt sổ (nếu được yêu cầu)
+      let rewardSummary: any = null;
+      if (dto.gift_description || (dto.gift_value && dto.gift_value > 0) || dto.is_final) {
+        rewardSummary = await this.customerRewardService.handleDebtNoteSettlement(
+          queryRunner.manager,
+          oldDebtNote,
+          {
+            gift_description: dto.gift_description,
+            gift_value: dto.gift_value || 0,
+            notes: dto.is_final ? `Chốt sổ & tặng quà khi thanh toán #${paymentCode}` : `Tặng quà khi thanh toán #${paymentCode}`,
+            manual_remaining_amount: oldDebtNote.remaining_amount, // Dùng nợ còn lại làm số dư chuyển sang nếu chốt sổ
+          },
+          userId,
+          dto.is_final === true // isFinal
+        );
+
+        // Nếu chốt sổ, cập nhật trạng thái DebtNote
+        if (dto.is_final) {
+          oldDebtNote.status = DebtNoteStatus.SETTLED;
+        }
       }
+
+      
+      await queryRunner.manager.save(oldDebtNote);
 
       await queryRunner.commitTransaction();
       this.logger.log(`✅ Chốt sổ thành công cho đơn PAY #${paymentCode}`);
@@ -336,6 +334,7 @@ export class PaymentService {
         breakdown_by_rice_crop: Array.from(riceCropMap.values()),
         gift_description: dto.gift_description,
         gift_value: dto.gift_value || 0,
+        reward_summary: rewardSummary,
       };
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -465,53 +464,4 @@ export class PaymentService {
     }
   }
 
-  /**
-   * Tạo phiếu chi phí quà tặng
-   * Tự động tạo operating cost khi tặng quà cho khách hàng
-   */
-  private async createGiftOperatingCost(params: {
-    paymentCode: string;
-    customerName: string;
-    giftValue: number;
-    giftDescription?: string | undefined;
-    debtNoteCode: string;
-  }, queryRunner?: QueryRunner): Promise<void> {
-    try {
-      // Lấy category "Quà tặng khách hàng"
-      const giftCategory = await this.operatingCostCategoryService.findByCode('GIFT');
-      
-      if (!giftCategory) {
-        this.logger.warn('⚠️ Không tìm thấy category "GIFT" - Bỏ qua tạo phiếu chi phí quà tặng');
-        return;
-      }
-
-      // Tạo tên phiếu chi phí
-      const costName = `Quà tặng thanh toán - ${params.customerName}`;
-
-      // Tạo mô tả chi tiết
-      const descriptionParts = [
-        params.giftDescription ? `Quà: ${params.giftDescription}` : 'Quà tặng khi thanh toán',
-        `Phiếu thu: ${params.paymentCode}`,
-        `Phiếu nợ: ${params.debtNoteCode}`,
-      ].filter(Boolean).join(' | ');
-
-      // Tạo phiếu chi phí
-      await this.operatingCostService.create({
-        name: costName,
-        category_id: giftCategory.id,
-        value: params.giftValue,
-        description: descriptionParts,
-        expense_date: new Date().toISOString(),
-      }, queryRunner);
-
-      this.logger.log(
-        `✅ Đã tạo phiếu chi phí quà tặng: ${costName} - ${params.giftValue.toLocaleString()} đ`
-      );
-    } catch (error) {
-      this.logger.error('❌ Lỗi khi tạo phiếu chi phí quà tặng:', error);
-      // Không throw error nếu không có queryRunner để không làm gián đoạn quá trình thanh toán
-      // Nhưng nếu có queryRunner (đang trong transaction), ta NÊN throw để rollback
-      if (queryRunner) throw error;
-    }
-  }
 }
