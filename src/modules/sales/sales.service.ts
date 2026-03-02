@@ -227,6 +227,34 @@ export class SalesService {
             queryRunner.manager, // Pass transaction manager
           );
 
+          // 🆕 TRUY VẾT THANH TOÁN: Nếu có thanh toán ngay, tạo Payment và PaymentAllocation
+          if (partialPayment > 0) {
+            const paymentCode = CodeGeneratorHelper.generateUniqueCode('PAY');
+            const paymentData: any = {
+              code: paymentCode,
+              customer_id: savedInvoice.customer_id,
+              amount: partialPayment,
+              payment_date: new Date(),
+              payment_method: savedInvoice.payment_method || 'cash',
+              notes: `Thanh toán khi tạo hóa đơn #${savedInvoice.code}`,
+              created_by: userId,
+              debt_note_code: debtNote.code, // Liên kết với mã phiếu nợ
+            };
+            const payment = queryRunner.manager.create(Payment, paymentData);
+            const savedPayment = await queryRunner.manager.save(payment);
+
+            const allocation = queryRunner.manager.create(PaymentAllocation, {
+              payment_id: savedPayment.id,
+              invoice_id: savedInvoice.id,
+              ...(debtNote.id && { debt_note_id: debtNote.id }), // Chỉ truyền nếu có ID
+              allocation_type: 'invoice',
+              amount: partialPayment,
+            });
+            await queryRunner.manager.save(allocation);
+            
+            this.logger.log(`✅ Đã tạo phiếu thu #${paymentCode} cho thanh toán ban đầu của hóa đơn #${savedInvoice.code}`);
+          }
+
           this.logger.log(
             `✅ Đã cập nhật phiếu công nợ #${debtNote.code} cho hóa đơn #${savedInvoice.code}`,
           );
@@ -887,9 +915,18 @@ export class SalesService {
         const savedPayment = await queryRunner.manager.save(payment);
 
         // 3. Tạo phân bổ thanh toán (PaymentAllocation)
+        let debtNoteId: number | undefined;
+        if (invoice.season_id) {
+          const debtNote = await queryRunner.manager.findOne(DebtNote, {
+            where: { customer_id: invoice.customer_id, season_id: invoice.season_id }
+          });
+          debtNoteId = debtNote?.id;
+        }
+
         const allocation = queryRunner.manager.create(PaymentAllocation, {
           payment_id: savedPayment.id,
           invoice_id: invoice.id,
+          ...(debtNoteId && { debt_note_id: debtNoteId }),
           allocation_type: 'invoice',
           amount: amount,
         });
