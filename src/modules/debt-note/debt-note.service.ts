@@ -74,52 +74,47 @@ export class DebtNoteService {
     };
   }> {
     const queryBuilder = this.debtNoteRepository.createQueryBuilder('debt_note');
-    
+
     queryBuilder.leftJoinAndSelect('debt_note.customer', 'customer');
     queryBuilder.leftJoinAndSelect('debt_note.season', 'season');
     queryBuilder.leftJoin('debt_note.creator', 'creator')
       .addSelect(['creator.id', 'creator.account']);
 
-    // 1. Base Search
+    // 1. Base Search (áp dụng pagination, sort, keyword)
     const { page, limit } = QueryHelper.applyBaseSearch(
       queryBuilder,
       searchDto,
       'debt_note',
-      ['code', 'customer.name', 'customer.phone'] // Global search
+      ['code', 'customer.name', 'customer.phone']
     );
 
-    // 2. Simple Filters & Guest Search logic
+    // 2. Simple Filters
     QueryHelper.applyFilters(
       queryBuilder,
       searchDto,
       'debt_note',
-      ['filters', 'nested_filters', 'operator', 'customer_name', 'customer_phone'], // Bỏ qua mapping mặc định cho name/phone
-      {
-        season_name: 'season.name',
-      }
+      ['filters', 'nested_filters', 'operator', 'customer_name', 'customer_phone'],
+      { season_name: 'season.name' }
     );
 
-    // ✅ Logic tìm kiếm khách hàng (chính thức & vãng lai)
+    // 3. Tìm kiếm khách hàng (chính thức & vãng lai)
     if (searchDto.customer_name || searchDto.customer_phone) {
       const nameKeyword = searchDto.customer_name ? `%${QueryHelper.sanitizeKeyword(searchDto.customer_name)}%` : null;
       const phoneKeyword = searchDto.customer_phone ? `%${QueryHelper.sanitizeKeyword(searchDto.customer_phone)}%` : null;
-      
+
       queryBuilder.andWhere(new Brackets(qb => {
         if (nameKeyword) {
-          // Tìm trong bảng Customer
           qb.orWhere(`regexp_replace(unaccent(customer.name), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent(:nameKeyword)`, { nameKeyword });
-          // Tìm trong các hóa đơn liên quan (Guest Name)
           qb.orWhere(`EXISTS (
-            SELECT 1 FROM sales_invoices si 
+            SELECT 1 FROM sales_invoices si
             WHERE si.id IN (SELECT json_array_elements_text(debt_note.source_invoices)::int)
             AND regexp_replace(unaccent(si.customer_name), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent(:nameKeyword)
           )`, { nameKeyword });
         }
-        
         if (phoneKeyword) {
           qb.orWhere(`customer.phone ILIKE :phoneKeyword`, { phoneKeyword });
           qb.orWhere(`EXISTS (
-            SELECT 1 FROM sales_invoices si 
+            SELECT 1 FROM sales_invoices si
             WHERE si.id IN (SELECT json_array_elements_text(debt_note.source_invoices)::int)
             AND si.customer_phone ILIKE :phoneKeyword
           )`, { phoneKeyword });
@@ -127,11 +122,13 @@ export class DebtNoteService {
       }));
     }
 
-    const data = await queryBuilder.getMany();
-    const total = await queryBuilder.clone().skip(undefined).take(undefined).getCount();
+    // 4. Lấy data + total cùng lúc — chuẩn như toàn bộ module khác
+    // getManyAndCount() tự động chạy 2 query: 1 lấy data (có skip/take), 1 đếm total (không skip/take)
+    const [data, total] = await queryBuilder.getManyAndCount();
 
+    // 5. Tính tóm tắt thống kê (dùng clone để không ảnh hưởng queryBuilder)
     const summaryQuery = queryBuilder.clone();
-    summaryQuery.skip(undefined).take(undefined);
+    summaryQuery.skip(0).take(0);
     summaryQuery.orderBy();
 
     const { total_debt, overdue_count, active_count, paid_count } = await summaryQuery
