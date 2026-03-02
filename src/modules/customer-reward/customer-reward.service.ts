@@ -333,6 +333,7 @@ export class CustomerRewardService {
       queryBuilder.andWhere(new Brackets(qb => {
         if (nameKeyword) {
           qb.orWhere(`regexp_replace(unaccent(customer.name), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent(:nameKeyword)`, { nameKeyword });
+          qb.orWhere(`customer.phone ILIKE :nameKeyword`, { nameKeyword });
         }
         if (phoneKeyword) {
           qb.orWhere(`customer.phone ILIKE :phoneKeyword`, { phoneKeyword });
@@ -374,6 +375,7 @@ export class CustomerRewardService {
       queryBuilder.andWhere(new Brackets(qb => {
         if (nameKeyword) {
           qb.orWhere(`rh.customer_name ILIKE :nameKeyword`, { nameKeyword });
+          qb.orWhere(`customer.phone ILIKE :nameKeyword`, { nameKeyword });
         }
         if (phoneKeyword) {
           qb.orWhere(`customer.phone ILIKE :phoneKeyword`, { phoneKeyword });
