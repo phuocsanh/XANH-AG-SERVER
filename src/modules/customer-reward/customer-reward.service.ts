@@ -360,16 +360,25 @@ export class CustomerRewardService {
    * Truy vấn lịch sử quà tặng tập trung
    */
   async searchRewardHistory(searchDto: SearchRewardDto) {
-    const { page = 1, limit = 10, customer_name } = searchDto;
+    const { page = 1, limit = 10, customer_name, customer_phone } = searchDto;
     const skip = (page - 1) * limit;
 
     const queryBuilder = this.rewardHistoryRepository.createQueryBuilder('rh')
       .leftJoinAndSelect('rh.customer', 'customer')
       .orderBy('rh.reward_date', 'DESC');
 
-    if (customer_name) {
-      const nameKeyword = `%${QueryHelper.sanitizeKeyword(customer_name)}%`;
-      queryBuilder.andWhere(`rh.customer_name ILIKE :nameKeyword`, { nameKeyword });
+    if (customer_name || customer_phone) {
+      const nameKeyword = customer_name ? `%${QueryHelper.sanitizeKeyword(customer_name)}%` : null;
+      const phoneKeyword = customer_phone ? `%${QueryHelper.sanitizeKeyword(customer_phone)}%` : null;
+
+      queryBuilder.andWhere(new Brackets(qb => {
+        if (nameKeyword) {
+          qb.orWhere(`rh.customer_name ILIKE :nameKeyword`, { nameKeyword });
+        }
+        if (phoneKeyword) {
+          qb.orWhere(`customer.phone ILIKE :phoneKeyword`, { phoneKeyword });
+        }
+      }));
     }
 
     const [items, total] = await queryBuilder
