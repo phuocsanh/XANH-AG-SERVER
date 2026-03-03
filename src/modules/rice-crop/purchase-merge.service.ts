@@ -34,8 +34,18 @@ export class PurchaseMergeService {
 
   /**
    * Lấy tất cả hóa đơn mua hàng của 1 rice_crop (cả system và external)
+   * Kèm theo tóm tắt thống kê (loại bỏ hóa đơn hủy)
    */
-  async getAllPurchasesByRiceCrop(riceCropId: number): Promise<MergedPurchase[]> {
+  async getAllPurchasesByRiceCrop(riceCropId: number): Promise<{
+    data: MergedPurchase[];
+    summary: {
+      total_amount: number;
+      paid_amount: number;
+      remaining_amount: number;
+      system_count: number;
+      external_count: number;
+    };
+  }> {
     // 1. Lấy hóa đơn từ hệ thống
     const systemInvoices = await this.salesInvoiceRepository.find({
       where: { rice_crop_id: riceCropId },
@@ -89,7 +99,21 @@ export class PurchaseMergeService {
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
     );
 
-    return merged;
+    // 6. Tính toán summary (loại bỏ hóa đơn hủy)
+    const activePurchases = merged.filter((p) => p.status !== 'cancelled');
+    
+    const summary = {
+      total_amount: activePurchases.reduce((sum, p) => sum + p.total_amount, 0),
+      paid_amount: activePurchases.reduce((sum, p) => sum + p.paid_amount, 0),
+      remaining_amount: activePurchases.reduce((sum, p) => sum + p.remaining_amount, 0),
+      system_count: activePurchases.filter(p => p.source === 'system').length,
+      external_count: activePurchases.filter(p => p.source === 'external').length,
+    };
+
+    return {
+      data: merged,
+      summary,
+    };
   }
 
   /**
@@ -100,20 +124,16 @@ export class PurchaseMergeService {
     external_total: number;
     grand_total: number;
   }> {
-    const allPurchases = await this.getAllPurchasesByRiceCrop(riceCropId);
-
-    const system_total = allPurchases
-      .filter((p) => p.source === 'system')
-      .reduce((sum, p) => sum + p.total_amount, 0);
-
-    const external_total = allPurchases
-      .filter((p) => p.source === 'external')
-      .reduce((sum, p) => sum + p.total_amount, 0);
+    const result = await this.getAllPurchasesByRiceCrop(riceCropId);
 
     return {
-      system_total,
-      external_total,
-      grand_total: system_total + external_total,
+      system_total: result.summary.total_amount - result.data
+        .filter(p => p.source === 'external' && p.status !== 'cancelled')
+        .reduce((sum, p) => sum + p.total_amount, 0),
+      external_total: result.summary.external_count > 0 ? result.data
+        .filter(p => p.source === 'external' && p.status !== 'cancelled')
+        .reduce((sum, p) => sum + p.total_amount, 0) : 0,
+      grand_total: result.summary.total_amount,
     };
   }
 }
