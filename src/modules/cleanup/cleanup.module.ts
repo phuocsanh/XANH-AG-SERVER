@@ -5,10 +5,11 @@ import { User } from '../../entities/users.entity';
 import { Product } from '../../entities/products.entity';
 import { UserProfile } from '../../entities/user-profiles.entity';
 import { UploadModule } from '../upload/upload.module';
+import { News } from '../../entities/news.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, UserProfile, Product]),
+    TypeOrmModule.forFeature([User, UserProfile, Product, News]),
     UploadModule,
   ],
   providers: [CleanupService],
