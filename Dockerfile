@@ -1,59 +1,62 @@
 # ==========================================
-# PRODUCTION DOCKERFILE
+# PRODUCTION DOCKERFILE - OPTIMIZED FOR RENDER
 # ==========================================
-# Multi-stage build for smaller image size
 
-# Stage 1: Build
+# Stage 1: Build & Dependencies
 FROM node:20-alpine AS builder
 
-# Set working directory
 WORKDIR /app
 
-# Copy package files
+# Install build dependencies
+# Một số thư viện native cần các tool này nếu dùng alpine
+RUN apk add --no-cache python3 make g++
+
+# Layer caching: Chỉ copy file package trước để cache npm install
 COPY package*.json ./
 
-# Install dependencies (including devDependencies for build)
-RUN npm ci --only=production=false
+# Cài đặt toàn bộ dependencies (bao gồm cả dev để build)
+RUN npm ci
+
+# Copy configuration files (tránh copy toàn bộ ngay để giữ cache)
+COPY tsconfig*.json ./
+COPY nest-cli.json ./
+COPY ormconfig.ts ./
 
 # Copy source code
-COPY . .
+COPY src ./src
 
 # Build the application
 RUN npm run build
 
-# Stage 2: Production
+# Xóa bớt devDependencies ngay tại stage này để giảm dung lượng trước khi copy
+RUN npm prune --production
+
+# Stage 2: Production Runner
 FROM node:20-alpine AS production
 
-# Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
-
-# Install only production dependencies
-RUN npm ci --only=production && npm cache clean --force
-
-# Copy built application from builder stage
+# Copy các file cần thiết từ builder
+# Thay vì npm ci lại, ta copy trực tiếp node_modules đã prune
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/ormconfig.ts ./ormconfig.ts
 
-# Create uploads directory
+# Tạo folder uploads nếu chưa có
 RUN mkdir -p uploads
 
-# Create non-root user for security
+# Security: Không dùng root user
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nestjs -u 1001 && \
     chown -R nestjs:nodejs /app
 
-# Switch to non-root user
 USER nestjs
 
-# Expose port
 EXPOSE 3003
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3003/api', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+# Dùng lệnh chạy tối ưu của Node
+ENV NODE_ENV=production
 
 # Start the application
 CMD ["node", "dist/main.js"]
