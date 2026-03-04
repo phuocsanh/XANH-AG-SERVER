@@ -59,6 +59,7 @@ import { ProductUnitConversionModule } from './modules/product-unit-conversion/p
 import { ProductMixtureModule } from './modules/product-mixture/product-mixture.module';
 import { SupplierReportModule } from './modules/supplier-report/supplier-report.module';
 import { CustomerRewardModule } from './modules/customer-reward/customer-reward.module';
+import { NewsModule } from './modules/news/news.module';
 
 
 /**
@@ -153,6 +154,7 @@ import { CustomerRewardModule } from './modules/customer-reward/customer-reward.
     ProductMixtureModule, // Module quản lý phối trộn sản phẩm
     SupplierReportModule, // Module báo cáo nhà cung cấp
     CustomerRewardModule,
+    NewsModule,
   ],
   controllers: [SeedController], // Seed controller để seed RBAC qua API
   providers: [
