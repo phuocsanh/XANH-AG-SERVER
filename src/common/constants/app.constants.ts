@@ -32,6 +32,7 @@ export enum UploadType {
   RICE_CROP = 'rice-crop',
   DOCUMENT = 'document',
   COMMON = 'common',
+  NEWS = 'news',
 }
 
 export const UPLOAD_FOLDER_MAP: Record<UploadType, string> = {
@@ -40,4 +41,5 @@ export const UPLOAD_FOLDER_MAP: Record<UploadType, string> = {
   [UploadType.RICE_CROP]: 'rice-crops',
   [UploadType.DOCUMENT]: 'documents',
   [UploadType.COMMON]: 'common',
+  [UploadType.NEWS]: 'news',
 };

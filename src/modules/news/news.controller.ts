@@ -66,6 +66,6 @@ export class NewsController {
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('news:manage')
   remove(@Param('id') id: string) {
-    return this.newsService.softDelete(+id);
+    return this.newsService.remove(+id);
   }
 }

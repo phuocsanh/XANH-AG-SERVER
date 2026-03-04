@@ -7,6 +7,7 @@ import { Product } from '../../entities/products.entity';
 import { UploadService } from '../upload/upload.service';
 import { ImageCleanupHelper } from '../../common/helpers/image-cleanup.helper';
 import { UserProfile } from '../../entities/user-profiles.entity';
+import { News } from '../../entities/news.entity';
 
 @Injectable()
 export class CleanupService {
@@ -20,6 +21,8 @@ export class CleanupService {
     private readonly userProfileRepository: Repository<UserProfile>,
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
+    @InjectRepository(News)
+    private readonly newsRepository: Repository<News>,
     private readonly uploadService: UploadService,
   ) {}
 
@@ -32,6 +35,10 @@ export class CleanupService {
     
     await this.cleanupOldDeletedUsers();
     await this.cleanupOldDeletedProducts();
+    await this.cleanupOldDeletedNews();
+    
+    // Cuối cùng dọn dẹp tất cả file mồ côi (số tham chiếu = 0)
+    await this.cleanupUnusedFiles();
     
     this.logger.log('Cleanup job finished.');
   }
@@ -126,6 +133,58 @@ export class CleanupService {
       }
     } catch (error) {
       this.logger.error('Error during product cleanup', (error as Error).stack);
+    }
+  }
+  /**
+   * Dọn dẹp các bài viết đã xóa mềm quá 30 ngày
+   */
+  async cleanupOldDeletedNews() {
+    const thresholdDate = this.getThresholdDate();
+    this.logger.log(`Cleaning up news deleted before ${thresholdDate.toISOString()}...`);
+
+    try {
+      const newsToDelete = await this.newsRepository.find({
+        where: {
+          deleted_at: LessThan(thresholdDate),
+        },
+        withDeleted: true,
+      });
+
+      this.logger.log(`Found ${newsToDelete.length} news articles to permanently delete.`);
+
+      for (const news of newsToDelete) {
+        try {
+          // Xóa các ảnh trực tiếp (vì ở đây là Cleanup vĩnh viễn, không cần lo count nữa)
+          if (news.thumbnail_url) {
+            await ImageCleanupHelper.deleteImage(news.thumbnail_url, this.uploadService);
+          }
+          if (news.images && news.images.length > 0) {
+            await ImageCleanupHelper.deleteImages(news.images, this.uploadService);
+          }
+
+          // Xóa cứng News
+          await this.newsRepository.delete(news.id);
+          
+          this.logger.log(`Permanently deleted news article ID: ${news.id}`);
+        } catch (error) {
+          this.logger.error(`Failed to delete news ID ${news.id}`, (error as Error).stack);
+        }
+      }
+    } catch (error) {
+      this.logger.error('Error during news cleanup', (error as Error).stack);
+    }
+  }
+
+  /**
+   * Gọi upload service để dọn dẹp tất cả file mồ côi (count = 0)
+   */
+  async cleanupUnusedFiles() {
+    this.logger.log('Cleaning up unused/orphaned files from storage...');
+    try {
+      const result = await this.uploadService.cleanupUnusedFiles();
+      this.logger.log(`Storage cleanup result: Deleted ${result.deletedCount} files.`);
+    } catch (error) {
+      this.logger.error('Error during storage cleanup', (error as Error).stack);
     }
   }
 }
