@@ -19,8 +19,8 @@ RUN npm ci
 
 # Copy configuration files (tránh copy toàn bộ ngay để giữ cache)
 COPY tsconfig*.json ./
-COPY nest-cli.json ./
-COPY ormconfig.ts ./
+COPY nest-cli.json* ./
+COPY ormconfig.ts* ./
 
 # Copy source code
 COPY src ./src

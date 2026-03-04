@@ -44,8 +44,7 @@ ormconfig.js
 typeorm-cli.config.js
 
 # NestJS specific
-.nest-cli.json
-nest-cli.json
+/.nest/
 
 # ESLint
 .eslintcache
