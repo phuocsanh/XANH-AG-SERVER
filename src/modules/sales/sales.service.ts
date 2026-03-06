@@ -1515,7 +1515,14 @@ export class SalesService {
       .leftJoinAndSelect('item.product', 'product')
       .leftJoinAndSelect('product.unit', 'unit')
       .where('invoice.customer_id = :customerId', { customerId })
-      .andWhere('invoice.deleted_at IS NULL');
+      .andWhere('invoice.deleted_at IS NULL')
+      .andWhere('invoice.status NOT IN (:...excludedStatuses)', { 
+        excludedStatuses: [
+          SalesInvoiceStatus.CANCELLED, 
+          SalesInvoiceStatus.REFUNDED,
+          SalesInvoiceStatus.DRAFT
+        ] 
+      });
 
     if (seasonId) {
       queryBuilder.andWhere('invoice.season_id = :seasonId', { seasonId });

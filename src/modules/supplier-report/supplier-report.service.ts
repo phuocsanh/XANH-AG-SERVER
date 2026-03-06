@@ -79,7 +79,13 @@ export class SupplierReportService {
         .innerJoinAndSelect('item.product', 'product')
         .leftJoinAndSelect('product.unit', 'unit')
         .where('item.product_id IN (:...productIds)', { productIds })
-        .andWhere('invoice.status != :cancelledStatus', { cancelledStatus: SalesInvoiceStatus.CANCELLED });
+        .andWhere('invoice.status NOT IN (:...excludeStatuses)', { 
+          excludeStatuses: [
+            SalesInvoiceStatus.CANCELLED, 
+            SalesInvoiceStatus.REFUNDED, 
+            SalesInvoiceStatus.DRAFT
+          ] 
+        });
 
       if (startDate && endDate) {
         const start = new Date(startDate);

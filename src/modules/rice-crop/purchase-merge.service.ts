@@ -99,8 +99,10 @@ export class PurchaseMergeService {
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
     );
 
-    // 6. Tính toán summary (loại bỏ hóa đơn hủy)
-    const activePurchases = merged.filter((p) => p.status !== 'cancelled');
+    // 6. Tính toán summary và filter data (loại bỏ hóa đơn hủy/hoàn tiền)
+    const activePurchases = merged.filter((p) => 
+      p.status !== 'cancelled' && p.status !== 'refunded' && p.status !== 'draft'
+    );
     
     const summary = {
       total_amount: activePurchases.reduce((sum, p) => sum + p.total_amount, 0),
@@ -111,7 +113,7 @@ export class PurchaseMergeService {
     };
 
     return {
-      data: merged,
+      data: activePurchases, // Chỉ trả về các hóa đơn hoạt động
       summary,
     };
   }
