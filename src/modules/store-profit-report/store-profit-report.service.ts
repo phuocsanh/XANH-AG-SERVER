@@ -1164,7 +1164,11 @@ export class StoreProfitReportService {
   /**
    * Báo cáo lợi nhuận cửa hàng theo khoảng thời gian
    */
-  async getPeriodProfitReport(startDate: Date, endDate: Date): Promise<PeriodReportDto> {
+  async getPeriodProfitReport(
+    startDate: Date, 
+    endDate: Date, 
+    taxableFilter: 'all' | 'yes' | 'no' = 'all'
+  ): Promise<PeriodReportDto> {
     try {
       this.logger.log(`📊 Báo cáo lợi nhuận từ ${startDate.toISOString()} đến ${endDate.toISOString()}`);
 
@@ -1287,6 +1291,18 @@ export class StoreProfitReportService {
       const grossProfit = totalRevenue - totalCOGS;
       const netProfit = grossProfit - totalOperatingCosts - totalStoreServiceCosts - totalDeliveryCosts;
 
+      // 7. Lọc danh sách hóa đơn theo yêu cầu (nếu Filter không phải 'all')
+      let filteredInvoices = invoiceDtoList;
+      if (taxableFilter === 'yes') {
+        filteredInvoices = invoiceDtoList.filter(inv => 
+          inv.items.some(item => Number(item.taxable_quantity) > 0)
+        );
+      } else if (taxableFilter === 'no') {
+        filteredInvoices = invoiceDtoList.filter(inv => 
+          inv.items.every(item => Number(item.taxable_quantity) === 0)
+        );
+      }
+
       const summary: PeriodSummaryDto = {
         total_revenue: Math.round(totalRevenue),
         revenue_with_invoice: Math.round(revenueWithInvoice),
@@ -1304,7 +1320,7 @@ export class StoreProfitReportService {
 
       return {
         summary,
-        invoices: invoiceDtoList,
+        invoices: filteredInvoices,
         start_date: startDate,
         end_date: endDate,
       };

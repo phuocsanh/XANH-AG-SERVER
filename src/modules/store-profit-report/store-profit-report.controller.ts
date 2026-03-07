@@ -130,6 +130,7 @@ export class StoreProfitReportController {
   async getPeriodReport(
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string,
+    @Query('taxableFilter') taxableFilter: 'all' | 'yes' | 'no' = 'all',
   ): Promise<PeriodReportDto> {
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -137,6 +138,6 @@ export class StoreProfitReportController {
     // Đặt giờ cuối ngày cho endDate để bao gồm cả ngày đó
     end.setHours(23, 59, 59, 999);
     
-    return this.service.getPeriodProfitReport(start, end);
+    return this.service.getPeriodProfitReport(start, end, taxableFilter);
   }
 }
