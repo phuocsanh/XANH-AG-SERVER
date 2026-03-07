@@ -3343,7 +3343,7 @@ export class InventoryService {
     // 2. Lấy lịch sử bán hàng (để mô phỏng xuất kho)
     const salesItems = await salesInvoiceItemRepo.find({ 
       where: { product_id: product.id }, 
-      order: { created_at: 'ASC' } 
+      order: { created_at: 'DESC' } 
     });
 
     if (receiptItems.length === 0 && salesItems.length === 0) return { productUpdated: false, salesItemsUpdated: 0 };
@@ -3399,12 +3399,12 @@ export class InventoryService {
         }
 
         const canTakeFromThisBatch = Math.min(remainingToSell, batchTotal);
-        const takeNonTaxable = Math.min(canTakeFromThisBatch, currentBatch.nonTaxable);
-        const takeTaxable = canTakeFromThisBatch - takeNonTaxable;
+        const takeTaxable = Math.min(canTakeFromThisBatch, currentBatch.taxable);
+        const takeNonTaxable = canTakeFromThisBatch - takeTaxable;
 
         calculatedTaxableQty += takeTaxable;
-        currentBatch.nonTaxable -= takeNonTaxable;
         currentBatch.taxable -= takeTaxable;
+        currentBatch.nonTaxable -= takeNonTaxable;
         remainingToSell -= canTakeFromThisBatch;
 
         if (currentBatch.taxable + currentBatch.nonTaxable <= 0) {
