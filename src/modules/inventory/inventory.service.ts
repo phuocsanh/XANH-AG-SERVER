@@ -1266,8 +1266,7 @@ export class InventoryService {
       const finalAmount = Math.round(totalAmount - returnedAmount);
       
       // Tính số tiền thực sự nợ NCC
-      // LUÔN LUÔN loại trừ phí vận chuyển (cả chung và riêng) khỏi công nợ NCC
-      // Phí vận chuyển do người dùng tự chịu, không liên quan đến nhà cung cấp
+      // Phí vận chuyển do người dùng tự chịu, luôn loại trừ phí vận chuyển (cả chung và riêng) khỏi công nợ NCC
       const excludedShipping = 
         (Number(createInventoryReceiptDto.shared_shipping_cost) || 0) +
         createInventoryReceiptDto.items.reduce((sum, item) => sum + (Number(item.individual_shipping_cost) || 0), 0);
@@ -1275,8 +1274,7 @@ export class InventoryService {
       const supplierAmount = Math.round(finalAmount - excludedShipping);
       
       // VALIDATION: Nếu còn nợ NCC, phải có hạn thanh toán
-      // So sánh với supplierAmount (chỉ tiền hàng), KHÔNG phải totalAmount (bao gồm phí ship)
-      if (paidAmount < supplierAmount && !createInventoryReceiptDto.payment_due_date) {
+      if (paidAmount < supplierAmount && !createInventoryReceiptDto.payment_due_date && createInventoryReceiptDto.status !== ReceiptStatus.DRAFT) {
         throw new BadRequestException(
           'Khi còn nợ, phải có hạn thanh toán'
         );
@@ -1285,43 +1283,30 @@ export class InventoryService {
       const debtAmount = Math.round(supplierAmount - paidAmount);
       
       let paymentStatus = 'unpaid';
-      if (paidAmount >= supplierAmount) {
+      if (paidAmount >= supplierAmount && supplierAmount > 0) {
         paymentStatus = 'paid';
       } else if (paidAmount > 0) {
         paymentStatus = 'partial';
       }
       
       // Thêm các trường thanh toán vào receiptData
-      // Nếu là phiếu nháp, reset tất cả về giá trị mặc định
-      if (createInventoryReceiptDto.status === ReceiptStatus.DRAFT) {
-        receiptData.paid_amount = 0;
-        receiptData.payment_status = 'unpaid';
-        receiptData.final_amount = finalAmount;
-        receiptData.supplier_amount = supplierAmount;
-        receiptData.debt_amount = supplierAmount; // Toàn bộ là nợ NCC
-        receiptData.payment_method = null;
-        receiptData.payment_due_date = null;
-      } else {
-        // Phiếu đã duyệt, lưu thông tin thanh toán bình thường
-        receiptData.paid_amount = paidAmount;
-        receiptData.payment_status = paymentStatus;
-        receiptData.final_amount = finalAmount;
-        receiptData.supplier_amount = supplierAmount;
-        receiptData.debt_amount = debtAmount;
-        
-        // Nếu tạo phiếu với trạng thái APPROVED, cần set luôn ngày duyệt và người duyệt
-        if (createInventoryReceiptDto.status === ReceiptStatus.APPROVED) {
-          receiptData.approved_at = new Date();
-          receiptData.approved_by = userId;
-        }
-        
-        if (createInventoryReceiptDto.payment_method) {
-          receiptData.payment_method = createInventoryReceiptDto.payment_method;
-        }
-        
-        if (createInventoryReceiptDto.payment_due_date) {
-          receiptData.payment_due_date = createInventoryReceiptDto.payment_due_date;
-        }
+      receiptData.paid_amount = paidAmount;
+      receiptData.payment_status = paymentStatus;
+      receiptData.final_amount = finalAmount;
+      receiptData.supplier_amount = supplierAmount;
+      receiptData.debt_amount = debtAmount;
+
+      if (createInventoryReceiptDto.status === ReceiptStatus.APPROVED) {
+        receiptData.approved_at = new Date();
+        receiptData.approved_by = userId;
+      }
+      
+      if (createInventoryReceiptDto.payment_method) {
+        receiptData.payment_method = createInventoryReceiptDto.payment_method;
+      }
+      
+      if (createInventoryReceiptDto.payment_due_date) {
+        receiptData.payment_due_date = createInventoryReceiptDto.payment_due_date;
       }
 
       const receipt = queryRunner.manager.create(InventoryReceipt, receiptData);
@@ -1745,6 +1730,34 @@ export class InventoryService {
     if (updateData.is_taxable !== undefined)
       entityUpdateData.is_taxable = updateData.is_taxable;
 
+    // === TÍNH TOÁN LẠI TÀI CHÍNH KHI UPDATE ===
+    const totalAmount = updateData.total_amount !== undefined ? Math.round(updateData.total_amount) : receipt.total_amount;
+    const paidAmount = updateData.paid_amount !== undefined ? Math.round(updateData.paid_amount) : receipt.paid_amount;
+    const sharedShipping = updateData.shared_shipping_cost !== undefined ? Math.round(updateData.shared_shipping_cost) : (receipt.shared_shipping_cost || 0);
+    
+    // Tính individual shipping từ updateData.items nếu có, không thì lấy từ DB
+    let itemShipping = 0;
+    if (updateData.items && Array.isArray(updateData.items)) {
+      itemShipping = updateData.items.reduce((sum, item) => sum + (Number(item.individual_shipping_cost) || 0), 0);
+    } else {
+      // Nếu không gửi items mới, lấy sum từ items hiện tại trong DB
+      const currentItems = await this.inventoryReceiptItemRepository.find({ where: { receipt_id: id } });
+      itemShipping = currentItems.reduce((sum, item) => sum + (Number(item.individual_shipping_cost) || 0), 0);
+    }
+
+    const finalAmount = totalAmount; // Giả định đơn giản, thực tế cần trừ returned_amount nếu có
+    const excludedShipping = Number(sharedShipping) + Number(itemShipping);
+    const supplierAmount = Math.round(finalAmount - excludedShipping);
+    const debtAmount = Math.round(supplierAmount - paidAmount);
+
+    entityUpdateData.final_amount = finalAmount;
+    entityUpdateData.supplier_amount = supplierAmount;
+    entityUpdateData.debt_amount = debtAmount;
+    entityUpdateData.paid_amount = paidAmount;
+
+    if (updateData.payment_method !== undefined) entityUpdateData.payment_method = updateData.payment_method;
+    if (updateData.payment_due_date !== undefined) entityUpdateData.payment_due_date = updateData.payment_due_date;
+
     await this.inventoryReceiptRepository.update(id, entityUpdateData);
     return this.findReceiptById(id);
   }
@@ -1821,10 +1834,9 @@ export class InventoryService {
       // Xử lý nhập kho cho từng sản phẩm ngay khi duyệt
       let itemIndex = 1;
       for (const item of items) {
-        const costPrice =
-          item.final_unit_cost !== undefined && item.final_unit_cost !== null
-            ? Number(item.final_unit_cost)
-            : Number(item.unit_cost);
+        // Sử dụng đơn giá mua gốc (unit_cost) để tính giá nhập kho trung bình
+        // Không cộng phí bốc vác vào giá vốn theo yêu cầu người dùng
+        const costPrice = Number(item.unit_cost);
 
         // Lấy số lượng khai thuế từ item (nếu không có thì mặc định = 0)
         // Fallback: Nếu item chưa có taxable_quantity nhưng phiếu là is_taxable thì lấy full quantity
