@@ -1280,10 +1280,7 @@ export class InventoryService {
         );
       }
       
-      // Nếu có phí bốc vác tự trả (tôi tự trả), người mua thường trả tổng tiền (hàng + bốc vác).
-      // Số tiền thực tế trả cho Nhà cung cấp = Tổng đã trả - Phí bốc vác (không âm).
-      const paidToSupplier = Math.max(0, paidAmount - excludedShipping);
-      const debtAmount = Math.round(supplierAmount - paidToSupplier);
+      const debtAmount = Math.max(0, Math.round(supplierAmount - paidAmount));
       
       let paymentStatus = 'unpaid';
       if (paidAmount >= supplierAmount && supplierAmount > 0) {
@@ -1751,10 +1748,7 @@ export class InventoryService {
     const finalAmount = totalAmount; // Giả định đơn giản, thực tế cần trừ returned_amount nếu có
     const excludedShipping = Number(sharedShipping) + Number(itemShipping);
     const supplierAmount = Math.round(finalAmount - excludedShipping);
-    // Nếu có phí bốc vác tự trả (tôi tự trả), người mua thường trả tổng tiền (hàng + bốc vác).
-    // Số tiền thực tế trả cho Nhà cung cấp = Tổng đã trả - Phí bốc vác (không âm).
-    const paidToSupplier = Math.max(0, paidAmount - excludedShipping);
-    const debtAmount = Math.round(supplierAmount - paidToSupplier);
+    const debtAmount = Math.max(0, Math.round(supplierAmount - paidAmount));
 
     entityUpdateData.final_amount = finalAmount;
     entityUpdateData.supplier_amount = supplierAmount;
@@ -2273,11 +2267,7 @@ export class InventoryService {
           const newSupplierAmount = currentSupplierAmount - Number(createInventoryReturnDto.total_amount);
           
           const paidAmount = Number(receipt.paid_amount || 0);
-          
-          // Tính lại nợ NCC: Khấu trừ phí bốc vác khỏi số tiền đã trả trước khi trừ vào công nợ NCC
-          const excludedShipping = Number(receipt.final_amount) - Number(receipt.supplier_amount);
-          const paidToSupplier = Math.max(0, paidAmount - excludedShipping);
-          const newDebtAmount = Math.round(newSupplierAmount - paidToSupplier);
+          const newDebtAmount = Math.max(0, Math.round(newSupplierAmount - paidAmount));
           
           await queryRunner.manager.update(InventoryReceipt, createInventoryReturnDto.receipt_id, {
             returned_amount: newReturnedAmount,
@@ -3117,14 +3107,13 @@ export class InventoryService {
     }
     
     const currentPaidAmount = Number(receipt.paid_amount) || 0;
-    const supplierAmount = Number(receipt.supplier_amount) || Number(receipt.final_amount) || Number(receipt.total_amount);
-    const totalFinalAmount = Number(receipt.final_amount) || Number(receipt.total_amount);
+    const finalAmount = Number(receipt.final_amount) || Number(receipt.total_amount);
+    const supplierAmount = Number(receipt.supplier_amount) || finalAmount;
     const newPaidAmount = currentPaidAmount + Number(paymentDto.amount);
     
-    // Kiểm tra không vượt quá tổng giá trị phiếu (bao gồm cả phí vận chuyển)
-    if (newPaidAmount > totalFinalAmount) {
+    if (newPaidAmount > finalAmount) {
       throw new BadRequestException(
-        `Số tiền thanh toán vượt quá số tiền còn nợ (${totalFinalAmount - currentPaidAmount}đ)`
+        `Số tiền thanh toán vượt quá số tiền còn nợ (${finalAmount - currentPaidAmount}đ)`
       );
     }
     
@@ -3147,10 +3136,7 @@ export class InventoryService {
     const savedPayment = await repo.save(payment);
     
     // Cập nhật phiếu nhập
-    // Số tiền thực tế trả cho NCC = Tổng đã trả (mới) - Phí bốc vác (không âm)
-    const excludedShipping = totalFinalAmount - supplierAmount;
-    const newPaidToSupplier = Math.max(0, newPaidAmount - excludedShipping);
-    const newDebtAmount = Math.round(supplierAmount - newPaidToSupplier);
+    const newDebtAmount = Math.max(0, Math.round(supplierAmount - newPaidAmount));
     let newPaymentStatus = 'partial';
     
     if (newDebtAmount === 0) {
@@ -3235,11 +3221,7 @@ export class InventoryService {
     const newPaidAmount = Number(receipt.paid_amount) - Number(payment.amount);
     const finalAmount = Number(receipt.final_amount) || Number(receipt.total_amount);
     const supplierAmount = Number(receipt.supplier_amount) || finalAmount;
-    
-    // Số tiền thực tế trả cho NCC = Tổng đã trả (mới) - Phí bốc vác (không âm)
-    const excludedShipping = finalAmount - supplierAmount;
-    const newPaidToSupplier = Math.max(0, newPaidAmount - excludedShipping);
-    const newDebtAmount = Math.round(supplierAmount - newPaidToSupplier);
+    const newDebtAmount = Math.max(0, Math.round(supplierAmount - newPaidAmount));
     
     let newPaymentStatus = 'partial';
     if (newDebtAmount === finalAmount) {
