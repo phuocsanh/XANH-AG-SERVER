@@ -8,8 +8,8 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { InventoryReceipt } from './inventory-receipts.entity';
-import { User } from './users.entity';
+import type { InventoryReceipt } from './inventory-receipts.entity';
+import type { User } from './users.entity';
 
 /**
  * Entity biểu diễn lịch sử thanh toán cho phiếu nhập kho
@@ -26,7 +26,7 @@ export class InventoryReceiptPayment {
   receipt_id!: number;
 
   /** Quan hệ với phiếu nhập kho */
-  @ManyToOne(() => InventoryReceipt, (receipt) => receipt.payments, { nullable: false })
+  @ManyToOne('InventoryReceipt', (receipt: any) => receipt.payments, { nullable: false })
   @JoinColumn({ name: 'receipt_id' })
   receipt!: InventoryReceipt;
 
@@ -51,7 +51,7 @@ export class InventoryReceiptPayment {
   created_by!: number;
 
   /** Người tạo thanh toán */
-  @ManyToOne(() => User)
+  @ManyToOne('User')
   @JoinColumn({ name: 'created_by' })
   creator?: User;
 

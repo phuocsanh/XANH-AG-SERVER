@@ -8,8 +8,8 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { InventoryReturn } from './inventory-returns.entity';
-import { User } from './users.entity';
+import type { InventoryReturn } from './inventory-returns.entity';
+import type { User } from './users.entity';
 
 /**
  * Entity biểu diễn lịch sử hoàn tiền cho phiếu trả hàng
@@ -26,7 +26,7 @@ export class InventoryReturnRefund {
   return_id!: number;
 
   /** Quan hệ với phiếu trả hàng */
-  @ManyToOne(() => InventoryReturn, (returnDoc) => returnDoc.refunds, { nullable: false })
+  @ManyToOne('InventoryReturn', (returnDoc: any) => returnDoc.refunds, { nullable: false })
   @JoinColumn({ name: 'return_id' })
   return!: InventoryReturn;
 
@@ -51,7 +51,7 @@ export class InventoryReturnRefund {
   created_by!: number;
 
   /** Người tạo hoàn tiền */
-  @ManyToOne(() => User)
+  @ManyToOne('User')
   @JoinColumn({ name: 'created_by' })
   creator?: User;
 

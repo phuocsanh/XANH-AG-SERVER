@@ -9,11 +9,11 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { InventoryReturnItem } from './inventory-return-items.entity';
-import { InventoryReturnRefund } from './inventory-return-refunds.entity';
-import { Supplier } from './suppliers.entity';
-import { InventoryReceipt } from './inventory-receipts.entity';
-import { User } from './users.entity';
+import type { InventoryReturnItem } from './inventory-return-items.entity';
+import type { InventoryReturnRefund } from './inventory-return-refunds.entity';
+import type { Supplier } from './suppliers.entity';
+import type { InventoryReceipt } from './inventory-receipts.entity';
+import type { User } from './users.entity';
 
 /**
  * Entity biểu diễn thông tin phiếu xuất trả hàng
@@ -34,7 +34,7 @@ export class InventoryReturn {
   receipt_id?: number;
 
   /** Quan hệ với phiếu nhập kho gốc */
-  @ManyToOne(() => InventoryReceipt, { nullable: true })
+  @ManyToOne('InventoryReceipt', { nullable: true })
   @JoinColumn({ name: 'receipt_id' })
   receipt?: InventoryReceipt;
 
@@ -43,7 +43,7 @@ export class InventoryReturn {
   supplier_id!: number;
 
   /** Quan hệ với nhà cung cấp */
-  @ManyToOne(() => Supplier, { nullable: false })
+  @ManyToOne('Supplier', { nullable: false })
   @JoinColumn({ name: 'supplier_id' })
   supplier!: Supplier;
 
@@ -92,7 +92,7 @@ export class InventoryReturn {
   approved_by?: number;
 
   /** Người duyệt phiếu */
-  @ManyToOne(() => User)
+  @ManyToOne('User')
   @JoinColumn({ name: 'approved_by' })
   approver?: User;
 
@@ -110,7 +110,7 @@ export class InventoryReturn {
   deleted_at?: Date;
 
   /** Quan hệ với các item trong phiếu xuất trả hàng */
-  @OneToMany(() => InventoryReturnItem, (item) => item.return)
+  @OneToMany('InventoryReturnItem', (item: any) => item.return)
   items!: InventoryReturnItem[];
 
   // ===== HOÀN TIỀN =====
@@ -127,6 +127,6 @@ export class InventoryReturn {
   refund_method?: string;
 
   /** Quan hệ với lịch sử hoàn tiền */
-  @OneToMany(() => InventoryReturnRefund, (refund) => refund.return)
+  @OneToMany('InventoryReturnRefund', (refund: any) => refund.return)
   refunds!: InventoryReturnRefund[];
 }

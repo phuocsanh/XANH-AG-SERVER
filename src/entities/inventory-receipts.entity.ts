@@ -9,10 +9,10 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { InventoryReceiptItem } from './inventory-receipt-items.entity';
-import { InventoryReceiptPayment } from './inventory-receipt-payments.entity';
-import { Supplier } from './suppliers.entity';
-import { User } from './users.entity';
+import type { InventoryReceiptItem } from './inventory-receipt-items.entity';
+import type { InventoryReceiptPayment } from './inventory-receipt-payments.entity';
+import type { Supplier } from './suppliers.entity';
+import type { User } from './users.entity';
 
 /**
  * Entity biểu diễn thông tin phiếu nhập kho
@@ -33,7 +33,7 @@ export class InventoryReceipt {
   supplier_id!: number;
 
   /** Quan hệ với nhà cung cấp */
-  @ManyToOne(() => Supplier, { nullable: false })
+  @ManyToOne('Supplier', { nullable: false })
   @JoinColumn({ name: 'supplier_id' })
   supplier!: Supplier;
 
@@ -62,7 +62,7 @@ export class InventoryReceipt {
   created_by!: number;
 
   /** Người tạo phiếu */
-  @ManyToOne(() => User)
+  @ManyToOne('User')
   @JoinColumn({ name: 'created_by' })
   creator?: User;
 
@@ -91,7 +91,7 @@ export class InventoryReceipt {
   approved_by?: number;
 
   /** Người duyệt phiếu */
-  @ManyToOne(() => User)
+  @ManyToOne('User')
   @JoinColumn({ name: 'approved_by' })
   approver?: User;
 
@@ -174,10 +174,10 @@ export class InventoryReceipt {
 
   // ===== QUAN HỆ =====
   /** Quan hệ với các item trong phiếu nhập kho */
-  @OneToMany(() => InventoryReceiptItem, (item) => item.receipt)
+  @OneToMany('InventoryReceiptItem', (item: any) => item.receipt)
   items!: InventoryReceiptItem[];
 
   /** Quan hệ với lịch sử thanh toán */
-  @OneToMany(() => InventoryReceiptPayment, (payment) => payment.receipt)
+  @OneToMany('InventoryReceiptPayment', (payment: any) => payment.receipt)
   payments!: InventoryReceiptPayment[];
 }
