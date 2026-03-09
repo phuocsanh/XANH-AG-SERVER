@@ -1357,7 +1357,7 @@ export class InventoryService {
         const totalShippingForItem = individualShipping + allocatedShipping;
         
         // Tính giá vốn cuối cùng trên đơn vị
-        // unit_cost gửi từ FE đã là giá NET (đã trừ chiết khấu)
+        // unit_cost gửi từ FE đã là giá mua gốc
         const shippingPerUnit = totalShippingForItem / item.quantity;
         const finalUnitCost = item.unit_cost + shippingPerUnit;
         
@@ -1370,6 +1370,7 @@ export class InventoryService {
           ...item,
           allocated_shipping_cost: Math.round(allocatedShipping),
           final_unit_cost: Math.round(finalUnitCost),
+          // Không thay đổi unit_cost ở đây, giữ nguyên giá gốc từ FE
         };
       });
 
