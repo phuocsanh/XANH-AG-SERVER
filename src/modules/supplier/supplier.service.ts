@@ -164,11 +164,6 @@ export class SupplierService {
       ['filters', 'nested_filters', 'operator']
     );
 
-    // Manual status handling
-    if (!searchDto.status) {
-       queryBuilder.andWhere('supplier.status = :activeStatus', { activeStatus: 'active' });
-    }
-
     const [data, total] = await queryBuilder.getManyAndCount();
 
     return {
