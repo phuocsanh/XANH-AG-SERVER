@@ -1622,7 +1622,6 @@ export class InventoryService {
       ['code', 'supplier.name', 'notes'] // Global search
     );
 
-    // 2. Simple Filters
     QueryHelper.applyFilters(
       queryBuilder,
       searchDto,
@@ -1634,6 +1633,10 @@ export class InventoryService {
         creator_account: 'creator.account',
       }
     );
+
+    // 3. Sắp xếp theo ngày nhập (bill_date) mới nhất, sau đó đến ngày tạo (created_at)
+    queryBuilder.orderBy('receipt.bill_date', 'DESC', 'NULLS LAST');
+    queryBuilder.addOrderBy('receipt.created_at', 'DESC');
 
     const [data, total] = await queryBuilder.getManyAndCount();
 
