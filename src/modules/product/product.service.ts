@@ -548,6 +548,7 @@ export class ProductService extends BaseSearchService<Product> {
       {
          unit_name: 'unit.name',
          symbol_name: 'symbol.name',
+         ids: 'product.id',
       }
     );
 

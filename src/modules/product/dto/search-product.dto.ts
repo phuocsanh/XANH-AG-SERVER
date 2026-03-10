@@ -1,9 +1,10 @@
-import { IsOptional, IsString, IsNumber, IsDateString } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsDateString, IsArray, IsInt } from 'class-validator';
 import { Type } from 'class-transformer';
 import { BaseSearchDto } from '../../../common/dto/base-search.dto';
 
 export class SearchProductDto extends BaseSearchDto {
   @IsOptional() @Type(() => Number) id?: number;
+  @IsOptional() @IsArray() @IsInt({ each: true }) @Type(() => Number) ids?: number[];
   @IsString() @IsOptional() code?: string;
   @IsString() @IsOptional() name?: string;
   @IsString() @IsOptional() trade_name?: string; // Tên thương mại / Hiệu thuốc

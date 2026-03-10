@@ -1,4 +1,4 @@
-import { IsString, IsArray, IsOptional, IsEnum } from 'class-validator';
+import { IsString, IsArray, IsOptional, IsEnum, IsInt } from 'class-validator';
 import { BaseStatus } from '../../../entities/base-status.enum';
 
 export class CreateNewsDto {
@@ -37,4 +37,10 @@ export class CreateNewsDto {
   @IsString({ each: true })
   @IsOptional()
   tags?: string[];
+
+  /** Danh sách ID sản phẩm liên quan */
+  @IsArray()
+  @IsInt({ each: true })
+  @IsOptional()
+  related_product_ids?: number[];
 }
