@@ -79,6 +79,9 @@ export const PERMISSION_GROUPS = {
   // Operating Cost
   OPERATING_COST: ['operating_cost:read', 'operating_cost:manage'],
   OPERATING_COST_READ_ONLY: ['operating_cost:read'],
+  
+  // News Management
+  NEWS: ['news:manage'],
 };
 
 /**
@@ -117,6 +120,7 @@ export const getRolesData = (allPermissionCodes: string[]) => [
       ...PERMISSION_GROUPS.STORE_PROFIT,
       ...PERMISSION_GROUPS.OPERATING_COST,
       ...PERMISSION_GROUPS.SEASON,
+      ...PERMISSION_GROUPS.NEWS,
     ],
   },
   {

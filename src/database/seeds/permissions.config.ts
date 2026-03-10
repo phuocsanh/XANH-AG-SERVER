@@ -94,4 +94,7 @@ export const PERMISSIONS = [
   // Operating Cost Management
   { code: 'operating_cost:read', name: 'Xem chi phí vận hành', group: 'Operating Cost', description: 'Xem danh sách chi phí vận hành' },
   { code: 'operating_cost:manage', name: 'Quản lý chi phí vận hành', group: 'Operating Cost', description: 'Thêm sửa xóa chi phí vận hành' },
+  
+  // News Management
+  { code: 'news:manage', name: 'Quản lý tin tức', group: 'News Management', description: 'Tạo, sửa, xóa tin tức' },
 ];
