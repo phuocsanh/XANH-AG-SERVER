@@ -74,7 +74,7 @@ export class QueryHelper {
         const col = field.includes('.') ? field : `${alias}.${field}`;
         const pName = `global_search_${index}`;
         query.setParameter(pName, `%${sanitizedKeyword}%`);
-        return `regexp_replace(unaccent(${col}::text), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent(:${pName})`;
+        return `unaccent(${col}::text) ILIKE unaccent(:${pName})`;
       });
       
       query.andWhere(`(${conditions.join(' OR ')})`);

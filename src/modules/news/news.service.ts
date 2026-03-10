@@ -125,6 +125,15 @@ export class NewsService {
       ['title', 'category']
     );
 
+    // Filter bổ sung thủ công để đảm bảo tìm kiếm hoạt động
+    if (searchDto.keyword) {
+      const keyword = `%${searchDto.keyword.trim()}%`;
+      queryBuilder.andWhere(
+        '(news.title ILIKE :keyword OR news.category ILIKE :keyword)',
+        { keyword }
+      );
+    }
+
     QueryHelper.applyFilters(
       queryBuilder,
       searchDto,
