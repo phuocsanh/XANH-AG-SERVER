@@ -45,7 +45,7 @@ export class NewsService {
   async findAll(): Promise<News[]> {
     return this.newsRepository.find({
       where: { deleted_at: IsNull() },
-      order: { created_at: 'DESC' },
+      order: { is_pinned: 'DESC', created_at: 'DESC' },
     });
   }
 
@@ -131,6 +131,9 @@ export class NewsService {
       'news',
       ['filters', 'nested_filters', 'operator']
     );
+
+    queryBuilder.addOrderBy('news.is_pinned', 'DESC');
+    queryBuilder.addOrderBy('news.created_at', 'DESC');
 
     const [data, total] = await queryBuilder.getManyAndCount();
 

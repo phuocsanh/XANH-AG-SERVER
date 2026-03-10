@@ -61,6 +61,10 @@ export class News {
   @Column({ name: 'related_product_ids', type: 'int', array: true, default: [] })
   related_product_ids!: number[];
 
+  /** Trạng thái ghim bài viết lên đầu */
+  @Column({ name: 'is_pinned', type: 'boolean', default: false })
+  is_pinned!: boolean;
+
   /** Lượt xem */
   @Column({ name: 'views', type: 'int', default: 0 })
   views!: number;
