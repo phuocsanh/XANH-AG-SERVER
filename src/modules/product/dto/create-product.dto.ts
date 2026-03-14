@@ -168,6 +168,12 @@ export class CreateProductDto {
   @IsOptional()
   @IsBoolean()
   show_price_on_web?: boolean;
+
+  /** Tên hiển thị trên Web (tùy chọn) */
+  @IsOptional()
+  @IsString()
+  web_name?: string;
+
   /** Danh sách quy đổi đơn vị tính (tùy chọn) */
   @IsOptional()
   @IsArray()

@@ -209,6 +209,10 @@ export class Product {
   @Column({ name: 'show_price_on_web', type: 'boolean', default: true })
   show_price_on_web!: boolean;
 
+  /** Tên hiển thị trên Web (Được tối ưu cho người dùng đọc) */
+  @Column({ name: 'web_name', type: 'text', nullable: true })
+  web_name?: string;
+
   /** Danh sách các đơn vị tính và quy đổi của sản phẩm */
   @OneToMany(() => ProductUnitConversion, (conversion) => conversion.product)
   unit_conversions!: ProductUnitConversion[];
