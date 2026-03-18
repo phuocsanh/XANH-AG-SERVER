@@ -383,9 +383,27 @@ export class InventoryController {
    */
   @Get('receipts/stats')
   @RequirePermissions('inventory:read')
-  getReceiptStats(@Query('supplier_id') supplier_id?: string) {
+  getReceiptStats(
+    @Query('supplier_id') supplier_id?: string,
+    @Query('start_date') start_date?: string,
+    @Query('end_date') end_date?: string,
+  ) {
     const supplierId = supplier_id ? parseInt(supplier_id, 10) : undefined;
-    return this.inventoryService.getReceiptStats(supplierId);
+    return this.inventoryService.getReceiptStats(supplierId, start_date, end_date);
+  }
+
+  /**
+   * Lấy danh sách hàng hóa có hóa đơn (taxable_quantity > 0)
+   */
+  @Get('receipt-items/taxable')
+  @RequirePermissions('inventory:read')
+  searchTaxableItems(
+    @Query('supplier_id') supplier_id?: string,
+    @Query('start_date') start_date?: string,
+    @Query('end_date') end_date?: string,
+  ) {
+    const supplierId = supplier_id ? parseInt(supplier_id, 10) : undefined;
+    return this.inventoryService.searchTaxableItems(supplierId, start_date, end_date);
   }
 
   /**

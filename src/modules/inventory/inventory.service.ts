@@ -1652,12 +1652,20 @@ export class InventoryService {
    * Lấy thống kê cho phiếu nhập hàng
    * @param supplier_id - ID nhà cung cấp (tùy chọn). Nếu có, chỉ thống kê phiếu của NCC đó
    */
-  async getReceiptStats(supplier_id?: number) {
+  async getReceiptStats(supplier_id?: number, start_date?: string, end_date?: string) {
     const queryBuilder = this.inventoryReceiptRepository.createQueryBuilder('receipt');
     
     // Lọc theo nhà cung cấp nếu có
     if (supplier_id) {
       queryBuilder.where('receipt.supplier_id = :supplier_id', { supplier_id });
+    }
+    
+    // Lọc theo ngày nếu có
+    if (start_date && end_date) {
+      queryBuilder.andWhere('receipt.created_at BETWEEN :start_date AND :end_date', { 
+        start_date: new Date(start_date), 
+        end_date: new Date(end_date) 
+      });
     }
     
     // Nhóm các mã trạng thái để tương thích với dữ liệu thực tế trong DB
@@ -1672,14 +1680,30 @@ export class InventoryService {
       .addSelect(`SUM(CASE WHEN receipt.status IN (${cancelledStatuses}) THEN 1 ELSE 0 END)`, 'cancelledReceipts')
       
       // ===== THỐNG KÊ TÀI CHÍNH: CHỈ TÍNH PHIẾU ĐÃ DUYỆT (BUSINESS LOGIC CHUẨN) =====
-      // Đếm phiếu còn nợ: Chỉ tính các phiếu ĐÃ DUYỆT có debt_amount > 0
       .addSelect(`SUM(CASE WHEN receipt.status IN (${approvedStatuses}) AND CAST(receipt.debt_amount AS DECIMAL) > 0 THEN 1 ELSE 0 END)`, 'debtReceiptsCount')
-      // Tổng giá trị: Chỉ tính tiền của các phiếu ĐÃ DUYỆT
       .addSelect(`SUM(CASE WHEN receipt.status IN (${approvedStatuses}) THEN CAST(receipt.total_amount AS DECIMAL) ELSE 0 END)`, 'totalValue')
-      // Đã thanh toán & Còn nợ: Chỉ tính tiền của các phiếu ĐÃ DUYỆT
       .addSelect(`SUM(CASE WHEN receipt.status IN (${approvedStatuses}) THEN CAST(receipt.paid_amount AS DECIMAL) ELSE 0 END)`, 'totalPaid')
       .addSelect(`SUM(CASE WHEN receipt.status IN (${approvedStatuses}) THEN CAST(receipt.debt_amount AS DECIMAL) ELSE 0 END)`, 'totalDebt')
       .getRawOne();
+
+    // Tính giá trị hàng có hóa đơn (taxable value) - Join với item
+    const taxableQuery = this.inventoryReceiptItemRepository.createQueryBuilder('item')
+      .leftJoin('item.receipt', 'receipt')
+      .where(`receipt.status IN (${approvedStatuses})`)
+      .andWhere('item.taxable_quantity > 0')
+      .select('SUM(CAST(item.taxable_quantity AS DECIMAL) * CAST(item.unit_cost AS DECIMAL))', 'totalTaxableValue');
+
+    if (supplier_id) {
+      taxableQuery.andWhere('receipt.supplier_id = :supplier_id', { supplier_id });
+    }
+    if (start_date && end_date) {
+      taxableQuery.andWhere('receipt.created_at BETWEEN :start_date AND :end_date', { 
+        start_date: new Date(start_date), 
+        end_date: new Date(end_date) 
+      });
+    }
+    
+    const taxableResult = await taxableQuery.getRawOne();
 
     return {
       totalReceipts: parseInt(stats.totalReceipts || '0'),
@@ -1690,7 +1714,34 @@ export class InventoryService {
       totalValue: stats.totalValue || '0',
       totalPaid: stats.totalPaid || '0',
       totalDebt: stats.totalDebt || '0',
+      totalTaxableValue: taxableResult.totalTaxableValue || '0',
     };
+  }
+
+  /**
+   * Tìm kiếm hàng hóa có hóa đơn (taxable_quantity > 0)
+   */
+  async searchTaxableItems(supplier_id?: number, start_date?: string, end_date?: string) {
+    const queryBuilder = this.inventoryReceiptItemRepository.createQueryBuilder('item')
+      .leftJoinAndSelect('item.receipt', 'receipt')
+      .leftJoinAndSelect('receipt.supplier', 'supplier')
+      .leftJoinAndSelect('item.product', 'product')
+      .where("receipt.status IN ('approved', '2', '3', 'completed', '4')")
+      .andWhere('item.taxable_quantity > 0');
+
+    if (supplier_id) {
+      queryBuilder.andWhere('receipt.supplier_id = :supplier_id', { supplier_id });
+    }
+    if (start_date && end_date) {
+      queryBuilder.andWhere('receipt.created_at BETWEEN :start_date AND :end_date', { 
+        start_date: new Date(start_date), 
+        end_date: new Date(end_date) 
+      });
+    }
+
+    queryBuilder.orderBy('receipt.created_at', 'DESC');
+    
+    return queryBuilder.getMany();
   }
 
   /**
