@@ -1236,7 +1236,8 @@ export class StoreProfitReportService {
 
           // Thêm vào danh sách item của DTO
           itemsDto.push({
-            product_name: item.product_name || item.product?.trade_name || item.product?.name || 'Unknown',
+            product_trade_name: item.product_name || item.product?.trade_name || 'Không xác định',
+            product_name: item.product?.name || item.product_name || 'Không xác định',
             quantity: Number(item.quantity),
             unit_name: item.unit_name || 'Đơn vị',
             unit_price: Number(item.unit_price),

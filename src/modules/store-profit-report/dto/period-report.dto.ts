@@ -39,6 +39,9 @@ export class PeriodSummaryDto {
 }
 
 export class PeriodInvoiceItemDto {
+  @ApiProperty({ description: 'Tên thương mại (Hiệu thuốc)' })
+  product_trade_name!: string;
+
   @ApiProperty({ description: 'Tên sản phẩm' })
   product_name!: string;
 
