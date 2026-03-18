@@ -1614,13 +1614,35 @@ export class InventoryService {
     queryBuilder.leftJoinAndSelect('receipt.items', 'items');
     queryBuilder.leftJoinAndSelect('items.product', 'product');
 
-    // 1. Base Search
+    // 1. Base Search (Bỏ qua start_date, end_date để xử lý riêng theo bill_date)
+    const { start_date, end_date, ...baseSearchDto } = searchDto;
     const { page, limit } = QueryHelper.applyBaseSearch(
       queryBuilder,
-      searchDto,
+      baseSearchDto,
       'receipt',
       ['code', 'supplier.name', 'notes'] // Global search
     );
+
+    // Xử lý lọc theo ngày nhập (bill_date), nếu null thì lấy created_at
+    if (start_date && end_date) {
+      queryBuilder.andWhere(
+        '(COALESCE(receipt.bill_date, receipt.created_at) BETWEEN :start_date AND :end_date)',
+        { 
+          start_date: new Date(start_date), 
+          end_date: new Date(end_date) 
+        }
+      );
+    } else if (start_date) {
+      queryBuilder.andWhere(
+        'COALESCE(receipt.bill_date, receipt.created_at) >= :start_date',
+        { start_date: new Date(start_date) }
+      );
+    } else if (end_date) {
+      queryBuilder.andWhere(
+        'COALESCE(receipt.bill_date, receipt.created_at) <= :end_date',
+        { end_date: new Date(end_date) }
+      );
+    }
 
     QueryHelper.applyFilters(
       queryBuilder,
@@ -1660,9 +1682,9 @@ export class InventoryService {
       queryBuilder.where('receipt.supplier_id = :supplier_id', { supplier_id });
     }
     
-    // Lọc theo ngày nếu có
+    // Lọc theo ngày nhập (bill_date), nếu null thì lấy created_at
     if (start_date && end_date) {
-      queryBuilder.andWhere('receipt.created_at BETWEEN :start_date AND :end_date', { 
+      queryBuilder.andWhere('COALESCE(receipt.bill_date, receipt.created_at) BETWEEN :start_date AND :end_date', { 
         start_date: new Date(start_date), 
         end_date: new Date(end_date) 
       });
@@ -1697,7 +1719,7 @@ export class InventoryService {
       taxableQuery.andWhere('receipt.supplier_id = :supplier_id', { supplier_id });
     }
     if (start_date && end_date) {
-      taxableQuery.andWhere('receipt.created_at BETWEEN :start_date AND :end_date', { 
+      taxableQuery.andWhere('COALESCE(receipt.bill_date, receipt.created_at) BETWEEN :start_date AND :end_date', { 
         start_date: new Date(start_date), 
         end_date: new Date(end_date) 
       });
@@ -1733,13 +1755,13 @@ export class InventoryService {
       queryBuilder.andWhere('receipt.supplier_id = :supplier_id', { supplier_id });
     }
     if (start_date && end_date) {
-      queryBuilder.andWhere('receipt.created_at BETWEEN :start_date AND :end_date', { 
+      queryBuilder.andWhere('COALESCE(receipt.bill_date, receipt.created_at) BETWEEN :start_date AND :end_date', { 
         start_date: new Date(start_date), 
         end_date: new Date(end_date) 
       });
     }
 
-    queryBuilder.orderBy('receipt.created_at', 'DESC');
+    queryBuilder.orderBy('COALESCE(receipt.bill_date, receipt.created_at)', 'DESC');
     
     return queryBuilder.getMany();
   }
