@@ -36,23 +36,39 @@ export class UploadService {
         ? `${CLOUDINARY_FOLDER}/${subFolder}`
         : CLOUDINARY_FOLDER;
 
-      // Upload to Cloudinary với tối ưu hóa cho HEIC từ iPhone
-      const result = await cloudinary.uploader.upload(file.path, {
+      // Ngưỡng 1MB - nếu ảnh lớn hơn thì server tự nén (phòng trường hợp client không nén)
+      const IMAGE_SIZE_THRESHOLD = 1 * 1024 * 1024; // 1MB
+      const needsCompression = file.size > IMAGE_SIZE_THRESHOLD;
+
+      if (needsCompression) {
+        this.logger.log(
+          `📦 Ảnh lớn (${(file.size / 1024 / 1024).toFixed(2)}MB), tự động nén trước khi upload Cloudinary`,
+        );
+      }
+
+      // Upload lên Cloudinary - chỉ transform khi ảnh lớn, ảnh nhỏ upload thẳng cho nhanh
+      const uploadOptions: Record<string, any> = {
         folder: folderPath,
         resource_type: 'image',
-        format: 'jpg', // Bắt buộc convert HEIC → JPEG
-        transformation: [
-          { 
-            width: 1920, 
-            height: 1920, 
-            crop: 'limit' // Giới hạn kích thước tối đa, giữ nguyên tỷ lệ
+        timeout: 60000, // 60 giây timeout cho Cloudinary SDK
+      };
+
+      // Chỉ nén khi ảnh lớn hơn ngưỡng (client quên nén hoặc gửi ảnh gốc)
+      if (needsCompression) {
+        uploadOptions.transformation = [
+          {
+            width: 1920,
+            height: 1920,
+            crop: 'limit', // Giới hạn kích thước, giữ nguyên tỷ lệ
           },
-          { 
-            quality: 85, // Nén vừa phải (85% chất lượng, ~500KB-1MB)
-            fetch_format: 'jpg' // Đảm bảo output là JPEG
+          {
+            quality: 85, // Nén vừa phải
+            fetch_format: 'jpg',
           },
-        ],
-      });
+        ];
+      }
+
+      const result = await cloudinary.uploader.upload(file.path, uploadOptions);
 
       // Clean up temporary file (async)
       try {
