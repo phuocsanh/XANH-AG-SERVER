@@ -95,10 +95,8 @@ export class CustomerRewardService {
     // 🔥 Lấy mốc từ DB
     const threshold = await this.getRewardThreshold();
     
-    // 🔥 Dùng paid_amount (Số tiền đã thu thực tế) của vụ hiện tại + số tiền thu thêm lần này (nếu có)
-    const currentPaidAmount = Number(debtNote.paid_amount || 0);
-    const seasonPaidContribution = currentPaidAmount + Number(additionalAmount || 0);
-    const totalAfterClose = previousPending + seasonPaidContribution;
+    const seasonPaidContribution = Number(debtNote.paid_amount || 0) + Number(additionalAmount || 0);
+    const totalAfterClose = previousPending + Number(additionalAmount || 0);
 
     // 2. Tính toán số lần tặng quà
     const rewardCount = Math.floor(totalAfterClose / threshold);
@@ -149,9 +147,9 @@ export class CustomerRewardService {
         reward_count: dn.reward_count
       })),
       summary: {
-        previous_pending: previousPending,
-        current_paid: seasonPaidContribution,
-        total_after_close: totalAfterClose,
+        previous_pending: previousPending - Number(debtNote.paid_amount || 0), // Số dư tích lũy TRƯỚC VỤ NÀY
+        current_paid: seasonPaidContribution, // Tổng tích lũy VỤ NÀY (Đã trả + Sắp trả)
+        total_after_close: totalAfterClose, // TỔNG CỘNG CUỐI CÙNG
         reward_threshold: threshold,
         reward_count: rewardCount,
         remaining_amount: remainingAmount,
