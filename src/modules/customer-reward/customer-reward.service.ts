@@ -30,7 +30,8 @@ export class CustomerRewardService {
     private readonly farmGiftCostService: FarmGiftCostService,
   ) {}
 
-  private readonly DEFAULT_REWARD_THRESHOLD = 60000000; // 60 Triệu
+  private readonly DEFAULT_REWARD_THRESHOLD = 70000000; // 🔥 Đã sửa mốc thành 70 triệu theo yêu cầu
+ // 60 Triệu
 
   /**
    * Lấy mốc tích lũy từ database
@@ -642,6 +643,12 @@ export class CustomerRewardService {
 
       if (tracking) {
         tracking.reward_count = Math.max(0, tracking.reward_count - 1);
+        
+        // 🔄 QUAN TRỌNG: Trả lại tích lũy khi xóa quà tặng
+        const threshold = await this.getRewardThreshold();
+        // Dùng Number() để đảm bảo phép cộng chuẩn (phòng hờ Decimal sring)
+        tracking.pending_amount = Number(tracking.pending_amount || 0) + threshold;
+        
         await manager.save(tracking);
       }
 
