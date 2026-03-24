@@ -295,11 +295,12 @@ export class PaymentService {
       oldDebtNote.paid_amount = currentPaidDebt + paymentAmount;
       oldDebtNote.remaining_amount = totalDebt - paymentAmount;
 
-      if (Number(oldDebtNote.remaining_amount) <= 0) {
-        oldDebtNote.status = DebtNoteStatus.PAID;
-      } else if (oldDebtNote.status !== DebtNoteStatus.SETTLED) {
-        // Nếu còn nợ và chưa chốt sổ, để trạng thái ACTIVE
-        oldDebtNote.status = DebtNoteStatus.ACTIVE;
+      if (oldDebtNote.status !== DebtNoteStatus.SETTLED) {
+        if (Number(oldDebtNote.remaining_amount) <= 0) {
+          oldDebtNote.status = DebtNoteStatus.PAID;
+        } else {
+          oldDebtNote.status = DebtNoteStatus.ACTIVE;
+        }
       }
       // Khác: Nếu status đang là SETTLED và vẫn còn nợ, giữ nguyên SETTLED
 
