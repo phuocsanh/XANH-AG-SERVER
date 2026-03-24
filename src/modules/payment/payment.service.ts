@@ -230,11 +230,14 @@ export class PaymentService {
       });
 
       // 4. Tìm phiếu công nợ (LOCK)
+      // Chấp nhận cả trạng thái SETTLED vì người dùng có thể thanh toán sau khi đã chốt sổ tích lũy
       const oldDebtNote = await queryRunner.manager
         .createQueryBuilder(DebtNote, 'dn')
         .where('dn.customer_id = :customer_id', { customer_id: dto.customer_id })
         .andWhere('dn.season_id = :season_id', { season_id: dto.season_id })
-        .andWhere('dn.status IN (:...statuses)', { statuses: [DebtNoteStatus.ACTIVE, DebtNoteStatus.OVERDUE] })
+        .andWhere('dn.status IN (:...statuses)', { 
+          statuses: [DebtNoteStatus.ACTIVE, DebtNoteStatus.OVERDUE, DebtNoteStatus.SETTLED] 
+        })
         .setLock('pessimistic_write')
         .getOne();
 
@@ -292,11 +295,13 @@ export class PaymentService {
       oldDebtNote.paid_amount = currentPaidDebt + paymentAmount;
       oldDebtNote.remaining_amount = totalDebt - paymentAmount;
 
-      if (oldDebtNote.remaining_amount <= 0) {
+      if (Number(oldDebtNote.remaining_amount) <= 0) {
         oldDebtNote.status = DebtNoteStatus.PAID;
-      } else {
+      } else if (oldDebtNote.status !== DebtNoteStatus.SETTLED) {
+        // Nếu còn nợ và chưa chốt sổ, để trạng thái ACTIVE
         oldDebtNote.status = DebtNoteStatus.ACTIVE;
       }
+      // Khác: Nếu status đang là SETTLED và vẫn còn nợ, giữ nguyên SETTLED
 
       // 8. Xử lý quà tặng tích lũy và Chốt sổ (nếu được yêu cầu)
       let rewardSummary: any = null;
@@ -309,6 +314,7 @@ export class PaymentService {
             gift_value: dto.gift_value || 0,
             notes: dto.is_final ? `Chốt sổ & tặng quà khi thanh toán #${paymentCode}` : `Tặng quà khi thanh toán #${paymentCode}`,
             manual_remaining_amount: oldDebtNote.remaining_amount, // Dùng nợ còn lại làm số dư chuyển sang nếu chốt sổ
+            payment_amount: paymentAmount, // 🔥 Truyền số tiền thực trả để tích lũy
           },
           userId,
           dto.is_final === true // isFinal

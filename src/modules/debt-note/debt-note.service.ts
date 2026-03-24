@@ -102,9 +102,18 @@ export class DebtNoteService {
 
     // 3. Phân trang (Lưu ý: skip/take áp dụng sau khi filter)
     const total = await queryBuilder.getCount();
-    const data = await queryBuilder.skip(skip).take(limit).getMany();
+    const entities = await queryBuilder.skip(skip).take(limit).getMany();
 
-    // 4. Lấy tóm tắt thống kê (Dùng clone để giữ nguyên filter nhưng bỏ skip/take)
+    // 4. Map thêm thông tin tích lũy từ CustomerRewardService
+    const data = await Promise.all(entities.map(async (dn) => {
+        const reward = await this.customerRewardService.getMyRewardTracking(dn.customer_id);
+        return {
+            ...dn,
+            pending_accumulation: Number(reward?.pending_amount || 0)
+        } as any;
+    }));
+
+    // 5. Lấy tóm tắt thống kê (Dùng clone để giữ nguyên filter nhưng bỏ skip/take)
     const summaryQuery = queryBuilder.clone().skip(undefined).take(undefined).orderBy();
     const summary = await summaryQuery
       .select('SUM(debt_note.remaining_amount)', 'total_debt')
