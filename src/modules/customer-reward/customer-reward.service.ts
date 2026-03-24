@@ -132,10 +132,13 @@ export class CustomerRewardService {
       current_season: {
         id: debtNote.season?.id,
         name: debtNote.season?.name,
-        debt_amount: seasonPaidContribution,
+        debt_amount: Number(debtNote.amount || 0), // 🔥 Trả về đúng giá trị đơn nợ thực tế
         paid_amount: Number(debtNote.paid_amount || 0),
         remaining_amount: Number(debtNote.remaining_amount || 0),
         status: debtNote.status,
+        paid_contribution: seasonPaidContribution, // Tích lũy thực tính của vụ này
+        gift_description: debtNote.gift_description, // 🔥 Thêm thông tin quà (để hiện sau khi chốt)
+        gift_value: Number(debtNote.gift_value || 0),
       },
       accumulation_history: accumulationHistory.map(dn => ({
         id: dn.id,
