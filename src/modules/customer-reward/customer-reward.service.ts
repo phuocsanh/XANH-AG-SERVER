@@ -281,6 +281,7 @@ export class CustomerRewardService {
             `Tích lũy: ${this.formatCurrency(previousPending)} (dư cũ) + ${this.formatCurrency(paymentAmount)} (lần này) = ${this.formatCurrency(totalAccumulated)}`,
           created_by: userId,
           gift_value: closeData.gift_value || 0,
+          reward_type: 'APPRECIATION_GIFT', // Quà tùy ý khi thanh toán/chốt nợ
         });
         const savedHistory = await manager.save(rewardHistory);
         historyIds.push(savedHistory.id);
@@ -533,12 +534,13 @@ export class CustomerRewardService {
         customer_id,
         customer_name: (customer as any).name,
         reward_threshold: threshold,
-        accumulated_amount: 0, 
+        accumulated_amount: 0,
         reward_date: new Date(),
         gift_description,
         gift_value: gift_value || 0,
         gift_status: 'delivered',
         delivered_date: new Date(),
+        reward_type: 'ACCUMULATION_REWARD', // Thưởng khi đạt mốc 70tr
         notes: notes || 'Tặng quà thủ công',
         created_by: userId,
         season_ids: season_id ? [season_id] : [],

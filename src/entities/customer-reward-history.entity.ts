@@ -138,6 +138,15 @@ export class CustomerRewardHistory {
   })
   gift_status!: string;
 
+  @Column({
+    name: 'reward_type',
+    type: 'varchar',
+    length: 50,
+    default: 'ACCUMULATION_REWARD',
+    comment: 'ACCUMULATION_REWARD: Thưởng tích lũy (70tr), APPRECIATION_GIFT: Quà tri ân'
+  })
+  reward_type?: string;
+
   /** Ngày trao quà thực tế */
   @Column({
     name: 'delivered_date',
