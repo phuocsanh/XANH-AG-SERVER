@@ -16,4 +16,8 @@ export class SearchRewardDto {
   @IsOptional()
   @IsString()
   customer_phone?: string;
+
+  @IsOptional()
+  @IsString()
+  reward_type?: string;
 }

@@ -400,12 +400,21 @@ export class CustomerRewardService {
    * Truy vấn lịch sử quà tặng tập trung
    */
   async searchRewardHistory(searchDto: SearchRewardDto) {
-    const { page = 1, limit = 10, customer_name, customer_phone } = searchDto;
+    const { page = 1, limit = 10, customer_name, customer_phone, reward_type } = searchDto;
     const skip = (page - 1) * limit;
 
     const queryBuilder = this.rewardHistoryRepository.createQueryBuilder('rh')
       .leftJoinAndSelect('rh.customer', 'customer')
       .orderBy('rh.reward_date', 'DESC');
+
+    if (reward_type) {
+      if (reward_type === 'ACCUMULATION_REWARD') {
+        // Tương thích với các bản ghi cũ chưa có reward_type
+        queryBuilder.andWhere('(rh.reward_type IS NULL OR rh.reward_type = :reward_type)', { reward_type });
+      } else {
+        queryBuilder.andWhere('rh.reward_type = :reward_type', { reward_type });
+      }
+    }
 
     if (customer_name || customer_phone) {
       const nameKeyword = customer_name ? `%${QueryHelper.sanitizeKeyword(customer_name)}%` : null;
