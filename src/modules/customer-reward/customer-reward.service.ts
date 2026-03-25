@@ -97,7 +97,7 @@ export class CustomerRewardService {
     const threshold = await this.getRewardThreshold();
     
     const seasonPaidContribution = Number(debtNote.paid_amount || 0) + Number(additionalAmount || 0);
-    const totalAfterClose = previousPending + Number(additionalAmount || 0);
+    const totalAfterClose = previousPending + seasonPaidContribution;
 
     // 2. Tính toán số lần tặng quà
     const rewardCount = Math.floor(totalAfterClose / threshold);
@@ -148,7 +148,7 @@ export class CustomerRewardService {
         reward_count: dn.reward_count
       })),
       summary: {
-        previous_pending: previousPending - Number(debtNote.paid_amount || 0), // Số dư tích lũy TRƯỚC VỤ NÀY
+        previous_pending: previousPending, // Số dư tích lũy TRƯỚC KHI CỘNG VỤ NÀY
         current_paid: seasonPaidContribution, // Tổng tích lũy VỤ NÀY (Đã trả + Sắp trả)
         total_after_close: totalAfterClose, // TỔNG CỘNG CUỐI CÙNG
         reward_threshold: threshold,
@@ -245,12 +245,15 @@ export class CustomerRewardService {
       });
     }
 
-    // 2. Tính toán tích lũy dựa trên TIỀN THỰC TRẢ trong lần này (incremental)
-    // Nếu có payment_amount được truyền vào (từ lúc thanh toán), ta cộng dồn số tiền đó.
-    // Nếu không (chốt sổ thủ công không kèm tiền), số tiền cộng thêm là 0.
+    // 2. Tính toán tích lũy dựa trên TIỀN THỰC TRẢ
+    // Nếu là Chốt sổ cuối vụ (isFinal = true), ta phải cộng dồn toàn bộ số tiền đã trả của phiếu nợ này (debtNote.paid_amount)
+    // vì số tiền này chưa từng được ghi nhận tích lũy chính thức vào pending_amount trước đó.
     const paymentAmount = Number(closeData.payment_amount || 0);
+    const contributionFromDebtNote = isFinal ? Number(debtNote.paid_amount || 0) : 0;
+    const totalNewContribution = paymentAmount + contributionFromDebtNote;
+
     const previousPending = Number(rewardTracking.pending_amount);
-    const totalAccumulated = previousPending + paymentAmount;
+    const totalAccumulated = previousPending + totalNewContribution;
 
     // 🔥 Lấy mốc từ DB (dùng manager để đảm bảo nhất quán trong transaction)
     const threshold = await this.getRewardThreshold(manager);
@@ -278,7 +281,7 @@ export class CustomerRewardService {
           gift_description: closeData.gift_description || 
             `Quà tặng nông dân (Lần ${Number(rewardTracking.reward_count) + i + 1})`,
           notes: closeData.notes || 
-            `Tích lũy: ${this.formatCurrency(previousPending)} (dư cũ) + ${this.formatCurrency(paymentAmount)} (lần này) = ${this.formatCurrency(totalAccumulated)}`,
+            `Tích lũy: ${this.formatCurrency(previousPending)} (dư cũ) + ${this.formatCurrency(totalNewContribution)} (vụ này) = ${this.formatCurrency(totalAccumulated)}`,
           created_by: userId,
           gift_value: closeData.gift_value || 0,
           reward_type: 'APPRECIATION_GIFT', // Quà tùy ý khi thanh toán/chốt nợ
@@ -301,7 +304,7 @@ export class CustomerRewardService {
         : remainingAccumulated;
 
       rewardTracking.pending_amount = finalRemainingAmount;
-      rewardTracking.total_accumulated = Number(rewardTracking.total_accumulated) + paymentAmount;
+      rewardTracking.total_accumulated = Number(rewardTracking.total_accumulated) + totalNewContribution;
     }
     
     await manager.save(rewardTracking);
@@ -333,7 +336,7 @@ export class CustomerRewardService {
     // Trả về thông tin tóm tắt để các Service khác phản hồi cho Frontend
     return {
       previous_pending: previousPending,
-      payment_received: paymentAmount,
+      payment_received: totalNewContribution,
       total_accumulated_after: totalAccumulated,
       reward_given: currentRewardCount > 0,
       reward_count: currentRewardCount, // Số quà MỚI tặng trong lần này

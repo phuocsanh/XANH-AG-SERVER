@@ -19,6 +19,11 @@ export class CloseSeasonDebtNoteDto {
   @IsString()
   notes?: string;
 
+  /** Số tiền thanh toán tại thời điểm chốt sổ */
+  @IsOptional()
+  @IsNumber()
+  payment_amount?: number;
+
   /** Số dư tích lũy chuyển sang vụ sau (nhập thủ công) */
   @IsOptional()
   @IsNumber()

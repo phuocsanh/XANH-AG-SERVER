@@ -11,6 +11,7 @@ import { SearchPaymentAllocationDto } from './dto/search-payment-allocation.dto'
 import { QueryHelper } from '../../common/helpers/query-helper';
 import { OperatingCostService } from '../operating-cost/operating-cost.service';
 import { OperatingCostCategoryService } from '../operating-cost-category/operating-cost-category.service';
+import { CustomerRewardService } from '../customer-reward/customer-reward.service';
 
 @Injectable()
 export class PaymentAllocationService {
@@ -20,6 +21,7 @@ export class PaymentAllocationService {
     private dataSource: DataSource,
     private operatingCostService: OperatingCostService,
     private operatingCostCategoryService: OperatingCostCategoryService,
+    private customerRewardService: CustomerRewardService,
   ) {}
 
   async create(createDto: CreatePaymentAllocationDto): Promise<PaymentAllocation> {
@@ -129,6 +131,24 @@ export class PaymentAllocationService {
         }
 
         await queryRunner.manager.save(debtNote);
+        
+        // 🆕 NEW: Ghi nhận tích lũy ngay khi thanh toán (Incremental)
+        try {
+          // Chỉ ghi nhận nếu chưa phải chốt sổ (isFinal=false) để tránh double-count ở bước chốt sổ
+          await this.dataSource.manager.getCustomRepository ? null : // Dummy to use manager
+        await this.customerRewardService.handleDebtNoteSettlement(
+          queryRunner.manager,
+          debtNote,
+          {
+            payment_amount: allocationAmount,
+            notes: `Phân bổ thanh toán cho DN#${debtNote.code}`,
+          },
+          1, // System
+          false // isFinal = false
+        );
+        } catch (rewardError) {
+          console.error('⚠️ Lỗi ghi nhận tích lũy từ thanh toán:', rewardError);
+        }
       }
 
       // 3. Create Allocation

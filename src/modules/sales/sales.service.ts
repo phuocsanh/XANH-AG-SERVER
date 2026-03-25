@@ -290,8 +290,8 @@ export class SalesService {
         }
       }
 
-      // 🆕 Tự động xử lý Quà tặng tích lũy nếu có thông tin quà tặng
-      if (createSalesInvoiceDto.gift_description || (createSalesInvoiceDto.gift_value && createSalesInvoiceDto.gift_value > 0)) {
+      // 🆕 Tự động xử lý Quà tặng và Tích lũy doanh số
+      if (createSalesInvoiceDto.gift_description || (createSalesInvoiceDto.gift_value && createSalesInvoiceDto.gift_value > 0) || partialPayment > 0) {
         try {
           // Lấy lại DebtNote mới nhất để đảm bảo số tiền tích lũy chính xác
           const updatedDebtNote = await queryRunner.manager.findOne(DebtNote, {
@@ -307,15 +307,18 @@ export class SalesService {
               queryRunner.manager,
               updatedDebtNote,
               {
-                gift_description: createSalesInvoiceDto.gift_description || 'Quà tặng hóa đơn',
+                payment_amount: partialPayment, // 🔥 Ghi nhận cả số tiền trả ngay
+                gift_description: createSalesInvoiceDto.gift_description,
                 gift_value: createSalesInvoiceDto.gift_value || 0,
-                notes: `Tặng quà kèm hóa đơn #${savedInvoice.code}`,
+                notes: createSalesInvoiceDto.gift_description 
+                  ? `Tặng quà kèm hóa đơn #${savedInvoice.code}`
+                  : `Tích lũy từ thanh toán hóa đơn #${savedInvoice.code}`,
               },
               userId,
-              false // isFinal = false (vì đây là tặng quà giữa vụ hoặc khi mua hàng)
+              false // isFinal = false
             );
 
-            this.logger.log(`✅ Đã ghi nhận quà tặng tích lũy cho hóa đơn #${savedInvoice.code}`);
+            this.logger.log(`✅ Đã ghi nhận tích lũy/quà tặng cho hóa đơn #${savedInvoice.code}`);
           }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';

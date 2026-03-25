@@ -293,6 +293,13 @@ export class DebtNoteService {
         throw new BadRequestException('Vui lòng nhập mô tả quà tặng khi có giá trị quà tặng');
       }
 
+      // 🆕 NEW: Nếu có thanh toán đồng thời khi chốt sổ, cập nhật lại tiền trên phiếu nợ
+      const extraPayment = Number(closeData.payment_amount || 0);
+      if (extraPayment > 0) {
+        debtNote.paid_amount = Number(debtNote.paid_amount || 0) + extraPayment;
+        debtNote.remaining_amount = Math.max(0, Number(debtNote.remaining_amount || 0) - extraPayment);
+      }
+
       // 3. Xử lý quà tặng và tích lũy thông qua CustomerRewardService
       // CHỈ CẦN GỌI DUY NHẤT 1 HÀM NÀY, không cần tính toán tại đây.
       const rewardSummary = await this.customerRewardService.handleDebtNoteSettlement(

@@ -8,6 +8,7 @@ import { SalesInvoice } from '../../entities/sales-invoices.entity';
 import { DebtNote } from '../../entities/debt-note.entity';
 import { OperatingCostModule } from '../operating-cost/operating-cost.module';
 import { OperatingCostCategoryModule } from '../operating-cost-category/operating-cost-category.module';
+import { CustomerRewardModule } from '../customer-reward/customer-reward.module';
 
 /**
  * PaymentAllocationModule - Module quản lý phân bổ thanh toán
@@ -24,6 +25,7 @@ import { OperatingCostCategoryModule } from '../operating-cost-category/operatin
     TypeOrmModule.forFeature([PaymentAllocation, Payment, SalesInvoice, DebtNote]),
     OperatingCostModule,
     OperatingCostCategoryModule,
+    CustomerRewardModule,
   ],
   controllers: [PaymentAllocationController],
   providers: [PaymentAllocationService],
