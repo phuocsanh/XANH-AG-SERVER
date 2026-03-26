@@ -172,10 +172,6 @@ export class StoreProfitReportService {
         throw new NotFoundException(`Không tìm thấy mùa vụ với ID: ${seasonId}`);
       }
 
-      const fs = require('fs');
-      const logMsg = `[${new Date().toISOString()}] seasonId: ${seasonId}, type: ${typeof seasonId}\n`;
-      fs.appendFileSync('report_debug.log', logMsg);
-      
       this.logger.log(`📊 [DEBUG_REPORT] getSeasonStoreProfitReport called with seasonId: ${seasonId} (type: ${typeof seasonId})`);
       
       // Lấy tất cả hóa đơn trong season (không bao gồm cancelled)
