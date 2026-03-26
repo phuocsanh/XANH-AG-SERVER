@@ -14,6 +14,8 @@ import { InventoryAdjustment } from '../../entities/inventory-adjustments.entity
 import { InventoryAdjustmentItem } from '../../entities/inventory-adjustment-items.entity';
 import { Product } from '../../entities/products.entity';
 import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
+import { SalesReturn, SalesReturnStatus } from '../../entities/sales-return.entity';
+import { SalesReturnItem } from '../../entities/sales-return-items.entity';
 import { CreateInventoryBatchDto } from './dto/create-inventory-batch.dto';
 import { QueryHelper } from '../../common/helpers/query-helper';
 import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
@@ -3431,100 +3433,143 @@ export class InventoryService {
       order: { created_at: 'ASC' } 
     });
 
-    // 2. Lấy lịch sử bán hàng hợp lệ (chỉ lấy hóa đơn confirmed, bỏ cancelled và draft, sắp xếp ASC để FIFO đúng thứ tự)
+    // 2. Lấy lịch sử bán hàng hợp lệ (chỉ lấy hóa đơn confirmed và paid, bỏ cancelled và draft, sắp xếp ASC để FIFO đúng thứ tự)
     const salesItems = await salesInvoiceItemRepo
       .createQueryBuilder('sii')
       .innerJoin('sii.invoice', 'si')
       .where('sii.product_id = :productId', { productId: product.id })
-      .andWhere('si.status = :confirmed', { confirmed: 'confirmed' })
+      .andWhere('si.status IN (:...statuses)', { statuses: ['confirmed', 'paid'] })
       .andWhere('si.deleted_at IS NULL')
       .andWhere('sii.deleted_at IS NULL')
       .orderBy('sii.created_at', 'ASC')
       .getMany();
 
+    // 3. Lấy dữ liệu trả hàng (để loại trừ khỏi lượng xuất kho)
+    const salesReturnItemRepo = this.inventoryReceiptRepository.manager.getRepository(SalesReturnItem);
+    const returnItems = await salesReturnItemRepo
+      .createQueryBuilder('sri')
+      .innerJoinAndSelect('sri.sales_return', 'sr')
+      .where('sri.product_id = :productId', { productId: product.id })
+      .andWhere('sr.status != :cancelled', { cancelled: 'cancelled' })
+      .getMany();
+
+    // Group số lượng trả theo invoice_id
+    const returnsByInvoice = new Map<number, number>();
+    for (const ri of returnItems) {
+      const invId = ri.sales_return?.invoice_id;
+      if (invId) {
+        returnsByInvoice.set(invId, (returnsByInvoice.get(invId) || 0) + Number(ri.quantity));
+      }
+    }
+
     if (receiptItems.length === 0 && salesItems.length === 0) return { productUpdated: false, salesItemsUpdated: 0 };
 
-    // Cấu trúc các lô hàng để mô phỏng
-    let batches = receiptItems.map(r => {
-      const qty = Number(r.quantity);
-      let taxable = Number(r.taxable_quantity || 0);
-      if (taxable === 0 && (r.receipt as any)?.is_taxable) {
-        taxable = qty;
+    // 4. Cấu trúc các lô hàng để mô phỏng (Sử dụng BASE_QUANTITY để chính xác đơn vị tính)
+    let batches: { id: number; taxable: number; nonTaxable: number; total: number }[] = receiptItems.map(r => {
+      // base_quantity là số lượng quy đổi về đơn vị cơ sở (vd: KG)
+      const qtyBase = Number(r.base_quantity || r.quantity);
+      
+      // Tính tỷ lệ taxable_base_quantity = (taxable_quantity / quantity) * base_quantity
+      const originalQty = Number(r.quantity) || 1;
+      const originalTaxable = Number(r.taxable_quantity || 0);
+      
+      let taxableBase = (originalTaxable / originalQty) * qtyBase;
+
+      // Fallback nếu phiếu nhập có cờ is_taxable mà không nhập taxable_quantity chi tiết
+      if (taxableBase === 0 && (r.receipt as any)?.is_taxable) {
+        taxableBase = qtyBase;
       }
+      
       return {
-        taxable: taxable,
-        nonTaxable: Math.max(0, qty - taxable)
+        id: r.id,
+        taxable: taxableBase,
+        nonTaxable: Math.max(0, qtyBase - taxableBase),
+        total: qtyBase
       };
     });
 
-    // TRƯỜNG HỢP ĐẶC BIỆT: Fallback cho tồn thuế thủ công
-    const totalTaxableInBatches = batches.reduce((sum, b) => sum + b.taxable, 0);
-    if (totalTaxableInBatches === 0 && product.has_input_invoice && Number(product.taxable_quantity_stock) > 0) {
-      const firstBatch = batches[0];
-      if (firstBatch) {
-        const manualTaxStock = Number(product.taxable_quantity_stock);
-        const currentTotal = firstBatch.taxable + firstBatch.nonTaxable;
-        firstBatch.taxable = Math.min(manualTaxStock, currentTotal);
-        firstBatch.nonTaxable = Math.max(0, currentTotal - firstBatch.taxable);
+    // TRƯỜNG HỢP ĐẶC BIỆT: Fallback cho tồn thuế thủ công (nếu không có lịch sử nhập khớp)
+    const currentTaxPool = batches.reduce((sum, b) => sum + (b?.taxable || 0), 0);
+    if (currentTaxPool === 0 && product.has_input_invoice && Number(product.taxable_quantity_stock) > 0) {
+      const manualStockBase = Number(product.taxable_quantity_stock);
+      // Giả định lô hàng đầu tiên (hoặc tạo mới) có tồn thuế này
+      const b = batches[0];
+      if (b) {
+        b.taxable = Math.min(manualStockBase, b.total);
+        b.nonTaxable = Math.max(0, b.total - b.taxable);
+      } else {
+        batches.push({ id: 0, taxable: manualStockBase, nonTaxable: 0, total: manualStockBase });
       }
     }
 
-    if (batches.length === 0 && Number(product.quantity) > 0) {
-      const taxableStock = Number(product.taxable_quantity_stock || 0);
-      batches.push({
-        taxable: taxableStock,
-        nonTaxable: Math.max(0, Number(product.quantity) - taxableStock)
-      });
-    }
+    let salesItemsUpdatedCount = 0;
 
-    let salesItemsUpdated = 0;
-
-    // 3. Mô phỏng quá trình bán hàng theo FIFO từng lô
+    // 5. Mô phỏng quá trình bán hàng theo FIFO từng lô
     for (const item of salesItems) {
-      let remainingToSell = Number(item.quantity);
-      let calculatedTaxableQty = 0;
-
-      while (remainingToSell > 0 && batches.length > 0) {
-        const currentBatch = batches[0];
-        if (!currentBatch) break;
-
-        const batchTotal = currentBatch.taxable + currentBatch.nonTaxable;
-        if (batchTotal <= 0) {
-          batches.shift();
-          continue;
-        }
-
-        const canTakeFromThisBatch = Math.min(remainingToSell, batchTotal);
-        const takeTaxable = Math.min(canTakeFromThisBatch, currentBatch.taxable);
-        const takeNonTaxable = canTakeFromThisBatch - takeTaxable;
-
-        calculatedTaxableQty += takeTaxable;
-        currentBatch.taxable -= takeTaxable;
-        currentBatch.nonTaxable -= takeNonTaxable;
-        remainingToSell -= canTakeFromThisBatch;
-
-        if (currentBatch.taxable + currentBatch.nonTaxable <= 0) {
-          batches.shift();
-        }
+      // Số lượng bán thực tế quy đổi = base_quantity - (returned_quantity * conversion_factor)
+      let saleQtyBase = Number(item.base_quantity || item.quantity);
+      
+      // Khấu trừ số lượng đã trả
+      const returnedQty = returnsByInvoice.get(item.invoice_id) || 0;
+      if (returnedQty > 0) {
+        const factor = Number(item.conversion_factor || 1);
+        const returnedBase = returnedQty * factor;
+        const canSubtract = Math.min(saleQtyBase, returnedBase);
+        
+        saleQtyBase -= canSubtract;
+        // Cập nhật lại Map để dùng cho line item tiếp theo của cùng hóa đơn
+        returnsByInvoice.set(item.invoice_id, Math.max(0, returnedQty - (canSubtract / factor)));
       }
 
-      if (Number(item.taxable_quantity) !== calculatedTaxableQty) {
-        await salesInvoiceItemRepo.update(item.id, { taxable_quantity: calculatedTaxableQty });
-        salesItemsUpdated++;
+      let calculatedTaxableBase = 0;
+      let remainingToDeduct = saleQtyBase;
+
+      if (remainingToDeduct <= 0) {
+        // Nếu trả hết rồi thì item này không có tồn thuế
+        if (Number(item.taxable_quantity) !== 0) {
+          await salesInvoiceItemRepo.update(item.id, { taxable_quantity: 0 });
+          salesItemsUpdatedCount++;
+        }
+        continue;
+      }
+
+      // FIFO qua từng batch
+      for (let b of batches) {
+        if (!b || remainingToDeduct <= 0) continue;
+        
+        const batchTotal = b.taxable + b.nonTaxable;
+        if (batchTotal <= 0) continue;
+
+        const takeFromThisBatch = Math.min(remainingToDeduct, batchTotal);
+        const takeTaxable = Math.min(takeFromThisBatch, b.taxable);
+        
+        calculatedTaxableBase += takeTaxable;
+        b.taxable -= takeTaxable;
+        b.nonTaxable -= (takeFromThisBatch - takeTaxable);
+        remainingToDeduct -= takeFromThisBatch;
+      }
+
+      // Quy đổi ngược taxableBase sang đơn vị của item (quantity) để lưu
+      const factor = Number(item.conversion_factor || 1);
+      const finalTaxableQty = calculatedTaxableBase / factor;
+
+      if (Math.abs(Number(item.taxable_quantity) - finalTaxableQty) > 0.001) {
+        await salesInvoiceItemRepo.update(item.id, { taxable_quantity: finalTaxableQty });
+        salesItemsUpdatedCount++;
       }
     }
 
-    // 4. Tính toán Bể thuế còn lại
-    const hasTaxPrice = Number(product.tax_selling_price || 0) > 0;
-    const remainingTaxableInBatches = batches.reduce((sum, b) => sum + b.taxable, 0);
-    const finalTaxableStock = (product.has_input_invoice && hasTaxPrice) ? Math.max(0, remainingTaxableInBatches) : 0;
+    // 6. Cập nhật Bể thuế còn lại cho Product
+    const hasTaxInfo = product.has_input_invoice && Number(product.tax_selling_price || 0) > 0;
+    const remainingTaxInBatches = batches.reduce((sum, b) => sum + b.taxable, 0);
+    const finalTaxableStockCount = hasTaxInfo ? Math.max(0, remainingTaxInBatches) : 0;
 
-    let productUpdated = false;
-    if (Number(product.taxable_quantity_stock) !== finalTaxableStock) {
-      await this.productService.update(product.id, { taxable_quantity_stock: finalTaxableStock });
-      productUpdated = true;
+    let productWasUpdated = false;
+    if (Math.abs(Number(product.taxable_quantity_stock) - finalTaxableStockCount) > 0.001) {
+      await this.productService.update(product.id, { taxable_quantity_stock: finalTaxableStockCount });
+      productWasUpdated = true;
     }
 
-    return { productUpdated, salesItemsUpdated };
+    return { productUpdated: productWasUpdated, salesItemsUpdated: salesItemsUpdatedCount };
   }
 }

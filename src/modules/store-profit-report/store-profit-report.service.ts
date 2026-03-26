@@ -174,12 +174,12 @@ export class StoreProfitReportService {
 
       this.logger.log(`📊 [DEBUG_REPORT] getSeasonStoreProfitReport called with seasonId: ${seasonId} (type: ${typeof seasonId})`);
       
-      // Lấy tất cả hóa đơn trong season (chỉ lấy confirmed, bỏ draft và cancelled)
+      // Lấy tất cả hóa đơn trong season (chỉ lấy confirmed và paid, bỏ draft/cancelled/refunded)
       const invoices = await this.salesInvoiceRepository.find({
-        where: {
-          season_id: seasonId,
-          status: SalesInvoiceStatus.CONFIRMED,
-        },
+        where: [
+          { season_id: seasonId, status: SalesInvoiceStatus.CONFIRMED },
+          { season_id: seasonId, status: SalesInvoiceStatus.PAID },
+        ],
         relations: ['items', 'items.product', 'customer'],
       });
 
@@ -533,15 +533,20 @@ export class StoreProfitReportService {
     endDate?: Date,
   ): Promise<CustomerProfitReportDto> {
     try {
-      // 1. Lấy TOÀN BỘ hóa đơn của khách hàng (lifetime)
-      let customerWhere: any = { status: SalesInvoiceStatus.CONFIRMED };
+      // 1. Lấy TOÀN BỘ hóa đơn của khách hàng (lifetime) - chỉ lấy confirmed và paid
+      let customerWhere: any[] = [
+        { status: SalesInvoiceStatus.CONFIRMED },
+        { status: SalesInvoiceStatus.PAID },
+      ];
       
       if (customerId && customerId > 0) {
-        customerWhere.customer_id = customerId;
+        customerWhere = customerWhere.map((w: any) => ({ ...w, customer_id: customerId }));
       } else if (customerNameParam) {
-        // Tìm theo tên khách vãng lai (fuzzy matches)
         const sanitized = QueryHelper.sanitizeKeyword(customerNameParam);
-        customerWhere.customer_name = Raw(alias => `regexp_replace(unaccent(${alias}), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent('%${sanitized}%')`);
+        customerWhere = customerWhere.map((w: any) => ({
+          ...w,
+          customer_name: Raw(alias => `regexp_replace(unaccent(${alias}), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent('%${sanitized}%')`)
+        }));
       } else {
         throw new Error('Vui lòng cung cấp ID khách hàng hoặc Tên khách hàng');
       }
@@ -633,20 +638,20 @@ export class StoreProfitReportService {
         ? (lifetimeProfit / lifetimeRevenue) * 100 
         : 0;
 
-      // 3. Build where conditions cho filtered invoices
-      let where: any = {
-        customer_id: customerId,
-        status: SalesInvoiceStatus.CONFIRMED,
-      };
+      // 3. Build where conditions cho filtered invoices (chỉ lấy confirmed và paid)
+      let where: any[] = [
+        { customer_id: customerId, status: SalesInvoiceStatus.CONFIRMED },
+        { customer_id: customerId, status: SalesInvoiceStatus.PAID },
+      ];
 
       if (seasonId) {
-        where.season_id = seasonId;
+        where = where.map((w: any) => ({ ...w, season_id: seasonId }));
       }
 
       if (startDate && endDate) {
         where = [
-          { ...where, sale_date: Between(startDate, endDate) },
-          { ...where, sale_date: IsNull(), created_at: Between(startDate, endDate) },
+          ...where.map((w: any) => ({ ...w, sale_date: Between(startDate, endDate) })),
+          ...where.map((w: any) => ({ ...w, sale_date: IsNull(), created_at: Between(startDate, endDate) })),
         ];
       }
 
@@ -920,10 +925,10 @@ export class StoreProfitReportService {
     try {
       // 1. Lấy hóa đơn
       const invoices = await this.salesInvoiceRepository.find({
-        where: {
-          rice_crop_id: riceCropId,
-          status: SalesInvoiceStatus.CONFIRMED,
-        },
+        where: [
+          { rice_crop_id: riceCropId, status: SalesInvoiceStatus.CONFIRMED },
+          { rice_crop_id: riceCropId, status: SalesInvoiceStatus.PAID },
+        ],
         relations: ['items', 'items.product', 'customer', 'season', 'rice_crop'],
         order: { sale_date: 'DESC', created_at: 'DESC' },
       });
@@ -1168,11 +1173,13 @@ export class StoreProfitReportService {
     try {
       this.logger.log(`📊 Báo cáo lợi nhuận từ ${startDate.toISOString()} đến ${endDate.toISOString()}`);
 
-      // 1. Lấy tất cả hóa đơn trong khoảng thời gian (chỉ lấy hóa đơn CONFIRMED, bỏ cancelled và draft)
+      // 1. Lấy tất cả hóa đơn trong khoảng thời gian (chỉ lấy confirmed và paid, bỏ draft/cancelled/refunded)
       const invoices = await this.salesInvoiceRepository.find({
         where: [
           { sale_date: Between(startDate, endDate), status: SalesInvoiceStatus.CONFIRMED },
+          { sale_date: Between(startDate, endDate), status: SalesInvoiceStatus.PAID },
           { sale_date: IsNull(), created_at: Between(startDate, endDate), status: SalesInvoiceStatus.CONFIRMED },
+          { sale_date: IsNull(), created_at: Between(startDate, endDate), status: SalesInvoiceStatus.PAID },
         ],
         relations: ['items', 'items.product'],
         order: { sale_date: 'DESC', created_at: 'DESC' },
@@ -1193,23 +1200,40 @@ export class StoreProfitReportService {
       for (const invoice of invoices) {
         const invoiceFinalAmount = Number(invoice.final_amount);
         totalRevenue += invoiceFinalAmount;
+
+        // Ưu tiên dùng giá vốn thực tế từ hóa đơn (đã được xử lý trả hàng chính xác)
+        const invoiceActualCOGS = Number(invoice.cost_of_goods_sold || 0);
+        totalCOGS += invoiceActualCOGS;
         
-        // Tính tổng giá trị các item trong hóa đơn này (trước khi trừ chiết khấu cấp hóa đơn)
+        // Tính tổng giá vốn tạm tính (theo số lượng ban đầu) để làm trọng số phân bổ
+        const invoiceOriginalCOGSTotal = (invoice.items || []).reduce((sum, item) => {
+          const avgCost = Number(item.product?.average_cost_price || 0);
+          return sum + (Number(item.base_quantity || item.quantity) * avgCost);
+        }, 0);
+
         const invoiceItemsGross = (invoice.items || []).reduce((sum, item) => sum + Number(item.total_price), 0);
         const itemsDto: PeriodInvoiceItemDto[] = [];
 
         for (const item of invoice.items || []) {
           const itemGrossPrice = Number(item.total_price);
           const avgCost = Number(item.product?.average_cost_price || 0);
-          const itemCOGS = Number(item.base_quantity || item.quantity) * avgCost;
-          
-          // Tính doanh thu thực tế của item sau khi phân bổ tỷ lệ chiết khấu của hóa đơn
+          const itemOriginalCOGS = Number(item.base_quantity || item.quantity) * avgCost;
+
+          // Phân bổ doanh thu thực tế (đã trừ trả hàng) cho item này
           const itemNetRevenue = invoiceItemsGross > 0 
             ? (itemGrossPrice / invoiceItemsGross) * invoiceFinalAmount 
             : 0;
 
+          // Phân bổ giá vốn thực tế (đã trừ trả hàng) cho item này
+          const itemActualCOGS = invoiceOriginalCOGSTotal > 0
+            ? (itemOriginalCOGS / invoiceOriginalCOGSTotal) * invoiceActualCOGS
+            : 0;
+
           const taxableQty = Number(item.taxable_quantity || 0);
           const totalQty = Number(item.quantity || 1); // Tránh chia cho 0
+          
+          // Tỷ lệ khai thuế dựa trên số lượng khai thuế thực tế (đã được sync chính xác)
+          // Nếu item này có khai thuế, ta ưu tiên phân bổ lợi nhuận cho phần khai thuế
           const taxableRatio = taxableQty / totalQty;
           
           // Doanh thu khai thuế = số lượng khai thuế * giá khai thuế (ưu tiên lấy từ snapshot của item)
@@ -1218,17 +1242,15 @@ export class StoreProfitReportService {
 
           if (taxableQty > 0) {
             revenueWithInvoice += itemNetRevenue * taxableRatio;
-            cogsWithInvoice += itemCOGS * taxableRatio;
+            cogsWithInvoice += itemActualCOGS * taxableRatio;
             taxableRevenue += itemTaxableTotalAmount;
           }
           
           if (totalQty > taxableQty) {
             const nonTaxableRatio = (totalQty - taxableQty) / totalQty;
             revenueNoInvoice += itemNetRevenue * nonTaxableRatio;
-            cogsNoInvoice += itemCOGS * nonTaxableRatio;
+            cogsNoInvoice += itemActualCOGS * nonTaxableRatio;
           }
-          
-          totalCOGS += itemCOGS;
 
           // Thêm vào danh sách item của DTO
           itemsDto.push({

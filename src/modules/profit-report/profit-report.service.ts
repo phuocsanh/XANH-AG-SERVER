@@ -6,7 +6,6 @@ import { CostItem } from '../../entities/cost-item.entity';
 import { HarvestRecord } from '../../entities/harvest-record.entity';
 import { SalesInvoice, SalesInvoiceStatus } from '../../entities/sales-invoices.entity';
 import { ExternalPurchase } from '../../entities/external-purchase.entity';
-import { Not } from 'typeorm';
 
 export interface ProfitReport {
   rice_crop_id: number;
@@ -68,12 +67,12 @@ export class ProfitReportService {
         where: { rice_crop_id: cropId },
       });
 
-      // 2. Lấy hóa đơn hệ thống (vật tư mua tại cửa hàng)
+      // 2. Lấy hóa đơn hệ thống (vật tư mua tại cửa hàng) - chỉ confirmed và paid
       const systemInvoices = await this.salesInvoiceRepository.find({
-        where: { 
-          rice_crop_id: cropId,
-          status: Not(SalesInvoiceStatus.CANCELLED)
-        },
+        where: [
+          { rice_crop_id: cropId, status: SalesInvoiceStatus.CONFIRMED },
+          { rice_crop_id: cropId, status: SalesInvoiceStatus.PAID },
+        ],
       });
 
       // 3. Lấy hóa đơn tự nhập (nông dân tự mua ngoài)
