@@ -311,6 +311,7 @@ export class SalesService {
                 payment_amount: partialPayment, // 🔥 Ghi nhận cả số tiền trả ngay
                 gift_description: createSalesInvoiceDto.gift_description,
                 gift_value: createSalesInvoiceDto.gift_value || 0,
+                rice_crop_id: createSalesInvoiceDto.rice_crop_id, // ✅ Lưu thông tin ruộng lúa
                 notes: createSalesInvoiceDto.gift_description 
                   ? `Tặng quà kèm hóa đơn #${savedInvoice.code}`
                   : `Tích lũy từ thanh toán hóa đơn #${savedInvoice.code}`,

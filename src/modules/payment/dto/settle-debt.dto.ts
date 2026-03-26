@@ -47,4 +47,9 @@ export class SettleDebtDto {
   /** Xác nhận có muốn chốt sổ mùa vụ này luôn hay không */
   @IsOptional()
   is_final?: boolean;
+
+  /** ID Ruộng lúa (nếu đang trả nợ cho một ruộng cụ thể) */
+  @IsNumber()
+  @IsOptional()
+  rice_crop_id?: number;
 }

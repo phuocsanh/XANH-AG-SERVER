@@ -284,44 +284,74 @@ export class CustomerRewardService {
     // 4. Lưu lịch sử tặng quà (chỉ nếu có quà mới được tặng trong lần này)
     // 5. Lưu lịch sử tặng quà
     const historyIds: number[] = [];
-    if (shouldCreateHistory) {
-      const rewardCountToRecord = hasManualGift ? 1 : autoRewardCount;
-      
-      for (let i = 0; i < rewardCountToRecord; i++) {
-        const giftValue = hasManualGift ? manualGiftValue : REWARD_VALUE_FOR_THRESHOLD;
-        const rewardSequence = Number(rewardTracking.reward_count) + i + 1;
-        
-        // Tự động tạo ghi chú lưu mốc tiền nhận quà
-        const giftTypeName = hasManualGift ? 'Quà tri ân (không trừ tích lũy)' : 'Quà tích lũy';
-        const autoNote = `Tặng tại mốc tích lũy: ${this.formatCurrency(totalAccumulated)}. ` +
-                         `${hasManualGift ? '(Không trừ tích lũy)' : `Đã trừ ${this.formatCurrency(amountToDeductFromAccumulation)} tích lũy.`}`;
+    
+    // Lấy thông tin ruộng lúa nếu có truyền lên
+    let riceCropInfo: { id?: number, name?: string } = {};
+    if (closeData.rice_crop_id) {
+      const riceCrop = await manager.findOne(RiceCrop, { where: { id: closeData.rice_crop_id } });
+      if (riceCrop) {
+        riceCropInfo = { id: riceCrop.id, name: riceCrop.field_name };
+      }
+    }
 
+    if (shouldCreateHistory) {
+      // ✅ A. Xử lý quà Tích lũy (mốc 70tr) - Có khấu trừ
+      if (autoRewardCount > 0) {
+        for (let i = 0; i < autoRewardCount; i++) {
+          const rewardSequence = Number(rewardTracking.reward_count) + i + 1;
+          const autoNote = `Tặng tại mốc tích lũy: ${this.formatCurrency(totalAccumulated)}. Đã trừ ${this.formatCurrency(threshold)} tích lũy.`;
+
+          const rewardHistory = manager.create(CustomerRewardHistory, {
+            customer_id: debtNote.customer_id,
+            customer_name: debtNote.customer?.name || '',
+            reward_threshold: threshold,
+            accumulated_amount: totalAccumulated,
+            season_ids: debtNote.season_id ? [debtNote.season_id] : [],
+            season_names: debtNote.season?.name ? [debtNote.season.name] : [],
+            reward_date: new Date(),
+            reward_sequence: rewardSequence,
+            gift_description: `Quà tích lũy mốc ${this.formatCurrency(threshold)}`,
+            notes: closeData.notes ? `${closeData.notes} | ${autoNote}` : autoNote,
+            created_by: userId,
+            gift_value: REWARD_VALUE_FOR_THRESHOLD,
+            reward_type: 'ACCUMULATION_REWARD',
+            rice_crop_id: riceCropInfo.id,
+            rice_crop_name: riceCropInfo.name,
+          });
+          const savedHistory = await manager.save(rewardHistory);
+          historyIds.push(savedHistory.id);
+        }
+        
+        // Chỉ tăng reward_count cho quà TÍCH LŨY
+        rewardTracking.reward_count = Number(rewardTracking.reward_count) + autoRewardCount;
+        rewardTracking.last_reward_date = new Date();
+      }
+
+      // ✅ B. Xử lý quà Tri ân (lẻ) - KHÔNG khấu trừ, không tăng reward_count
+      if (hasManualGift) {
         const rewardHistory = manager.create(CustomerRewardHistory, {
           customer_id: debtNote.customer_id,
           customer_name: debtNote.customer?.name || '',
-          reward_threshold: threshold,
+          reward_threshold: 0,
           accumulated_amount: totalAccumulated,
           season_ids: debtNote.season_id ? [debtNote.season_id] : [],
           season_names: debtNote.season?.name ? [debtNote.season.name] : [],
           reward_date: new Date(),
-          reward_sequence: rewardSequence,
-          gift_description: closeData.gift_description || 
-            `${giftTypeName} (Mốc ${this.formatCurrency(totalAccumulated)})`,
-          notes: closeData.notes ? `${closeData.notes} | ${autoNote}` : autoNote,
+          reward_sequence: 1,
+          gift_description: closeData.gift_description || 'Quà tri ân',
+          notes: closeData.notes,
           created_by: userId,
-          gift_value: giftValue,
-          reward_type: 'APPRECIATION_GIFT', 
+          gift_value: manualGiftValue,
+          reward_type: 'APPRECIATION_GIFT',
+          rice_crop_id: riceCropInfo.id,
+          rice_crop_name: riceCropInfo.name,
         });
         const savedHistory = await manager.save(rewardHistory);
         historyIds.push(savedHistory.id);
       }
     }
 
-    // 6. Cập nhật bản ghi tích lũy tổng quát
-    if (shouldCreateHistory) {
-      rewardTracking.reward_count = Number(rewardTracking.reward_count) + (hasManualGift ? 1 : autoRewardCount);
-      rewardTracking.last_reward_date = new Date();
-    }
+    // 6. Cập nhật bản ghi tích lũy tổng quát (Đã xử lý ở trên)
 
     // NẾU CÓ THANH TOÁN: Cập nhật pending_amount và total_accumulated
     if (paymentAmount !== 0 || isFinal) {

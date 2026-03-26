@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { Customer } from './customer.entity';
 import { User } from './users.entity';
+import { RiceCrop } from './rice-crop.entity';
 
 /**
  * Entity lưu lịch sử tặng quà cho khách hàng
@@ -146,6 +147,25 @@ export class CustomerRewardHistory {
     comment: 'ACCUMULATION_REWARD: Thưởng tích lũy (70tr), APPRECIATION_GIFT: Quà tri ân'
   })
   reward_type?: string;
+
+  /** ID Ruộng lúa liên quan */
+  @Column({ name: 'rice_crop_id', nullable: true })
+  rice_crop_id?: number;
+
+  /** Thông tin Ruộng lúa */
+  @ManyToOne(() => RiceCrop)
+  @JoinColumn({ name: 'rice_crop_id' })
+  rice_crop?: RiceCrop;
+
+  /** Tên Ruộng lúa tại thời điểm tặng quà */
+  @Column({
+    name: 'rice_crop_name',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+    comment: 'Tên ruộng lúa tại thời điểm tặng quà'
+  })
+  rice_crop_name?: string;
 
   /** Ngày trao quà thực tế */
   @Column({
