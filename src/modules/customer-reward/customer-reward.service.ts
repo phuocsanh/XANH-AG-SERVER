@@ -324,7 +324,7 @@ export class CustomerRewardService {
     }
 
     // NẾU CÓ THANH TOÁN: Cập nhật pending_amount và total_accumulated
-    if (paymentAmount > 0 || isFinal) {
+    if (paymentAmount !== 0 || isFinal) {
       const finalRemainingAmount = remainingAccumulated; // ✅ Tự động tính, không cho nhập đè thủ công nữa để đảm bảo tỷ lệ quy đổi chính xác
 
       rewardTracking.pending_amount = finalRemainingAmount;

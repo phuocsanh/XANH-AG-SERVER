@@ -457,8 +457,8 @@ export class PaymentService {
 
           if (debtNote) {
             const paymentAmountToReturn = Number(payment.amount) || 0;
-            debtNote.paid_amount = (Number(debtNote.paid_amount) || 0) - paymentAmountToReturn;
-            debtNote.remaining_amount = (Number(debtNote.remaining_amount) || 0) + paymentAmountToReturn;
+            debtNote.paid_amount = Math.max(0, (Number(debtNote.paid_amount) || 0) - paymentAmountToReturn);
+            debtNote.remaining_amount = Math.max(0, (Number(debtNote.amount) || 0) - debtNote.paid_amount);
 
             if (debtNote.remaining_amount > 0) {
               debtNote.status = DebtNoteStatus.ACTIVE;
