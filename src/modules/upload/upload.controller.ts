@@ -34,7 +34,7 @@ export class UploadController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
-        destination: './uploads',
+        destination: '/tmp',
         filename: (_req, file, cb) => {
           const randomName = Array(32)
             .fill(null)
@@ -73,7 +73,7 @@ export class UploadController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
-        destination: './uploads',
+        destination: '/tmp',
         filename: (_req, file, cb) => {
           const randomName = Array(32)
             .fill(null)
