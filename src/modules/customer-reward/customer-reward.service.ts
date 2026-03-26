@@ -253,20 +253,44 @@ export class CustomerRewardService {
     const previousPending = Number(rewardTracking.pending_amount);
     const totalAccumulated = previousPending + totalNewContribution;
 
-    // 🔥 Lấy mốc từ DB (dùng manager để đảm bảo nhất quán trong transaction)
+    // 🔥 MỐC TÍCH LŨY MỚI THEO YÊU CẦU: 70.000.000 đ = 1.000.000 đ tiền quà
     const threshold = await this.getRewardThreshold(manager);
+    const REWARD_VALUE_FOR_THRESHOLD = 1000000; // 1 triệu tiền quà cho 70 triệu doanh số
 
-    // 3. Tính số lần tặng quà có thể nhận (tổng tích lũy / mốc)
-    const totalGiftsEarned = Math.floor(totalAccumulated / threshold);
+    // 3. Kiểm tra xem có quà nào được tặng trong lần này không
+    // Trường hợp 1: Đạt mốc tự động (70tr)
+    const autoRewardCount = Math.floor(totalAccumulated / threshold);
     
-    // 4. Tính số quà HIỆN TẠI sẽ tặng (Số lần đạt mốc mới từ số tiền vừa trả)
-    const currentRewardCount = Math.max(0, totalGiftsEarned);
-    const remainingAccumulated = totalAccumulated % threshold;
+    // Trường hợp 2: Quà tặng thủ công từ frontend (kể cả khi chưa đạt mốc 70tr)
+    const manualGiftValue = Number(closeData.gift_value || 0);
+    const hasManualGift = manualGiftValue > 0;
+
+    // Xác định số lượng quà tặng thực tế để lưu lịch sử
+    // Nếu đạt mốc tự động và không có giá trị quà thủ công -> coi như tặng 1 phần quà mốc
+    // Nếu có quà thủ công -> lưu 1 bản ghi với giá trị đó
+    const shouldCreateHistory = autoRewardCount > 0 || hasManualGift;
+    
+    // 4. Quà tặng tại thanh toán là "Quà tri ân" - KHÔNG TRỪ TÍCH LŨY
+    // Chỉ trừ tích lũy khi đạt mốc tự động (70tr)
+    const amountToDeductFromAccumulation = autoRewardCount * threshold;
+    
+    const remainingAccumulated = totalAccumulated - amountToDeductFromAccumulation;
 
     // 4. Lưu lịch sử tặng quà (chỉ nếu có quà mới được tặng trong lần này)
+    // 5. Lưu lịch sử tặng quà
     const historyIds: number[] = [];
-    if (currentRewardCount > 0) {
-      for (let i = 0; i < currentRewardCount; i++) {
+    if (shouldCreateHistory) {
+      const rewardCountToRecord = hasManualGift ? 1 : autoRewardCount;
+      
+      for (let i = 0; i < rewardCountToRecord; i++) {
+        const giftValue = hasManualGift ? manualGiftValue : REWARD_VALUE_FOR_THRESHOLD;
+        const rewardSequence = Number(rewardTracking.reward_count) + i + 1;
+        
+        // Tự động tạo ghi chú lưu mốc tiền nhận quà
+        const giftTypeName = hasManualGift ? 'Quà tri ân (không trừ tích lũy)' : 'Quà tích lũy';
+        const autoNote = `Tặng tại mốc tích lũy: ${this.formatCurrency(totalAccumulated)}. ` +
+                         `${hasManualGift ? '(Không trừ tích lũy)' : `Đã trừ ${this.formatCurrency(amountToDeductFromAccumulation)} tích lũy.`}`;
+
         const rewardHistory = manager.create(CustomerRewardHistory, {
           customer_id: debtNote.customer_id,
           customer_name: debtNote.customer?.name || '',
@@ -275,13 +299,12 @@ export class CustomerRewardService {
           season_ids: debtNote.season_id ? [debtNote.season_id] : [],
           season_names: debtNote.season?.name ? [debtNote.season.name] : [],
           reward_date: new Date(),
-          reward_sequence: Number(rewardTracking.reward_count) + i + 1,
+          reward_sequence: rewardSequence,
           gift_description: closeData.gift_description || 
-            `Quà tặng nông dân (Lần ${Number(rewardTracking.reward_count) + i + 1})`,
-          notes: closeData.notes || 
-            `Tích lũy: ${this.formatCurrency(previousPending)} (dư cũ) + ${this.formatCurrency(totalNewContribution)} (lần này) = ${this.formatCurrency(totalAccumulated)}`,
+            `${giftTypeName} (Mốc ${this.formatCurrency(totalAccumulated)})`,
+          notes: closeData.notes ? `${closeData.notes} | ${autoNote}` : autoNote,
           created_by: userId,
-          gift_value: closeData.gift_value || 0,
+          gift_value: giftValue,
           reward_type: 'APPRECIATION_GIFT', 
         });
         const savedHistory = await manager.save(rewardHistory);
@@ -289,17 +312,15 @@ export class CustomerRewardService {
       }
     }
 
-    // 5. Cập nhật bản ghi tích lũy tổng quát
-    if (currentRewardCount > 0) {
-      rewardTracking.reward_count = Number(rewardTracking.reward_count) + currentRewardCount;
+    // 6. Cập nhật bản ghi tích lũy tổng quát
+    if (shouldCreateHistory) {
+      rewardTracking.reward_count = Number(rewardTracking.reward_count) + (hasManualGift ? 1 : autoRewardCount);
       rewardTracking.last_reward_date = new Date();
     }
 
     // NẾU CÓ THANH TOÁN: Cập nhật pending_amount và total_accumulated
     if (paymentAmount > 0 || isFinal) {
-      const finalRemainingAmount = (isFinal && closeData.manual_remaining_amount !== undefined) 
-        ? Number(closeData.manual_remaining_amount) 
-        : remainingAccumulated;
+      const finalRemainingAmount = remainingAccumulated; // ✅ Tự động tính, không cho nhập đè thủ công nữa để đảm bảo tỷ lệ quy đổi chính xác
 
       rewardTracking.pending_amount = finalRemainingAmount;
       rewardTracking.total_accumulated = Number(rewardTracking.total_accumulated) + totalNewContribution;
@@ -307,28 +328,33 @@ export class CustomerRewardService {
     
     await manager.save(rewardTracking);
 
-    // 6. Cập nhật reward_count trên chính phiếu nợ để theo dõi
-    debtNote.reward_count = Number(debtNote.reward_count || 0) + currentRewardCount;
-    debtNote.reward_given = debtNote.reward_count > 0;
+    // 7. Cập nhật reward_count trên chính phiếu nợ để theo dõi
+    if (shouldCreateHistory) {
+      debtNote.reward_count = Number(debtNote.reward_count || 0) + (hasManualGift ? 1 : autoRewardCount);
+      debtNote.reward_given = true;
+    }
     await manager.save(debtNote);
 
-    // 7. Tạo phiếu chi phí nếu có tặng quà và có giá trị quà
-    if (currentRewardCount > 0 && closeData.gift_value && closeData.gift_value > 0) {
-       for (let i = 0; i < currentRewardCount; i++) {
-            await this.createGiftFarmServiceCost({
-                debtNoteCode: debtNote.code,
-                customer_id: debtNote.customer_id,
-                customerName: debtNote.customer?.name || 'Khách hàng',
-                season_id: debtNote.season_id!,
-                seasonName: debtNote.season?.name,
-                rewardCount: 1,
-                giftValue: closeData.gift_value,
-                giftDescription: closeData.gift_description,
-                totalAccumulated: totalAccumulated,
-                manager,
-                reward_history_id: historyIds[i]
-            });
-       }
+    // 8. Tạo phiếu chi phí nếu có tặng quà
+    if (shouldCreateHistory) {
+      const giftValue = hasManualGift ? manualGiftValue : REWARD_VALUE_FOR_THRESHOLD;
+      const count = hasManualGift ? 1 : autoRewardCount;
+
+      for (let i = 0; i < count; i++) {
+        await this.createGiftFarmServiceCost({
+          debtNoteCode: debtNote.code,
+          customer_id: debtNote.customer_id,
+          customerName: debtNote.customer?.name || 'Khách hàng',
+          season_id: debtNote.season_id!,
+          seasonName: debtNote.season?.name,
+          rewardCount: 1,
+          giftValue: giftValue,
+          giftDescription: closeData.gift_description,
+          totalAccumulated: totalAccumulated,
+          manager,
+          reward_history_id: historyIds[i]
+        });
+      }
     }
 
     // Trả về thông tin tóm tắt để các Service khác phản hồi cho Frontend
@@ -336,22 +362,19 @@ export class CustomerRewardService {
       previous_pending: previousPending,
       payment_received: totalNewContribution,
       total_accumulated_after: totalAccumulated,
-      reward_given: currentRewardCount > 0,
-      reward_count: currentRewardCount, 
-      total_reward_count: debtNote.reward_count, 
+      reward_given: shouldCreateHistory,
+      reward_count: hasManualGift ? 1 : autoRewardCount, 
       remaining_accumulated: remainingAccumulated,
-      message: this.generateCloseMessage(currentRewardCount, remainingAccumulated, threshold),
+      message: this.generateCloseMessage(amountToDeductFromAccumulation, remainingAccumulated, threshold),
     };
   }
 
-  private generateCloseMessage(rewardCount: number, remaining: number, threshold: number): string {
-    if (rewardCount === 0) {
+  private generateCloseMessage(deducted: number, remaining: number, threshold: number): string {
+    if (deducted === 0) {
       const shortage = threshold - remaining;
-      return `Thanh toán thành công. Còn ${this.formatCurrency(shortage)} nữa để đạt mốc tặng quà.`;
-    } else if (rewardCount === 1) {
-      return `🎉 Thanh toán thành công và đạt 1 phần quà! Số dư tích lũy: ${this.formatCurrency(remaining)}`;
+      return `Thanh toán thành công. Còn ${this.formatCurrency(shortage)} nữa để đạt mốc tặng quà (70tr).`;
     } else {
-      return `🎉🎉 Thanh toán thành công và đạt ${rewardCount} phần quà! Số dư tích lũy: ${this.formatCurrency(remaining)}`;
+      return `🎉 Thanh toán thành công và đã tặng quà. Đã trừ ${this.formatCurrency(deducted)} tích lũy. Số dư: ${this.formatCurrency(remaining)}`;
     }
   }
 
@@ -574,19 +597,24 @@ export class CustomerRewardService {
         });
       }
 
-      if (!tracking) {
-        tracking = manager.create(CustomerRewardTracking, {
-          customer_id: customer_id,
-          pending_amount: 0,
-          total_accumulated: 0,
-          reward_count: 0
-        });
-      }
-
-      tracking.reward_count += 1;
+      // 🔥 TRỪ TÍCH LŨY DỰA TRÊN GIÁ TRỊ QUÀ (Tỷ lệ 70tr/1tr)
+      const REWARD_VALUE_FOR_THRESHOLD = 1000000;
+      const validGiftValue = Number(gift_value || 0);
+      const amountToDeduct = (validGiftValue / REWARD_VALUE_FOR_THRESHOLD) * threshold;
+      
+      // Cập nhật pending_amount (không để âm)
+      tracking.pending_amount = Math.max(0, Number(tracking.pending_amount || 0) - amountToDeduct);
+      
+      tracking.reward_count = Number(tracking.reward_count || 0) + 1;
       tracking.last_reward_date = new Date();
 
       await manager.save(tracking);
+
+      // 🔄 Cập nhật lại lịch sử với mốc tích lũy THỰC TẾ lúc đó và ghi chú
+      const autoNote = `Tặng quà thủ công. Đã trừ ${this.formatCurrency(amountToDeduct)} tích lũy tương ứng với quà ${this.formatCurrency(validGiftValue)}.`;
+      history.accumulated_amount = Number(tracking.pending_amount) + amountToDeduct; // Mốc trước khi trừ
+      history.notes = notes ? `${notes} | ${autoNote}` : autoNote;
+      await manager.save(history);
 
       // 3. Tạo phiếu chi phí nếu có giá trị quà và có mùa vụ
       if (gift_value && gift_value > 0 && season_id) {
@@ -656,10 +684,12 @@ export class CustomerRewardService {
       if (tracking) {
         tracking.reward_count = Math.max(0, tracking.reward_count - 1);
         
-        // 🔄 QUAN TRỌNG: Trả lại tích lũy khi xóa quà tặng
+        // 🔄 QUAN TRỌNG: Trả lại tích lũy khi xóa quà tặng (Tính theo tỷ lệ gift_value thực tế)
         const threshold = await this.getRewardThreshold();
-        // Dùng Number() để đảm bảo phép cộng chuẩn (phòng hờ Decimal sring)
-        tracking.pending_amount = Number(tracking.pending_amount || 0) + threshold;
+        const REWARD_VALUE_FOR_THRESHOLD = 1000000;
+        const amountToRestore = (Number(history.gift_value || 0) / REWARD_VALUE_FOR_THRESHOLD) * threshold;
+        
+        tracking.pending_amount = Number(tracking.pending_amount || 0) + amountToRestore;
         
         await manager.save(tracking);
       }
