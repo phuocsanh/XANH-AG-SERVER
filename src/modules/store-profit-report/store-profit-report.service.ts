@@ -234,19 +234,34 @@ export class StoreProfitReportService {
           }
         }
         
-        // Track product profit (chỉ khi hóa đơn còn giá trị, không phải đã trả toàn bộ)
+        // Tính tổng giá vốn tạm tính (theo số lượng ban đầu) để làm trọng số phân bổ
+        const invoiceOriginalCOGSTotal = (invoice.items || []).reduce((sum, item) => {
+          const avgCost = Number(item.product?.average_cost_price || 0);
+          return sum + (Number(item.base_quantity || item.quantity) * avgCost);
+        }, 0);
+
+        const invoiceItemsGross = (invoice.items || []).reduce((sum, item) => sum + Number(item.total_price), 0);
+
+        // Track product profit (chỉ khi hóa đơn còn giá trị sau khi trừ trả hàng)
         if (finalAmount > 0 && invoice.items && invoice.items.length > 0) {
           for (const item of invoice.items) {
+            const itemGrossPrice = Number(item.total_price);
             const avgCost = Number(item.product?.average_cost_price || 0);
-            const itemCOGS = Number(item.base_quantity || item.quantity) * avgCost;
-            const itemProfit = item.total_price - itemCOGS;
+            const itemOriginalCOGS = Number(item.base_quantity || item.quantity) * avgCost;
+
+            // Phân bổ doanh thu/giá vốn thực tế (đã trừ trả hàng) cho item này
+            const itemNetRevenue = invoiceItemsGross > 0 ? (itemGrossPrice / invoiceItemsGross) * finalAmount : 0;
+            const itemActualCOGS = invoiceOriginalCOGSTotal > 0 ? (itemOriginalCOGS / invoiceOriginalCOGSTotal) * invoiceCOGS : 0;
+            const itemProfit = itemNetRevenue - itemActualCOGS;
+
+            // Tính số lượng thực bán (đã trừ trả hàng)
+            const originalQty = Number(item.quantity) || 1;
+            const currentQtySold = itemGrossPrice > 0 ? (itemNetRevenue / itemGrossPrice) * originalQty : 0;
 
             // Track product profit
             const productId = item.product_id;
             if (!productProfitMap.has(productId)) {
-              // Dùng trade_name nếu có (đã chứa sẵn volume), fallback về name
               const productName = item.product?.trade_name || item.product?.name || 'Unknown';
-
               productProfitMap.set(productId, {
                 id: productId,
                 name: productName,
@@ -256,9 +271,9 @@ export class StoreProfitReportService {
               });
             }
             const productData = productProfitMap.get(productId)!;
-            productData.quantity += Number(item.base_quantity || item.quantity);
-            productData.revenue += Number(item.total_price);
-            productData.profit += itemProfit;
+            productData.quantity += currentQtySold; // Use currentQtySold for accurate quantity
+            productData.revenue += itemNetRevenue; // Use itemNetRevenue for accurate revenue
+            productData.profit += itemProfit; // Use itemProfit for accurate profit
           }
         }
 
@@ -1230,11 +1245,17 @@ export class StoreProfitReportService {
             : 0;
 
           const taxableQty = Number(item.taxable_quantity || 0);
-          const totalQty = Number(item.quantity || 1); // Tránh chia cho 0
+          const originalQty = Number(item.quantity || 1); // Tránh chia cho 0
           
-          // Tỷ lệ khai thuế dựa trên số lượng khai thuế thực tế (đã được sync chính xác)
-          // Nếu item này có khai thuế, ta ưu tiên phân bổ lợi nhuận cho phần khai thuế
-          const taxableRatio = taxableQty / totalQty;
+          // Tính số lượng thực bán hiện tại (sau trả hàng) để làm mẫu số cho tỷ lệ thuế
+          // Tỷ lệ = Doanh thu thực tế / Doanh thu gốc * Số lượng gốc
+          const currentQtySold = itemGrossPrice > 0 
+            ? (itemNetRevenue / itemGrossPrice) * originalQty 
+            : 0;
+
+          // Tỷ lệ khai thuế trên lượng hàng "thực tế còn lại" sau khi trả
+          // Nếu bán 10 trả 5, còn lại 5. Nếu 5 bao đó đều có thuế thì tỷ lệ là 100% (1)
+          const taxableRatio = currentQtySold > 0 ? Math.min(1, taxableQty / currentQtySold) : 0;
           
           // Doanh thu khai thuế = số lượng khai thuế * giá khai thuế (ưu tiên lấy từ snapshot của item)
           const effectiveTaxPrice = Number(item.tax_selling_price || item.product?.tax_selling_price || 0);
@@ -1246,8 +1267,8 @@ export class StoreProfitReportService {
             taxableRevenue += itemTaxableTotalAmount;
           }
           
-          if (totalQty > taxableQty) {
-            const nonTaxableRatio = (totalQty - taxableQty) / totalQty;
+          if (currentQtySold > taxableQty) {
+            const nonTaxableRatio = Math.max(0, 1 - taxableRatio);
             revenueNoInvoice += itemNetRevenue * nonTaxableRatio;
             cogsNoInvoice += itemActualCOGS * nonTaxableRatio;
           }
