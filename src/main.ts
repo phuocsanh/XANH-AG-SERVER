@@ -57,11 +57,11 @@ async function bootstrap(): Promise<any> {
     });
     logger.warn('⚠️  CORS: Allowing all origins (development mode)');
   } else {
-    // Xử lý danh sách origin: trim khoảng trắng và bỏ dấu / ở cuối nếu có
-    const origins = corsOrigin.split(',').map(origin => {
-      const trimmed = origin.trim();
+    // Xử lý danh sách origin: Tách bằng dấu phẩy HOẶC dấu xuống dòng, sau đó dọn dẹp khoảng trắng
+    const origins = corsOrigin.split(/[,\n]+/).map(origin => {
+      const trimmed = origin.trim().replace(/^"|"$/g, ''); // Xóa dấu ngoặc kép nếu có
       return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
-    });
+    }).filter(o => o.length > 0);
 
     app.enableCors({
       ...corsOptions,
