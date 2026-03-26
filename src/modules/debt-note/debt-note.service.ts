@@ -312,8 +312,8 @@ export class DebtNoteService {
       // 3. Cập nhật phiếu công nợ (phần thuộc về DebtNote)
       debtNote.status = DebtNoteStatus.PAID;
       debtNote.closed_at = new Date();
-      debtNote.reward_given = rewardSummary.reward_given;
-      debtNote.reward_count = rewardSummary.reward_count;
+      debtNote.reward_given = rewardSummary?.reward_given || false;
+      debtNote.reward_count = rewardSummary?.reward_count || 0;
       if (closeData.gift_description) {
         debtNote.gift_description = closeData.gift_description;
       }
@@ -327,7 +327,7 @@ export class DebtNoteService {
         debt_note_id: debtNote.id,
         customer_name: debtNote.customer?.name,
         season_name: debtNote.season?.name,
-        ...rewardSummary, // Trộn các thông tin quà tặng từ summary vào response
+        ...(rewardSummary || {}), // Trộn các thông tin quà tặng từ summary vào response (nếu có)
       };
     });
   }
