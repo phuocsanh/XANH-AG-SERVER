@@ -103,6 +103,19 @@ export class PaymentService {
     queryBuilder.leftJoinAndSelect('payment.customer', 'customer');
     queryBuilder.leftJoin('payment.creator', 'creator')
       .addSelect(['creator.id', 'creator.account']);
+    
+    // 🔥 Lấy thêm tên khách hàng từ hóa đơn nếu khách vãng lai
+    queryBuilder.leftJoin('payment.allocations', 'allocations')
+      .leftJoin('allocations.invoice', 'invoice')
+      .addSelect('MAX(invoice.customer_name)', 'payment_customer_name')
+      .addGroupBy('payment.id')
+      .addGroupBy('customer.id')
+      .addGroupBy('creator.id');
+
+    // ... (rest of search logic)
+    
+    // (Assuming line numbers shifted, I will find them)
+    // Actually I'll do it in two steps for safety.
 
     // 1. Áp dụng Base Search (Sort, Page, Keyword)
     // Cho phép search keyword trên các field: code, debt_note_code, customer name/phone
@@ -153,7 +166,18 @@ export class PaymentService {
       }));
     }
 
-    const [data, total] = await queryBuilder.getManyAndCount();
+    const [items, total] = await queryBuilder.getManyAndCount();
+
+    // 🔥 Gắn thêm customer_name từ row data cho khách vãng lai
+    const rawData = await queryBuilder.getRawMany();
+    
+    const data = items.map(item => {
+      const raw = rawData.find(r => r.payment_id === item.id);
+      if (!item.customer && raw && raw.payment_customer_name) {
+        (item as any).customer_name = raw.payment_customer_name;
+      }
+      return item;
+    });
 
     return {
       data,

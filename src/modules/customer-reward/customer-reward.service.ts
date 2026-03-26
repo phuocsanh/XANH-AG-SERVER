@@ -231,6 +231,11 @@ export class CustomerRewardService {
     userId: number,
     isFinal: boolean = true
   ) {
+    // 0. Bỏ qua nếu không có khách hàng (khách vãng lai)
+    if (!debtNote.customer_id) {
+      return null;
+    }
+
     // 1. Lấy hoặc tạo bản ghi tích lũy
     let rewardTracking = await manager.findOne(CustomerRewardTracking, {
       where: { customer_id: debtNote.customer_id },

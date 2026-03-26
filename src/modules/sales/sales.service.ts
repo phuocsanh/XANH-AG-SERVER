@@ -232,13 +232,14 @@ export class SalesService {
             const paymentCode = CodeGeneratorHelper.generateUniqueCode('PAY');
             const paymentData: any = {
               code: paymentCode,
-              customer_id: savedInvoice.customer_id,
+              customer_id: savedInvoice.customer_id || null, // Chuyển undefined sang null để khớp type
               amount: partialPayment,
+              allocated_amount: partialPayment, // 🔥 Tích hợp phân bổ ngay để thống kê chính xác
               payment_date: new Date(),
               payment_method: savedInvoice.payment_method || 'cash',
               notes: `Thanh toán khi tạo hóa đơn #${savedInvoice.code}`,
               created_by: userId,
-              debt_note_code: debtNote.code, // Liên kết với mã phiếu nợ
+              debt_note_code: debtNote?.code || null, // Chuyển undefined sang null để khớp type
             };
             const payment = queryRunner.manager.create(Payment, paymentData);
             const savedPayment = await queryRunner.manager.save(payment);
@@ -246,13 +247,13 @@ export class SalesService {
             const allocation = queryRunner.manager.create(PaymentAllocation, {
               payment_id: savedPayment.id,
               invoice_id: savedInvoice.id,
-              ...(debtNote.id && { debt_note_id: debtNote.id }), // Chỉ truyền nếu có ID
+              ...(debtNote?.id && { debt_note_id: debtNote.id }), // Chỉ truyền nếu có ID
               allocation_type: 'invoice',
               amount: partialPayment,
             });
             await queryRunner.manager.save(allocation);
             
-            this.logger.log(`✅ Đã tạo phiếu thu #${paymentCode} cho thanh toán ban đầu của hóa đơn #${savedInvoice.code}`);
+            this.logger.log(`✅ Đã tạo phiếu thu #${paymentCode} và phân bổ ${partialPayment.toLocaleString()} đ cho thanh toán ban đầu của hóa đơn #${savedInvoice.code}`);
           }
 
           this.logger.log(
@@ -669,26 +670,56 @@ export class SalesService {
       }
 
       invoice.status = SalesInvoiceStatus.PAID;
-      invoice.payment_status = SalesPaymentStatus.PAID; // Đã thanh toán thì payment_status cũng phải là PAID
+      invoice.payment_status = SalesPaymentStatus.PAID;
       invoice.updated_at = new Date();
+      
+      const paymentAmountToProcess = Number(invoice.remaining_amount || 0);
+      invoice.partial_payment_amount = Number(invoice.partial_payment_amount || 0) + paymentAmountToProcess;
+      invoice.remaining_amount = 0;
+      
       const savedInvoice = await queryRunner.manager.save(invoice);
 
-      // 🔥 Tích lũy tích lũy khi đánh dấu đã thanh toán (Nếu chưa được tích lũy trước đó)
-      if (savedInvoice.customer_id && savedInvoice.season_id) {
-          const debtNote = await queryRunner.manager.findOne(DebtNote, {
-            where: { customer_id: savedInvoice.customer_id, season_id: savedInvoice.season_id },
-            relations: ['customer', 'season']
+      // 🔥 TRUY VẾT THANH TOÁN & TÍCH LŨY: Tạo phiếu thu khi hạch toán thanh toán thủ công
+      if (paymentAmountToProcess > 0) {
+          const debtNote = savedInvoice.customer_id && savedInvoice.season_id 
+            ? await queryRunner.manager.findOne(DebtNote, {
+                where: { customer_id: savedInvoice.customer_id as number, season_id: savedInvoice.season_id as any },
+                relations: ['customer', 'season']
+              })
+            : null;
+
+          const paymentCode = CodeGeneratorHelper.generateUniqueCode('PAY');
+          const payment = queryRunner.manager.create(Payment, {
+            code: paymentCode,
+            customer_id: savedInvoice.customer_id || null, // Chuyển sang null
+            amount: paymentAmountToProcess,
+            allocated_amount: paymentAmountToProcess,
+            payment_date: new Date(),
+            payment_method: savedInvoice.payment_method || 'cash',
+            notes: `Thanh toán hạch toán thủ công cho hóa đơn #${savedInvoice.code}`,
+            created_by: userId || (savedInvoice.created_by as any),
+            debt_note_code: debtNote?.code || null, // Chuyển sang null
           });
-          
+          const savedPayment = await queryRunner.manager.save(payment);
+
+          await queryRunner.manager.save(PaymentAllocation, {
+            payment_id: savedPayment.id,
+            invoice_id: savedInvoice.id,
+            ...(debtNote?.id && { debt_note_id: debtNote.id }),
+            allocation_type: 'invoice',
+            amount: paymentAmountToProcess,
+          });
+
+          // 🔥 Tích lũy điểm tích lũy cho nông dân
           if (debtNote) {
             await this.customerRewardService.handleDebtNoteSettlement(
               queryRunner.manager,
               debtNote,
               {
-                payment_amount: savedInvoice.remaining_amount, // Số tiền còn lại nay đã trả hết
-                notes: `Tất toán hóa đơn #${savedInvoice.code}`,
+                payment_amount: paymentAmountToProcess,
+                notes: `Tích lũy từ tất toán hóa đơn #${savedInvoice.code} (Hạch toán thủ công)`,
               },
-              userId || savedInvoice.created_by,
+              userId || (savedInvoice.created_by as any),
               false
             );
           }
@@ -737,12 +768,34 @@ export class SalesService {
 
       // 🆕 Trừ nợ trong công nợ (loại bỏ hóa đơn khỏi tích lũy mùa vụ)
       if (savedInvoice.customer_id && savedInvoice.season_id) {
-        await this.debtNoteService.removeInvoiceFromDebtNote(
-          savedInvoice.id,
-          savedInvoice.final_amount,
-          savedInvoice.partial_payment_amount,
-          queryRunner.manager,
-        );
+        // Tìm DebtNote để cập nhật tích lũy
+        const debtNote = await queryRunner.manager.findOne(DebtNote, {
+          where: { customer_id: savedInvoice.customer_id as number, season_id: savedInvoice.season_id as number },
+          relations: ['customer', 'season']
+        });
+
+        if (debtNote) {
+            await this.debtNoteService.removeInvoiceFromDebtNote(
+              savedInvoice.id,
+              savedInvoice.final_amount,
+              savedInvoice.partial_payment_amount,
+              queryRunner.manager,
+            );
+
+            const amountToRevoke = Number(savedInvoice.partial_payment_amount || 0);
+            if (amountToRevoke > 0) {
+              await this.customerRewardService.handleDebtNoteSettlement(
+                queryRunner.manager,
+                debtNote,
+                {
+                  payment_amount: -amountToRevoke,
+                  notes: `Thu hồi điểm do hủy hóa đơn #${savedInvoice.code}`,
+                },
+                userId || (savedInvoice.created_by as any),
+                false
+              );
+            }
+        }
       }
 
       await queryRunner.commitTransaction();
@@ -784,12 +837,34 @@ export class SalesService {
 
       // 🆕 Trừ nợ trong công nợ (loại bỏ hóa đơn khỏi tích lũy mùa vụ)
       if (savedInvoice.customer_id && savedInvoice.season_id) {
-        await this.debtNoteService.removeInvoiceFromDebtNote(
-          savedInvoice.id,
-          savedInvoice.final_amount,
-          savedInvoice.partial_payment_amount,
-          queryRunner.manager,
-        );
+         // Tìm DebtNote để cập nhật tích lũy
+         const debtNote = await queryRunner.manager.findOne(DebtNote, {
+          where: { customer_id: savedInvoice.customer_id as number, season_id: savedInvoice.season_id as number },
+          relations: ['customer', 'season']
+        });
+
+        if (debtNote) {
+            await this.debtNoteService.removeInvoiceFromDebtNote(
+              savedInvoice.id,
+              savedInvoice.final_amount,
+              savedInvoice.partial_payment_amount,
+              queryRunner.manager,
+            );
+
+            const amountToRevoke = Number(savedInvoice.partial_payment_amount || 0);
+            if (amountToRevoke > 0) {
+              await this.customerRewardService.handleDebtNoteSettlement(
+                queryRunner.manager,
+                debtNote,
+                {
+                  payment_amount: -amountToRevoke,
+                  notes: `Thu hồi điểm do hoàn tiền hóa đơn #${savedInvoice.code}`,
+                },
+                userId || (savedInvoice.created_by as any),
+                false
+              );
+            }
+        }
       }
 
       await queryRunner.commitTransaction();

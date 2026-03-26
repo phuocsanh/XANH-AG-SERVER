@@ -25,9 +25,9 @@ export class Payment {
   @Column({ name: 'code', unique: true, length: 50 })
   code!: string;
 
-  /** ID khách hàng */
-  @Column({ name: 'customer_id' })
-  customer_id!: number;
+  /** ID khách hàng (Có thể null với khách vãng lai) */
+  @Column({ name: 'customer_id', nullable: true })
+  customer_id?: number | null;
 
   /** Thông tin khách hàng */
   @ManyToOne(() => Customer)
@@ -56,7 +56,7 @@ export class Payment {
 
   /** Mã phiếu công nợ liên quan (để hiển thị trên UI) */
   @Column({ name: 'debt_note_code', length: 50, nullable: true })
-  debt_note_code?: string;
+  debt_note_code?: string | null;
 
   /** ID người tạo phiếu */
   @Column({ name: 'created_by', nullable: true })
