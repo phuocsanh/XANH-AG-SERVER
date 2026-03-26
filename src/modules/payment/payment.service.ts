@@ -442,6 +442,18 @@ export class PaymentService {
             await queryRunner.manager.save(debtNote);
             affectedDebtNote = debtNote;
             this.logger.log(`  ↩️  DebtNote #${debtNote.code}: +${paymentAmountToReturn.toLocaleString()} đ`);
+
+            // 🔥 THU HỒI ĐIỂM TÍCH LŨY KHI ROLLBACK PAYMENT
+            await this.customerRewardService.handleDebtNoteSettlement(
+              queryRunner.manager,
+              debtNote,
+              {
+                payment_amount: -paymentAmountToReturn, // Số âm để trừ điểm
+                notes: `Thu hồi điểm do rollback phiếu thu #${payment.code}`,
+              },
+              payment.created_by || 0,
+              false
+            );
           }
         }
       }

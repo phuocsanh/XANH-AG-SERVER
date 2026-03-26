@@ -10,7 +10,8 @@ import { InventoryBatch } from '../../entities/inventories.entity';
 import { QueryHelper } from '../../common/helpers/query-helper';
 import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 import { Payment } from '../../entities/payment.entity';
-import { DebtNote, DebtNoteStatus } from '../../entities/debt-note.entity'; // ✅ Thêm import DebtNote và DebtNoteStatus
+import { DebtNote, DebtNoteStatus } from '../../entities/debt-note.entity'; 
+import { CustomerRewardService } from '../customer-reward/customer-reward.service'; // ✅ Thêm import
 
 @Injectable()
 export class SalesReturnService {
@@ -22,6 +23,7 @@ export class SalesReturnService {
     @InjectRepository(SalesReturnItem)
     private salesReturnItemRepository: Repository<SalesReturnItem>,
     private dataSource: DataSource,
+    private customerRewardService: CustomerRewardService, // ✅ Thêm CustomerRewardService
   ) {}
 
   async create(createDto: CreateSalesReturnDto, userId: number): Promise<SalesReturn> {
@@ -341,6 +343,20 @@ export class SalesReturnService {
           }
 
           await queryRunner.manager.save(debtNote);
+
+          // 🔥 THU HỒI ĐIỂM TÍCH LŨY KHI TRẢ HÀNG (Nếu có hoàn tiền mặt/trừ vào tiền đã trả của phiếu nợ)
+          if (totalRefund > 0) {
+            await this.customerRewardService.handleDebtNoteSettlement(
+              queryRunner.manager,
+              debtNote,
+              {
+                payment_amount: -totalRefund, // Số âm để thu hồi điểm
+                notes: `Thu hồi điểm do khách trả hàng - Phiếu ${returnCode}`,
+              },
+              userId,
+              false
+            );
+          }
 
           this.logger.log(
             `[Trả hàng ${returnCode}] Cập nhật debt_note ${debtNote.code}: ` +

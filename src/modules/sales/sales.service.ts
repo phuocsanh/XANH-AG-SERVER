@@ -673,6 +673,27 @@ export class SalesService {
       invoice.updated_at = new Date();
       const savedInvoice = await queryRunner.manager.save(invoice);
 
+      // 🔥 Tích lũy tích lũy khi đánh dấu đã thanh toán (Nếu chưa được tích lũy trước đó)
+      if (savedInvoice.customer_id && savedInvoice.season_id) {
+          const debtNote = await queryRunner.manager.findOne(DebtNote, {
+            where: { customer_id: savedInvoice.customer_id, season_id: savedInvoice.season_id },
+            relations: ['customer', 'season']
+          });
+          
+          if (debtNote) {
+            await this.customerRewardService.handleDebtNoteSettlement(
+              queryRunner.manager,
+              debtNote,
+              {
+                payment_amount: savedInvoice.remaining_amount, // Số tiền còn lại nay đã trả hết
+                notes: `Tất toán hóa đơn #${savedInvoice.code}`,
+              },
+              userId || savedInvoice.created_by,
+              false
+            );
+          }
+      }
+
       if (userId) {
         await this.handleInventoryDeduction(savedInvoice.id, userId, queryRunner);
       }
@@ -964,6 +985,18 @@ export class SalesService {
             // Liên kết phiếu thu với mã phiếu nợ
             savedPayment.debt_note_code = debtNote.code;
             await queryRunner.manager.save(savedPayment);
+
+            // 🔥 TÍCH LUỸ ĐIỂM THƯỞNG KHI TRẢ NỢ HÓA ĐƠN
+            await this.customerRewardService.handleDebtNoteSettlement(
+              queryRunner.manager,
+              debtNote,
+              {
+                payment_amount: Number(amount),
+                notes: `Thanh toán cho hóa đơn #${invoice.code}`,
+              },
+              userId || invoice.created_by,
+              false
+            );
           }
         }
       }
