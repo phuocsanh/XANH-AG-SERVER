@@ -6,12 +6,18 @@ import { loggingMiddleware } from './common/middleware/logging.middleware';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
+import { INestApplication } from '@nestjs/common';
+
+// 🎉 CACHE APP CHO VERCEL (Tăng tốc khởi động serverless)
+let cachedApp: any;
 
 /**
  * Hàm khởi tạo ứng dụng NestJS
  * Cấu hình các thành phần cần thiết và khởi động server
  */
-async function bootstrap() {
+async function bootstrap(): Promise<any> {
+  if (cachedApp) return cachedApp;
+
   const logger = new Logger('Bootstrap');
   
   // Tạo ứng dụng NestJS từ AppModule
@@ -106,18 +112,32 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
 
-  // Lấy port từ biến môi trường hoặc mặc định là 3003
-  const port = process.env.PORT || 3003;
+  // 🚀 KHỞI CHẠY (Chỉ dành cho Render / Local)
+  // Vercel sẽ tự điều hướng HTTP request vào instance mà không cần app.listen()
+  if (!process.env.VERCEL) {
+    const port = process.env.PORT || 3003;
+    await app.listen(port, '0.0.0.0');
+    
+    const url = await app.getUrl();
+    logger.log(`🚀 Application is running on: ${url}`);
+    logger.log(`📚 API Documentation: ${url}/api`);
+    logger.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  }
 
-  // Khởi động server và lắng nghe trên port đã cấu hình
-  await app.listen(port, '0.0.0.0');
-  
-  const url = await app.getUrl();
-  logger.log(`🚀 Application is running on: ${url}`);
-  logger.log(`📚 API Documentation: ${url}/api`);
-  logger.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  logger.log(`🔄 Force Rebuild V7 (Images in List) Triggered at ${new Date().toISOString()}`);
+  // Khởi tạo app cho Vercel adapter
+  await app.init();
+  cachedApp = app.getHttpAdapter().getInstance();
+  return cachedApp;
 }
 
-// Gọi hàm bootstrap để khởi động ứng dụng
-bootstrap();
+// ⚠️ EXPORT CHO VERCEL (Cực kỳ quan trọng)
+export default async (req: any, res: any) => {
+  const server = await bootstrap();
+  return server(req, res);
+};
+
+// 🏠 CHẠY TRUYỀN THỐNG (Local/Render)
+if (!process.env.VERCEL) {
+    bootstrap();
+}
+
