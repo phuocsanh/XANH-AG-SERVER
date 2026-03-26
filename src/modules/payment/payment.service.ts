@@ -214,6 +214,7 @@ export class PaymentService {
         .leftJoinAndSelect('si.rice_crop', 'rice_crop')
         .where('si.customer_id = :customerId', { customerId: dto.customer_id })
         .andWhere('si.season_id = :seasonId', { seasonId: dto.season_id })
+        .andWhere('si.status != :cancelledStatus', { cancelledStatus: 'cancelled' })
         .andWhere('si.remaining_amount > 0')
         .orderBy('si.created_at', 'ASC')
         .setLock('pessimistic_write', undefined, ['si']) // Chỉ khóa bảng hóa đơn để tránh lỗi "nullable side of an outer join"
