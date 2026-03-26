@@ -130,9 +130,10 @@ export class SalesService {
             let productName = item.product_name;
             let unitName = item.unit_name;
             let taxSellingPrice = item.tax_selling_price;
+            let product: Product | null = null;
             
             if (!productName || !unitName || !taxSellingPrice) {
-              const product = await queryRunner.manager.findOne(Product, {
+              product = await queryRunner.manager.findOne(Product, {
                 where: { id: item.product_id },
                 relations: ['unit'],
               });
@@ -156,6 +157,24 @@ export class SalesService {
             const baseQty = item.base_quantity
               ? Number(item.base_quantity)
               : item.quantity * conversionFactor;
+
+            if (conversionFactor !== 1) {
+              if (!product) {
+                product = await queryRunner.manager.findOne(Product, {
+                  where: { id: item.product_id },
+                });
+              }
+              const productTaxPrice = Number(product?.tax_selling_price || 0);
+              const currentTaxPrice = Number(taxSellingPrice || 0);
+
+              if (productTaxPrice > 0) {
+                if (!taxSellingPrice) {
+                  taxSellingPrice = String(productTaxPrice * conversionFactor);
+                } else if (Math.abs(currentTaxPrice - productTaxPrice) < 0.000001) {
+                  taxSellingPrice = String(productTaxPrice * conversionFactor);
+                }
+              }
+            }
 
             return queryRunner.manager.create(SalesInvoiceItem, {
               ...item,
@@ -1854,5 +1873,4 @@ export class SalesService {
     }
   }
 }
-
 

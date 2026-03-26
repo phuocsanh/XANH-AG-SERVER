@@ -34,11 +34,33 @@ export class InventoryReceiptItem {
   quantity!: number;
 
   /** Giá vốn đơn vị của sản phẩm */
-  @Column({ name: 'unit_cost', type: 'decimal', precision: 15, scale: 2, default: 0 })
+  @Column({
+    name: 'unit_cost',
+    type: 'decimal',
+    precision: 15,
+    scale: 2,
+    default: 0,
+  })
   unit_cost!: number;
 
+  /** Đơn giá trên hóa đơn VAT của sản phẩm */
+  @Column({
+    name: 'vat_unit_cost',
+    type: 'decimal',
+    precision: 15,
+    scale: 2,
+    nullable: true,
+  })
+  vat_unit_cost?: number;
+
   /** Tổng giá tiền của sản phẩm */
-  @Column({ name: 'total_price', type: 'decimal', precision: 15, scale: 2, default: 0 })
+  @Column({
+    name: 'total_price',
+    type: 'decimal',
+    precision: 15,
+    scale: 2,
+    default: 0,
+  })
   total_price!: number;
 
   /** Ghi chú về chi tiết phiếu nhập kho */
@@ -50,15 +72,33 @@ export class InventoryReceiptItem {
   unit_name?: string;
 
   /** Phí vận chuyển riêng cho sản phẩm này (tùy chọn) */
-  @Column({ name: 'individual_shipping_cost', type: 'decimal', precision: 15, scale: 2, default: 0 })
+  @Column({
+    name: 'individual_shipping_cost',
+    type: 'decimal',
+    precision: 15,
+    scale: 2,
+    default: 0,
+  })
   individual_shipping_cost?: number;
 
   /** Phí vận chuyển được phân bổ từ phí chung */
-  @Column({ name: 'allocated_shipping_cost', type: 'decimal', precision: 15, scale: 2, default: 0 })
+  @Column({
+    name: 'allocated_shipping_cost',
+    type: 'decimal',
+    precision: 15,
+    scale: 2,
+    default: 0,
+  })
   allocated_shipping_cost?: number;
 
   /** Giá vốn cuối cùng (bao gồm phí vận chuyển) */
-  @Column({ name: 'final_unit_cost', type: 'decimal', precision: 15, scale: 2, nullable: true })
+  @Column({
+    name: 'final_unit_cost',
+    type: 'decimal',
+    precision: 15,
+    scale: 2,
+    nullable: true,
+  })
   final_unit_cost?: number;
 
   /** Hạn sử dụng của sản phẩm (nếu có) */

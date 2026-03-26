@@ -1258,7 +1258,17 @@ export class StoreProfitReportService {
           const taxableRatio = currentQtySold > 0 ? Math.min(1, taxableQty / currentQtySold) : 0;
           
           // Doanh thu khai thuế = số lượng khai thuế * giá khai thuế (ưu tiên lấy từ snapshot của item)
-          const effectiveTaxPrice = Number(item.tax_selling_price || item.product?.tax_selling_price || 0);
+          const itemTaxPrice = Number(item.tax_selling_price || 0);
+          const productTaxPrice = Number(item.product?.tax_selling_price || 0);
+          const conversionFactor = Number(item.conversion_factor || 1);
+          const shouldNormalizeLegacyTaxPrice =
+            conversionFactor !== 1 &&
+            itemTaxPrice > 0 &&
+            productTaxPrice > 0 &&
+            Math.abs(itemTaxPrice - productTaxPrice) < 0.000001;
+          const effectiveTaxPrice = shouldNormalizeLegacyTaxPrice
+            ? itemTaxPrice * conversionFactor
+            : Number(item.tax_selling_price || item.product?.tax_selling_price || 0);
           const itemTaxableTotalAmount = taxableQty * effectiveTaxPrice;
 
           if (taxableQty > 0) {

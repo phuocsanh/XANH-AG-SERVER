@@ -1,4 +1,11 @@
-import { Injectable, Inject, forwardRef, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Inject,
+  forwardRef,
+  Logger,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan, In, QueryRunner } from 'typeorm';
 
@@ -14,7 +21,10 @@ import { InventoryAdjustment } from '../../entities/inventory-adjustments.entity
 import { InventoryAdjustmentItem } from '../../entities/inventory-adjustment-items.entity';
 import { Product } from '../../entities/products.entity';
 import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
-import { SalesReturn, SalesReturnStatus } from '../../entities/sales-return.entity';
+import {
+  SalesReturn,
+  SalesReturnStatus,
+} from '../../entities/sales-return.entity';
 import { SalesReturnItem } from '../../entities/sales-return-items.entity';
 import { CreateInventoryBatchDto } from './dto/create-inventory-batch.dto';
 import { QueryHelper } from '../../common/helpers/query-helper';
@@ -47,7 +57,7 @@ import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 @Injectable()
 export class InventoryService {
   private readonly logger = new Logger(InventoryService.name);
-  
+
   /**
    * Constructor injection các repository và service cần thiết
    * @param inventoryBatchRepository - Repository để thao tác với entity InventoryBatch
@@ -87,12 +97,15 @@ export class InventoryService {
    * @param createInventoryBatchDto - Dữ liệu tạo lô hàng tồn kho mới
    * @returns Thông tin lô hàng tồn kho đã tạo
    */
-   async createBatch(createInventoryBatchDto: CreateInventoryBatchDto, queryRunner?: QueryRunner) {
+  async createBatch(
+    createInventoryBatchDto: CreateInventoryBatchDto,
+    queryRunner?: QueryRunner,
+  ) {
     try {
-      const repo = queryRunner ? queryRunner.manager.getRepository(InventoryBatch) : this.inventoryBatchRepository;
-      const batch = repo.create(
-        createInventoryBatchDto,
-      );
+      const repo = queryRunner
+        ? queryRunner.manager.getRepository(InventoryBatch)
+        : this.inventoryBatchRepository;
+      const batch = repo.create(createInventoryBatchDto);
       return repo.save(batch);
     } catch (error) {
       ErrorHandler.handleCreateError(error, 'lô hàng tồn kho');
@@ -177,7 +190,7 @@ export class InventoryService {
       queryBuilder,
       searchDto,
       'batch',
-      ['code', 'product.name', 'product.code', 'notes'] // Global search
+      ['code', 'product.name', 'product.code', 'notes'], // Global search
     );
 
     // Fix: Handle sorting for numeric string fields
@@ -208,7 +221,7 @@ export class InventoryService {
         product_name: 'product.name',
         product_code: 'product.code',
         supplier_name: 'supplier.name',
-      }
+      },
     );
 
     const [data, total] = await queryBuilder.getManyAndCount();
@@ -226,7 +239,7 @@ export class InventoryService {
    * @param createInventoryTransactionDto - Dữ liệu tạo giao dịch kho mới
    * @returns Thông tin giao dịch kho đã tạo
    */
-   async createTransaction(
+  async createTransaction(
     createInventoryTransactionDto: CreateInventoryTransactionDto,
     queryRunner?: QueryRunner,
   ): Promise<InventoryTransaction> {
@@ -254,12 +267,12 @@ export class InventoryService {
       }),
     };
 
-    const repo = queryRunner ? queryRunner.manager.getRepository(InventoryTransaction) : this.inventoryTransactionRepository;
+    const repo = queryRunner
+      ? queryRunner.manager.getRepository(InventoryTransaction)
+      : this.inventoryTransactionRepository;
     const transaction = repo.create(transactionData);
     return repo.save(transaction);
   }
-
-
 
   /**
    * Tìm giao dịch kho theo ID sản phẩm
@@ -292,7 +305,7 @@ export class InventoryService {
       queryBuilder,
       searchDto,
       'transaction',
-      ['product.name', 'product.code', 'notes'] // Global search
+      ['product.name', 'product.code', 'notes'], // Global search
     );
 
     // Fix: Handle sorting for numeric string fields
@@ -322,7 +335,7 @@ export class InventoryService {
       {
         product_name: 'product.name',
         product_code: 'product.code',
-      }
+      },
     );
 
     const [data, total] = await queryBuilder.getManyAndCount();
@@ -342,7 +355,9 @@ export class InventoryService {
    */
   async getInventorySummary(productId: number, queryRunner?: QueryRunner) {
     // 1. Lấy tất cả lô hàng của sản phẩm
-    const repo = queryRunner ? queryRunner.manager.getRepository(InventoryBatch) : this.inventoryBatchRepository;
+    const repo = queryRunner
+      ? queryRunner.manager.getRepository(InventoryBatch)
+      : this.inventoryBatchRepository;
     const batches = await repo.find({
       where: { product_id: productId },
     });
@@ -352,7 +367,7 @@ export class InventoryService {
       (sum, batch) => sum + batch.remaining_quantity,
       0,
     );
-    
+
     // 3. Lấy con số số lượng từ bảng Product
     const product = await this.productService.findOne(productId, queryRunner);
     const productQuantity = product?.quantity || 0;
@@ -543,9 +558,14 @@ export class InventoryService {
    * @param productId - ID của sản phẩm
    * @returns Giá vốn trung bình gia quyền hiện tại
    */
-  async getWeightedAverageCost(productId: number, queryRunner?: QueryRunner): Promise<number> {
+  async getWeightedAverageCost(
+    productId: number,
+    queryRunner?: QueryRunner,
+  ): Promise<number> {
     // Lấy tất cả lô hàng còn tồn kho của sản phẩm
-    const repo = queryRunner ? queryRunner.manager.getRepository(InventoryBatch) : this.inventoryBatchRepository;
+    const repo = queryRunner
+      ? queryRunner.manager.getRepository(InventoryBatch)
+      : this.inventoryBatchRepository;
     const batches = await repo.find({
       where: {
         product_id: productId,
@@ -595,19 +615,29 @@ export class InventoryService {
     taxableQuantity?: number,
   ) {
     // Lấy giá vốn trung bình hiện tại
-    const currentAverageCost = await this.getWeightedAverageCost(productId, queryRunner);
+    const currentAverageCost = await this.getWeightedAverageCost(
+      productId,
+      queryRunner,
+    );
 
     // Lấy thông tin sản phẩm để lấy số lượng tồn kho hiện tại (ưu tiên con số ở bảng Product vì có thể đã được chỉnh sửa thủ công)
-    const productRepo = queryRunner ? queryRunner.manager.getRepository(Product) : this.productService['productRepository'];
+    const productRepo = queryRunner
+      ? queryRunner.manager.getRepository(Product)
+      : this.productService['productRepository'];
     const product = await productRepo.findOne({ where: { id: productId } });
     const currentQuantity = product?.quantity || 0;
 
     // Lấy tổng số lượng từ các lô hàng để theo dõi tính nhất quán
-    const currentInventory = await this.getInventorySummary(productId, queryRunner);
+    const currentInventory = await this.getInventorySummary(
+      productId,
+      queryRunner,
+    );
     const batchTotalQuantity = currentInventory.totalQuantity;
-    
+
     if (batchTotalQuantity !== currentQuantity) {
-      this.logger.warn(`Phát hiện sự không đồng nhất về tồn kho cho sản phẩm ${productId}: Số lượng trên bảng Product (${currentQuantity}) khác với tổng số lượng trong các lô hàng (${batchTotalQuantity}). Hệ thống sẽ sử dụng con số từ bảng Product.`);
+      this.logger.warn(
+        `Phát hiện sự không đồng nhất về tồn kho cho sản phẩm ${productId}: Số lượng trên bảng Product (${currentQuantity}) khác với tổng số lượng trong các lô hàng (${batchTotalQuantity}). Hệ thống sẽ sử dụng con số từ bảng Product.`,
+      );
     }
 
     // Tính giá vốn trung bình mới theo công thức WAC
@@ -632,14 +662,14 @@ export class InventoryService {
 
     // Cập nhật giá nhập mới nhất cho sản phẩm
     if (queryRunner) {
-        await queryRunner.manager.update(Product, productId, { latest_purchase_price: unitCostPrice.toString() });
+      await queryRunner.manager.update(Product, productId, {
+        latest_purchase_price: unitCostPrice.toString(),
+      });
     } else {
-        await this.productService.update(productId, {
-            latest_purchase_price: unitCostPrice.toString(),
-        });
+      await this.productService.update(productId, {
+        latest_purchase_price: unitCostPrice.toString(),
+      });
     }
-
-
 
     // Tạo giao dịch nhập kho
     const transactionData: CreateInventoryTransactionDto = {
@@ -657,45 +687,50 @@ export class InventoryService {
       ...(receiptItemId && { receipt_item_id: receiptItemId }),
     };
 
-    const transaction = await this.createTransaction(transactionData, queryRunner);
+    const transaction = await this.createTransaction(
+      transactionData,
+      queryRunner,
+    );
 
     // Cập nhật giá sản phẩm
     if (queryRunner) {
-        const updateData: any = {
-          latest_purchase_price: unitCostPrice.toString(),
-          quantity: newTotalQuantity,
-          average_cost_price: newAverageCost.toFixed(2),
-        };
-        
-        // Cộng số lượng thuế nếu có
-        if (taxableQuantity && taxableQuantity > 0) {
-          updateData.taxable_quantity_stock = Number(product?.taxable_quantity_stock || 0) + taxableQuantity;
-          // Tự động chuyển trạng thái sản phẩm sang "Có hóa đơn đầu vào"
-          updateData.has_input_invoice = true;
-        }
-        
-        await queryRunner.manager.update(Product, productId, updateData);
+      const updateData: any = {
+        latest_purchase_price: unitCostPrice.toString(),
+        quantity: newTotalQuantity,
+        average_cost_price: newAverageCost.toFixed(2),
+      };
+
+      // Cộng số lượng thuế nếu có
+      if (taxableQuantity && taxableQuantity > 0) {
+        updateData.taxable_quantity_stock =
+          Number(product?.taxable_quantity_stock || 0) + taxableQuantity;
+        // Tự động chuyển trạng thái sản phẩm sang "Có hóa đơn đầu vào"
+        updateData.has_input_invoice = true;
+      }
+
+      await queryRunner.manager.update(Product, productId, updateData);
     } else {
-        const updateData: any = {
-          latest_purchase_price: unitCostPrice.toString(),
-          quantity: newTotalQuantity,
-          average_cost_price: newAverageCost.toFixed(2),
-        };
-        
-        // Cộng số lượng thuế nếu có
-        if (taxableQuantity && taxableQuantity > 0) {
-          updateData.taxable_quantity_stock = Number(product?.taxable_quantity_stock || 0) + taxableQuantity;
-          // Tự động chuyển trạng thái sản phẩm sang "Có hóa đơn đầu vào"
-          updateData.has_input_invoice = true;
-        }
-        
-        await this.productService.update(productId, updateData);
+      const updateData: any = {
+        latest_purchase_price: unitCostPrice.toString(),
+        quantity: newTotalQuantity,
+        average_cost_price: newAverageCost.toFixed(2),
+      };
+
+      // Cộng số lượng thuế nếu có
+      if (taxableQuantity && taxableQuantity > 0) {
+        updateData.taxable_quantity_stock =
+          Number(product?.taxable_quantity_stock || 0) + taxableQuantity;
+        // Tự động chuyển trạng thái sản phẩm sang "Có hóa đơn đầu vào"
+        updateData.has_input_invoice = true;
+      }
+
+      await this.productService.update(productId, updateData);
     }
 
-      this.logger.log('✅ Đã cập nhật tồn kho sản phẩm:', {
-        productId,
-        newQuantity: newTotalQuantity,
-      });
+    this.logger.log('✅ Đã cập nhật tồn kho sản phẩm:', {
+      productId,
+      newQuantity: newTotalQuantity,
+    });
     // } catch (error) {
     //   const errorMessage =
     //     error instanceof Error ? error.message : 'Unknown error';
@@ -733,8 +768,8 @@ export class InventoryService {
     referenceId?: number,
     notes?: string,
     queryRunner?: QueryRunner,
-  ): Promise<{ 
-    transaction: InventoryTransaction; 
+  ): Promise<{
+    transaction: InventoryTransaction;
     taxableQuantity: number;
     affectedBatches: any[];
     totalCostValue: number;
@@ -742,7 +777,10 @@ export class InventoryService {
     remainingQuantity: number;
   }> {
     // Kiểm tra tồn kho hiện tại
-    const currentInventory = await this.getInventorySummary(productId, queryRunner);
+    const currentInventory = await this.getInventorySummary(
+      productId,
+      queryRunner,
+    );
     if (currentInventory.totalQuantity < quantity) {
       throw new Error(
         `Không đủ tồn kho. Hiện có: ${currentInventory.totalQuantity}, yêu cầu: ${quantity}`,
@@ -750,12 +788,16 @@ export class InventoryService {
     }
 
     // Lấy thông tin sản phẩm để xử lý bể thuế
-    const productRepo = queryRunner ? queryRunner.manager.getRepository(Product) : this.productService['productRepository'];
+    const productRepo = queryRunner
+      ? queryRunner.manager.getRepository(Product)
+      : this.productService['productRepository'];
     const product = await productRepo.findOne({ where: { id: productId } });
     const currentTaxableStock = Number(product?.taxable_quantity_stock || 0);
-    
+
     // 2. Chuẩn bị dữ liệu thuế của từng đợt nhập kho để tính toán FIFO chính xác
-    const batchRepo = queryRunner ? queryRunner.manager.getRepository(InventoryBatch) : this.inventoryBatchRepository;
+    const batchRepo = queryRunner
+      ? queryRunner.manager.getRepository(InventoryBatch)
+      : this.inventoryBatchRepository;
     const batches = await batchRepo.find({
       where: {
         product_id: productId,
@@ -764,17 +806,26 @@ export class InventoryService {
       order: { created_at: 'ASC' }, // FIFO: lô cũ nhất trước
     });
 
-    const receiptItemRepo = queryRunner ? queryRunner.manager.getRepository(InventoryReceiptItem) : this.inventoryReceiptItemRepository;
-    const receiptItemIds = batches.map(b => b.receipt_item_id).filter(id => id != null) as number[];
+    const receiptItemRepo = queryRunner
+      ? queryRunner.manager.getRepository(InventoryReceiptItem)
+      : this.inventoryReceiptItemRepository;
+    const receiptItemIds = batches
+      .map((b) => b.receipt_item_id)
+      .filter((id) => id != null) as number[];
     const receiptItemsMap = new Map<number, InventoryReceiptItem>();
-    
+
     if (receiptItemIds.length > 0) {
-      const items = await receiptItemRepo.find({ where: { id: In(receiptItemIds) } });
-      items.forEach(item => receiptItemsMap.set(item.id, item));
+      const items = await receiptItemRepo.find({
+        where: { id: In(receiptItemIds) },
+      });
+      items.forEach((item) => receiptItemsMap.set(item.id, item));
     }
 
     // Lấy giá vốn trung bình hiện tại
-    const currentAverageCost = await this.getWeightedAverageCost(productId, queryRunner);
+    const currentAverageCost = await this.getWeightedAverageCost(
+      productId,
+      queryRunner,
+    );
 
     let remainingToDeduct = quantity;
     let totalCostValue = 0;
@@ -792,29 +843,48 @@ export class InventoryService {
 
       // --- LOGIC TÍNH TOÁN THUẾ THEO TỪNG LÔ ---
       let batchTaxableRemaining = 0;
-      const receiptItem = batch.receipt_item_id ? receiptItemsMap.get(batch.receipt_item_id) : null;
-      
+      const receiptItem = batch.receipt_item_id
+        ? receiptItemsMap.get(batch.receipt_item_id)
+        : null;
+
       if (receiptItem) {
         // Nếu lô này có thông tin từ phiếu nhập
         const initialTaxable = Number(receiptItem.taxable_quantity || 0);
-        const initialNonTaxable = Math.max(0, Number(batch.original_quantity) - initialTaxable);
-        const alreadySoldFromBatch = Number(batch.original_quantity) - Number(batch.remaining_quantity);
-        
+        const initialNonTaxable = Math.max(
+          0,
+          Number(batch.original_quantity) - initialTaxable,
+        );
+        const alreadySoldFromBatch =
+          Number(batch.original_quantity) - Number(batch.remaining_quantity);
+
         // Ưu tiên coi những phần đã bán trước đó là hàng không hóa đơn
-        const nonTaxableRemaining = Math.max(0, initialNonTaxable - alreadySoldFromBatch);
-        batchTaxableRemaining = Number(batch.remaining_quantity) - nonTaxableRemaining;
+        const nonTaxableRemaining = Math.max(
+          0,
+          initialNonTaxable - alreadySoldFromBatch,
+        );
+        batchTaxableRemaining =
+          Number(batch.remaining_quantity) - nonTaxableRemaining;
       } else {
-        // Nếu lô hàng không có phiếu nhập (ví dụ hàng tồn cũ), 
+        // Nếu lô hàng không có phiếu nhập (ví dụ hàng tồn cũ),
         // tạm thời coi tỷ lệ thuế dựa trên bể thuế hiện tại của sản phẩm so với tồn kho (logic fallback)
-        const taxableRatio = currentInventory.totalQuantity > 0 ? (currentTaxableStock / currentInventory.totalQuantity) : 0;
+        const taxableRatio =
+          currentInventory.totalQuantity > 0
+            ? currentTaxableStock / currentInventory.totalQuantity
+            : 0;
         batchTaxableRemaining = Number(batch.remaining_quantity) * taxableRatio;
       }
 
       // Trong số lượng trừ từ lô này, bao nhiêu là hàng thuế? (Vẫn ưu tiên trừ không hóa đơn trước trong nội bộ lô)
-      const batchNonTaxableRemaining = Math.max(0, Number(batch.remaining_quantity) - batchTaxableRemaining);
-      const deductNonTaxable = Math.min(deductFromBatch, batchNonTaxableRemaining);
+      const batchNonTaxableRemaining = Math.max(
+        0,
+        Number(batch.remaining_quantity) - batchTaxableRemaining,
+      );
+      const deductNonTaxable = Math.min(
+        deductFromBatch,
+        batchNonTaxableRemaining,
+      );
       const deductTaxable = Math.max(0, deductFromBatch - deductNonTaxable);
-      
+
       totalTaxableDeducted += deductTaxable;
       // ---------------------------------------
 
@@ -826,21 +896,28 @@ export class InventoryService {
       totalCostValue += deductFromBatch * batchCost;
 
       // Cập nhật batch
-      await (queryRunner ? queryRunner.manager.getRepository(InventoryBatch) : this.inventoryBatchRepository).save(batch);
-      
+      await (
+        queryRunner
+          ? queryRunner.manager.getRepository(InventoryBatch)
+          : this.inventoryBatchRepository
+      ).save(batch);
+
       affectedBatches.push({
         batchId: batch.id,
         deductedQuantity: deductFromBatch,
         taxableQuantity: deductTaxable,
         remainingQuantity: batch.remaining_quantity,
-        cost: batchCost
+        cost: batchCost,
       });
     }
 
     // Tính số lượng tồn kho mới
     const newTotalQuantity = currentInventory.totalQuantity - quantity;
     const taxableQuantityToDeduct = totalTaxableDeducted; // Sử dụng kết quả tính toán chi tiết
-    const newTaxableQuantityStock = Math.max(0, currentTaxableStock - taxableQuantityToDeduct);
+    const newTaxableQuantityStock = Math.max(
+      0,
+      currentTaxableStock - taxableQuantityToDeduct,
+    );
 
     // Tạo giao dịch xuất kho
     const transactionData: CreateInventoryTransactionDto = {
@@ -857,17 +934,20 @@ export class InventoryService {
       ...(referenceId && { reference_id: referenceId }),
     };
 
-    const transaction = await this.createTransaction(transactionData, queryRunner);
+    const transaction = await this.createTransaction(
+      transactionData,
+      queryRunner,
+    );
 
     // Cập nhật tồn kho hiển thị cho sản phẩm
     try {
-      const updateData: any = { 
+      const updateData: any = {
         quantity: newTotalQuantity,
-        taxable_quantity_stock: newTaxableQuantityStock
+        taxable_quantity_stock: newTaxableQuantityStock,
       };
 
       if (queryRunner) {
-          await queryRunner.manager.update(Product, productId, updateData);
+        await queryRunner.manager.update(Product, productId, updateData);
       } else {
         await this.productService.update(productId, updateData);
       }
@@ -878,7 +958,7 @@ export class InventoryService {
         newTaxableQuantity: newTaxableQuantityStock,
       });
     } catch (error) {
-           const errorMessage =
+      const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
       this.logger.warn(
         `Không thể cập nhật tồn kho sản phẩm ${productId}:`,
@@ -892,7 +972,7 @@ export class InventoryService {
       totalCostValue,
       averageCostUsed: currentAverageCost,
       remainingQuantity: newTotalQuantity,
-      taxableQuantity: taxableQuantityToDeduct
+      taxableQuantity: taxableQuantityToDeduct,
     };
   }
 
@@ -901,7 +981,10 @@ export class InventoryService {
    * @param productId - ID của sản phẩm
    * @returns Giá vốn trung bình gia quyền đã được tính lại
    */
-  async recalculateWeightedAverageCost(productId: number, queryRunner?: QueryRunner): Promise<{
+  async recalculateWeightedAverageCost(
+    productId: number,
+    queryRunner?: QueryRunner,
+  ): Promise<{
     productId: number;
     previousAverageCost: number;
     newAverageCost: number;
@@ -911,7 +994,9 @@ export class InventoryService {
     const previousAverageCost = await this.getWeightedAverageCost(productId);
 
     // Lấy tất cả lô hàng còn tồn kho
-    const batchRepo = queryRunner ? queryRunner.manager.getRepository(InventoryBatch) : this.inventoryBatchRepository;
+    const batchRepo = queryRunner
+      ? queryRunner.manager.getRepository(InventoryBatch)
+      : this.inventoryBatchRepository;
     const batches = await batchRepo.find({
       where: {
         product_id: productId,
@@ -1182,10 +1267,16 @@ export class InventoryService {
    * @param createInventoryReceiptDto - Dữ liệu tạo phiếu nhập kho mới
    * @returns Thông tin phiếu nhập kho đã tạo
    */
-  async createReceipt(createInventoryReceiptDto: CreateInventoryReceiptDto, userId: number) {
-    this.logger.log(`Bắt đầu tạo phiếu nhập kho: ${createInventoryReceiptDto.receipt_code || 'auto-generate'}`);
-    
-    const queryRunner = this.inventoryReceiptRepository.manager.connection.createQueryRunner();
+  async createReceipt(
+    createInventoryReceiptDto: CreateInventoryReceiptDto,
+    userId: number,
+  ) {
+    this.logger.log(
+      `Bắt đầu tạo phiếu nhập kho: ${createInventoryReceiptDto.receipt_code || 'auto-generate'}`,
+    );
+
+    const queryRunner =
+      this.inventoryReceiptRepository.manager.connection.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
@@ -1220,77 +1311,94 @@ export class InventoryService {
 
       // Thêm phí vận chuyển chung nếu có
       if (createInventoryReceiptDto.shared_shipping_cost !== undefined) {
-        receiptData.shared_shipping_cost = createInventoryReceiptDto.shared_shipping_cost;
+        receiptData.shared_shipping_cost =
+          createInventoryReceiptDto.shared_shipping_cost;
       }
 
       // Thêm phương thức phân bổ phí vận chuyển
       if (createInventoryReceiptDto.shipping_allocation_method !== undefined) {
-        receiptData.shipping_allocation_method = createInventoryReceiptDto.shipping_allocation_method;
+        receiptData.shipping_allocation_method =
+          createInventoryReceiptDto.shipping_allocation_method;
       }
 
       // Thêm images nếu có
-      if (createInventoryReceiptDto.images && createInventoryReceiptDto.images.length > 0) {
+      if (
+        createInventoryReceiptDto.images &&
+        createInventoryReceiptDto.images.length > 0
+      ) {
         receiptData.images = createInventoryReceiptDto.images;
       }
 
-
-
       // ===== XỬ LÝ THANH TOÁN =====
-      const paidAmount = Math.round(Number(createInventoryReceiptDto.paid_amount) || 0);
-      const totalAmount = Math.round(Number(createInventoryReceiptDto.total_amount));
-      const returnedAmount = Math.round(Number(receiptData.returned_amount) || 0);
-      
+      const paidAmount = Math.round(
+        Number(createInventoryReceiptDto.paid_amount) || 0,
+      );
+      const totalAmount = Math.round(
+        Number(createInventoryReceiptDto.total_amount),
+      );
+      const returnedAmount = Math.round(
+        Number(receiptData.returned_amount) || 0,
+      );
+
       // ===== VALIDATION: KHÔNG CHO PHÉP THANH TOÁN KHI TẠO PHIẾU NHÁP =====
-      if (createInventoryReceiptDto.status === ReceiptStatus.DRAFT && paidAmount > 0) {
+      if (
+        createInventoryReceiptDto.status === ReceiptStatus.DRAFT &&
+        paidAmount > 0
+      ) {
         throw new BadRequestException(
-          'Không thể thanh toán cho phiếu nhập ở trạng thái nháp. Vui lòng duyệt phiếu trước khi thanh toán.'
+          'Không thể thanh toán cho phiếu nhập ở trạng thái nháp. Vui lòng duyệt phiếu trước khi thanh toán.',
         );
       }
-      
+
       // ===== VALIDATION THANH TOÁN - CHỈ ÁP DỤNG KHI KHÔNG PHẢI PHIẾU NHÁP =====
       if (createInventoryReceiptDto.status !== ReceiptStatus.DRAFT) {
         // 1. Nếu có thanh toán, phải có payment_method (và không được là 'debt')
         if (paidAmount > 0) {
           if (!createInventoryReceiptDto.payment_method) {
             throw new BadRequestException(
-              'Khi có thanh toán, phải chọn phương thức thanh toán (cash hoặc transfer)'
+              'Khi có thanh toán, phải chọn phương thức thanh toán (cash hoặc transfer)',
             );
           }
           if (createInventoryReceiptDto.payment_method === 'debt') {
             throw new BadRequestException(
-              'Không thể chọn phương thức "Công nợ" khi đã có thanh toán'
+              'Không thể chọn phương thức "Công nợ" khi đã có thanh toán',
             );
           }
         }
       }
-      
+
       // Tính giá trị thực tế sau khi trừ trả hàng
       const finalAmount = Math.round(totalAmount - returnedAmount);
-      
+
       // Tính số tiền thực sự nợ NCC
       // Phí vận chuyển do người dùng tự chịu, luôn loại trừ phí vận chuyển (cả chung và riêng) khỏi công nợ NCC
-      const excludedShipping = 
+      const excludedShipping =
         (Number(createInventoryReceiptDto.shared_shipping_cost) || 0) +
-        createInventoryReceiptDto.items.reduce((sum, item) => sum + (Number(item.individual_shipping_cost) || 0), 0);
-      
-      const supplierAmount = Math.round(finalAmount - excludedShipping);
-      
-      // VALIDATION: Nếu còn nợ NCC, phải có hạn thanh toán
-      if (paidAmount < supplierAmount && !createInventoryReceiptDto.payment_due_date && createInventoryReceiptDto.status !== ReceiptStatus.DRAFT) {
-        throw new BadRequestException(
-          'Khi còn nợ, phải có hạn thanh toán'
+        createInventoryReceiptDto.items.reduce(
+          (sum, item) => sum + (Number(item.individual_shipping_cost) || 0),
+          0,
         );
+
+      const supplierAmount = Math.round(finalAmount - excludedShipping);
+
+      // VALIDATION: Nếu còn nợ NCC, phải có hạn thanh toán
+      if (
+        paidAmount < supplierAmount &&
+        !createInventoryReceiptDto.payment_due_date &&
+        createInventoryReceiptDto.status !== ReceiptStatus.DRAFT
+      ) {
+        throw new BadRequestException('Khi còn nợ, phải có hạn thanh toán');
       }
-      
+
       const debtAmount = Math.max(0, Math.round(supplierAmount - paidAmount));
-      
+
       let paymentStatus = 'unpaid';
       if (paidAmount >= supplierAmount && supplierAmount > 0) {
         paymentStatus = 'paid';
       } else if (paidAmount > 0) {
         paymentStatus = 'partial';
       }
-      
+
       // Thêm các trường thanh toán vào receiptData
       receiptData.paid_amount = paidAmount;
       receiptData.payment_status = paymentStatus;
@@ -1302,13 +1410,14 @@ export class InventoryService {
         receiptData.approved_at = new Date();
         receiptData.approved_by = userId;
       }
-      
+
       if (createInventoryReceiptDto.payment_method) {
         receiptData.payment_method = createInventoryReceiptDto.payment_method;
       }
-      
+
       if (createInventoryReceiptDto.payment_due_date) {
-        receiptData.payment_due_date = createInventoryReceiptDto.payment_due_date;
+        receiptData.payment_due_date =
+          createInventoryReceiptDto.payment_due_date;
       }
 
       const receipt = queryRunner.manager.create(InventoryReceipt, receiptData);
@@ -1327,13 +1436,15 @@ export class InventoryService {
       this.logger.log(`Đã lưu phiếu nhập kho với ID: ${receiptEntity.id}`);
 
       // ===== TÍNH TOÁN PHÍ VẬN CHUYỂN =====
-      const sharedShippingCost = createInventoryReceiptDto.shared_shipping_cost || 0;
-      const allocationMethod = createInventoryReceiptDto.shipping_allocation_method || 'by_value';
-      
+      const sharedShippingCost =
+        createInventoryReceiptDto.shared_shipping_cost || 0;
+      const allocationMethod =
+        createInventoryReceiptDto.shipping_allocation_method || 'by_value';
+
       // Tính tổng giá trị và số lượng để phân bổ phí chung
       let totalValue = 0;
       let totalQuantity = 0;
-      
+
       for (const item of createInventoryReceiptDto.items) {
         totalValue += Number(item.quantity) * Number(item.unit_cost);
         totalQuantity += Number(item.quantity);
@@ -1350,24 +1461,25 @@ export class InventoryService {
             allocatedShipping = (itemValue / totalValue) * sharedShippingCost;
           } else {
             // Chia đều theo số lượng
-            allocatedShipping = (item.quantity / totalQuantity) * sharedShippingCost;
+            allocatedShipping =
+              (item.quantity / totalQuantity) * sharedShippingCost;
           }
         }
-        
+
         // Tính tổng phí vận chuyển cho item
         const individualShipping = item.individual_shipping_cost || 0;
         const totalShippingForItem = individualShipping + allocatedShipping;
-        
+
         // Tính giá vốn cuối cùng trên đơn vị
         // unit_cost gửi từ FE đã là giá mua gốc
         const shippingPerUnit = totalShippingForItem / item.quantity;
         const finalUnitCost = item.unit_cost + shippingPerUnit;
-        
+
         // DEBUG: Log để kiểm tra
         this.logger.log('=== TÍNH PHÍ VẬN CHUYỂN ===');
         this.logger.log(`Product ID: ${item.product_id}`);
         this.logger.log(`Final Unit Cost: ${finalUnitCost}`);
-        
+
         return {
           ...item,
           allocated_shipping_cost: Math.round(allocatedShipping),
@@ -1380,23 +1492,25 @@ export class InventoryService {
       const savedItems: any[] = [];
       for (const item of itemsWithShipping) {
         const itemData: any = {
-           receipt_id: receiptEntity.id,
-           product_id: item.product_id,
-           quantity: item.quantity,
-           unit_cost: item.unit_cost,
-           total_price: item.total_price,
-           individual_shipping_cost: item.individual_shipping_cost || 0,
-           allocated_shipping_cost: item.allocated_shipping_cost,
-            final_unit_cost: item.final_unit_cost,
-            batch_number: item.batch_number,
-            unit_name: item.unit_name,
-            
-            // ✅ QUY ĐỔI ĐƠN VỊ TÍNH
-            unit_id: item.unit_id,
-            conversion_factor: item.conversion_factor || 1,
-            // Nếu không có base_quantity thì tự tính từ quantity * conversion_factor
-            base_quantity: item.base_quantity || (item.quantity * (item.conversion_factor || 1)),
-         };
+          receipt_id: receiptEntity.id,
+          product_id: item.product_id,
+          quantity: item.quantity,
+          unit_cost: item.unit_cost,
+          vat_unit_cost: item.vat_unit_cost ?? item.unit_cost,
+          total_price: item.total_price,
+          individual_shipping_cost: item.individual_shipping_cost || 0,
+          allocated_shipping_cost: item.allocated_shipping_cost,
+          final_unit_cost: item.final_unit_cost,
+          batch_number: item.batch_number,
+          unit_name: item.unit_name,
+
+          // ✅ QUY ĐỔI ĐƠN VỊ TÍNH
+          unit_id: item.unit_id,
+          conversion_factor: item.conversion_factor || 1,
+          // Nếu không có base_quantity thì tự tính từ quantity * conversion_factor
+          base_quantity:
+            item.base_quantity || item.quantity * (item.conversion_factor || 1),
+        };
 
         // Only add notes if it's not undefined
         if (item.notes !== undefined) {
@@ -1414,7 +1528,10 @@ export class InventoryService {
         }
 
         // Xử lý taxable_quantity: Ưu tiên giá trị từ item, nếu không có thì dựa vào is_taxable của phiếu
-        if (item.taxable_quantity !== undefined && item.taxable_quantity !== null) {
+        if (
+          item.taxable_quantity !== undefined &&
+          item.taxable_quantity !== null
+        ) {
           itemData.taxable_quantity = item.taxable_quantity;
         } else if (receiptData.is_taxable === true) {
           // Nếu phiếu được đánh dấu "Tất cả là hàng tính thuế", thì taxable_quantity = quantity
@@ -1424,7 +1541,10 @@ export class InventoryService {
           itemData.taxable_quantity = 0;
         }
 
-        const itemEntity = queryRunner.manager.create(InventoryReceiptItem, itemData);
+        const itemEntity = queryRunner.manager.create(
+          InventoryReceiptItem,
+          itemData,
+        );
         const savedItem = await queryRunner.manager.save(itemEntity);
         savedItems.push(savedItem);
       } // Kết thúc vòng lặp itemsWithShipping
@@ -1432,13 +1552,15 @@ export class InventoryService {
       // Nếu tạo phiếu với trạng thái đã duyệt, thực hiện nhập kho ngay TRONG CÙNG TRANSACTION
       if (receiptData.status === ReceiptStatus.APPROVED) {
         try {
-          this.logger.log(`Phiếu ${receiptEntity.code} được tạo với trạng thái APPROVED, đang xử lý nhập kho...`);
-          
+          this.logger.log(
+            `Phiếu ${receiptEntity.code} được tạo với trạng thái APPROVED, đang xử lý nhập kho...`,
+          );
+
           let itemIndex = 1;
           for (const item of savedItems) {
             // ✅ Dùng số lượng đã quy đổi về đơn vị cơ sở (base_quantity) để nhập kho
-            const stockInQuantity = item.base_quantity 
-              ? Number(item.base_quantity) 
+            const stockInQuantity = item.base_quantity
+              ? Number(item.base_quantity)
               : item.quantity;
 
             const batch = await this.processStockIn(
@@ -1450,39 +1572,54 @@ export class InventoryService {
               `LOT-${receiptEntity.code.replace('REC-', '')}-${itemIndex}`,
               item.expiry_date ? new Date(item.expiry_date) : undefined,
               queryRunner,
-              Number(item.taxable_quantity || 0)
+              Number(item.taxable_quantity || 0),
             );
 
             // Cập nhật số lô ngược lại chi tiết phiếu nhập
             if (batch && batch.batch && batch.batch.code) {
-                await queryRunner.manager.update(InventoryReceiptItem, item.id, {
-                    batch_number: batch.batch.code as string
-                });
+              await queryRunner.manager.update(InventoryReceiptItem, item.id, {
+                batch_number: batch.batch.code as string,
+              });
             }
             itemIndex++;
           }
-          
+
           // Cập nhật thời gian duyệt
           await queryRunner.manager.update(InventoryReceipt, receiptEntity.id, {
-             approved_at: new Date(),
-             approved_by: userId
+            approved_at: new Date(),
+            approved_by: userId,
           });
+
+          const affectedProductIds = Array.from(
+            new Set(savedItems.map((i) => Number(i.product_id))),
+          );
+          for (const productId of affectedProductIds) {
+            await this.recalculateAverageVatInputCost(productId, queryRunner);
+          }
         } catch (error) {
-           this.logger.error(`Lỗi nhập kho tự động cho phiếu ${receiptEntity.code}:`, error);
-           // Throw error để rollback toàn bộ transaction
-           throw new BadRequestException(`Lỗi nhập kho: ${error instanceof Error ? error.message : 'Unknown'}. Giao dịch đã được hủy bỏ hoàn toàn.`);
+          this.logger.error(
+            `Lỗi nhập kho tự động cho phiếu ${receiptEntity.code}:`,
+            error,
+          );
+          // Throw error để rollback toàn bộ transaction
+          throw new BadRequestException(
+            `Lỗi nhập kho: ${error instanceof Error ? error.message : 'Unknown'}. Giao dịch đã được hủy bỏ hoàn toàn.`,
+          );
         }
       }
-
 
       // ===== TẠO PAYMENT RECORD NẾU CÓ THANH TOÁN NGAY =====
       // Tạo payment record để lưu lịch sử thanh toán (audit trail)
       // KHÔNG dùng addPayment() vì nó sẽ cộng thêm vào paid_amount (đã set ở trên rồi)
       if (paidAmount > 0) {
         try {
-          this.logger.log(`Tạo payment record cho phiếu ${receiptEntity.code}: ${paidAmount}đ`);
-          
-          const paymentRepo = queryRunner.manager.getRepository(InventoryReceiptPayment);
+          this.logger.log(
+            `Tạo payment record cho phiếu ${receiptEntity.code}: ${paidAmount}đ`,
+          );
+
+          const paymentRepo = queryRunner.manager.getRepository(
+            InventoryReceiptPayment,
+          );
           const paymentRecord = paymentRepo.create({
             receipt_id: receiptEntity.id,
             amount: paidAmount,
@@ -1491,35 +1628,40 @@ export class InventoryService {
             notes: 'Thanh toán khi tạo phiếu',
             created_by: userId,
           });
-          
+
           await paymentRepo.save(paymentRecord);
           this.logger.log(`✅ Đã tạo payment record #${paymentRecord.id}`);
         } catch (error) {
-          this.logger.error(`Lỗi tạo payment record cho phiếu ${receiptEntity.code}:`, error);
-          throw new BadRequestException(`Lỗi tạo payment record: ${error instanceof Error ? error.message : 'Unknown'}`);
+          this.logger.error(
+            `Lỗi tạo payment record cho phiếu ${receiptEntity.code}:`,
+            error,
+          );
+          throw new BadRequestException(
+            `Lỗi tạo payment record: ${error instanceof Error ? error.message : 'Unknown'}`,
+          );
         }
       }
-      
+
       await queryRunner.commitTransaction();
 
       return this.inventoryReceiptRepository.findOne({
         where: { id: receiptEntity.id },
         relations: ['supplier'], // Bao gồm thông tin nhà cung cấp
       });
-
-
     } catch (error) {
       await queryRunner.rollbackTransaction();
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       const errorStack = error instanceof Error ? error.stack : '';
-      this.logger.error(`Lỗi khi tạo phiếu nhập kho: ${errorMessage}`, errorStack);
+      this.logger.error(
+        `Lỗi khi tạo phiếu nhập kho: ${errorMessage}`,
+        errorStack,
+      );
       throw new Error(`Không thể tạo phiếu nhập kho: ${errorMessage}`);
     } finally {
       await queryRunner.release();
     }
   }
-
-
 
   /**
    * Tìm phiếu nhập kho theo ID
@@ -1530,22 +1672,24 @@ export class InventoryService {
     const receipt = await this.inventoryReceiptRepository.findOne({
       where: { id },
       relations: [
-        'items', 
-        'items.product', 
-        'supplier', 
-        'creator', 
+        'items',
+        'items.product',
+        'supplier',
+        'creator',
         'creator.user_profile',
         'approver',
-        'approver.user_profile'
+        'approver.user_profile',
       ],
     });
 
     if (receipt) {
       if (receipt.creator) {
-        (receipt.creator as any).full_name = receipt.creator.user_profile?.nickname || receipt.creator.account;
+        (receipt.creator as any).full_name =
+          receipt.creator.user_profile?.nickname || receipt.creator.account;
       }
       if (receipt.approver) {
-        (receipt.approver as any).full_name = receipt.approver.user_profile?.nickname || receipt.approver.account;
+        (receipt.approver as any).full_name =
+          receipt.approver.user_profile?.nickname || receipt.approver.account;
       }
     }
 
@@ -1578,9 +1722,10 @@ export class InventoryService {
     });
 
     // Map full_name cho creator
-    transactions.forEach(t => {
+    transactions.forEach((t) => {
       if (t.creator) {
-        (t.creator as any).full_name = t.creator.user_profile?.nickname || t.creator.account;
+        (t.creator as any).full_name =
+          t.creator.user_profile?.nickname || t.creator.account;
       }
     });
 
@@ -1622,27 +1767,27 @@ export class InventoryService {
       queryBuilder,
       baseSearchDto,
       'receipt',
-      ['code', 'supplier.name', 'notes'] // Global search
+      ['code', 'supplier.name', 'notes'], // Global search
     );
 
     // Xử lý lọc theo ngày nhập (bill_date), nếu null thì lấy created_at
     if (start_date && end_date) {
       queryBuilder.andWhere(
         '(COALESCE(receipt.bill_date, receipt.created_at) BETWEEN :start_date AND :end_date)',
-        { 
-          start_date: new Date(start_date), 
-          end_date: new Date(end_date) 
-        }
+        {
+          start_date: new Date(start_date),
+          end_date: new Date(end_date),
+        },
       );
     } else if (start_date) {
       queryBuilder.andWhere(
         'COALESCE(receipt.bill_date, receipt.created_at) >= :start_date',
-        { start_date: new Date(start_date) }
+        { start_date: new Date(start_date) },
       );
     } else if (end_date) {
       queryBuilder.andWhere(
         'COALESCE(receipt.bill_date, receipt.created_at) <= :end_date',
-        { end_date: new Date(end_date) }
+        { end_date: new Date(end_date) },
       );
     }
 
@@ -1655,7 +1800,7 @@ export class InventoryService {
         supplier_name: 'supplier.name',
         supplier_id: 'receipt.supplier_id',
         creator_account: 'creator.account',
-      }
+      },
     );
 
     // 3. Sắp xếp theo ngày nhập (bill_date) mới nhất, sau đó đến ngày tạo (created_at)
@@ -1676,22 +1821,30 @@ export class InventoryService {
    * Lấy thống kê cho phiếu nhập hàng
    * @param supplier_id - ID nhà cung cấp (tùy chọn). Nếu có, chỉ thống kê phiếu của NCC đó
    */
-  async getReceiptStats(supplier_id?: number, start_date?: string, end_date?: string) {
-    const queryBuilder = this.inventoryReceiptRepository.createQueryBuilder('receipt');
-    
+  async getReceiptStats(
+    supplier_id?: number,
+    start_date?: string,
+    end_date?: string,
+  ) {
+    const queryBuilder =
+      this.inventoryReceiptRepository.createQueryBuilder('receipt');
+
     // Lọc theo nhà cung cấp nếu có
     if (supplier_id) {
       queryBuilder.where('receipt.supplier_id = :supplier_id', { supplier_id });
     }
-    
+
     // Lọc theo ngày nhập (bill_date), nếu null thì lấy created_at
     if (start_date && end_date) {
-      queryBuilder.andWhere('COALESCE(receipt.bill_date, receipt.created_at) BETWEEN :start_date AND :end_date', { 
-        start_date: new Date(start_date), 
-        end_date: new Date(end_date) 
-      });
+      queryBuilder.andWhere(
+        'COALESCE(receipt.bill_date, receipt.created_at) BETWEEN :start_date AND :end_date',
+        {
+          start_date: new Date(start_date),
+          end_date: new Date(end_date),
+        },
+      );
     }
-    
+
     // Nhóm các mã trạng thái để tương thích với dữ liệu thực tế trong DB
     const draftStatuses = "'draft', '1'";
     const approvedStatuses = "'approved', '2', '3', 'completed', '4'";
@@ -1699,34 +1852,64 @@ export class InventoryService {
 
     const stats = await queryBuilder
       .select('COUNT(*)', 'totalReceipts')
-      .addSelect(`SUM(CASE WHEN receipt.status IN (${draftStatuses}) THEN 1 ELSE 0 END)`, 'draftReceipts')
-      .addSelect(`SUM(CASE WHEN receipt.status IN (${approvedStatuses}) THEN 1 ELSE 0 END)`, 'approvedReceipts')
-      .addSelect(`SUM(CASE WHEN receipt.status IN (${cancelledStatuses}) THEN 1 ELSE 0 END)`, 'cancelledReceipts')
-      
+      .addSelect(
+        `SUM(CASE WHEN receipt.status IN (${draftStatuses}) THEN 1 ELSE 0 END)`,
+        'draftReceipts',
+      )
+      .addSelect(
+        `SUM(CASE WHEN receipt.status IN (${approvedStatuses}) THEN 1 ELSE 0 END)`,
+        'approvedReceipts',
+      )
+      .addSelect(
+        `SUM(CASE WHEN receipt.status IN (${cancelledStatuses}) THEN 1 ELSE 0 END)`,
+        'cancelledReceipts',
+      )
+
       // ===== THỐNG KÊ TÀI CHÍNH: CHỈ TÍNH PHIẾU ĐÃ DUYỆT (BUSINESS LOGIC CHUẨN) =====
-      .addSelect(`SUM(CASE WHEN receipt.status IN (${approvedStatuses}) AND CAST(receipt.debt_amount AS DECIMAL) > 0 THEN 1 ELSE 0 END)`, 'debtReceiptsCount')
-      .addSelect(`SUM(CASE WHEN receipt.status IN (${approvedStatuses}) THEN CAST(receipt.total_amount AS DECIMAL) ELSE 0 END)`, 'totalValue')
-      .addSelect(`SUM(CASE WHEN receipt.status IN (${approvedStatuses}) THEN CAST(receipt.paid_amount AS DECIMAL) ELSE 0 END)`, 'totalPaid')
-      .addSelect(`SUM(CASE WHEN receipt.status IN (${approvedStatuses}) THEN CAST(receipt.debt_amount AS DECIMAL) ELSE 0 END)`, 'totalDebt')
+      .addSelect(
+        `SUM(CASE WHEN receipt.status IN (${approvedStatuses}) AND CAST(receipt.debt_amount AS DECIMAL) > 0 THEN 1 ELSE 0 END)`,
+        'debtReceiptsCount',
+      )
+      .addSelect(
+        `SUM(CASE WHEN receipt.status IN (${approvedStatuses}) THEN CAST(receipt.total_amount AS DECIMAL) ELSE 0 END)`,
+        'totalValue',
+      )
+      .addSelect(
+        `SUM(CASE WHEN receipt.status IN (${approvedStatuses}) THEN CAST(receipt.paid_amount AS DECIMAL) ELSE 0 END)`,
+        'totalPaid',
+      )
+      .addSelect(
+        `SUM(CASE WHEN receipt.status IN (${approvedStatuses}) THEN CAST(receipt.debt_amount AS DECIMAL) ELSE 0 END)`,
+        'totalDebt',
+      )
       .getRawOne();
 
     // Tính giá trị hàng có hóa đơn (taxable value) - Join với item
-    const taxableQuery = this.inventoryReceiptItemRepository.createQueryBuilder('item')
+    const taxableQuery = this.inventoryReceiptItemRepository
+      .createQueryBuilder('item')
       .leftJoin('item.receipt', 'receipt')
       .where(`receipt.status IN (${approvedStatuses})`)
       .andWhere('item.taxable_quantity > 0')
-      .select('SUM(CAST(item.taxable_quantity AS DECIMAL) * CAST(item.unit_cost AS DECIMAL))', 'totalTaxableValue');
+      .select(
+        'SUM(CAST(item.taxable_quantity AS DECIMAL) * CAST(item.unit_cost AS DECIMAL))',
+        'totalTaxableValue',
+      );
 
     if (supplier_id) {
-      taxableQuery.andWhere('receipt.supplier_id = :supplier_id', { supplier_id });
-    }
-    if (start_date && end_date) {
-      taxableQuery.andWhere('COALESCE(receipt.bill_date, receipt.created_at) BETWEEN :start_date AND :end_date', { 
-        start_date: new Date(start_date), 
-        end_date: new Date(end_date) 
+      taxableQuery.andWhere('receipt.supplier_id = :supplier_id', {
+        supplier_id,
       });
     }
-    
+    if (start_date && end_date) {
+      taxableQuery.andWhere(
+        'COALESCE(receipt.bill_date, receipt.created_at) BETWEEN :start_date AND :end_date',
+        {
+          start_date: new Date(start_date),
+          end_date: new Date(end_date),
+        },
+      );
+    }
+
     const taxableResult = await taxableQuery.getRawOne();
 
     return {
@@ -1745,8 +1928,13 @@ export class InventoryService {
   /**
    * Tìm kiếm hàng hóa có hóa đơn (taxable_quantity > 0)
    */
-  async searchTaxableItems(supplier_id?: number, start_date?: string, end_date?: string) {
-    const queryBuilder = this.inventoryReceiptItemRepository.createQueryBuilder('item')
+  async searchTaxableItems(
+    supplier_id?: number,
+    start_date?: string,
+    end_date?: string,
+  ) {
+    const queryBuilder = this.inventoryReceiptItemRepository
+      .createQueryBuilder('item')
       .leftJoinAndSelect('item.receipt', 'receipt')
       .leftJoinAndSelect('receipt.supplier', 'supplier')
       .leftJoinAndSelect('item.product', 'product')
@@ -1754,17 +1942,25 @@ export class InventoryService {
       .andWhere('item.taxable_quantity > 0');
 
     if (supplier_id) {
-      queryBuilder.andWhere('receipt.supplier_id = :supplier_id', { supplier_id });
-    }
-    if (start_date && end_date) {
-      queryBuilder.andWhere('COALESCE(receipt.bill_date, receipt.created_at) BETWEEN :start_date AND :end_date', { 
-        start_date: new Date(start_date), 
-        end_date: new Date(end_date) 
+      queryBuilder.andWhere('receipt.supplier_id = :supplier_id', {
+        supplier_id,
       });
     }
+    if (start_date && end_date) {
+      queryBuilder.andWhere(
+        'COALESCE(receipt.bill_date, receipt.created_at) BETWEEN :start_date AND :end_date',
+        {
+          start_date: new Date(start_date),
+          end_date: new Date(end_date),
+        },
+      );
+    }
 
-    queryBuilder.orderBy('COALESCE(receipt.bill_date, receipt.created_at)', 'DESC');
-    
+    queryBuilder.orderBy(
+      'COALESCE(receipt.bill_date, receipt.created_at)',
+      'DESC',
+    );
+
     return queryBuilder.getMany();
   }
 
@@ -1785,7 +1981,9 @@ export class InventoryService {
 
     // Chỉ cho phép sửa phiếu ở trạng thái 'draft'
     if (receipt.status !== ReceiptStatus.DRAFT) {
-      throw new Error('Chỉ có thể chỉnh sửa phiếu nhập kho ở trạng thái nháp (draft)');
+      throw new Error(
+        'Chỉ có thể chỉnh sửa phiếu nhập kho ở trạng thái nháp (draft)',
+      );
     }
 
     // Map DTO fields to entity fields
@@ -1803,25 +2001,45 @@ export class InventoryService {
     if (updateData.images !== undefined)
       entityUpdateData.images = updateData.images;
     if (updateData.shared_shipping_cost !== undefined)
-      entityUpdateData.shared_shipping_cost = Math.round(updateData.shared_shipping_cost);
+      entityUpdateData.shared_shipping_cost = Math.round(
+        updateData.shared_shipping_cost,
+      );
     if (updateData.shipping_allocation_method !== undefined)
-      entityUpdateData.shipping_allocation_method = updateData.shipping_allocation_method;
+      entityUpdateData.shipping_allocation_method =
+        updateData.shipping_allocation_method;
     if (updateData.is_taxable !== undefined)
       entityUpdateData.is_taxable = updateData.is_taxable;
 
     // === TÍNH TOÁN LẠI TÀI CHÍNH KHI UPDATE ===
-    const totalAmount = updateData.total_amount !== undefined ? Math.round(updateData.total_amount) : receipt.total_amount;
-    const paidAmount = updateData.paid_amount !== undefined ? Math.round(updateData.paid_amount) : receipt.paid_amount;
-    const sharedShipping = updateData.shared_shipping_cost !== undefined ? Math.round(updateData.shared_shipping_cost) : (receipt.shared_shipping_cost || 0);
-    
+    const totalAmount =
+      updateData.total_amount !== undefined
+        ? Math.round(updateData.total_amount)
+        : receipt.total_amount;
+    const paidAmount =
+      updateData.paid_amount !== undefined
+        ? Math.round(updateData.paid_amount)
+        : receipt.paid_amount;
+    const sharedShipping =
+      updateData.shared_shipping_cost !== undefined
+        ? Math.round(updateData.shared_shipping_cost)
+        : receipt.shared_shipping_cost || 0;
+
     // Tính individual shipping từ updateData.items nếu có, không thì lấy từ DB
     let itemShipping = 0;
     if (updateData.items && Array.isArray(updateData.items)) {
-      itemShipping = updateData.items.reduce((sum, item) => sum + (Number(item.individual_shipping_cost) || 0), 0);
+      itemShipping = updateData.items.reduce(
+        (sum, item) => sum + (Number(item.individual_shipping_cost) || 0),
+        0,
+      );
     } else {
       // Nếu không gửi items mới, lấy sum từ items hiện tại trong DB
-      const currentItems = await this.inventoryReceiptItemRepository.find({ where: { receipt_id: id } });
-      itemShipping = currentItems.reduce((sum, item) => sum + (Number(item.individual_shipping_cost) || 0), 0);
+      const currentItems = await this.inventoryReceiptItemRepository.find({
+        where: { receipt_id: id },
+      });
+      itemShipping = currentItems.reduce(
+        (sum, item) => sum + (Number(item.individual_shipping_cost) || 0),
+        0,
+      );
     }
 
     const finalAmount = totalAmount; // Giả định đơn giản, thực tế cần trừ returned_amount nếu có
@@ -1834,8 +2052,10 @@ export class InventoryService {
     entityUpdateData.debt_amount = debtAmount;
     entityUpdateData.paid_amount = paidAmount;
 
-    if (updateData.payment_method !== undefined) entityUpdateData.payment_method = updateData.payment_method;
-    if (updateData.payment_due_date !== undefined) entityUpdateData.payment_due_date = updateData.payment_due_date;
+    if (updateData.payment_method !== undefined)
+      entityUpdateData.payment_method = updateData.payment_method;
+    if (updateData.payment_due_date !== undefined)
+      entityUpdateData.payment_due_date = updateData.payment_due_date;
 
     await this.inventoryReceiptRepository.update(id, entityUpdateData);
     return this.findReceiptById(id);
@@ -1854,7 +2074,7 @@ export class InventoryService {
     // ❌ KHÔNG cho xóa nếu đã thanh toán (dù chỉ 1 phần)
     if (receipt.paid_amount && Number(receipt.paid_amount) > 0) {
       throw new BadRequestException(
-        'Không thể xóa phiếu đã có giao dịch thanh toán. Vui lòng hủy phiếu và tạo phiếu điều chỉnh công nợ.'
+        'Không thể xóa phiếu đã có giao dịch thanh toán. Vui lòng hủy phiếu và tạo phiếu điều chỉnh công nợ.',
       );
     }
 
@@ -1863,7 +2083,9 @@ export class InventoryService {
       if (receipt.status === ReceiptStatus.CANCELLED) {
         // Kiểm tra xem phiếu này có approved_at không (tức là đã từng approved và tác động kho)
         if (receipt.approved_at) {
-           throw new BadRequestException('Không thể xóa phiếu đã từng duyệt (đã tác động kho) và bị hủy. Dữ liệu cần được giữ lại để đối soát.');
+          throw new BadRequestException(
+            'Không thể xóa phiếu đã từng duyệt (đã tác động kho) và bị hủy. Dữ liệu cần được giữ lại để đối soát.',
+          );
         }
         // Nếu là cancelled nhưng chưa approved bao giờ (cancel từ draft) thì cho xóa
       } else {
@@ -1886,8 +2108,12 @@ export class InventoryService {
    * @param userId - ID người thực hiện
    * @returns Thông tin phiếu nhập kho đã duyệt
    */
-  async approveReceipt(id: number, userId: number): Promise<InventoryReceipt | null> {
-    const queryRunner = this.inventoryReceiptRepository.manager.connection.createQueryRunner();
+  async approveReceipt(
+    id: number,
+    userId: number,
+  ): Promise<InventoryReceipt | null> {
+    const queryRunner =
+      this.inventoryReceiptRepository.manager.connection.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
@@ -1900,14 +2126,16 @@ export class InventoryService {
         await queryRunner.release();
         return null;
       }
-      
+
       if (receipt.status !== ReceiptStatus.DRAFT) {
-         throw new BadRequestException('Chỉ có thể duyệt phiếu ở trạng thái nháp');
+        throw new BadRequestException(
+          'Chỉ có thể duyệt phiếu ở trạng thái nháp',
+        );
       }
 
       // Lấy danh sách chi tiết phiếu nhập thông qua queryRunner
       const items = await queryRunner.manager.find(InventoryReceiptItem, {
-        where: { receipt_id: id }
+        where: { receipt_id: id },
       });
 
       // Xử lý nhập kho cho từng sản phẩm ngay khi duyệt
@@ -1940,31 +2168,35 @@ export class InventoryService {
           `LOT-${receipt.code.replace('REC-', '')}-${itemIndex}`,
           item.expiry_date ? new Date(item.expiry_date) : undefined,
           queryRunner,
-          taxableQty // Truyền số lượng thuế thay vì boolean
+          taxableQty, // Truyền số lượng thuế thay vì boolean
         );
 
         // Cập nhật số lô ngược lại chi tiết phiếu nhập
         if (batch && batch.batch && batch.batch.code) {
           await queryRunner.manager.update(InventoryReceiptItem, item.id, {
-            batch_number: batch.batch.code as string
+            batch_number: batch.batch.code as string,
           });
         }
         itemIndex++;
       }
 
+      const affectedProductIds = Array.from(
+        new Set(items.map((i) => Number(i.product_id))),
+      );
+      for (const productId of affectedProductIds) {
+        await this.recalculateAverageVatInputCost(productId, queryRunner);
+      }
+
       receipt.status = ReceiptStatus.APPROVED;
       receipt.approved_at = new Date();
       receipt.approved_by = userId;
-      
+
       const savedReceipt = await queryRunner.manager.save(receipt);
       await queryRunner.commitTransaction();
       return savedReceipt;
     } catch (error) {
       await queryRunner.rollbackTransaction();
-      this.logger.error(
-        `❌ Lỗi khi duyệt phiếu nhập kho #${id}:`,
-        error,
-      );
+      this.logger.error(`❌ Lỗi khi duyệt phiếu nhập kho #${id}:`, error);
       throw error;
     } finally {
       await queryRunner.release();
@@ -1983,7 +2215,8 @@ export class InventoryService {
     reason: string,
     userId: number,
   ): Promise<InventoryReceipt | null> {
-    const queryRunner = this.inventoryReceiptRepository.manager.connection.createQueryRunner();
+    const queryRunner =
+      this.inventoryReceiptRepository.manager.connection.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
@@ -1996,22 +2229,39 @@ export class InventoryService {
         await queryRunner.release();
         throw new NotFoundException('Không tìm thấy phiếu nhập kho');
       }
-      
+
       // Validate: Không cho phép cancel phiếu đã cancelled
       if (receipt.status === ReceiptStatus.CANCELLED) {
-          throw new BadRequestException('Phiếu nhập kho đã bị hủy trước đó');
+        throw new BadRequestException('Phiếu nhập kho đã bị hủy trước đó');
       }
-      
+      const wasApproved = receipt.status === ReceiptStatus.APPROVED;
+
       // Nếu phiếu đã duyệt (APPROVED) → Cần rollback inventory
-      if (receipt.status === ReceiptStatus.APPROVED) {
-          await this.rollbackReceiptInventory(id, userId, reason, queryRunner);
+      if (wasApproved) {
+        await this.rollbackReceiptInventory(id, userId, reason, queryRunner);
       }
-      
+
       receipt.status = ReceiptStatus.CANCELLED;
       receipt.cancelled_at = new Date();
       receipt.cancelled_reason = reason;
-      
+
       const savedReceipt = await queryRunner.manager.save(receipt);
+
+      if (wasApproved) {
+        const receiptItems = await queryRunner.manager.find(
+          InventoryReceiptItem,
+          {
+            where: { receipt_id: id },
+          },
+        );
+        const affectedProductIds = Array.from(
+          new Set(receiptItems.map((i) => Number(i.product_id))),
+        );
+        for (const productId of affectedProductIds) {
+          await this.recalculateAverageVatInputCost(productId, queryRunner);
+        }
+      }
+
       await queryRunner.commitTransaction();
       return savedReceipt;
     } catch (error) {
@@ -2030,23 +2280,25 @@ export class InventoryService {
    * @param reason - Lý do hủy
    */
   private async rollbackReceiptInventory(
-    receiptId: number, 
+    receiptId: number,
     userId: number,
     reason: string,
-    queryRunner?: QueryRunner
+    queryRunner?: QueryRunner,
   ) {
     this.logger.log(`Bắt đầu rollback inventory cho receipt #${receiptId}`);
-    const items = queryRunner 
-      ? await queryRunner.manager.find(InventoryReceiptItem, { where: { receipt_id: receiptId } })
+    const items = queryRunner
+      ? await queryRunner.manager.find(InventoryReceiptItem, {
+          where: { receipt_id: receiptId },
+        })
       : await this.getReceiptItems(receiptId);
-    
+
     for (const item of items) {
       try {
         // Tạo transaction xuất kho (ngược lại với nhập kho)
         // Dùng referenceType đặc biệt để tracking
         // ✅ Dùng số lượng đã quy đổi về đơn vị cơ sở (base_quantity) để hoàn tác
-        const stockOutQuantity = item.base_quantity 
-          ? Number(item.base_quantity) 
+        const stockOutQuantity = item.base_quantity
+          ? Number(item.base_quantity)
           : item.quantity;
 
         await this.processStockOut(
@@ -2056,20 +2308,20 @@ export class InventoryService {
           userId,
           receiptId,
           `Hủy phiếu nhập #${receiptId} (Sản phẩm ${item.product_id}): ${reason}`,
-          queryRunner
+          queryRunner,
         );
-        
+
         // Tính lại giá vốn trung bình
         await this.recalculateWeightedAverageCost(item.product_id, queryRunner);
       } catch (error) {
-         this.logger.error(
+        this.logger.error(
           `Lỗi khi rollback inventory cho sản phẩm ${item.product_id} trong receipt #${receiptId}:`,
-          error
+          error,
         );
         // Trong trường hợp rollback lỗi, ta vẫn ném lỗi ra để ngừng quá trình cancel
         // Để admin có thể xử lý thủ công hoặc thử lại
         throw new BadRequestException(
-          `Không thể hủy phiếu nhập kho: ${error instanceof Error ? error.message : 'Lỗi khi hoàn tác tồn kho'}`
+          `Không thể hủy phiếu nhập kho: ${error instanceof Error ? error.message : 'Lỗi khi hoàn tác tồn kho'}`,
         );
       }
     }
@@ -2112,52 +2364,72 @@ export class InventoryService {
 
     // VALIDATION: Nếu phiếu đã duyệt
     if (receipt && receipt.status === ReceiptStatus.APPROVED) {
-      // Chỉ cho phép sửa taxable_quantity (để sửa dữ liệu cũ)
-      const allowedFields = ['taxable_quantity'];
+      // Chỉ cho phép sửa dữ liệu thuế của item (để sửa dữ liệu cũ)
+      const allowedFields = ['taxable_quantity', 'vat_unit_cost'];
       const attemptedFields = Object.keys(updateData);
-      
-      const invalidFields = attemptedFields.filter(field => !allowedFields.includes(field));
-      
+
+      const invalidFields = attemptedFields.filter(
+        (field) => !allowedFields.includes(field),
+      );
+
       if (invalidFields.length > 0) {
         throw new BadRequestException(
-          `Phiếu đã duyệt chỉ được phép sửa "Số lượng thuế". Không được sửa: ${invalidFields.join(', ')}`
+          `Phiếu đã duyệt chỉ được phép sửa "Số lượng thuế" và "Đơn giá VAT". Không được sửa: ${invalidFields.join(', ')}`,
         );
       }
 
-      this.logger.log(`Cập nhật SL Thuế cho item #${id} của phiếu đã duyệt ${receipt.code}`);
+      this.logger.log(
+        `Cập nhật dữ liệu thuế cho item #${id} của phiếu đã duyệt ${receipt.code}`,
+      );
     }
 
     // Thực hiện update
     await this.inventoryReceiptItemRepository.update(id, updateData);
-    
+
     // Lấy item sau khi update để có product_id chính xác
-    const updatedItem = await this.inventoryReceiptItemRepository.findOne({ where: { id } });
-    
+    const updatedItem = await this.inventoryReceiptItemRepository.findOne({
+      where: { id },
+    });
+
     if (updatedItem) {
       // 1. Đồng bộ tồn kho thuế (như cũ)
       if (updateData.taxable_quantity !== undefined) {
         await this.syncTaxableDataForProduct(updatedItem.product_id);
       }
-      
+
+      if (
+        updateData.taxable_quantity !== undefined ||
+        updateData.vat_unit_cost !== undefined
+      ) {
+        await this.recalculateAverageVatInputCost(updatedItem.product_id);
+      }
+
       // 2. TỰ ĐỘNG CẬP NHẬT LẠI GIÁ VỐN TRUNG BÌNH (WAC)
       // Logic này cực kỳ quan trọng để sửa lỗi "kẹt" giá vốn cũ hoặc nhầm sản phẩm
       try {
-        const wacResult = await this.recalculateWeightedAverageCost(updatedItem.product_id);
-        
+        const wacResult = await this.recalculateWeightedAverageCost(
+          updatedItem.product_id,
+        );
+
         // Cập nhật con số thực tế vào bảng Product
         await this.productService.update(updatedItem.product_id, {
-          average_cost_price: wacResult.newAverageCost.toFixed(2)
+          average_cost_price: wacResult.newAverageCost.toFixed(2),
         });
-        
-        this.logger.log(`✅ Đã tính lại giá vốn cho SP #${updatedItem.product_id}: ${wacResult.newAverageCost}`);
+
+        this.logger.log(
+          `✅ Đã tính lại giá vốn cho SP #${updatedItem.product_id}: ${wacResult.newAverageCost}`,
+        );
       } catch (error) {
-        this.logger.error(`Lỗi khi tính lại giá vốn cho SP #${updatedItem.product_id}:`, error);
+        this.logger.error(
+          `Lỗi khi tính lại giá vốn cho SP #${updatedItem.product_id}:`,
+          error,
+        );
       }
     }
 
-    return this.inventoryReceiptItemRepository.findOne({ 
+    return this.inventoryReceiptItemRepository.findOne({
       where: { id },
-      relations: ['product', 'receipt']
+      relations: ['product', 'receipt'],
     });
   }
 
@@ -2177,13 +2449,19 @@ export class InventoryService {
   async getProductPurchasePrices(productId: number): Promise<{
     latestPurchasePrice: number | null;
     averageCostPrice: number;
+    averageVatInputCost: number;
   }> {
     const latestPurchasePrice = await this.getLatestPurchasePrice(productId);
     const product = await this.productService.findOne(productId);
 
     return {
       latestPurchasePrice,
-      averageCostPrice: product ? parseFloat(product.average_cost_price ?? '0') : 0,
+      averageCostPrice: product
+        ? parseFloat(product.average_cost_price ?? '0')
+        : 0,
+      averageVatInputCost: product
+        ? parseFloat(product.average_vat_input_cost ?? '0')
+        : 0,
     };
   }
 
@@ -2204,6 +2482,59 @@ export class InventoryService {
     return latestReceiptItem ? latestReceiptItem.unit_cost : null;
   }
 
+  private async recalculateAverageVatInputCost(
+    productId: number,
+    queryRunner?: QueryRunner,
+  ): Promise<number> {
+    const repo = queryRunner
+      ? queryRunner.manager.getRepository(InventoryReceiptItem)
+      : this.inventoryReceiptItemRepository;
+
+    const receiptItems = await repo
+      .createQueryBuilder('item')
+      .innerJoinAndSelect('item.receipt', 'receipt')
+      .where('item.product_id = :productId', { productId })
+      .andWhere('receipt.status = :status', { status: ReceiptStatus.APPROVED })
+      .andWhere('receipt.deleted_at IS NULL')
+      .andWhere('item.deleted_at IS NULL')
+      .getMany();
+
+    let totalTaxableValue = 0;
+    let totalTaxableBaseQty = 0;
+
+    for (const item of receiptItems) {
+      const taxableQty = Number(item.taxable_quantity || 0);
+      if (taxableQty <= 0) {
+        continue;
+      }
+
+      const factor = Number(item.conversion_factor || 1);
+      const taxableBaseQty = taxableQty * factor;
+      const vatUnitCost = Number(item.vat_unit_cost ?? item.unit_cost ?? 0);
+
+      totalTaxableBaseQty += taxableBaseQty;
+      totalTaxableValue += taxableQty * vatUnitCost;
+    }
+
+    const avgVatInputCost =
+      totalTaxableBaseQty > 0 ? totalTaxableValue / totalTaxableBaseQty : 0;
+
+    const updateData: any = {
+      average_vat_input_cost: avgVatInputCost.toFixed(2),
+    };
+
+    if (totalTaxableBaseQty > 0) {
+      updateData.has_input_invoice = true;
+    }
+
+    if (queryRunner) {
+      await queryRunner.manager.update(Product, productId, updateData);
+    } else {
+      await this.productService.update(productId, updateData);
+    }
+
+    return avgVatInputCost;
+  }
 
   // ===== RETURN FEATURE METHODS =====
 
@@ -2212,52 +2543,68 @@ export class InventoryService {
    * @param createInventoryReturnDto - Dữ liệu tạo phiếu xuất trả hàng mới
    * @returns Thông tin phiếu xuất trả hàng đã tạo
    */
-  async createReturn(createInventoryReturnDto: CreateInventoryReturnDto, userId: number) {
-    this.logger.log(`Bắt đầu tạo phiếu trả hàng: ${createInventoryReturnDto.return_code}`);
-    
+  async createReturn(
+    createInventoryReturnDto: CreateInventoryReturnDto,
+    userId: number,
+  ) {
+    this.logger.log(
+      `Bắt đầu tạo phiếu trả hàng: ${createInventoryReturnDto.return_code}`,
+    );
+
     // Validate: Nếu trả hàng từ phiếu nhập, kiểm tra số lượng trả không vượt quá số lượng nhập
     if (createInventoryReturnDto.receipt_id) {
-       const receiptItems = await this.getReceiptItems(createInventoryReturnDto.receipt_id);
-       
-       // Lấy các phiếu trả hàng CŨ của phiếu nhập này (nếu có) để tính tổng đã trả
-       const existingReturns = await this.inventoryReturnRepository.find({
-          where: { receipt_id: createInventoryReturnDto.receipt_id },
-          relations: ['items']
-       });
-       
-       // Map tổng số lượng đã trả theo sản phẩm
-       const returnedQuantityMap = new Map<number, number>();
-       for (const ret of existingReturns) {
-          // Bỏ qua nếu phiếu đã bị hủy
-          if (ret.status === 'cancelled') continue;
-          
-          for (const item of ret.items) {
-             const currentQty = returnedQuantityMap.get(item.product_id) || 0;
-             returnedQuantityMap.set(item.product_id, currentQty + Number(item.quantity));
-          }
-       }
-       
-       // Kiểm tra từng item trong phiếu trả mới
-       for (const newItem of createInventoryReturnDto.items) {
-          const receiptItem = receiptItems.find(ri => ri.product_id === newItem.product_id);
-          
-          if (!receiptItem) {
-             throw new BadRequestException(`Sản phẩm ID ${newItem.product_id} không có trong phiếu nhập gốc.`);
-          }
-          
-          const alreadyReturned = returnedQuantityMap.get(newItem.product_id) || 0;
-          const totalAfterReturn = alreadyReturned + newItem.quantity;
-          
-          if (totalAfterReturn > receiptItem.quantity) {
-             throw new BadRequestException(
-                `Sản phẩm ID ${newItem.product_id}: Tổng số lượng trả (${totalAfterReturn}) vượt quá số lượng nhập (${receiptItem.quantity}). Đã trả trước đó: ${alreadyReturned}.`
-             );
-          }
-       }
+      const receiptItems = await this.getReceiptItems(
+        createInventoryReturnDto.receipt_id,
+      );
+
+      // Lấy các phiếu trả hàng CŨ của phiếu nhập này (nếu có) để tính tổng đã trả
+      const existingReturns = await this.inventoryReturnRepository.find({
+        where: { receipt_id: createInventoryReturnDto.receipt_id },
+        relations: ['items'],
+      });
+
+      // Map tổng số lượng đã trả theo sản phẩm
+      const returnedQuantityMap = new Map<number, number>();
+      for (const ret of existingReturns) {
+        // Bỏ qua nếu phiếu đã bị hủy
+        if (ret.status === 'cancelled') continue;
+
+        for (const item of ret.items) {
+          const currentQty = returnedQuantityMap.get(item.product_id) || 0;
+          returnedQuantityMap.set(
+            item.product_id,
+            currentQty + Number(item.quantity),
+          );
+        }
+      }
+
+      // Kiểm tra từng item trong phiếu trả mới
+      for (const newItem of createInventoryReturnDto.items) {
+        const receiptItem = receiptItems.find(
+          (ri) => ri.product_id === newItem.product_id,
+        );
+
+        if (!receiptItem) {
+          throw new BadRequestException(
+            `Sản phẩm ID ${newItem.product_id} không có trong phiếu nhập gốc.`,
+          );
+        }
+
+        const alreadyReturned =
+          returnedQuantityMap.get(newItem.product_id) || 0;
+        const totalAfterReturn = alreadyReturned + newItem.quantity;
+
+        if (totalAfterReturn > receiptItem.quantity) {
+          throw new BadRequestException(
+            `Sản phẩm ID ${newItem.product_id}: Tổng số lượng trả (${totalAfterReturn}) vượt quá số lượng nhập (${receiptItem.quantity}). Đã trả trước đó: ${alreadyReturned}.`,
+          );
+        }
+      }
     }
-    
+
     // Sử dụng transaction để đảm bảo dữ liệu được lưu đồng bộ
-    const queryRunner = this.inventoryReturnRepository.manager.connection.createQueryRunner();
+    const queryRunner =
+      this.inventoryReturnRepository.manager.connection.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
@@ -2286,11 +2633,16 @@ export class InventoryService {
       }
 
       // Thêm images nếu có
-      if (createInventoryReturnDto.images && createInventoryReturnDto.images.length > 0) {
+      if (
+        createInventoryReturnDto.images &&
+        createInventoryReturnDto.images.length > 0
+      ) {
         returnData.images = createInventoryReturnDto.images;
       }
 
-      this.logger.log(`Đang lưu phiếu trả hàng với dữ liệu: ${JSON.stringify(returnData)}`);
+      this.logger.log(
+        `Đang lưu phiếu trả hàng với dữ liệu: ${JSON.stringify(returnData)}`,
+      );
       const returnDoc = queryRunner.manager.create(InventoryReturn, returnData);
       const savedReturn = await queryRunner.manager.save(returnDoc);
 
@@ -2321,7 +2673,10 @@ export class InventoryService {
         }
 
         this.logger.log(`Đang lưu item: ${JSON.stringify(itemData)}`);
-        const itemEntity = queryRunner.manager.create(InventoryReturnItem, itemData);
+        const itemEntity = queryRunner.manager.create(
+          InventoryReturnItem,
+          itemData,
+        );
         const savedItem = await queryRunner.manager.save(itemEntity);
         savedItems.push(savedItem);
         this.logger.log(`Đã lưu item với ID: ${savedItem.id}`);
@@ -2334,33 +2689,52 @@ export class InventoryService {
         const receipt = await queryRunner.manager.findOne(InventoryReceipt, {
           where: { id: createInventoryReturnDto.receipt_id },
         });
-        
+
         if (receipt) {
-          const newReturnedAmount = Number(receipt.returned_amount || 0) + Number(createInventoryReturnDto.total_amount);
+          const newReturnedAmount =
+            Number(receipt.returned_amount || 0) +
+            Number(createInventoryReturnDto.total_amount);
           const totalAmount = Number(receipt.total_amount);
           const adjustedAmount = Number(receipt.adjusted_amount || 0);
-          const newFinalAmount = totalAmount + adjustedAmount - newReturnedAmount;
-          
+          const newFinalAmount =
+            totalAmount + adjustedAmount - newReturnedAmount;
+
           // Cập nhật supplier_amount (giảm trừ theo giá trị hàng trả)
-          const currentSupplierAmount = Number(receipt.supplier_amount) || Number(receipt.final_amount) || totalAmount;
-          const newSupplierAmount = currentSupplierAmount - Number(createInventoryReturnDto.total_amount);
-          
+          const currentSupplierAmount =
+            Number(receipt.supplier_amount) ||
+            Number(receipt.final_amount) ||
+            totalAmount;
+          const newSupplierAmount =
+            currentSupplierAmount -
+            Number(createInventoryReturnDto.total_amount);
+
           const paidAmount = Number(receipt.paid_amount || 0);
-          const newDebtAmount = Math.max(0, Math.round(newSupplierAmount - paidAmount));
-          
-          await queryRunner.manager.update(InventoryReceipt, createInventoryReturnDto.receipt_id, {
-            returned_amount: newReturnedAmount,
-            final_amount: newFinalAmount,
-            supplier_amount: newSupplierAmount,
-            debt_amount: newDebtAmount,
-            has_returns: true,
-          });
-          
-          this.logger.log(`Đã cập nhật phiếu nhập #${createInventoryReturnDto.receipt_id}: returned_amount=${newReturnedAmount}, final_amount=${newFinalAmount}, debt_amount=${newDebtAmount}`);
+          const newDebtAmount = Math.max(
+            0,
+            Math.round(newSupplierAmount - paidAmount),
+          );
+
+          await queryRunner.manager.update(
+            InventoryReceipt,
+            createInventoryReturnDto.receipt_id,
+            {
+              returned_amount: newReturnedAmount,
+              final_amount: newFinalAmount,
+              supplier_amount: newSupplierAmount,
+              debt_amount: newDebtAmount,
+              has_returns: true,
+            },
+          );
+
+          this.logger.log(
+            `Đã cập nhật phiếu nhập #${createInventoryReturnDto.receipt_id}: returned_amount=${newReturnedAmount}, final_amount=${newFinalAmount}, debt_amount=${newDebtAmount}`,
+          );
         }
       }
       await queryRunner.commitTransaction();
-      this.logger.log(`Đã commit transaction cho phiếu trả hàng ${returnEntity.id}`);
+      this.logger.log(
+        `Đã commit transaction cho phiếu trả hàng ${returnEntity.id}`,
+      );
 
       // Trả về kết quả với relations
       const result = await this.inventoryReturnRepository.findOne({
@@ -2373,9 +2747,13 @@ export class InventoryService {
     } catch (error) {
       // Rollback transaction nếu có lỗi
       await queryRunner.rollbackTransaction();
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       const errorStack = error instanceof Error ? error.stack : '';
-      this.logger.error(`Lỗi khi tạo phiếu trả hàng: ${errorMessage}`, errorStack);
+      this.logger.error(
+        `Lỗi khi tạo phiếu trả hàng: ${errorMessage}`,
+        errorStack,
+      );
       throw new Error(`Không thể tạo phiếu trả hàng: ${errorMessage}`);
     } finally {
       // Release query runner
@@ -2389,7 +2767,11 @@ export class InventoryService {
    * @param updateDto - Dữ liệu cập nhật
    * @param userId - ID người thực hiện
    */
-  async updateReturn(id: number, updateDto: Partial<CreateInventoryReturnDto>, userId: number) {
+  async updateReturn(
+    id: number,
+    updateDto: Partial<CreateInventoryReturnDto>,
+    userId: number,
+  ) {
     const returnDoc = await this.findReturnById(id);
     if (!returnDoc) {
       throw new NotFoundException('Không tìm thấy phiếu trả hàng');
@@ -2399,7 +2781,8 @@ export class InventoryService {
       throw new BadRequestException('Chỉ có thể sửa phiếu ở trạng thái nháp');
     }
 
-    const queryRunner = this.inventoryReturnRepository.manager.connection.createQueryRunner();
+    const queryRunner =
+      this.inventoryReturnRepository.manager.connection.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
@@ -2411,19 +2794,22 @@ export class InventoryService {
       if (updateDto.return_code) updateData.code = updateDto.return_code;
       if (updateDto.supplier_id) updateData.supplier_id = updateDto.supplier_id;
       if (updateDto.receipt_id) updateData.receipt_id = updateDto.receipt_id;
-      if (updateDto.total_amount !== undefined) updateData.total_amount = updateDto.total_amount;
+      if (updateDto.total_amount !== undefined)
+        updateData.total_amount = updateDto.total_amount;
       if (updateDto.reason) updateData.reason = updateDto.reason;
       if (updateDto.status) updateData.status = updateDto.status;
-    if (updateDto.notes !== undefined) updateData.notes = updateDto.notes;
-    if (updateDto.images !== undefined) updateData.images = updateDto.images;
+      if (updateDto.notes !== undefined) updateData.notes = updateDto.notes;
+      if (updateDto.images !== undefined) updateData.images = updateDto.images;
 
-    await queryRunner.manager.update(InventoryReturn, id, updateData);
+      await queryRunner.manager.update(InventoryReturn, id, updateData);
 
       // Cập nhật danh sách items nếu có
       if (updateDto.items) {
         // Xóa items cũ
-        await queryRunner.manager.delete(InventoryReturnItem, { return_id: id });
-        
+        await queryRunner.manager.delete(InventoryReturnItem, {
+          return_id: id,
+        });
+
         // Thêm items mới
         for (const item of updateDto.items) {
           const itemData: any = {
@@ -2436,7 +2822,10 @@ export class InventoryService {
           if (item.reason) itemData.reason = item.reason;
           if (item.notes) itemData.notes = item.notes;
 
-          const itemDoc = queryRunner.manager.create(InventoryReturnItem, itemData);
+          const itemDoc = queryRunner.manager.create(
+            InventoryReturnItem,
+            itemData,
+          );
           await queryRunner.manager.save(itemDoc);
         }
       }
@@ -2451,15 +2840,18 @@ export class InventoryService {
     }
   }
 
-
-
   /**
    * Tìm phiếu xuất trả hàng theo ID
    * @param id - ID của phiếu xuất trả hàng cần tìm
    * @returns Thông tin phiếu xuất trả hàng
    */
-  async findReturnById(id: number, queryRunner?: QueryRunner): Promise<InventoryReturn | null> {
-    const repo = queryRunner ? queryRunner.manager.getRepository(InventoryReturn) : this.inventoryReturnRepository;
+  async findReturnById(
+    id: number,
+    queryRunner?: QueryRunner,
+  ): Promise<InventoryReturn | null> {
+    const repo = queryRunner
+      ? queryRunner.manager.getRepository(InventoryReturn)
+      : this.inventoryReturnRepository;
     const returnDoc = await repo.findOne({
       where: { id },
       relations: ['items', 'items.product', 'supplier'],
@@ -2468,7 +2860,6 @@ export class InventoryService {
     if (!returnDoc) {
       return null;
     }
-
 
     return returnDoc;
   }
@@ -2494,7 +2885,7 @@ export class InventoryService {
       queryBuilder,
       searchDto,
       'return',
-      ['code', 'supplier.name', 'notes'] // Global search
+      ['code', 'supplier.name', 'notes'], // Global search
     );
 
     // 2. Simple Filters
@@ -2505,7 +2896,7 @@ export class InventoryService {
       ['filters', 'nested_filters', 'operator'],
       {
         supplier_name: 'supplier.name',
-      }
+      },
     );
 
     const [data, total] = await queryBuilder.getManyAndCount();
@@ -2524,8 +2915,12 @@ export class InventoryService {
    * @param userId - ID người duyệt
    * @returns Kết quả duyệt phiếu xuất trả hàng
    */
-  async approveReturn(id: number, userId: number): Promise<InventoryReturn | null> {
-    const queryRunner = this.inventoryReturnRepository.manager.connection.createQueryRunner();
+  async approveReturn(
+    id: number,
+    userId: number,
+  ): Promise<InventoryReturn | null> {
+    const queryRunner =
+      this.inventoryReturnRepository.manager.connection.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
@@ -2550,7 +2945,7 @@ export class InventoryService {
 
       // Lấy danh sách chi tiết phiếu xuất trả thông qua queryRunner
       const items = await queryRunner.manager.find(InventoryReturnItem, {
-        where: { return_id: id }
+        where: { return_id: id },
       });
 
       // Xử lý xuất kho cho từng sản phẩm
@@ -2569,7 +2964,7 @@ export class InventoryService {
       returnDoc.status = ReturnStatus.APPROVED;
       returnDoc.approved_at = new Date();
       returnDoc.approved_by = userId;
-      
+
       const savedReturn = await queryRunner.manager.save(returnDoc);
       await queryRunner.commitTransaction();
       return savedReturn;
@@ -2582,8 +2977,6 @@ export class InventoryService {
     }
   }
 
-
-
   /**
    * Hủy phiếu xuất trả hàng
    * @param id - ID của phiếu xuất trả hàng cần hủy
@@ -2595,7 +2988,8 @@ export class InventoryService {
     reason: string,
     userId: number,
   ): Promise<InventoryReturn | null> {
-    const queryRunner = this.inventoryReturnRepository.manager.connection.createQueryRunner();
+    const queryRunner =
+      this.inventoryReturnRepository.manager.connection.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
@@ -2611,10 +3005,12 @@ export class InventoryService {
 
       // Nếu phiếu đã duyệt, cần hoàn tồn kho (nhập lại hàng đã trả)
       if (returnDoc.status === ReturnStatus.APPROVED) {
-        this.logger.log(`Phiếu trả hàng ${id} đã duyệt, đang hoàn tồn kho trước khi hủy...`);
-        
+        this.logger.log(
+          `Phiếu trả hàng ${id} đã duyệt, đang hoàn tồn kho trước khi hủy...`,
+        );
+
         const items = await queryRunner.manager.find(InventoryReturnItem, {
-          where: { return_id: id }
+          where: { return_id: id },
         });
 
         for (const item of items) {
@@ -2627,7 +3023,7 @@ export class InventoryService {
             undefined,
             `Hủy phiếu trả hàng - ${returnDoc.code}`,
             undefined,
-            queryRunner
+            queryRunner,
           );
         }
       }
@@ -2635,7 +3031,7 @@ export class InventoryService {
       returnDoc.status = ReturnStatus.CANCELLED;
       returnDoc.cancelled_at = new Date();
       returnDoc.cancelled_reason = reason;
-      
+
       const savedReturn = await queryRunner.manager.save(returnDoc);
       await queryRunner.commitTransaction();
       return savedReturn;
@@ -2659,10 +3055,11 @@ export class InventoryService {
     }
 
     // Chỉ cho phép xóa phiếu ở trạng thái nháp hoặc đã hủy
-    if (returnDoc.status !== ReturnStatus.DRAFT && returnDoc.status !== ReturnStatus.CANCELLED) {
-      throw new Error(
-        'Không thể xóa phiếu xuất trả hàng đã được duyệt.',
-      );
+    if (
+      returnDoc.status !== ReturnStatus.DRAFT &&
+      returnDoc.status !== ReturnStatus.CANCELLED
+    ) {
+      throw new Error('Không thể xóa phiếu xuất trả hàng đã được duyệt.');
     }
 
     // Xóa các item trong phiếu trước
@@ -2671,7 +3068,6 @@ export class InventoryService {
     // Sau đó xóa phiếu
     await this.inventoryReturnRepository.delete(id);
   }
-
 
   // ===== ADJUSTMENT FEATURE METHODS =====
 
@@ -2684,9 +3080,12 @@ export class InventoryService {
     createInventoryAdjustmentDto: CreateInventoryAdjustmentDto,
     userId: number,
   ) {
-    this.logger.log(`Bắt đầu tạo phiếu điều chỉnh: ${createInventoryAdjustmentDto.adjustment_code || 'auto-generate'}`);
-    
-    const queryRunner = this.inventoryAdjustmentRepository.manager.connection.createQueryRunner();
+    this.logger.log(
+      `Bắt đầu tạo phiếu điều chỉnh: ${createInventoryAdjustmentDto.adjustment_code || 'auto-generate'}`,
+    );
+
+    const queryRunner =
+      this.inventoryAdjustmentRepository.manager.connection.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
@@ -2712,11 +3111,17 @@ export class InventoryService {
       }
 
       // Thêm images nếu có
-      if (createInventoryAdjustmentDto.images && createInventoryAdjustmentDto.images.length > 0) {
+      if (
+        createInventoryAdjustmentDto.images &&
+        createInventoryAdjustmentDto.images.length > 0
+      ) {
         adjustmentData.images = createInventoryAdjustmentDto.images;
       }
 
-      const adjustment = queryRunner.manager.create(InventoryAdjustment, adjustmentData);
+      const adjustment = queryRunner.manager.create(
+        InventoryAdjustment,
+        adjustmentData,
+      );
       const savedAdjustment = await queryRunner.manager.save(adjustment);
 
       const adjustmentEntity = Array.isArray(savedAdjustment)
@@ -2726,7 +3131,7 @@ export class InventoryService {
       if (!adjustmentEntity || !adjustmentEntity.id) {
         throw new Error('Failed to save adjustment');
       }
-      
+
       this.logger.log(`Đã lưu phiếu điều chỉnh với ID: ${adjustmentEntity.id}`);
 
       // Tạo các item trong phiếu
@@ -2742,20 +3147,28 @@ export class InventoryService {
           itemData.notes = item.notes;
         }
 
-        const itemEntity = queryRunner.manager.create(InventoryAdjustmentItem, itemData);
+        const itemEntity = queryRunner.manager.create(
+          InventoryAdjustmentItem,
+          itemData,
+        );
         await queryRunner.manager.save(itemEntity);
       }
-      
+
       // Nếu tạo phiếu với trạng thái 'approved', tự động cập nhật tồn kho (TRONG transaction)
       if (createInventoryAdjustmentDto.status === AdjustmentStatus.APPROVED) {
-        this.logger.log(`Phiếu ${adjustmentEntity.id} được tạo với trạng thái approved, đang cập nhật tồn kho...`);
-        
+        this.logger.log(
+          `Phiếu ${adjustmentEntity.id} được tạo với trạng thái approved, đang cập nhật tồn kho...`,
+        );
+
         for (const item of createInventoryAdjustmentDto.items) {
           const quantityChange = item.quantity_change;
-          
+
           if (quantityChange > 0) {
             // Tăng tồn kho
-            const currentAverageCost = await this.getWeightedAverageCost(item.product_id, queryRunner);
+            const currentAverageCost = await this.getWeightedAverageCost(
+              item.product_id,
+              queryRunner,
+            );
             await this.processStockIn(
               item.product_id,
               quantityChange,
@@ -2764,7 +3177,7 @@ export class InventoryService {
               undefined,
               `Điều chỉnh tăng kho - Phiếu ${adjustmentData.code}`,
               undefined,
-              queryRunner
+              queryRunner,
             );
           } else if (quantityChange < 0) {
             // Giảm tồn kho
@@ -2775,11 +3188,11 @@ export class InventoryService {
               userId,
               adjustmentEntity.id,
               `Điều chỉnh giảm kho - Phiếu ${adjustmentData.code}`,
-              queryRunner
+              queryRunner,
             );
           }
         }
-        
+
         // Cập nhật approved_at
         adjustmentEntity.approved_at = new Date();
         adjustmentEntity.approved_by = userId;
@@ -2787,16 +3200,22 @@ export class InventoryService {
       }
 
       await queryRunner.commitTransaction();
-      this.logger.log(`Đã commit transaction cho phiếu điều chỉnh ${adjustmentEntity.id}`);
+      this.logger.log(
+        `Đã commit transaction cho phiếu điều chỉnh ${adjustmentEntity.id}`,
+      );
 
       return queryRunner.manager.findOne(InventoryAdjustment, {
         where: { id: adjustmentEntity.id },
       });
     } catch (error) {
       await queryRunner.rollbackTransaction();
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       const errorStack = error instanceof Error ? error.stack : '';
-      this.logger.error(`Lỗi khi tạo phiếu điều chỉnh: ${errorMessage}`, errorStack);
+      this.logger.error(
+        `Lỗi khi tạo phiếu điều chỉnh: ${errorMessage}`,
+        errorStack,
+      );
       throw new Error(`Không thể tạo phiếu điều chỉnh: ${errorMessage}`);
     } finally {
       await queryRunner.release();
@@ -2819,7 +3238,8 @@ export class InventoryService {
       throw new BadRequestException('Chỉ có thể sửa phiếu ở trạng thái nháp');
     }
 
-    const queryRunner = this.inventoryAdjustmentRepository.manager.connection.createQueryRunner();
+    const queryRunner =
+      this.inventoryAdjustmentRepository.manager.connection.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
@@ -2828,12 +3248,14 @@ export class InventoryService {
       const updateData: any = {
         updated_by: userId,
       };
-      if (updateDto.adjustment_code) updateData.code = updateDto.adjustment_code;
-      if (updateDto.adjustment_type) updateData.adjustment_type = updateDto.adjustment_type;
+      if (updateDto.adjustment_code)
+        updateData.code = updateDto.adjustment_code;
+      if (updateDto.adjustment_type)
+        updateData.adjustment_type = updateDto.adjustment_type;
       if (updateDto.reason) updateData.reason = updateDto.reason;
       if (updateDto.notes !== undefined) updateData.notes = updateDto.notes;
       if (updateDto.status) updateData.status = updateDto.status;
-      
+
       // Debug log
       this.logger.log(`📸 Update images: ${JSON.stringify(updateDto.images)}`);
       if (updateDto.images !== undefined) updateData.images = updateDto.images; // Cập nhật images
@@ -2843,8 +3265,10 @@ export class InventoryService {
       // Cập nhật danh sách items nếu có
       if (updateDto.items) {
         // Xóa items cũ
-        await queryRunner.manager.delete(InventoryAdjustmentItem, { adjustment_id: id });
-        
+        await queryRunner.manager.delete(InventoryAdjustmentItem, {
+          adjustment_id: id,
+        });
+
         // Thêm items mới
         for (const item of updateDto.items) {
           const itemData: any = {
@@ -2855,7 +3279,10 @@ export class InventoryService {
           };
           if (item.notes !== undefined) itemData.notes = item.notes;
 
-          const itemDoc = queryRunner.manager.create(InventoryAdjustmentItem, itemData);
+          const itemDoc = queryRunner.manager.create(
+            InventoryAdjustmentItem,
+            itemData,
+          );
           await queryRunner.manager.save(itemDoc);
         }
       }
@@ -2875,8 +3302,13 @@ export class InventoryService {
    * @param id - ID của phiếu điều chỉnh kho cần tìm
    * @returns Thông tin phiếu điều chỉnh kho
    */
-  async findAdjustmentById(id: number, queryRunner?: QueryRunner): Promise<any> {
-    const repo = queryRunner ? queryRunner.manager.getRepository(InventoryAdjustment) : this.inventoryAdjustmentRepository;
+  async findAdjustmentById(
+    id: number,
+    queryRunner?: QueryRunner,
+  ): Promise<any> {
+    const repo = queryRunner
+      ? queryRunner.manager.getRepository(InventoryAdjustment)
+      : this.inventoryAdjustmentRepository;
     const adjustment = await repo.findOne({
       where: { id },
       relations: ['items', 'items.product'], // Populate cả thông tin sản phẩm
@@ -2905,38 +3337,38 @@ export class InventoryService {
       queryBuilder,
       searchDto,
       'adjustment',
-      ['code', 'reason', 'notes'] // Global search
+      ['code', 'reason', 'notes'], // Global search
     );
 
     // 2. Simple Filters
-    QueryHelper.applyFilters(
-      queryBuilder,
-      searchDto,
-      'adjustment',
-      ['filters', 'nested_filters', 'operator']
-    );
+    QueryHelper.applyFilters(queryBuilder, searchDto, 'adjustment', [
+      'filters',
+      'nested_filters',
+      'operator',
+    ]);
 
     const [adjustments, total] = await queryBuilder.getManyAndCount();
 
     // 3. Populate images cho từng adjustment
     const dataWithImages = await Promise.all(
       adjustments.map(async (adjustment) => {
-        const fileReferences = await this.fileTrackingService.findFileReferencesByEntity(
-          'inventory_adjustment',
-          adjustment.id,
-        );
-        
-        const images = fileReferences.map(ref => ({
+        const fileReferences =
+          await this.fileTrackingService.findFileReferencesByEntity(
+            'inventory_adjustment',
+            adjustment.id,
+          );
+
+        const images = fileReferences.map((ref) => ({
           id: ref.fileUpload.id,
           url: ref.fileUpload.url,
           name: ref.fileUpload.name,
           type: ref.fileUpload.mime_type,
           size: ref.fileUpload.size,
-          created_at: ref.created_at
+          created_at: ref.created_at,
         }));
 
         return { ...adjustment, images };
-      })
+      }),
     );
 
     return {
@@ -2953,15 +3385,22 @@ export class InventoryService {
    * @param userId - ID người duyệt
    * @returns Kết quả duyệt phiếu điều chỉnh kho
    */
-  async approveAdjustment(id: number, userId: number): Promise<InventoryAdjustment | null> {
-    const queryRunner = this.inventoryAdjustmentRepository.manager.connection.createQueryRunner();
+  async approveAdjustment(
+    id: number,
+    userId: number,
+  ): Promise<InventoryAdjustment | null> {
+    const queryRunner =
+      this.inventoryAdjustmentRepository.manager.connection.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      const adjustment = await queryRunner.manager.findOne(InventoryAdjustment, {
-        where: { id },
-      });
+      const adjustment = await queryRunner.manager.findOne(
+        InventoryAdjustment,
+        {
+          where: { id },
+        },
+      );
 
       if (!adjustment) {
         await queryRunner.release();
@@ -2979,7 +3418,7 @@ export class InventoryService {
 
       // Lấy danh sách chi tiết phiếu điều chỉnh qua queryRunner
       const items = await queryRunner.manager.find(InventoryAdjustmentItem, {
-        where: { adjustment_id: id }
+        where: { adjustment_id: id },
       });
 
       // Xử lý điều chỉnh kho cho từng sản phẩm
@@ -2999,7 +3438,7 @@ export class InventoryService {
             undefined,
             `Điều chỉnh tăng kho - Phiếu ${adjustment.code}`,
             undefined,
-            queryRunner
+            queryRunner,
           );
         } else if (quantityChange < 0) {
           // Giảm tồn kho
@@ -3010,7 +3449,7 @@ export class InventoryService {
             userId,
             id,
             `Điều chỉnh giảm kho - Phiếu ${adjustment.code}`,
-            queryRunner
+            queryRunner,
           );
         }
       }
@@ -3018,7 +3457,7 @@ export class InventoryService {
       adjustment.status = AdjustmentStatus.APPROVED;
       adjustment.approved_at = new Date();
       adjustment.approved_by = userId;
-      
+
       const savedAdjustment = await queryRunner.manager.save(adjustment);
       await queryRunner.commitTransaction();
       return savedAdjustment;
@@ -3030,8 +3469,6 @@ export class InventoryService {
       await queryRunner.release();
     }
   }
-
-
 
   /**
    * Hủy phiếu điều chỉnh kho
@@ -3045,14 +3482,18 @@ export class InventoryService {
     reason: string,
     userId: number,
   ): Promise<InventoryAdjustment | null> {
-    const queryRunner = this.inventoryAdjustmentRepository.manager.connection.createQueryRunner();
+    const queryRunner =
+      this.inventoryAdjustmentRepository.manager.connection.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      const adjustment = await queryRunner.manager.findOne(InventoryAdjustment, {
-        where: { id },
-      });
+      const adjustment = await queryRunner.manager.findOne(
+        InventoryAdjustment,
+        {
+          where: { id },
+        },
+      );
 
       if (!adjustment) {
         await queryRunner.release();
@@ -3061,15 +3502,17 @@ export class InventoryService {
 
       // Nếu phiếu đã duyệt, cần hoàn tồn kho (reverse lại thao tác)
       if (adjustment.status === AdjustmentStatus.APPROVED) {
-        this.logger.log(`Phiếu ${id} đã duyệt, đang hoàn tồn kho trước khi hủy...`);
-        
+        this.logger.log(
+          `Phiếu ${id} đã duyệt, đang hoàn tồn kho trước khi hủy...`,
+        );
+
         const items = await queryRunner.manager.find(InventoryAdjustmentItem, {
-          where: { adjustment_id: id }
+          where: { adjustment_id: id },
         });
 
         for (const item of items) {
           const quantityChange = item.quantity_change;
-          
+
           if (quantityChange > 0) {
             // Phiếu tăng kho → Hủy = Giảm kho
             await this.processStockOut(
@@ -3079,11 +3522,13 @@ export class InventoryService {
               userId,
               id,
               `Hủy phiếu điều chỉnh tăng kho - ${adjustment.code}`,
-              queryRunner
+              queryRunner,
             );
           } else if (quantityChange < 0) {
             // Phiếu giảm kho → Hủy = Tăng kho
-            const currentAverageCost = await this.getWeightedAverageCost(item.product_id);
+            const currentAverageCost = await this.getWeightedAverageCost(
+              item.product_id,
+            );
             await this.processStockIn(
               item.product_id,
               Math.abs(quantityChange),
@@ -3092,7 +3537,7 @@ export class InventoryService {
               undefined,
               `Hủy phiếu điều chỉnh giảm kho - ${adjustment.code}`,
               undefined,
-              queryRunner
+              queryRunner,
             );
           }
         }
@@ -3101,7 +3546,7 @@ export class InventoryService {
       adjustment.status = AdjustmentStatus.CANCELLED;
       adjustment.cancelled_at = new Date();
       adjustment.cancelled_reason = reason;
-      
+
       const savedAdjustment = await queryRunner.manager.save(adjustment);
       await queryRunner.commitTransaction();
       return savedAdjustment;
@@ -3125,10 +3570,11 @@ export class InventoryService {
     }
 
     // Chỉ cho phép xóa phiếu ở trạng thái nháp hoặc đã hủy
-    if (adjustment.status !== AdjustmentStatus.DRAFT && adjustment.status !== AdjustmentStatus.CANCELLED) {
-      throw new Error(
-        'Không thể xóa phiếu điều chỉnh kho đã được duyệt.',
-      );
+    if (
+      adjustment.status !== AdjustmentStatus.DRAFT &&
+      adjustment.status !== AdjustmentStatus.CANCELLED
+    ) {
+      throw new Error('Không thể xóa phiếu điều chỉnh kho đã được duyệt.');
     }
 
     // Xóa các item trong phiếu trước
@@ -3152,7 +3598,7 @@ export class InventoryService {
     receiptId: number,
     paymentDto: any,
     userId: number,
-    queryRunner?: QueryRunner
+    queryRunner?: QueryRunner,
   ) {
     // Tìm phiếu nhập kho - dùng queryRunner.manager nếu có để tránh lỗi trong transaction
     const receipt = queryRunner
@@ -3164,40 +3610,43 @@ export class InventoryService {
         });
 
     if (!receipt) {
-    throw new NotFoundException('Không tìm thấy phiếu nhập kho');
-  }
-  
-  // Kiểm tra trạng thái phiếu - chỉ cho phép thanh toán phiếu đã duyệt
-  if (receipt.status !== 'approved') {
-    throw new BadRequestException(
-      'Chỉ có thể thanh toán cho phiếu đã duyệt'
-    );
-  }
-  
-  // Validation
-    if (receipt.is_payment_locked) {
-      throw new BadRequestException('Payment đã bị khóa, không thể thêm thanh toán');
+      throw new NotFoundException('Không tìm thấy phiếu nhập kho');
     }
-    
+
+    // Kiểm tra trạng thái phiếu - chỉ cho phép thanh toán phiếu đã duyệt
+    if (receipt.status !== 'approved') {
+      throw new BadRequestException('Chỉ có thể thanh toán cho phiếu đã duyệt');
+    }
+
+    // Validation
+    if (receipt.is_payment_locked) {
+      throw new BadRequestException(
+        'Payment đã bị khóa, không thể thêm thanh toán',
+      );
+    }
+
     if (receipt.has_returns || receipt.has_adjustments) {
       throw new BadRequestException(
-        'Phiếu đã có trả hàng hoặc điều chỉnh. Vui lòng xử lý qua phiếu liên quan.'
+        'Phiếu đã có trả hàng hoặc điều chỉnh. Vui lòng xử lý qua phiếu liên quan.',
       );
     }
-    
+
     const currentPaidAmount = Number(receipt.paid_amount) || 0;
-    const finalAmount = Number(receipt.final_amount) || Number(receipt.total_amount);
+    const finalAmount =
+      Number(receipt.final_amount) || Number(receipt.total_amount);
     const supplierAmount = Number(receipt.supplier_amount) || finalAmount;
     const newPaidAmount = currentPaidAmount + Number(paymentDto.amount);
-    
+
     if (newPaidAmount > finalAmount) {
       throw new BadRequestException(
-        `Số tiền thanh toán vượt quá số tiền còn nợ (${finalAmount - currentPaidAmount}đ)`
+        `Số tiền thanh toán vượt quá số tiền còn nợ (${finalAmount - currentPaidAmount}đ)`,
       );
     }
-    
+
     // Tạo record payment
-    const repo = queryRunner ? queryRunner.manager.getRepository(InventoryReceiptPayment) : this.receiptPaymentRepository;
+    const repo = queryRunner
+      ? queryRunner.manager.getRepository(InventoryReceiptPayment)
+      : this.receiptPaymentRepository;
     const paymentData: any = {
       receipt_id: receiptId,
       amount: paymentDto.amount,
@@ -3205,33 +3654,40 @@ export class InventoryService {
       payment_date: paymentDto.payment_date || new Date(),
       created_by: userId,
     };
-    
+
     if (paymentDto.notes) {
       paymentData.notes = paymentDto.notes;
     }
-    
+
     const payment = repo.create(paymentData);
-    
+
     const savedPayment = await repo.save(payment);
-    
+
     // Cập nhật phiếu nhập
-    const newDebtAmount = Math.max(0, Math.round(supplierAmount - newPaidAmount));
+    const newDebtAmount = Math.max(
+      0,
+      Math.round(supplierAmount - newPaidAmount),
+    );
     let newPaymentStatus = 'partial';
-    
+
     if (newDebtAmount === 0) {
       newPaymentStatus = 'paid';
     } else if (newPaidAmount === 0) {
       newPaymentStatus = 'unpaid';
     }
-    
-    const receiptRepo = queryRunner ? queryRunner.manager.getRepository(InventoryReceipt) : this.inventoryReceiptRepository;
+
+    const receiptRepo = queryRunner
+      ? queryRunner.manager.getRepository(InventoryReceipt)
+      : this.inventoryReceiptRepository;
     await receiptRepo.update(receiptId, {
       paid_amount: newPaidAmount,
       debt_amount: newDebtAmount,
       payment_status: newPaymentStatus,
     });
-    
-    this.logger.log(`Đã thêm thanh toán ${paymentDto.amount}đ cho phiếu nhập #${receiptId}`);
+
+    this.logger.log(
+      `Đã thêm thanh toán ${paymentDto.amount}đ cho phiếu nhập #${receiptId}`,
+    );
     return savedPayment;
   }
 
@@ -3278,44 +3734,50 @@ export class InventoryService {
     const payment = await this.receiptPaymentRepository.findOne({
       where: { id: paymentId, receipt_id: receiptId },
     });
-    
+
     if (!payment) {
       throw new NotFoundException('Không tìm thấy thanh toán');
     }
-    
+
     const receipt = await this.findReceiptById(receiptId);
-    
+
     if (!receipt) {
       throw new NotFoundException('Không tìm thấy phiếu nhập kho');
     }
-    
+
     if (receipt.is_payment_locked) {
       throw new BadRequestException('Payment đã bị khóa, không thể xóa');
     }
-    
+
     // Soft delete
     await this.receiptPaymentRepository.softDelete(paymentId);
-    
+
     // Cập nhật lại phiếu nhập
     const newPaidAmount = Number(receipt.paid_amount) - Number(payment.amount);
-    const finalAmount = Number(receipt.final_amount) || Number(receipt.total_amount);
+    const finalAmount =
+      Number(receipt.final_amount) || Number(receipt.total_amount);
     const supplierAmount = Number(receipt.supplier_amount) || finalAmount;
-    const newDebtAmount = Math.max(0, Math.round(supplierAmount - newPaidAmount));
-    
+    const newDebtAmount = Math.max(
+      0,
+      Math.round(supplierAmount - newPaidAmount),
+    );
+
     let newPaymentStatus = 'partial';
     if (newDebtAmount === finalAmount) {
       newPaymentStatus = 'unpaid';
     } else if (newDebtAmount === 0) {
       newPaymentStatus = 'paid';
     }
-    
+
     await this.inventoryReceiptRepository.update(receiptId, {
       paid_amount: newPaidAmount,
       debt_amount: newDebtAmount,
       payment_status: newPaymentStatus,
     });
-    
-    this.logger.log(`Đã xóa thanh toán #${paymentId} của phiếu nhập #${receiptId}`);
+
+    this.logger.log(
+      `Đã xóa thanh toán #${paymentId} của phiếu nhập #${receiptId}`,
+    );
   }
 
   /**
@@ -3328,24 +3790,24 @@ export class InventoryService {
   async addRefund(
     returnId: number,
     refundDto: CreateRefundDto,
-    userId: number
+    userId: number,
   ) {
     const returnDoc = await this.findReturnById(returnId);
-    
+
     if (!returnDoc) {
       throw new NotFoundException('Không tìm thấy phiếu trả hàng');
     }
-    
+
     const currentRefundAmount = Number(returnDoc.refund_amount) || 0;
     const totalAmount = Number(returnDoc.total_amount);
     const newRefundAmount = currentRefundAmount + Number(refundDto.amount);
-    
+
     if (newRefundAmount > totalAmount) {
       throw new BadRequestException(
-        `Số tiền hoàn vượt quá giá trị phiếu trả (${totalAmount - currentRefundAmount}đ)`
+        `Số tiền hoàn vượt quá giá trị phiếu trả (${totalAmount - currentRefundAmount}đ)`,
       );
     }
-    
+
     // Tạo record refund
     const refundData: any = {
       return_id: returnId,
@@ -3354,15 +3816,15 @@ export class InventoryService {
       refund_date: refundDto.refund_date || new Date(),
       created_by: userId,
     };
-    
+
     if (refundDto.notes) {
       refundData.notes = refundDto.notes;
     }
-    
+
     const refund = this.returnRefundRepository.create(refundData);
-    
+
     const savedRefund = await this.returnRefundRepository.save(refund);
-    
+
     // Cập nhật phiếu trả
     let newRefundStatus = 'partial';
     if (newRefundAmount >= totalAmount) {
@@ -3370,13 +3832,15 @@ export class InventoryService {
     } else if (newRefundAmount === 0) {
       newRefundStatus = 'pending';
     }
-    
+
     await this.inventoryReturnRepository.update(returnId, {
       refund_amount: newRefundAmount,
       refund_status: newRefundStatus,
     });
-    
-    this.logger.log(`Đã thêm hoàn tiền ${refundDto.amount}đ cho phiếu trả #${returnId}`);
+
+    this.logger.log(
+      `Đã thêm hoàn tiền ${refundDto.amount}đ cho phiếu trả #${returnId}`,
+    );
     return savedRefund;
   }
 
@@ -3394,24 +3858,31 @@ export class InventoryService {
   }
 
   /**
-   * Đồng bộ dữ liệu tồn kho thuế từ hệ thống cũ (boolean has_input_invoice) 
+   * Đồng bộ dữ liệu tồn kho thuế từ hệ thống cũ (boolean has_input_invoice)
    * sang hệ thống mới (taxable_quantity_stock / taxable_quantity)
    */
-  async syncTaxableData(): Promise<{ productsUpdated: number; salesItemsUpdated: number }> {
-    this.logger.log('🚀 Bắt đầu chi tiết đồng bộ dữ liệu tồn kho thuế (Refined)...');
-    
+  async syncTaxableData(): Promise<{
+    productsUpdated: number;
+    salesItemsUpdated: number;
+  }> {
+    this.logger.log(
+      '🚀 Bắt đầu chi tiết đồng bộ dữ liệu tồn kho thuế (Refined)...',
+    );
+
     let productsUpdated = 0;
     let salesItemsUpdated = 0;
 
     const products = await this.productService.findAllIncludingInactive();
-    
+
     for (const product of products) {
       const result = await this.syncTaxableDataForProduct(product.id);
       if (result.productUpdated) productsUpdated++;
       salesItemsUpdated += result.salesItemsUpdated;
     }
-    
-    this.logger.log(`✅ Hoàn tất đồng bộ theo logic Bể thuế: ${productsUpdated} sản phẩm, ${salesItemsUpdated} item hóa đơn.`);
+
+    this.logger.log(
+      `✅ Hoàn tất đồng bộ theo logic Bể thuế: ${productsUpdated} sản phẩm, ${salesItemsUpdated} item hóa đơn.`,
+    );
     return { productsUpdated, salesItemsUpdated };
   }
 
@@ -3419,18 +3890,24 @@ export class InventoryService {
    * Đồng bộ dữ liệu tồn kho thuế cho một sản phẩm cụ thể
    * @param productId - ID sản phẩm
    */
-  async syncTaxableDataForProduct(productId: number): Promise<{ productUpdated: boolean; salesItemsUpdated: number }> {
-    const receiptItemRepo = this.inventoryReceiptRepository.manager.getRepository(InventoryReceiptItem);
-    const salesInvoiceItemRepo = this.inventoryReceiptRepository.manager.getRepository(SalesInvoiceItem);
-    
+  async syncTaxableDataForProduct(
+    productId: number,
+  ): Promise<{ productUpdated: boolean; salesItemsUpdated: number }> {
+    const receiptItemRepo =
+      this.inventoryReceiptRepository.manager.getRepository(
+        InventoryReceiptItem,
+      );
+    const salesInvoiceItemRepo =
+      this.inventoryReceiptRepository.manager.getRepository(SalesInvoiceItem);
+
     const product = await this.productService.findOne(productId);
     if (!product) return { productUpdated: false, salesItemsUpdated: 0 };
 
     // 1. Lấy lịch sử nhập hàng (kèm thông tin phiếu để lấy cờ is_taxable)
-    const receiptItems = await receiptItemRepo.find({ 
-      where: { product_id: product.id }, 
+    const receiptItems = await receiptItemRepo.find({
+      where: { product_id: product.id },
       relations: ['receipt'],
-      order: { created_at: 'ASC' } 
+      order: { created_at: 'ASC' },
     });
 
     // 2. Lấy lịch sử bán hàng hợp lệ (chỉ lấy hóa đơn confirmed và paid, bỏ cancelled và draft, sắp xếp ASC để FIFO đúng thứ tự)
@@ -3438,14 +3915,17 @@ export class InventoryService {
       .createQueryBuilder('sii')
       .innerJoin('sii.invoice', 'si')
       .where('sii.product_id = :productId', { productId: product.id })
-      .andWhere('si.status IN (:...statuses)', { statuses: ['confirmed', 'paid'] })
+      .andWhere('si.status IN (:...statuses)', {
+        statuses: ['confirmed', 'paid'],
+      })
       .andWhere('si.deleted_at IS NULL')
       .andWhere('sii.deleted_at IS NULL')
       .orderBy('sii.created_at', 'ASC')
       .getMany();
 
     // 3. Lấy dữ liệu trả hàng (để loại trừ khỏi lượng xuất kho)
-    const salesReturnItemRepo = this.inventoryReceiptRepository.manager.getRepository(SalesReturnItem);
+    const salesReturnItemRepo =
+      this.inventoryReceiptRepository.manager.getRepository(SalesReturnItem);
     const returnItems = await salesReturnItemRepo
       .createQueryBuilder('sri')
       .innerJoinAndSelect('sri.sales_return', 'sr')
@@ -3458,39 +3938,55 @@ export class InventoryService {
     for (const ri of returnItems) {
       const invId = ri.sales_return?.invoice_id;
       if (invId) {
-        returnsByInvoice.set(invId, (returnsByInvoice.get(invId) || 0) + Number(ri.quantity));
+        returnsByInvoice.set(
+          invId,
+          (returnsByInvoice.get(invId) || 0) + Number(ri.quantity),
+        );
       }
     }
 
-    if (receiptItems.length === 0 && salesItems.length === 0) return { productUpdated: false, salesItemsUpdated: 0 };
+    if (receiptItems.length === 0 && salesItems.length === 0)
+      return { productUpdated: false, salesItemsUpdated: 0 };
 
     // 4. Cấu trúc các lô hàng để mô phỏng (Sử dụng BASE_QUANTITY để chính xác đơn vị tính)
-    let batches: { id: number; taxable: number; nonTaxable: number; total: number }[] = receiptItems.map(r => {
+    let batches: {
+      id: number;
+      taxable: number;
+      nonTaxable: number;
+      total: number;
+    }[] = receiptItems.map((r) => {
       // base_quantity là số lượng quy đổi về đơn vị cơ sở (vd: KG)
       const qtyBase = Number(r.base_quantity || r.quantity);
-      
+
       // Tính tỷ lệ taxable_base_quantity = (taxable_quantity / quantity) * base_quantity
       const originalQty = Number(r.quantity) || 1;
       const originalTaxable = Number(r.taxable_quantity || 0);
-      
+
       let taxableBase = (originalTaxable / originalQty) * qtyBase;
 
       // Fallback nếu phiếu nhập có cờ is_taxable mà không nhập taxable_quantity chi tiết
       if (taxableBase === 0 && (r.receipt as any)?.is_taxable) {
         taxableBase = qtyBase;
       }
-      
+
       return {
         id: r.id,
         taxable: taxableBase,
         nonTaxable: Math.max(0, qtyBase - taxableBase),
-        total: qtyBase
+        total: qtyBase,
       };
     });
 
     // TRƯỜNG HỢP ĐẶC BIỆT: Fallback cho tồn thuế thủ công (nếu không có lịch sử nhập khớp)
-    const currentTaxPool = batches.reduce((sum, b) => sum + (b?.taxable || 0), 0);
-    if (currentTaxPool === 0 && product.has_input_invoice && Number(product.taxable_quantity_stock) > 0) {
+    const currentTaxPool = batches.reduce(
+      (sum, b) => sum + (b?.taxable || 0),
+      0,
+    );
+    if (
+      currentTaxPool === 0 &&
+      product.has_input_invoice &&
+      Number(product.taxable_quantity_stock) > 0
+    ) {
       const manualStockBase = Number(product.taxable_quantity_stock);
       // Giả định lô hàng đầu tiên (hoặc tạo mới) có tồn thuế này
       const b = batches[0];
@@ -3498,7 +3994,12 @@ export class InventoryService {
         b.taxable = Math.min(manualStockBase, b.total);
         b.nonTaxable = Math.max(0, b.total - b.taxable);
       } else {
-        batches.push({ id: 0, taxable: manualStockBase, nonTaxable: 0, total: manualStockBase });
+        batches.push({
+          id: 0,
+          taxable: manualStockBase,
+          nonTaxable: 0,
+          total: manualStockBase,
+        });
       }
     }
 
@@ -3508,17 +4009,20 @@ export class InventoryService {
     for (const item of salesItems) {
       // Số lượng bán thực tế quy đổi = base_quantity - (returned_quantity * conversion_factor)
       let saleQtyBase = Number(item.base_quantity || item.quantity);
-      
+
       // Khấu trừ số lượng đã trả
       const returnedQty = returnsByInvoice.get(item.invoice_id) || 0;
       if (returnedQty > 0) {
         const factor = Number(item.conversion_factor || 1);
         const returnedBase = returnedQty * factor;
         const canSubtract = Math.min(saleQtyBase, returnedBase);
-        
+
         saleQtyBase -= canSubtract;
         // Cập nhật lại Map để dùng cho line item tiếp theo của cùng hóa đơn
-        returnsByInvoice.set(item.invoice_id, Math.max(0, returnedQty - (canSubtract / factor)));
+        returnsByInvoice.set(
+          item.invoice_id,
+          Math.max(0, returnedQty - canSubtract / factor),
+        );
       }
 
       let calculatedTaxableBase = 0;
@@ -3536,16 +4040,16 @@ export class InventoryService {
       // FIFO qua từng batch
       for (let b of batches) {
         if (!b || remainingToDeduct <= 0) continue;
-        
+
         const batchTotal = b.taxable + b.nonTaxable;
         if (batchTotal <= 0) continue;
 
         const takeFromThisBatch = Math.min(remainingToDeduct, batchTotal);
         const takeTaxable = Math.min(takeFromThisBatch, b.taxable);
-        
+
         calculatedTaxableBase += takeTaxable;
         b.taxable -= takeTaxable;
-        b.nonTaxable -= (takeFromThisBatch - takeTaxable);
+        b.nonTaxable -= takeFromThisBatch - takeTaxable;
         remainingToDeduct -= takeFromThisBatch;
       }
 
@@ -3554,22 +4058,39 @@ export class InventoryService {
       const finalTaxableQty = calculatedTaxableBase / factor;
 
       if (Math.abs(Number(item.taxable_quantity) - finalTaxableQty) > 0.001) {
-        await salesInvoiceItemRepo.update(item.id, { taxable_quantity: finalTaxableQty });
+        await salesInvoiceItemRepo.update(item.id, {
+          taxable_quantity: finalTaxableQty,
+        });
         salesItemsUpdatedCount++;
       }
     }
 
     // 6. Cập nhật Bể thuế còn lại cho Product
-    const hasTaxInfo = product.has_input_invoice && Number(product.tax_selling_price || 0) > 0;
-    const remainingTaxInBatches = batches.reduce((sum, b) => sum + b.taxable, 0);
-    const finalTaxableStockCount = hasTaxInfo ? Math.max(0, remainingTaxInBatches) : 0;
+    const hasTaxInfo =
+      product.has_input_invoice && Number(product.tax_selling_price || 0) > 0;
+    const remainingTaxInBatches = batches.reduce(
+      (sum, b) => sum + b.taxable,
+      0,
+    );
+    const finalTaxableStockCount = hasTaxInfo
+      ? Math.max(0, remainingTaxInBatches)
+      : 0;
 
     let productWasUpdated = false;
-    if (Math.abs(Number(product.taxable_quantity_stock) - finalTaxableStockCount) > 0.001) {
-      await this.productService.update(product.id, { taxable_quantity_stock: finalTaxableStockCount });
+    if (
+      Math.abs(
+        Number(product.taxable_quantity_stock) - finalTaxableStockCount,
+      ) > 0.001
+    ) {
+      await this.productService.update(product.id, {
+        taxable_quantity_stock: finalTaxableStockCount,
+      });
       productWasUpdated = true;
     }
 
-    return { productUpdated: productWasUpdated, salesItemsUpdated: salesItemsUpdatedCount };
+    return {
+      productUpdated: productWasUpdated,
+      salesItemsUpdated: salesItemsUpdatedCount,
+    };
   }
 }

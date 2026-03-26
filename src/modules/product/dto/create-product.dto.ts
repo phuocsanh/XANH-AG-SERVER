@@ -109,6 +109,11 @@ export class CreateProductDto {
   @IsString()
   average_cost_price?: string;
 
+  /** Giá nhập trung bình trên hóa đơn VAT (tùy chọn) */
+  @IsOptional()
+  @IsString()
+  average_vat_input_cost?: string;
+
   /** Phần trăm lợi nhuận (tùy chọn) */
   @IsOptional()
   @IsString()

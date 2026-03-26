@@ -151,6 +151,10 @@ export class Product {
   @Column({ name: 'average_cost_price', nullable: true })
   average_cost_price?: string;
 
+  /** Giá nhập trung bình trên hóa đơn VAT của sản phẩm */
+  @Column({ name: 'average_vat_input_cost', nullable: true })
+  average_vat_input_cost?: string;
+
   /** Thời gian xóa mềm (null nếu chưa bị xóa) */
   @DeleteDateColumn({ name: 'deleted_at' })
   deleted_at?: Date;

@@ -24,6 +24,10 @@ export class CreateInventoryReceiptItemDto {
   @IsNumber()
   unit_cost!: number;
 
+  @IsOptional()
+  @IsNumber()
+  vat_unit_cost?: number;
+
   @IsNumber()
   total_price!: number;
 
