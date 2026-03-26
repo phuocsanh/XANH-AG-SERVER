@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not, Between, In, IsNull, Raw } from 'typeorm';
+import { Repository, Between, In, IsNull, Raw } from 'typeorm';
 import { SalesInvoice, SalesInvoiceStatus } from '../../entities/sales-invoices.entity';
 import { Season } from '../../entities/season.entity';
 import { OperatingCost } from '../../entities/operating-costs.entity';
@@ -174,11 +174,11 @@ export class StoreProfitReportService {
 
       this.logger.log(`📊 [DEBUG_REPORT] getSeasonStoreProfitReport called with seasonId: ${seasonId} (type: ${typeof seasonId})`);
       
-      // Lấy tất cả hóa đơn trong season (không bao gồm cancelled)
+      // Lấy tất cả hóa đơn trong season (chỉ lấy confirmed, bỏ draft và cancelled)
       const invoices = await this.salesInvoiceRepository.find({
         where: {
           season_id: seasonId,
-          status: Not(SalesInvoiceStatus.CANCELLED),
+          status: SalesInvoiceStatus.CONFIRMED,
         },
         relations: ['items', 'items.product', 'customer'],
       });
@@ -534,7 +534,7 @@ export class StoreProfitReportService {
   ): Promise<CustomerProfitReportDto> {
     try {
       // 1. Lấy TOÀN BỘ hóa đơn của khách hàng (lifetime)
-      let customerWhere: any = { status: Not(SalesInvoiceStatus.CANCELLED) };
+      let customerWhere: any = { status: SalesInvoiceStatus.CONFIRMED };
       
       if (customerId && customerId > 0) {
         customerWhere.customer_id = customerId;
@@ -636,7 +636,7 @@ export class StoreProfitReportService {
       // 3. Build where conditions cho filtered invoices
       let where: any = {
         customer_id: customerId,
-        status: Not(SalesInvoiceStatus.CANCELLED),
+        status: SalesInvoiceStatus.CONFIRMED,
       };
 
       if (seasonId) {
@@ -922,7 +922,7 @@ export class StoreProfitReportService {
       const invoices = await this.salesInvoiceRepository.find({
         where: {
           rice_crop_id: riceCropId,
-          status: Not(SalesInvoiceStatus.CANCELLED),
+          status: SalesInvoiceStatus.CONFIRMED,
         },
         relations: ['items', 'items.product', 'customer', 'season', 'rice_crop'],
         order: { sale_date: 'DESC', created_at: 'DESC' },
@@ -1168,11 +1168,11 @@ export class StoreProfitReportService {
     try {
       this.logger.log(`📊 Báo cáo lợi nhuận từ ${startDate.toISOString()} đến ${endDate.toISOString()}`);
 
-      // 1. Lấy tất cả hóa đơn trong khoảng thời gian (không bao gồm cancelled)
+      // 1. Lấy tất cả hóa đơn trong khoảng thời gian (chỉ lấy hóa đơn CONFIRMED, bỏ cancelled và draft)
       const invoices = await this.salesInvoiceRepository.find({
         where: [
-          { sale_date: Between(startDate, endDate), status: Not(SalesInvoiceStatus.CANCELLED) },
-          { sale_date: IsNull(), created_at: Between(startDate, endDate), status: Not(SalesInvoiceStatus.CANCELLED) },
+          { sale_date: Between(startDate, endDate), status: SalesInvoiceStatus.CONFIRMED },
+          { sale_date: IsNull(), created_at: Between(startDate, endDate), status: SalesInvoiceStatus.CONFIRMED },
         ],
         relations: ['items', 'items.product'],
         order: { sale_date: 'DESC', created_at: 'DESC' },

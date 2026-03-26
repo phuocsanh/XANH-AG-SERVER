@@ -3431,12 +3431,12 @@ export class InventoryService {
       order: { created_at: 'ASC' } 
     });
 
-    // 2. Lấy lịch sử bán hàng hợp lệ (bỏ hóa đơn đã hủy, sắp xếp ASC để FIFO đúng thứ tự)
+    // 2. Lấy lịch sử bán hàng hợp lệ (chỉ lấy hóa đơn confirmed, bỏ cancelled và draft, sắp xếp ASC để FIFO đúng thứ tự)
     const salesItems = await salesInvoiceItemRepo
       .createQueryBuilder('sii')
       .innerJoin('sii.invoice', 'si')
       .where('sii.product_id = :productId', { productId: product.id })
-      .andWhere('si.status != :cancelled', { cancelled: 'cancelled' })
+      .andWhere('si.status = :confirmed', { confirmed: 'confirmed' })
       .andWhere('si.deleted_at IS NULL')
       .andWhere('sii.deleted_at IS NULL')
       .orderBy('sii.created_at', 'ASC')
