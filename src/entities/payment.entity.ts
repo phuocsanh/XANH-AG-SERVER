@@ -26,7 +26,7 @@ export class Payment {
   code!: string;
 
   /** ID khách hàng (Có thể null với khách vãng lai) */
-  @Column({ name: 'customer_id', nullable: true })
+  @Column({ name: 'customer_id', type: 'int', nullable: true })
   customer_id?: number | null;
 
   /** Thông tin khách hàng */
@@ -55,7 +55,7 @@ export class Payment {
   notes?: string;
 
   /** Mã phiếu công nợ liên quan (để hiển thị trên UI) */
-  @Column({ name: 'debt_note_code', length: 50, nullable: true })
+  @Column({ name: 'debt_note_code', type: 'varchar', length: 50, nullable: true })
   debt_note_code?: string | null;
 
   /** ID người tạo phiếu */
