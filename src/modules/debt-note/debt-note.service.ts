@@ -147,7 +147,7 @@ export class DebtNoteService {
     const queryBuilder = repo
       .createQueryBuilder('dn')
       .where('dn.customer_id = :customer_id', { customer_id })
-      .andWhere('dn.status IN (:...statuses)', { statuses: ['active', 'overdue', 'paid'] });
+      .andWhere('dn.status IN (:...statuses)', { statuses: ['active', 'overdue', 'paid', 'settled'] });
 
     if (season_id) {
       queryBuilder.andWhere('dn.season_id = :season_id', { season_id });
@@ -284,8 +284,8 @@ export class DebtNoteService {
         throw new NotFoundException('Không tìm thấy phiếu công nợ');
       }
 
-      if (debtNote.status === DebtNoteStatus.SETTLED) {
-        throw new BadRequestException('Phiếu công nợ đã được chốt sổ');
+      if (debtNote.status === DebtNoteStatus.PAID || debtNote.status === DebtNoteStatus.SETTLED) {
+        throw new BadRequestException('Phiếu công nợ đã hoàn thành thanh toán');
       }
 
       // 2. Kiểm tra tính hợp lệ của dữ liệu quà tặng
@@ -310,7 +310,7 @@ export class DebtNoteService {
       );
 
       // 3. Cập nhật phiếu công nợ (phần thuộc về DebtNote)
-      debtNote.status = DebtNoteStatus.SETTLED;
+      debtNote.status = DebtNoteStatus.PAID;
       debtNote.closed_at = new Date();
       debtNote.reward_given = rewardSummary.reward_given;
       debtNote.reward_count = rewardSummary.reward_count;

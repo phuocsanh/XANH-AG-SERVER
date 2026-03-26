@@ -19,7 +19,7 @@ export enum DebtNoteStatus {
   PAID = 'paid',          // Đã trả hết
   OVERDUE = 'overdue',    // Quá hạn
   CANCELLED = 'cancelled', // Đã hủy
-  SETTLED = 'settled',    // Đã chốt sổ (chuyển sang mùa mới)
+  SETTLED = 'settled',    // (Không dùng nữa) Đã chốt sổ
   ROLLED_OVER = 'rolled_over', // Đã chuyển nợ sang mùa khác
 }
 

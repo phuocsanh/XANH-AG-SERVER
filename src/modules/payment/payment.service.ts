@@ -295,36 +295,34 @@ export class PaymentService {
       oldDebtNote.paid_amount = currentPaidDebt + paymentAmount;
       oldDebtNote.remaining_amount = totalDebt - paymentAmount;
 
-      if (oldDebtNote.status !== DebtNoteStatus.SETTLED) {
-        if (Number(oldDebtNote.remaining_amount) <= 0) {
-          oldDebtNote.status = DebtNoteStatus.PAID;
-        } else {
-          oldDebtNote.status = DebtNoteStatus.ACTIVE;
-        }
+      // 🔥 CHẾ ĐỘ MỚI: Chỉ dùng Nợ (active) và Đã thanh toán (paid)
+      // Khi nợ <= 0, ta chuyển sang trạng thái Đã thanh toán. 
+      const isPaidOff = Number(oldDebtNote.remaining_amount) <= 0;
+      if (isPaidOff) {
+        oldDebtNote.status = DebtNoteStatus.PAID;
+        oldDebtNote.closed_at = new Date();
+      } else if (oldDebtNote.status !== DebtNoteStatus.PAID) {
+        oldDebtNote.status = DebtNoteStatus.ACTIVE;
       }
-      // Khác: Nếu status đang là SETTLED và vẫn còn nợ, giữ nguyên SETTLED
 
-      // 8. Xử lý quà tặng tích lũy và Chốt sổ (nếu được yêu cầu)
+      // 8. Xử lý tích lũy và quà tặng (Được gọi mỗi lần thanh toán)
       let rewardSummary: any = null;
-      if (dto.gift_description || (dto.gift_value && dto.gift_value > 0) || dto.is_final) {
+      if (dto.gift_description || (dto.gift_value && dto.gift_value > 0) || paymentAmount > 0 || isPaidOff) {
         rewardSummary = await this.customerRewardService.handleDebtNoteSettlement(
           queryRunner.manager,
           oldDebtNote,
           {
             gift_description: dto.gift_description,
             gift_value: dto.gift_value || 0,
-            notes: dto.is_final ? `Chốt sổ & tặng quà khi thanh toán #${paymentCode}` : `Tặng quà khi thanh toán #${paymentCode}`,
-            manual_remaining_amount: oldDebtNote.remaining_amount, // Dùng nợ còn lại làm số dư chuyển sang nếu chốt sổ
-            payment_amount: paymentAmount, // 🔥 Truyền số tiền thực trả để tích lũy
+            notes: isPaidOff 
+              ? `Tất toán nợ & tặng quà tại phiếu #${paymentCode}` 
+              : `Tích lũy khi thanh toán #${paymentCode}`,
+            manual_remaining_amount: oldDebtNote.remaining_amount,
+            payment_amount: paymentAmount,
           },
           userId,
-          dto.is_final === true // isFinal
+          isPaidOff // Coi như "Finalized" nếu đã trả hết nợ
         );
-
-        // Nếu chốt sổ, cập nhật trạng thái DebtNote
-        if (dto.is_final) {
-          oldDebtNote.status = DebtNoteStatus.SETTLED;
-        }
       }
 
       

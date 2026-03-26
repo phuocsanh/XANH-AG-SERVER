@@ -104,11 +104,11 @@ export class CustomerRewardService {
     const remainingAmount = totalAfterClose % threshold;
     const shortageToNext = threshold - remainingAmount;
 
-    // 3. Lấy lịch sử các vụ đã tích lũy (SETTLED)
+    // 3. Lấy lịch sử các vụ đã trả hết (PAID/SETTLED)
     const accumulationHistory = await this.debtNoteRepository.find({
       where: { 
         customer_id: debtNote.customer_id,
-        status: DebtNoteStatus.SETTLED
+        status: DebtNoteStatus.PAID // Bao gồm cả Đã thanh toán
       },
       relations: ['season'],
       order: { closed_at: 'DESC' },
@@ -136,7 +136,7 @@ export class CustomerRewardService {
         remaining_amount: Number(debtNote.remaining_amount || 0),
         status: debtNote.status,
         paid_contribution: seasonPaidContribution, // Tích lũy thực tính của vụ này
-        gift_description: debtNote.gift_description, // 🔥 Thêm thông tin quà (để hiện sau khi chốt)
+        gift_description: debtNote.gift_description, 
         gift_value: Number(debtNote.gift_value || 0),
       },
       accumulation_history: accumulationHistory.map(dn => ({
@@ -148,9 +148,9 @@ export class CustomerRewardService {
         reward_count: dn.reward_count
       })),
       summary: {
-        previous_pending: previousPending, // Số dư tích lũy TRƯỚC KHI CỘNG VỤ NÀY
-        current_paid: seasonPaidContribution, // Tổng tích lũy VỤ NÀY (Đã trả + Sắp trả)
-        total_after_close: totalAfterClose, // TỔNG CỘNG CUỐI CÙNG
+        previous_pending: previousPending, 
+        current_paid: seasonPaidContribution, 
+        total_after_close: totalAfterClose, 
         reward_threshold: threshold,
         reward_count: rewardCount,
         remaining_amount: remainingAmount,
@@ -187,13 +187,13 @@ export class CustomerRewardService {
     rice_crop_id?: number | null | undefined;
   }): Promise<void> {
     try {
-      const costName = `Quà tặng cuối vụ - ${params.customerName}`;
+      const costName = `Quà tặng tri ân - ${params.customerName}`;
       const descriptionParts = [
-        params.giftDescription ? `Quà: ${params.giftDescription}` : 'Quà tặng cuối vụ',
+        params.giftDescription ? `Quà: ${params.giftDescription}` : 'Quà tặng khi thanh toán',
         params.seasonName ? `Mùa vụ: ${params.seasonName}` : '',
         `Tích lũy: ${this.formatCurrency(params.totalAccumulated)}`,
         `Số lần tặng: ${params.rewardCount}`,
-        `Phiếu nợ: ${params.debtNoteCode}`,
+        `Mã phiếu: ${params.debtNoteCode}`,
       ].filter(Boolean).join(' | ');
 
       await this.farmGiftCostService.create({
@@ -221,8 +221,8 @@ export class CustomerRewardService {
   }
 
   /**
-   * Xử lý quà tặng và tích lũy khi chốt sổ công nợ
-   * Được gọi từ DebtNoteService trong một Transaction
+   * Xử lý quà tặng và tích lũy khi thanh toán/tất toán
+   * Được gọi từ DebtNoteService/PaymentService trong một Transaction
    */
   async handleDebtNoteSettlement(
     manager: any, // EntityManager từ transaction
@@ -245,12 +245,10 @@ export class CustomerRewardService {
       });
     }
 
-    // 2. Tính toán tích lũy dựa trên TIỀN THỰC TRẢ
-    // Nếu là Chốt sổ cuối vụ (isFinal = true), ta phải cộng dồn toàn bộ số tiền đã trả của phiếu nợ này (debtNote.paid_amount)
-    // vì số tiền này chưa từng được ghi nhận tích lũy chính thức vào pending_amount trước đó.
+    // 2. Tính toán tích lũy dựa trên TIỀN THỰC TRẢ của lần này
+    // 🔥 QUAN TRỌNG: Chỉ cộng số tiền thanh toán thực tế (paymentAmount).
     const paymentAmount = Number(closeData.payment_amount || 0);
-    const contributionFromDebtNote = isFinal ? Number(debtNote.paid_amount || 0) : 0;
-    const totalNewContribution = paymentAmount + contributionFromDebtNote;
+    const totalNewContribution = paymentAmount;
 
     const previousPending = Number(rewardTracking.pending_amount);
     const totalAccumulated = previousPending + totalNewContribution;
@@ -281,10 +279,10 @@ export class CustomerRewardService {
           gift_description: closeData.gift_description || 
             `Quà tặng nông dân (Lần ${Number(rewardTracking.reward_count) + i + 1})`,
           notes: closeData.notes || 
-            `Tích lũy: ${this.formatCurrency(previousPending)} (dư cũ) + ${this.formatCurrency(totalNewContribution)} (vụ này) = ${this.formatCurrency(totalAccumulated)}`,
+            `Tích lũy: ${this.formatCurrency(previousPending)} (dư cũ) + ${this.formatCurrency(totalNewContribution)} (lần này) = ${this.formatCurrency(totalAccumulated)}`,
           created_by: userId,
           gift_value: closeData.gift_value || 0,
-          reward_type: 'APPRECIATION_GIFT', // Quà tùy ý khi thanh toán/chốt nợ
+          reward_type: 'APPRECIATION_GIFT', 
         });
         const savedHistory = await manager.save(rewardHistory);
         historyIds.push(savedHistory.id);
@@ -297,7 +295,7 @@ export class CustomerRewardService {
       rewardTracking.last_reward_date = new Date();
     }
 
-    // NẾU CÓ THANH TOÁN HOẶC CHỐT SỔ: Cập nhật pending_amount và total_accumulated
+    // NẾU CÓ THANH TOÁN: Cập nhật pending_amount và total_accumulated
     if (paymentAmount > 0 || isFinal) {
       const finalRemainingAmount = (isFinal && closeData.manual_remaining_amount !== undefined) 
         ? Number(closeData.manual_remaining_amount) 
@@ -339,8 +337,8 @@ export class CustomerRewardService {
       payment_received: totalNewContribution,
       total_accumulated_after: totalAccumulated,
       reward_given: currentRewardCount > 0,
-      reward_count: currentRewardCount, // Số quà MỚI tặng trong lần này
-      total_reward_count: debtNote.reward_count, // Tổng quà của vụ này tính đến hiện tại
+      reward_count: currentRewardCount, 
+      total_reward_count: debtNote.reward_count, 
       remaining_accumulated: remainingAccumulated,
       message: this.generateCloseMessage(currentRewardCount, remainingAccumulated, threshold),
     };
@@ -349,11 +347,11 @@ export class CustomerRewardService {
   private generateCloseMessage(rewardCount: number, remaining: number, threshold: number): string {
     if (rewardCount === 0) {
       const shortage = threshold - remaining;
-      return `Đã chốt sổ thành công. Còn ${this.formatCurrency(shortage)} nữa để đạt mốc tặng quà.`;
+      return `Thanh toán thành công. Còn ${this.formatCurrency(shortage)} nữa để đạt mốc tặng quà.`;
     } else if (rewardCount === 1) {
-      return `🎉 Đã chốt sổ và tặng 1 phần quà! Số dư chuyển sang: ${this.formatCurrency(remaining)}`;
+      return `🎉 Thanh toán thành công và đạt 1 phần quà! Số dư tích lũy: ${this.formatCurrency(remaining)}`;
     } else {
-      return `🎉🎉 Đã chốt sổ và tặng ${rewardCount} phần quà! Số dư chuyển sang: ${this.formatCurrency(remaining)}`;
+      return `🎉🎉 Thanh toán thành công và đạt ${rewardCount} phần quà! Số dư tích lũy: ${this.formatCurrency(remaining)}`;
     }
   }
 
