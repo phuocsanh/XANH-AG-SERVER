@@ -5,6 +5,7 @@ import { SalesReturnController } from './sales-return.controller';
 import { SalesReturn } from '../../entities/sales-return.entity';
 import { SalesReturnItem } from '../../entities/sales-return-items.entity';
 import { SalesInvoice } from '../../entities/sales-invoices.entity';
+import { CustomerRewardModule } from '../customer-reward/customer-reward.module';
 
 /**
  * SalesReturnModule - Module quản lý trả hàng
@@ -16,7 +17,10 @@ import { SalesInvoice } from '../../entities/sales-invoices.entity';
  * - Tự động cập nhật tồn kho và công nợ khi trả hàng
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([SalesReturn, SalesReturnItem, SalesInvoice])],
+  imports: [
+    TypeOrmModule.forFeature([SalesReturn, SalesReturnItem, SalesInvoice]),
+    CustomerRewardModule,
+  ],
   controllers: [SalesReturnController],
   providers: [SalesReturnService],
   exports: [SalesReturnService],
