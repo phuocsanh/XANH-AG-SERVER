@@ -312,9 +312,9 @@ export class SalesService {
                 gift_description: createSalesInvoiceDto.gift_description,
                 gift_value: createSalesInvoiceDto.gift_value || 0,
                 rice_crop_id: createSalesInvoiceDto.rice_crop_id, // ✅ Lưu thông tin ruộng lúa
-                notes: createSalesInvoiceDto.gift_description 
+                notes: createSalesInvoiceDto.notes ? createSalesInvoiceDto.notes : (createSalesInvoiceDto.gift_description 
                   ? `Tặng quà kèm hóa đơn #${savedInvoice.code}`
-                  : `Tích lũy từ thanh toán hóa đơn #${savedInvoice.code}`,
+                  : `Tích lũy từ thanh toán hóa đơn #${savedInvoice.code}`),
               },
               userId,
               false // isFinal = false

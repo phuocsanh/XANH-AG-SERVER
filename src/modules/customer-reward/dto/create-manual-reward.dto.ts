@@ -26,4 +26,9 @@ export class CreateManualRewardDto {
   @IsOptional()
   @IsNumber()
   rice_crop_id?: number;
+
+  /** Loại phần quà (ACCUMULATION_REWARD hoặc APPRECIATION_GIFT) */
+  @IsString()
+  @IsOptional()
+  reward_type?: string;
 }

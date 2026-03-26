@@ -597,26 +597,25 @@ export class CustomerRewardService {
     const threshold = await this.getRewardThreshold();
 
     return await this.debtNoteRepository.manager.transaction(async (manager) => {
-      // 1. Tạo bản ghi lịch sử quà tặng
+      // 1. Tạo bản ghi lịch sử quà tặng ban đầu
       const history = manager.create(CustomerRewardHistory, {
         customer_id,
         customer_name: (customer as any).name,
-        reward_threshold: threshold,
+        reward_threshold: dto.reward_type === 'APPRECIATION_GIFT' ? 0 : threshold,
         accumulated_amount: 0,
         reward_date: new Date(),
         gift_description,
         gift_value: gift_value || 0,
         gift_status: 'delivered',
         delivered_date: new Date(),
-        reward_type: 'ACCUMULATION_REWARD', // Thưởng khi đạt mốc 70tr
+        reward_type: dto.reward_type || 'ACCUMULATION_REWARD',
         notes: notes || 'Tặng quà thủ công',
         created_by: userId,
         season_ids: season_id ? [season_id] : [],
         season_names: seasonName ? [seasonName] : [],
-        contribution_details: rice_crop_id ? { rice_crop_id, rice_crop_name: riceCropName } : {}
+        rice_crop_id: rice_crop_id ?? null,
+        rice_crop_name: riceCropName ?? null,
       });
-
-      const savedHistory = await manager.save(history);
 
       // 2. Cập nhật bảng tracking tích lũy
       let tracking = await manager.findOne(CustomerRewardTracking, {
@@ -632,24 +631,31 @@ export class CustomerRewardService {
         });
       }
 
-      // 🔥 TRỪ TÍCH LŨY DỰA TRÊN GIÁ TRỊ QUÀ (Tỷ lệ 70tr/1tr)
-      const REWARD_VALUE_FOR_THRESHOLD = 1000000;
-      const validGiftValue = Number(gift_value || 0);
-      const amountToDeduct = (validGiftValue / REWARD_VALUE_FOR_THRESHOLD) * threshold;
-      
-      // Cập nhật pending_amount (không để âm)
-      tracking.pending_amount = Math.max(0, Number(tracking.pending_amount || 0) - amountToDeduct);
-      
-      tracking.reward_count = Number(tracking.reward_count || 0) + 1;
-      tracking.last_reward_date = new Date();
+      // 🔥 CHỈ TRỪ TÍCH LŨY NẾU LÀ QUÀ TÍCH LŨY
+      if (history.reward_type === 'ACCUMULATION_REWARD') {
+        const REWARD_VALUE_FOR_THRESHOLD = 1000000;
+        const validGiftValue = Number(gift_value || 0);
+        const amountToDeduct = (validGiftValue / REWARD_VALUE_FOR_THRESHOLD) * threshold;
+        
+        // 🔄 Cập nhật lại lịch sử với mốc tích lũy THỰC TẾ lúc đó và ghi chú tự động
+        const autoNote = `Tặng quà mốc tích lũy. Đã trừ ${this.formatCurrency(amountToDeduct)} tích lũy tương ứng với quà trị giá ${this.formatCurrency(validGiftValue)}.`;
+        history.accumulated_amount = Number(tracking.pending_amount || 0); 
+        history.notes = notes ? `${notes} | ${autoNote}` : autoNote;
+
+        // Cập nhật pending_amount (không để âm)
+        tracking.pending_amount = Math.max(0, Number(tracking.pending_amount || 0) - amountToDeduct);
+        
+        // Tăng reward_count chỉ cho quà tích lũy
+        tracking.reward_count = Number(tracking.reward_count || 0) + 1;
+        tracking.last_reward_date = new Date();
+      } else {
+        // Quà tri ân lẻ: Chỉ dùng ghi chú người dùng nhập
+        history.accumulated_amount = Number(tracking.pending_amount || 0);
+        history.notes = notes || 'Tặng quà tri ân';
+      }
 
       await manager.save(tracking);
-
-      // 🔄 Cập nhật lại lịch sử với mốc tích lũy THỰC TẾ lúc đó và ghi chú
-      const autoNote = `Tặng quà thủ công. Đã trừ ${this.formatCurrency(amountToDeduct)} tích lũy tương ứng với quà ${this.formatCurrency(validGiftValue)}.`;
-      history.accumulated_amount = Number(tracking.pending_amount) + amountToDeduct; // Mốc trước khi trừ
-      history.notes = notes ? `${notes} | ${autoNote}` : autoNote;
-      await manager.save(history);
+      const savedHistory = await manager.save(history);
 
       // 3. Tạo phiếu chi phí nếu có giá trị quà và có mùa vụ
       if (gift_value && gift_value > 0 && season_id) {

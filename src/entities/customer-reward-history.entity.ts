@@ -150,7 +150,7 @@ export class CustomerRewardHistory {
 
   /** ID Ruộng lúa liên quan */
   @Column({ name: 'rice_crop_id', nullable: true })
-  rice_crop_id?: number;
+  rice_crop_id?: number | null;
 
   /** Thông tin Ruộng lúa */
   @ManyToOne(() => RiceCrop)
@@ -165,7 +165,7 @@ export class CustomerRewardHistory {
     nullable: true,
     comment: 'Tên ruộng lúa tại thời điểm tặng quà'
   })
-  rice_crop_name?: string;
+  rice_crop_name?: string | null;
 
   /** Ngày trao quà thực tế */
   @Column({
