@@ -68,16 +68,25 @@ export class QueryHelper {
 
     // 3. Global Search (Keyword)
     if (dto.keyword && searchFields.length > 0) {
+      // 1. Chuẩn hóa và tách từ khóa thành các từ đơn (tokens)
       const sanitizedKeyword = this.sanitizeKeyword(dto.keyword);
-      
-      const conditions = searchFields.map((field, index) => {
-        const col = field.includes('.') ? field : `${alias}.${field}`;
-        const pName = `global_search_${index}`;
-        query.setParameter(pName, `%${sanitizedKeyword}%`);
-        return `unaccent(${col}::text) ILIKE unaccent(:${pName})`;
-      });
-      
-      query.andWhere(`(${conditions.join(' OR ')})`);
+      const tokens = sanitizedKeyword.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+
+      if (tokens.length > 0) {
+        // 2. Với mỗi từ trong tokens, nó phải tồn tại trong ít nhất một trong các searchFields (AND logic giữa các tokens)
+        tokens.forEach((token, tIndex) => {
+          const conditions = searchFields.map((field, fIndex) => {
+            const col = field.includes('.') ? field : `${alias}.${field}`;
+            const pName = `global_search_${tIndex}_${fIndex}`;
+            query.setParameter(pName, `%${token}%`);
+            // Loại bỏ ký tự đặc biệt trong DB column trước khi so sánh với token
+            return `regexp_replace(unaccent(${col}::text), '[^a-zA-Z0-9]', '', 'g') ILIKE unaccent(:${pName})`;
+          });
+          
+          // Mỗi TOKEN phải được thỏa mãn bởi ít nhất một FIELD (Tên HOẶC Số ĐT HOẶC Mã)
+          query.andWhere(`(${conditions.join(' OR ')})`);
+        });
+      }
     }
 
     // 4. Date Range Search
