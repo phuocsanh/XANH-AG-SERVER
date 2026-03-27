@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject, ConflictException } from '@nestjs/common';
+import { Injectable, Logger, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, QueryRunner } from 'typeorm';
 import { Product } from '../../entities/products.entity';
@@ -11,8 +11,6 @@ import { SearchProductDto } from './dto/search-product.dto';
 import { BaseSearchService } from '../../common/services/base-search.service';
 import { PricingCalculatorUtil } from './utils/pricing-calculator.util';
 import { OperatingCostService } from '../operating-cost/operating-cost.service';
-import { ImageCleanupHelper } from '../../common/helpers/image-cleanup.helper';
-import { UploadService } from '../upload/upload.service';
 import { QueryHelper } from '../../common/helpers/query-helper';
 import { ProductUnitConversionService } from '../product-unit-conversion/product-unit-conversion.service';
 import { ProductComponentService } from '../product-component/product-component.service';
@@ -37,8 +35,6 @@ export class ProductService extends BaseSearchService<Product> {
     private productRepository: Repository<Product>,
     private fileTrackingService: FileTrackingService,
     private operatingCostService: OperatingCostService,
-    @Inject(UploadService)
-    private uploadService: UploadService,
     private unitConversionService: ProductUnitConversionService,
     private productComponentService: ProductComponentService,
   ) {
@@ -149,6 +145,9 @@ export class ProductService extends BaseSearchService<Product> {
       if (components && components.length > 0) {
         await this.productComponentService.saveAllForProduct(savedProduct.id, components);
       }
+
+      // ✅ Đánh dấu ảnh là đã sử dụng
+      await this.markImagesAsUsed(savedProduct);
 
       return savedProduct;
     } catch (error) {
@@ -367,44 +366,104 @@ export class ProductService extends BaseSearchService<Product> {
         await this.productComponentService.saveAllForProduct(id, components, queryRunner);
       }
 
-      // Xử lý xóa ảnh cũ nếu có thay đổi
-      await this.cleanupOldImages(currentProduct, updateProductDto);
+      // ✅ Xử lý dọn dẹp ảnh cũ và đánh dấu ảnh mới (increment/decrement refs)
+      const updatedProduct = await this.findOne(id, queryRunner);
+      if (updatedProduct) {
+        await this.handleImageUpdate(currentProduct, updatedProduct);
+      }
 
-      return this.findOne(id, queryRunner);
+      return updatedProduct;
     } catch (error) {
       ErrorHandler.handleUpdateError(error, 'sản phẩm');
     }
   }
 
+
   /**
-   * Xóa các ảnh cũ không còn được sử dụng sau khi update
-   * @param currentProduct - Sản phẩm hiện tại (trước khi update)
-   * @param updateDto - Dữ liệu update mới
+   * Đánh dấu các ảnh trong sản phẩm là đã được sử dụng (increment reference count)
    */
-  private async cleanupOldImages(
-    currentProduct: Product,
-    updateDto: UpdateProductDto,
-  ): Promise<void> {
-    // Xóa thumb cũ nếu có thay đổi
-    await ImageCleanupHelper.cleanupSingleImage(
-      currentProduct.thumb,
-      updateDto.thumb,
-      this.uploadService,
-    );
+  private async markImagesAsUsed(product: Product): Promise<void> {
+    // 1. Ảnh thumbnail
+    if (product.thumb) {
+      const file = await this.fileTrackingService.findByFileUrl(product.thumb);
+      if (file) {
+        await this.fileTrackingService.createFileReference(file, 'Product', product.id, 'thumb');
+        await this.fileTrackingService.incrementReferenceCount(file.id);
+      }
+    }
 
-    // Xóa pictures cũ nếu có thay đổi
-    await ImageCleanupHelper.cleanupArrayImages(
-      currentProduct.pictures,
-      updateDto.pictures,
-      this.uploadService,
-    );
+    // 2. Bộ sưu tập ảnh (pictures)
+    if (product.pictures && product.pictures.length > 0) {
+      for (const url of product.pictures) {
+        const file = await this.fileTrackingService.findByFileUrl(url);
+        if (file) {
+          await this.fileTrackingService.createFileReference(file, 'Product', product.id, 'pictures');
+          await this.fileTrackingService.incrementReferenceCount(file.id);
+        }
+      }
+    }
 
-    // Xóa videos cũ nếu có thay đổi
-    await ImageCleanupHelper.cleanupArrayImages(
-      currentProduct.videos,
-      updateDto.videos,
-      this.uploadService,
-    );
+    // 3. Videos
+    if (product.videos && product.videos.length > 0) {
+      for (const url of product.videos) {
+        const file = await this.fileTrackingService.findByFileUrl(url);
+        if (file) {
+          await this.fileTrackingService.createFileReference(file, 'Product', product.id, 'videos');
+          await this.fileTrackingService.incrementReferenceCount(file.id);
+        }
+      }
+    }
+  }
+
+  /**
+   * Xử lý dọn dẹp ảnh khi cập nhật sản phẩm (increment cho ảnh mới, decrement cho ảnh bị gỡ)
+   */
+  private async handleImageUpdate(oldProduct: Product, newProduct: Product): Promise<void> {
+    // 1. Xử lý thumbnail
+    if (oldProduct.thumb !== newProduct.thumb) {
+      if (oldProduct.thumb) {
+        await this.fileTrackingService.removeFileReferenceByUrl(oldProduct.thumb, 'Product', oldProduct.id);
+      }
+      if (newProduct.thumb) {
+        const file = await this.fileTrackingService.findByFileUrl(newProduct.thumb);
+        if (file) {
+          await this.fileTrackingService.createFileReference(file, 'Product', newProduct.id, 'thumb');
+          await this.fileTrackingService.incrementReferenceCount(file.id);
+        }
+      }
+    }
+
+    // 2. Xử lý pictures
+    const oldPictures = oldProduct.pictures || [];
+    const newPictures = newProduct.pictures || [];
+    const removedPictures = oldPictures.filter(url => !newPictures.includes(url));
+    for (const url of removedPictures) {
+      await this.fileTrackingService.removeFileReferenceByUrl(url, 'Product', oldProduct.id);
+    }
+    const addedPictures = newPictures.filter(url => !oldPictures.includes(url));
+    for (const url of addedPictures) {
+      const file = await this.fileTrackingService.findByFileUrl(url);
+      if (file) {
+        await this.fileTrackingService.createFileReference(file, 'Product', newProduct.id, 'pictures');
+        await this.fileTrackingService.incrementReferenceCount(file.id);
+      }
+    }
+
+    // 3. Xử lý videos
+    const oldVideos = oldProduct.videos || [];
+    const newVideos = newProduct.videos || [];
+    const removedVideos = oldVideos.filter(url => !newVideos.includes(url));
+    for (const url of removedVideos) {
+      await this.fileTrackingService.removeFileReferenceByUrl(url, 'Product', oldProduct.id);
+    }
+    const addedVideos = newVideos.filter(url => !oldVideos.includes(url));
+    for (const url of addedVideos) {
+      const file = await this.fileTrackingService.findByFileUrl(url);
+      if (file) {
+        await this.fileTrackingService.createFileReference(file, 'Product', newProduct.id, 'videos');
+        await this.fileTrackingService.incrementReferenceCount(file.id);
+      }
+    }
   }
 
   /**

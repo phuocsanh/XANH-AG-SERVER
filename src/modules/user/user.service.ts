@@ -1,4 +1,4 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository,  Not, IsNull } from 'typeorm';
 import { User } from '../../entities/users.entity';
@@ -10,10 +10,9 @@ import { SearchUserDto } from './dto/search-user.dto';
 import * as bcrypt from 'bcrypt';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 import { BaseStatus } from '../../entities/base-status.enum';
-import { ImageCleanupHelper } from '../../common/helpers/image-cleanup.helper';
-import { UploadService } from '../upload/upload.service';
 import { RoleCode } from '../../common/enums/role-code.enum';
 import { QueryHelper } from '../../common/helpers/query-helper';
+import { FileTrackingService } from '../file-tracking/file-tracking.service';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến người dùng
@@ -32,8 +31,7 @@ export class UserService {
     private userRepository: Repository<User>,
     @InjectRepository(UserProfile)
     private userProfileRepository: Repository<UserProfile>,
-    @Inject(UploadService)
-    private uploadService: UploadService,
+    private fileTrackingService: FileTrackingService,
   ) {}
 
   /**
@@ -290,16 +288,59 @@ export class UserService {
     // Cập nhật profile
     await this.userProfileRepository.update({ user_id: userId }, profileData);
 
-    // Xóa avatar cũ nếu có thay đổi
-    if (currentProfile && profileData.avatar) {
-      await ImageCleanupHelper.cleanupSingleImage(
-        currentProfile.avatar,
+    // Xử lý theo dõi ảnh avatar (hệ thống tracking mới)
+    if (profileData.avatar !== undefined) {
+      await this.handleAvatarUpdate(
+        userId,
+        currentProfile?.avatar,
         profileData.avatar,
-        this.uploadService,
       );
     }
 
+    // Xóa avatar cũ (giữ lại logic cleanup cũ nếu cần, hoặc bỏ qua vì tracking đã lo)
+    // if (currentProfile && profileData.avatar) {
+    //   await ImageCleanupHelper.cleanupSingleImage(
+    //     currentProfile.avatar,
+    //     profileData.avatar,
+    //     this.uploadService,
+    //   );
+    // }
+
     return this.userProfileRepository.findOne({ where: { user_id: userId } });
+  }
+
+  /**
+   * Cập nhật avatar người dùng với tracking
+   */
+  private async handleAvatarUpdate(
+    userId: number,
+    oldAvatar?: string,
+    newAvatar?: string,
+  ): Promise<void> {
+    if (oldAvatar === newAvatar) return;
+
+    // 1. Gỡ reference cũ
+    if (oldAvatar) {
+      await this.fileTrackingService.removeFileReferenceByUrl(
+        oldAvatar,
+        'UserProfile',
+        userId,
+      );
+    }
+
+    // 2. Thêm reference mới
+    if (newAvatar) {
+      const file = await this.fileTrackingService.findByFileUrl(newAvatar);
+      if (file) {
+        await this.fileTrackingService.createFileReference(
+          file,
+          'UserProfile',
+          userId,
+          'avatar',
+        );
+        await this.fileTrackingService.incrementReferenceCount(file.id);
+      }
+    }
   }
 
   /**

@@ -5,9 +5,9 @@ import { Repository, LessThan } from 'typeorm';
 import { User } from '../../entities/users.entity';
 import { Product } from '../../entities/products.entity';
 import { UploadService } from '../upload/upload.service';
-import { ImageCleanupHelper } from '../../common/helpers/image-cleanup.helper';
 import { UserProfile } from '../../entities/user-profiles.entity';
 import { News } from '../../entities/news.entity';
+import { FileTrackingService } from '../file-tracking/file-tracking.service';
 
 @Injectable()
 export class CleanupService {
@@ -24,6 +24,7 @@ export class CleanupService {
     @InjectRepository(News)
     private readonly newsRepository: Repository<News>,
     private readonly uploadService: UploadService,
+    private readonly fileTrackingService: FileTrackingService,
   ) {}
 
   /**
@@ -71,9 +72,13 @@ export class CleanupService {
 
       for (const user of usersToDelete) {
         try {
-          // 1. Xóa avatar nếu có
+          // 1. Gỡ reference avatar
           if (user.user_profile?.avatar) {
-            await ImageCleanupHelper.deleteImage(user.user_profile.avatar, this.uploadService);
+            await this.fileTrackingService.removeFileReferenceByUrl(
+              user.user_profile.avatar,
+              'UserProfile',
+              user.id,
+            );
           }
 
           // 2. Xóa cứng UserProfile (nếu chưa bị cascade)
@@ -113,14 +118,35 @@ export class CleanupService {
 
       for (const product of productsToDelete) {
         try {
-          // 1. Xóa ảnh thumbnail
+          // 1. Gỡ reference thumbnail
           if (product.thumb) {
-            await ImageCleanupHelper.deleteImage(product.thumb, this.uploadService);
+            await this.fileTrackingService.removeFileReferenceByUrl(
+              product.thumb,
+              'Product',
+              product.id,
+            );
           }
 
-          // 2. Xóa danh sách ảnh (pictures)
+          // 2. Gỡ reference pictures
           if (product.pictures && product.pictures.length > 0) {
-            await ImageCleanupHelper.deleteImages(product.pictures, this.uploadService);
+            for (const url of product.pictures) {
+              await this.fileTrackingService.removeFileReferenceByUrl(
+                url,
+                'Product',
+                product.id,
+              );
+            }
+          }
+
+          // 3. Gỡ reference videos
+          if (product.videos && product.videos.length > 0) {
+            for (const url of product.videos) {
+              await this.fileTrackingService.removeFileReferenceByUrl(
+                url,
+                'Product',
+                product.id,
+              );
+            }
           }
 
           // 3. Xóa cứng Product
@@ -154,12 +180,22 @@ export class CleanupService {
 
       for (const news of newsToDelete) {
         try {
-          // Xóa các ảnh trực tiếp (vì ở đây là Cleanup vĩnh viễn, không cần lo count nữa)
+          // Xóa các reference (giảm count)
           if (news.thumbnail_url) {
-            await ImageCleanupHelper.deleteImage(news.thumbnail_url, this.uploadService);
+            await this.fileTrackingService.removeFileReferenceByUrl(
+              news.thumbnail_url,
+              'News',
+              news.id,
+            );
           }
           if (news.images && news.images.length > 0) {
-            await ImageCleanupHelper.deleteImages(news.images, this.uploadService);
+            for (const url of news.images) {
+              await this.fileTrackingService.removeFileReferenceByUrl(
+                url,
+                'News',
+                news.id,
+              );
+            }
           }
 
           // Xóa cứng News

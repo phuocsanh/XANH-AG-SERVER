@@ -21,10 +21,6 @@ import { InventoryAdjustment } from '../../entities/inventory-adjustments.entity
 import { InventoryAdjustmentItem } from '../../entities/inventory-adjustment-items.entity';
 import { Product } from '../../entities/products.entity';
 import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
-import {
-  SalesReturn,
-  SalesReturnStatus,
-} from '../../entities/sales-return.entity';
 import { SalesReturnItem } from '../../entities/sales-return-items.entity';
 import { CreateInventoryBatchDto } from './dto/create-inventory-batch.dto';
 import { QueryHelper } from '../../common/helpers/query-helper';
@@ -1644,10 +1640,17 @@ export class InventoryService {
 
       await queryRunner.commitTransaction();
 
-      return this.inventoryReceiptRepository.findOne({
+      const finalReceipt = await this.inventoryReceiptRepository.findOne({
         where: { id: receiptEntity.id },
         relations: ['supplier'], // Bao gồm thông tin nhà cung cấp
       });
+
+      // ✅ Đánh dấu ảnh là đã sử dụng
+      if (finalReceipt) {
+        await this.markInventoryImagesAsUsed('InventoryReceipt', finalReceipt.id, finalReceipt.images);
+      }
+
+      return finalReceipt;
     } catch (error) {
       await queryRunner.rollbackTransaction();
       const errorMessage =
@@ -2058,7 +2061,19 @@ export class InventoryService {
       entityUpdateData.payment_due_date = updateData.payment_due_date;
 
     await this.inventoryReceiptRepository.update(id, entityUpdateData);
-    return this.findReceiptById(id);
+    const updatedReceipt = await this.findReceiptById(id);
+
+    // ✅ Cập nhật theo dõi ảnh (increment/decrement refs)
+    if (updatedReceipt) {
+      await this.handleInventoryImageUpdate(
+        'InventoryReceipt',
+        id,
+        receipt.images,
+        updatedReceipt.images,
+      );
+    }
+
+    return updatedReceipt;
   }
 
   /**
@@ -2091,6 +2106,17 @@ export class InventoryService {
       } else {
         throw new BadRequestException(
           'Không thể xóa phiếu nhập kho đang hoạt động. Vui lòng hủy phiếu thay thế.',
+        );
+      }
+    }
+
+    // ✅ Gỡ các reference trước khi xóa
+    if (receipt.images && receipt.images.length > 0) {
+      for (const url of receipt.images) {
+        await this.fileTrackingService.removeFileReferenceByUrl(
+          url,
+          'InventoryReceipt',
+          id,
         );
       }
     }
@@ -2742,6 +2768,11 @@ export class InventoryService {
         relations: ['supplier', 'items'],
       });
 
+      // ✅ Đánh dấu ảnh là đã sử dụng
+      if (result) {
+        await this.markInventoryImagesAsUsed('InventoryReturn', result.id, result.images);
+      }
+
       this.logger.log(`Hoàn thành tạo phiếu trả hàng ${returnEntity.id}`);
       return result;
     } catch (error) {
@@ -2831,7 +2862,19 @@ export class InventoryService {
       }
 
       await queryRunner.commitTransaction();
-      return this.findReturnById(id);
+      const updatedReturn = await this.findReturnById(id);
+
+      // ✅ Cập nhật theo dõi ảnh (increment/decrement refs)
+      if (updatedReturn) {
+        await this.handleInventoryImageUpdate(
+          'InventoryReturn',
+          id,
+          returnDoc.images,
+          updatedReturn.images,
+        );
+      }
+
+      return updatedReturn;
     } catch (error) {
       await queryRunner.rollbackTransaction();
       throw error;
@@ -3200,13 +3243,20 @@ export class InventoryService {
       }
 
       await queryRunner.commitTransaction();
-      this.logger.log(
-        `Đã commit transaction cho phiếu điều chỉnh ${adjustmentEntity.id}`,
-      );
-
-      return queryRunner.manager.findOne(InventoryAdjustment, {
+      const result = await this.inventoryAdjustmentRepository.findOne({
         where: { id: adjustmentEntity.id },
       });
+
+      // ✅ Đánh dấu ảnh là đã sử dụng
+      if (result) {
+        await this.markInventoryImagesAsUsed(
+          'InventoryAdjustment',
+          result.id,
+          result.images,
+        );
+      }
+
+      return result;
     } catch (error) {
       await queryRunner.rollbackTransaction();
       const errorMessage =
@@ -3288,7 +3338,19 @@ export class InventoryService {
       }
 
       await queryRunner.commitTransaction();
-      return this.findAdjustmentById(id);
+      const updatedAdjustment = await this.findAdjustmentById(id);
+
+      // ✅ Cập nhật theo dõi ảnh (increment/decrement refs)
+      if (updatedAdjustment) {
+        await this.handleInventoryImageUpdate(
+          'InventoryAdjustment',
+          id,
+          adjustment.images,
+          updatedAdjustment.images,
+        );
+      }
+
+      return updatedAdjustment;
     } catch (error) {
       await queryRunner.rollbackTransaction();
       throw error;
@@ -4092,5 +4154,53 @@ export class InventoryService {
       productUpdated: productWasUpdated,
       salesItemsUpdated: salesItemsUpdatedCount,
     };
+  }
+
+  /**
+   * Đánh dấu các hình ảnh trong kho hàng là đã sử dụng
+   */
+  private async markInventoryImagesAsUsed(
+    entityType: 'InventoryReceipt' | 'InventoryReturn' | 'InventoryAdjustment',
+    entityId: number,
+    images?: string[],
+  ): Promise<void> {
+    if (!images || images.length === 0) return;
+
+    for (const url of images) {
+      const file = await this.fileTrackingService.findByFileUrl(url);
+      if (file) {
+        await this.fileTrackingService.createFileReference(file, entityType, entityId, 'images');
+        await this.fileTrackingService.incrementReferenceCount(file.id);
+      }
+    }
+  }
+
+  /**
+   * Xử lý cập nhật hình ảnh cho kho hàng (tăng/giảm reference count)
+   */
+  private async handleInventoryImageUpdate(
+    entityType: 'InventoryReceipt' | 'InventoryReturn' | 'InventoryAdjustment',
+    entityId: number,
+    oldImages: string[] = [],
+    newImages: string[] = [],
+  ): Promise<void> {
+    const oldImgs = oldImages || [];
+    const newImgs = newImages || [];
+
+    // 1. Tìm các ảnh bị gỡ
+    const removedImages = oldImgs.filter(url => !newImgs.includes(url));
+    for (const url of removedImages) {
+      await this.fileTrackingService.removeFileReferenceByUrl(url, entityType, entityId);
+    }
+
+    // 2. Tìm các ảnh mới thêm
+    const addedImages = newImgs.filter(url => !oldImgs.includes(url));
+    for (const url of addedImages) {
+      const file = await this.fileTrackingService.findByFileUrl(url);
+      if (file) {
+        await this.fileTrackingService.createFileReference(file, entityType, entityId, 'images');
+        await this.fileTrackingService.incrementReferenceCount(file.id);
+      }
+    }
   }
 }
