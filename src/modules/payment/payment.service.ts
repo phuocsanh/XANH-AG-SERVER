@@ -341,6 +341,7 @@ export class PaymentService {
             gift_description: dto.gift_description,
             gift_value: dto.gift_value || 0,
             rice_crop_id: dto.rice_crop_id, // ✅ Lưu thông tin ruộng lúa
+            gift_status: dto.gift_status, // ✅ Lưu trạng thái quà tặng
             notes: dto.notes ? dto.notes : (isPaidOff 
               ? `Tất toán nợ & tặng quà tại phiếu #${paymentCode}` 
               : `Tích lũy khi thanh toán #${paymentCode}`),

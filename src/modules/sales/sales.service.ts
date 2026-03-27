@@ -330,6 +330,7 @@ export class SalesService {
                 payment_amount: partialPayment, // 🔥 Ghi nhận cả số tiền trả ngay
                 gift_description: createSalesInvoiceDto.gift_description,
                 gift_value: createSalesInvoiceDto.gift_value || 0,
+                gift_status: createSalesInvoiceDto.gift_status, // ✅ Truyền trạng thái quà tặng
                 rice_crop_id: createSalesInvoiceDto.rice_crop_id, // ✅ Lưu thông tin ruộng lúa
                 notes: createSalesInvoiceDto.notes ? createSalesInvoiceDto.notes : (createSalesInvoiceDto.gift_description 
                   ? `Tặng quà kèm hóa đơn #${savedInvoice.code}`
@@ -737,6 +738,7 @@ export class SalesService {
               debtNote,
               {
                 payment_amount: paymentAmountToProcess,
+                gift_status: 'delivered', // Hạch toán thủ công thì mặc định là đã giao
                 notes: `Tích lũy từ tất toán hóa đơn #${savedInvoice.code} (Hạch toán thủ công)`,
               },
               userId || (savedInvoice.created_by as any),
@@ -1087,9 +1089,10 @@ export class SalesService {
               debtNote,
               {
                 payment_amount: Number(amount),
+                gift_status: 'delivered', // Trả tiền mặt thì quà/tích lũy mặc định là đã trao
                 notes: `Thanh toán cho hóa đơn #${invoice.code}`,
               },
-              userId || invoice.created_by,
+              userId || (invoice.created_by as any),
               false
             );
           }

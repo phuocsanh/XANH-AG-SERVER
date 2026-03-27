@@ -171,6 +171,11 @@ export class CreateSalesInvoiceDto {
   @IsOptional()
   gift_value?: number;
 
+  /** Trạng thái quà tặng (tùy chọn) */
+  @IsString()
+  @IsOptional()
+  gift_status?: string;
+
   /** Ngày bán hàng (tùy chọn - định dạng ISO string) */
   @IsString()
   @IsOptional()

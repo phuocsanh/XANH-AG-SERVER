@@ -608,8 +608,8 @@ export class CustomerRewardService {
         reward_date: new Date(),
         gift_description,
         gift_value: gift_value || 0,
-        gift_status: 'delivered',
-        delivered_date: new Date(),
+        gift_status: dto.gift_status || 'delivered',
+        delivered_date: dto.gift_status === 'delivered' || !dto.gift_status ? new Date() : undefined,
         reward_type: dto.reward_type || 'ACCUMULATION_REWARD',
         notes: notes || 'Tặng quà thủ công',
         created_by: userId,
@@ -617,7 +617,7 @@ export class CustomerRewardService {
         season_names: seasonName ? [seasonName] : [],
         rice_crop_id: rice_crop_id ?? null,
         rice_crop_name: riceCropName ?? null,
-      });
+      } as any);
 
       // 2. Cập nhật bảng tracking tích lũy
       let tracking = await manager.findOne(CustomerRewardTracking, {
