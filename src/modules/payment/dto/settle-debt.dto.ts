@@ -52,4 +52,9 @@ export class SettleDebtDto {
   @IsNumber()
   @IsOptional()
   rice_crop_id?: number;
+
+  /** Trạng thái quà tặng */
+  @IsString()
+  @IsOptional()
+  gift_status?: string;
 }

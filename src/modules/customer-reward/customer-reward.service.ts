@@ -317,6 +317,7 @@ export class CustomerRewardService {
             reward_type: 'ACCUMULATION_REWARD',
             rice_crop_id: riceCropInfo.id,
             rice_crop_name: riceCropInfo.name,
+            gift_status: closeData.gift_status || 'pending', // Cho phép truyền trạng thái từ modal
           });
           const savedHistory = await manager.save(rewardHistory);
           historyIds.push(savedHistory.id);
@@ -345,6 +346,7 @@ export class CustomerRewardService {
           reward_type: 'APPRECIATION_GIFT',
           rice_crop_id: riceCropInfo.id,
           rice_crop_name: riceCropInfo.name,
+          gift_status: closeData.gift_status || 'delivered', // Mặc định quà tri ân là đã trao nếu tặng lẻ
         });
         const savedHistory = await manager.save(rewardHistory);
         historyIds.push(savedHistory.id);
@@ -686,10 +688,29 @@ export class CustomerRewardService {
     const history = await this.rewardHistoryRepository.findOne({ where: { id } });
     if (!history) throw new NotFoundException('Không tìm thấy lịch sử quà tặng');
 
+    // Cập nhật thông tin mùa vụ và ruộng lúa nếu có
+    if (dto.season_id) {
+      const season = await this.debtNoteRepository.manager.findOne(Season, { where: { id: dto.season_id } });
+      if (season) {
+        history.season_ids = [dto.season_id];
+        history.season_names = [season.name];
+      }
+    }
+
+    if (dto.rice_crop_id) {
+      const riceCrop = await this.debtNoteRepository.manager.findOne(RiceCrop, { where: { id: dto.rice_crop_id } });
+      if (riceCrop) {
+        history.rice_crop_id = dto.rice_crop_id;
+        history.rice_crop_name = riceCrop.field_name;
+      }
+    }
+
     Object.assign(history, {
       gift_description: dto.gift_description,
       gift_value: dto.gift_value,
       notes: dto.notes,
+      gift_status: dto.gift_status || history.gift_status,
+      delivered_date: dto.gift_status === 'delivered' ? new Date() : history.delivered_date,
     });
 
     const saved = await this.rewardHistoryRepository.save(history);

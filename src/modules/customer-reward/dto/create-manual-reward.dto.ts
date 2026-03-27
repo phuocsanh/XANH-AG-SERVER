@@ -31,4 +31,9 @@ export class CreateManualRewardDto {
   @IsString()
   @IsOptional()
   reward_type?: string;
+
+  /** Trạng thái quà tặng (pending, delivered, cancelled) */
+  @IsString()
+  @IsOptional()
+  gift_status?: string;
 }

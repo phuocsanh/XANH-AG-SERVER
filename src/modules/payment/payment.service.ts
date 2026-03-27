@@ -260,6 +260,7 @@ export class PaymentService {
         .createQueryBuilder(DebtNote, 'dn')
         .where('dn.customer_id = :customer_id', { customer_id: dto.customer_id })
         .andWhere('dn.season_id = :season_id', { season_id: dto.season_id })
+        .leftJoinAndSelect('dn.season', 'season')
         .andWhere('dn.status IN (:...statuses)', { 
           statuses: [DebtNoteStatus.ACTIVE, DebtNoteStatus.OVERDUE, DebtNoteStatus.SETTLED] 
         })
