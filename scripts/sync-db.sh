@@ -2,6 +2,9 @@
 
 # ==========================================
 # 🔄 SCRIPT ĐỒNG BỘ DATA XANH AG (PRO -> DEV)
+# Mở terminal tại thư mục XANH-AG-SERVER.
+# Chạy lệnh: bash scripts/sync-db.sh
+# Nhấn y để xác nhận xóa dữ liệu cũ ở DEV và ghi đè dữ liệu mới từ PRO.
 # ==========================================
 
 # Database URLs
