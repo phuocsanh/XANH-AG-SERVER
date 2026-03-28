@@ -100,6 +100,9 @@ const typeOrmConfig: TypeOrmModuleOptions = {
   
   // Connection timeout
   connectTimeoutMS: 20000, // 20 giây (giảm từ 30s để fail fast hơn)
+  
+  // Chỉ định rõ schema để tránh lỗi "no schema has been selected"
+  schema: 'public',
 };
 
 export default typeOrmConfig;
