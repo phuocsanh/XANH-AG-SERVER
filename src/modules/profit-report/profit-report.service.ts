@@ -10,11 +10,23 @@ import { ExternalPurchase } from '../../entities/external-purchase.entity';
 export interface ProfitReport {
   rice_crop_id: number;
   field_name: string;
-  area: number;
+  field_area: number; // m2
+  amount_of_land: number; // công
   rice_variety: string;
   
-  // Chi phí
+  // Chi phí tổng hợp
   total_cost: number;
+  cost_per_area: number; // mỗi m2 (nếu cần)
+  cost_per_cong: number; // mỗi công - đây là cái người dùng yêu cầu
+
+  // Chi phí canh tác (Cultivation / Operational)
+  total_cultivation_cost: number;
+  cultivation_cost_per_cong: number;
+
+  // Chi phí vật tư (Input / Fertilizers, Pesticides, Seeds)
+  total_input_cost: number;
+  input_cost_per_cong: number;
+  
   cost_breakdown: any[]; // Mảng chứa các hạng mục chi phí cho biểu đồ
   cost_items: CostItem[];
   
@@ -81,22 +93,32 @@ export class ProfitReportService {
       });
 
       // Tính toán tổng hợp
-      const cultivationCost = costItems.reduce((sum, item) => sum + Number(item.total_cost), 0);
+      // Chi phí canh tác (cultivation): công cán, máy móc...
+      const total_cultivation_cost = costItems.reduce((sum, item) => sum + Number(item.total_cost), 0);
+      
+      // Chi phí vật tư (input): vật tư hệ thống + vật tư mua ngoài
       const systemCost = systemInvoices.reduce((sum, inv) => sum + Number(inv.final_amount), 0);
       const externalCost = externalPurchases.reduce((sum, ext) => sum + Number(ext.total_amount), 0);
+      const total_input_cost = systemCost + externalCost;
       
-      const total_cost = cultivationCost + systemCost + externalCost;
+      const total_cost = total_cultivation_cost + total_input_cost;
+
+      // Tính toán diện tích (công)
+      const field_area = Number(crop.field_area) || 0;
+      // Nếu có amount_of_land thì dùng, ko thì tính từ m2 (1 công = 1000m2)
+      const amount_of_land = Number(crop.amount_of_land) || (field_area / 1000) || 1;
+      
+      // Tính chi phí mỗi công
+      const cost_per_cong = total_cost / amount_of_land;
+      const cultivation_cost_per_cong = total_cultivation_cost / amount_of_land;
+      const input_cost_per_cong = total_input_cost / amount_of_land;
       
       // Phân bổ chi phí cho biểu đồ
       const temp_breakdown: Record<string, number> = {
-        'cultivation_cost': 0,
+        'cultivation_cost': total_cultivation_cost,
         'system_invoices': systemCost,
         'external_invoices': externalCost,
       };
-
-      costItems.forEach(item => {
-        temp_breakdown['cultivation_cost'] = (temp_breakdown['cultivation_cost'] || 0) + Number(item.total_cost);
-      });
 
       // Lấy thông tin thu hoạch
       const harvestRecords = await this.harvestRecordRepository.find({
@@ -111,7 +133,7 @@ export class ProfitReportService {
       // Tính lợi nhuận
       const net_profit = revenue - total_cost;
       const roi = total_cost > 0 ? (net_profit / total_cost) * 100 : 0;
-      const profit_per_m2 = Number(crop.field_area) > 0 ? net_profit / Number(crop.field_area) : 0;
+      const profit_per_m2 = field_area > 0 ? net_profit / field_area : 0;
 
       // Chuyển đổi breakdown sang dạng mảng mà Frontend mong đợi
       const categoryLabels: Record<string, string> = {
@@ -141,9 +163,19 @@ export class ProfitReportService {
       const report: ProfitReport = {
         rice_crop_id: crop.id,
         field_name: crop.field_name,
-        area: Number(crop.field_area),
+        field_area,
+        amount_of_land,
         rice_variety: crop.rice_variety,
+        
+        // Các trường chi phí mới
         total_cost,
+        cost_per_area: field_area > 0 ? total_cost / field_area : 0,
+        cost_per_cong,
+        total_cultivation_cost,
+        cultivation_cost_per_cong,
+        total_input_cost,
+        input_cost_per_cong,
+
         cost_breakdown,
         cost_items: costItems,
         yield_amount,
@@ -192,7 +224,7 @@ export class ProfitReportService {
       );
 
       const total_crops = cropReports.length;
-      const total_area = cropReports.reduce((sum, r) => sum + r.area, 0);
+      const total_area = cropReports.reduce((sum, r) => sum + r.field_area, 0);
       const total_cost = cropReports.reduce((sum, r) => sum + r.total_cost, 0);
       const total_revenue = cropReports.reduce((sum, r) => sum + r.total_revenue, 0);
       const total_profit = total_revenue - total_cost;
