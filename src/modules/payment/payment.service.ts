@@ -264,7 +264,7 @@ export class PaymentService {
         .andWhere('dn.status IN (:...statuses)', { 
           statuses: [DebtNoteStatus.ACTIVE, DebtNoteStatus.OVERDUE, DebtNoteStatus.SETTLED] 
         })
-        .setLock('pessimistic_write')
+        .setLock('pessimistic_write', undefined, ['dn'])
         .getOne();
 
       if (!oldDebtNote) {
