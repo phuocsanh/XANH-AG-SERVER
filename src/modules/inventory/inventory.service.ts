@@ -2753,9 +2753,16 @@ export class InventoryService {
         continue;
       }
 
+      const vatUnitCost = Number(item.vat_unit_cost || 0);
+      
+      // LOGIC MỚI: Chỉ tính trung bình trên các dòng có GIÁ VAT > 0. 
+      // Những dòng VAT = 0 sẽ bị loại hoàn toàn khỏi phép tính trung bình.
+      if (vatUnitCost <= 0) {
+        continue;
+      }
+
       const factor = Number(item.conversion_factor || 1);
       const taxableBaseQty = taxableQty * factor;
-      const vatUnitCost = Number(item.vat_unit_cost ?? item.unit_cost ?? 0);
 
       totalTaxableBaseQty += taxableBaseQty;
       totalTaxableValue += taxableQty * vatUnitCost;
