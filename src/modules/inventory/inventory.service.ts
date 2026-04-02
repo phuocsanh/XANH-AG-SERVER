@@ -1686,6 +1686,11 @@ export class InventoryService {
         'approver',
         'approver.user_profile',
       ],
+      order: {
+        items: {
+          id: 'ASC',
+        } as any,
+      },
     });
 
     if (receipt) {
