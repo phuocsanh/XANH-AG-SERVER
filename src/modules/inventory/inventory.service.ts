@@ -2453,7 +2453,8 @@ export class InventoryService {
   async getReceiptItems(receiptId: number) {
     return this.inventoryReceiptItemRepository.find({
       where: { receipt_id: receiptId },
-      relations: ['product'], // Bao gồm thông tin sản phẩm
+      // Load đầy đủ quan hệ sản phẩm để frontend hiển thị tên, đơn vị tính
+      relations: ['product', 'product.unit', 'product.unit_conversions', 'product.unit_conversions.unit'],
     });
   }
 
