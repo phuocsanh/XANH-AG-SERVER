@@ -448,6 +448,17 @@ export class InventoryController {
   }
 
   /**
+   * Lấy lịch sử thay đổi của phiếu nhập kho
+   * @param id - ID của phiếu nhập kho
+   * @returns Danh sách lịch sử thay đổi
+   */
+  @Get('receipt/:id/logs')
+  @RequirePermissions('inventory:read')
+  getReceiptLogs(@Param('id') id: string) {
+    return this.inventoryService.getReceiptLogs(+id);
+  }
+
+  /**
    * Cập nhật thông tin phiếu nhập kho
    * @param id - ID của phiếu nhập kho cần cập nhật
    * @param updateData - Dữ liệu cập nhật phiếu nhập kho
@@ -458,8 +469,9 @@ export class InventoryController {
   updateReceipt(
     @Param('id') id: string,
     @Body() updateData: Partial<CreateInventoryReceiptDto>,
+    @CurrentUser('id') userId: number,
   ) {
-    return this.inventoryService.updateReceipt(+id, updateData);
+    return this.inventoryService.updateReceipt(+id, updateData, userId);
   }
 
   /**
@@ -534,8 +546,9 @@ export class InventoryController {
   updateReceiptItem(
     @Param('id') id: string,
     @Body() updateData: Partial<CreateInventoryReceiptItemDto>,
+    @CurrentUser('id') userId: number,
   ) {
-    return this.inventoryService.updateReceiptItem(+id, updateData);
+    return this.inventoryService.updateReceiptItem(+id, updateData, userId);
   }
 
   /**

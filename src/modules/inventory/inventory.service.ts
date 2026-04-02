@@ -19,6 +19,7 @@ import { InventoryReturnItem } from '../../entities/inventory-return-items.entit
 import { InventoryReturnRefund } from '../../entities/inventory-return-refunds.entity';
 import { InventoryAdjustment } from '../../entities/inventory-adjustments.entity';
 import { InventoryAdjustmentItem } from '../../entities/inventory-adjustment-items.entity';
+import { InventoryReceiptLog } from '../../entities/inventory-receipt-logs.entity';
 import { Product } from '../../entities/products.entity';
 import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
 import { SalesReturnItem } from '../../entities/sales-return-items.entity';
@@ -83,6 +84,8 @@ export class InventoryService {
     private inventoryAdjustmentRepository: Repository<InventoryAdjustment>,
     @InjectRepository(InventoryAdjustmentItem)
     private inventoryAdjustmentItemRepository: Repository<InventoryAdjustmentItem>,
+    @InjectRepository(InventoryReceiptLog)
+    private inventoryReceiptLogRepository: Repository<InventoryReceiptLog>,
     @Inject(forwardRef(() => ProductService))
     private productService: ProductService,
     private fileTrackingService: FileTrackingService,
@@ -1976,6 +1979,7 @@ export class InventoryService {
   async updateReceipt(
     id: number,
     updateData: Partial<CreateInventoryReceiptDto>,
+    userId?: number,
   ): Promise<InventoryReceipt | null> {
     const receipt = await this.findReceiptById(id);
     if (!receipt) {
@@ -2098,7 +2102,69 @@ export class InventoryService {
       );
     }
 
+    // 1. LOGGING thay đổi metadata
+    await this.logReceiptMetadataChanges(receipt, updateData, userId);
+
     return updatedReceipt;
+  }
+
+  /**
+   * Log các thay đổi về metadata của phiếu nhập
+   */
+  private async logReceiptMetadataChanges(
+    oldData: InventoryReceipt,
+    newData: Partial<CreateInventoryReceiptDto>,
+    userId?: number,
+  ) {
+    const changes: any[] = [];
+    const fieldsToTrack = [
+      'supplier_id',
+      'notes',
+      'bill_date',
+      'payment_due_date',
+      'status',
+    ];
+
+    for (const field of fieldsToTrack) {
+      if (
+        newData[field as keyof CreateInventoryReceiptDto] !== undefined &&
+        String(newData[field as keyof CreateInventoryReceiptDto]) !==
+          String(oldData[field as keyof InventoryReceipt])
+      ) {
+        changes.push({
+          field,
+          old: oldData[field as keyof InventoryReceipt],
+          new: newData[field as keyof CreateInventoryReceiptDto],
+        });
+      }
+    }
+
+    if (changes.length > 0) {
+      await this.logReceiptChange(
+        oldData.id,
+        'UPDATE_METADATA',
+        JSON.stringify(changes),
+        userId,
+      );
+    }
+  }
+
+  /**
+   * Lưu lịch sử thay đổi của phiếu nhập
+   */
+  async logReceiptChange(
+    receiptId: number,
+    action: string,
+    details: string,
+    userId?: number,
+  ) {
+    const log = this.inventoryReceiptLogRepository.create({
+      receipt_id: receiptId,
+      action,
+      details,
+      created_by: userId ?? null,
+    } as any);
+    return this.inventoryReceiptLogRepository.save(log);
   }
 
   /**
@@ -2395,11 +2461,13 @@ export class InventoryService {
    * Cập nhật thông tin chi tiết phiếu nhập kho
    * @param id - ID của chi tiết phiếu nhập kho cần cập nhật
    * @param updateData - Dữ liệu cập nhật chi tiết phiếu nhập kho
+   * @param userId - ID người thực hiện
    * @returns Thông tin chi tiết phiếu nhập kho đã cập nhật
    */
   async updateReceiptItem(
     id: number,
     updateData: Partial<CreateInventoryReceiptItemDto>,
+    userId?: number,
   ): Promise<InventoryReceiptItem | null> {
     // Lấy thông tin item và phiếu nhập
     const item = await this.inventoryReceiptItemRepository.findOne({
@@ -2415,8 +2483,13 @@ export class InventoryService {
 
     // VALIDATION: Nếu phiếu đã duyệt
     if (receipt && receipt.status === ReceiptStatus.APPROVED) {
-      // Chỉ cho phép sửa dữ liệu thuế của item (để sửa dữ liệu cũ)
-      const allowedFields = ['taxable_quantity', 'vat_unit_cost'];
+      // Cho phép sửa "Số lượng thuế", "Đơn giá VAT" và "Đơn giá mua" (mới thêm)
+      const allowedFields = [
+        'taxable_quantity',
+        'vat_unit_cost',
+        'unit_cost',
+        'notes',
+      ];
       const attemptedFields = Object.keys(updateData);
 
       const invalidFields = attemptedFields.filter(
@@ -2425,13 +2498,22 @@ export class InventoryService {
 
       if (invalidFields.length > 0) {
         throw new BadRequestException(
-          `Phiếu đã duyệt chỉ được phép sửa "Số lượng thuế" và "Đơn giá VAT". Không được sửa: ${invalidFields.join(', ')}`,
+          `Phiếu đã duyệt chỉ được phép sửa "Đơn giá", "Số lượng thuế", "Đơn giá VAT" và "Ghi chú". Không được sửa: ${invalidFields.join(', ')}`,
         );
       }
 
       this.logger.log(
-        `Cập nhật dữ liệu thuế cho item #${id} của phiếu đã duyệt ${receipt.code}`,
+        `Cập nhật đơn giá/thuế cho item #${id} của phiếu đã duyệt ${receipt.code}`,
       );
+    }
+
+    // 1. LOG thay đổi item
+    await this.logReceiptItemChanges(item, updateData, userId);
+
+    // Nếu sửa unit_cost, tự động cập nhật total_price cho item
+    if (updateData.unit_cost !== undefined) {
+      updateData.total_price =
+        Number(item.quantity) * Number(updateData.unit_cost);
     }
 
     // Thực hiện update
@@ -2453,6 +2535,29 @@ export class InventoryService {
         updateData.vat_unit_cost !== undefined
       ) {
         await this.recalculateAverageVatInputCost(updatedItem.product_id);
+      }
+
+      // 3. ĐỒNG BỘ GIÁ VỐN VÀO GIAO DỊCH VÀ LÔ HÀNG (Nếu đã duyệt)
+      if (receipt && receipt.status === ReceiptStatus.APPROVED && updateData.unit_cost !== undefined) {
+        const newUnitCost = Number(updateData.unit_cost);
+        
+        // Cập nhật InventoryTransaction liên quan
+        await this.inventoryTransactionRepository.update(
+          { receipt_item_id: id },
+          { 
+            unit_cost_price: newUnitCost.toString(),
+            total_value: (Number(updatedItem.quantity) * newUnitCost).toString()
+          }
+        );
+
+        // Cập nhật InventoryBatch liên quan
+        await this.inventoryBatchRepository.update(
+          { receipt_item_id: id },
+          { unit_cost_price: newUnitCost.toString() }
+        );
+
+        // Tính lại tổng tiền phiếu nhập và công nợ
+        await this.recalculateReceiptFinance(updatedItem.receipt_id);
       }
 
       // 2. TỰ ĐỘNG CẬP NHẬT LẠI GIÁ VỐN TRUNG BÌNH (WAC)
@@ -2481,6 +2586,94 @@ export class InventoryService {
     return this.inventoryReceiptItemRepository.findOne({
       where: { id },
       relations: ['product', 'receipt'],
+    });
+  }
+
+  /**
+   * Tính toán lại toàn bộ tài chính của một phiếu nhập hàng dựa trên danh sách item hiện tại
+   * @param receiptId - ID của phiếu nhập kho
+   */
+  private async recalculateReceiptFinance(receiptId: number) {
+    const receipt = await this.inventoryReceiptRepository.findOne({
+      where: { id: receiptId },
+      relations: ['items'],
+    });
+
+    if (!receipt) return;
+
+    // Tính tổng tiền hàng gốc từ các item
+    const totalAmount = receipt.items.reduce(
+      (sum, item) => sum + Number(item.total_price || 0),
+      0,
+    );
+
+    const paidAmount = Number(receipt.paid_amount || 0);
+    const sharedShipping = Number(receipt.shared_shipping_cost || 0);
+
+    // Tính tổng phí bốc vác riêng của từng item
+    const itemShipping = receipt.items.reduce(
+      (sum, item) => sum + (Number(item.individual_shipping_cost) || 0),
+      0,
+    );
+
+    const finalAmount = Math.round(totalAmount);
+    const excludedShipping = Number(sharedShipping) + Number(itemShipping);
+    const supplierAmount = Math.round(finalAmount - excludedShipping);
+    const debtAmount = Math.max(0, Math.round(supplierAmount - paidAmount));
+
+    await this.inventoryReceiptRepository.update(receiptId, {
+      total_amount: finalAmount,
+      supplier_amount: supplierAmount,
+      debt_amount: debtAmount,
+    });
+
+    this.logger.log(`✅ Đã tính lại tài chính cho phiếu #${receiptId}: Tổng=${finalAmount}, Nợ=${debtAmount}`);
+  }
+
+  /**
+   * Log các thay đổi của một item trong phiếu
+   */
+  private async logReceiptItemChanges(
+    oldData: InventoryReceiptItem,
+    newData: Partial<CreateInventoryReceiptItemDto>,
+    userId?: number,
+  ) {
+    const changes: any[] = [];
+    const fieldsToTrack = ['unit_cost', 'taxable_quantity', 'vat_unit_cost'];
+
+    for (const field of fieldsToTrack) {
+      if (
+        newData[field] !== undefined &&
+        String(newData[field]) !== String(oldData[field])
+      ) {
+        changes.push({
+          item_id: oldData.id,
+          field,
+          old: oldData[field],
+          new: newData[field],
+        });
+      }
+    }
+
+    if (changes.length > 0) {
+      await this.logReceiptChange(
+        oldData.receipt_id,
+        'UPDATE_ITEM',
+        JSON.stringify(changes),
+        userId,
+      );
+    }
+  }
+
+  /**
+   * Lấy lịch sử thay đổi của phiếu nhập
+   * @param receiptId - ID phiếu nhập
+   */
+  async getReceiptLogs(receiptId: number) {
+    return this.inventoryReceiptLogRepository.find({
+      where: { receipt_id: receiptId },
+      relations: ['user'],
+      order: { created_at: 'DESC' },
     });
   }
 
