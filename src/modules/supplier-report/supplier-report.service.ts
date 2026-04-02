@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Supplier } from '../../entities/suppliers.entity';
 import { InventoryReceiptItem } from '../../entities/inventory-receipt-items.entity';
 import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
+import { InventoryReceipt } from '../../entities/inventory-receipts.entity';
 import { SalesInvoiceStatus } from '../../entities/sales-invoices.entity';
 import { 
   SupplierReportDto, 
@@ -22,6 +23,8 @@ export class SupplierReportService {
     private readonly receiptItemRepository: Repository<InventoryReceiptItem>,
     @InjectRepository(SalesInvoiceItem)
     private readonly salesInvoiceItemRepository: Repository<SalesInvoiceItem>,
+    @InjectRepository(InventoryReceipt)
+    private readonly inventoryReceiptRepository: Repository<InventoryReceipt>,
   ) {}
 
   /**
@@ -66,6 +69,7 @@ export class SupplierReportService {
             gross_margin: 0,
             product_count: 0,
             invoice_count: 0,
+            total_purchase_value: 0,
             period: { start_date: startDate || null, endDate: endDate || null },
           },
           products: [],
@@ -153,13 +157,35 @@ export class SupplierReportService {
         gross_margin: totalRevenue > 0 ? Math.round((grossProfit / totalRevenue) * 10000) / 100 : 0,
         product_count: products.length,
         invoice_count: invoiceIds.size,
+        total_purchase_value: 0,
         period: {
           start_date: startDate || null,
           endDate: endDate || null,
         },
       };
 
-      this.logger.log(`📊 Đã tạo báo cáo cho nhà cung cấp ${supplier.name}: ${products.length} sản phẩm, Doanh số ${totalRevenue.toLocaleString()} đ`);
+      // 6. Tính tổng tiền nhập kho từ nhà cung cấp này trong khoảng thời gian đã chọn
+      const purchaseQuery = this.inventoryReceiptRepository
+        .createQueryBuilder('receipt')
+        .where('receipt.supplier_id = :supplierId', { supplierId })
+        .andWhere('receipt.status != :status', { status: 'cancelled' }); // Bỏ qua phiếu đã hủy
+
+      if (startDate && endDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        // Sử dụng bill_date nếu có, nếu không thì dùng created_at
+        purchaseQuery.andWhere('(receipt.bill_date BETWEEN :start AND :end OR (receipt.bill_date IS NULL AND receipt.created_at BETWEEN :start AND :end))', { start, end });
+      }
+
+      const purchaseStats = await purchaseQuery
+        .select('SUM(COALESCE(receipt.final_amount, receipt.total_amount))', 'total_purchase_value')
+        .getRawOne();
+      
+      summary.total_purchase_value = Math.round(Number(purchaseStats?.total_purchase_value || 0) * 100) / 100;
+
+      this.logger.log(`📊 Đã tạo báo cáo cho nhà cung cấp ${supplier.name}: ${products.length} sản phẩm, Doanh số ${totalRevenue.toLocaleString()} đ, Nhập hàng ${summary.total_purchase_value.toLocaleString()} đ`);
 
       return {
         supplier_id: supplier.id,

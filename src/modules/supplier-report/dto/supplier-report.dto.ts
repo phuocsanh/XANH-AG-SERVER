@@ -48,6 +48,9 @@ export class SupplierStatsSummaryDto {
   @ApiProperty()
   invoice_count!: number;
 
+  @ApiProperty()
+  total_purchase_value!: number;
+
   @ApiProperty({ required: false })
   period?: {
     start_date?: string | null;
