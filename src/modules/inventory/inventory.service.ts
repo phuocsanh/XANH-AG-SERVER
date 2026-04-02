@@ -1982,10 +1982,33 @@ export class InventoryService {
       throw new Error('Không tìm thấy phiếu nhập kho');
     }
 
-    // Chỉ cho phép sửa phiếu ở trạng thái 'draft'
-    if (receipt.status !== ReceiptStatus.DRAFT) {
+    // VALIDATION: Nếu phiếu đã duyệt
+    if (receipt.status === ReceiptStatus.APPROVED) {
+      // Cho phép sửa một số trường không ảnh hưởng đến kho và giá vốn
+      const allowedFields = [
+        'supplier_id',
+        'notes',
+        'images',
+        'bill_date',
+        'payment_due_date',
+      ];
+      const attemptedFields = Object.keys(updateData);
+
+      const invalidFields = attemptedFields.filter(
+        (field) =>
+          !allowedFields.includes(field) &&
+          updateData[field as keyof CreateInventoryReceiptDto] !== undefined &&
+          updateData[field as keyof CreateInventoryReceiptDto] !== receipt[field as keyof InventoryReceipt]
+      );
+
+      if (invalidFields.length > 0) {
+        throw new BadRequestException(
+          `Phiếu đã duyệt không được phép sửa các thông tin ảnh hưởng đến kho và giá vốn. Bạn chỉ có thể sửa: Nhà cung cấp, Ghi chú, Ảnh, Ngày hóa đơn. (Lỗi tại trường: ${invalidFields.join(', ')})`,
+        );
+      }
+    } else if (receipt.status !== ReceiptStatus.DRAFT) {
       throw new Error(
-        'Chỉ có thể chỉnh sửa phiếu nhập kho ở trạng thái nháp (draft)',
+        'Chỉ có thể chỉnh sửa phiếu nhập kho ở trạng thái Nháp hoặc đã Duyệt (chỉ thông tin cơ bản).',
       );
     }
 
@@ -2003,6 +2026,8 @@ export class InventoryService {
       entityUpdateData.notes = updateData.notes;
     if (updateData.images !== undefined)
       entityUpdateData.images = updateData.images;
+    if (updateData.bill_date !== undefined)
+      entityUpdateData.bill_date = updateData.bill_date;
     if (updateData.shared_shipping_cost !== undefined)
       entityUpdateData.shared_shipping_cost = Math.round(
         updateData.shared_shipping_cost,
