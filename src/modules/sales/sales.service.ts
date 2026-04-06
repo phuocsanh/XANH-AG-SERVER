@@ -132,39 +132,60 @@ export class SalesService {
             let taxSellingPrice = item.tax_selling_price;
             let product: Product | null = null;
             
-            if (!productName || !unitName || !taxSellingPrice) {
-              product = await queryRunner.manager.findOne(Product, {
-                where: { id: item.product_id },
-                relations: ['unit'],
-              });
-              
-              if (!productName) {
-                productName = product?.trade_name || product?.name;
-              }
-              
-              if (!unitName) {
-                unitName = product?.unit?.name;
-              }
-
-              if (!taxSellingPrice) {
-                taxSellingPrice = product?.tax_selling_price;
-              }
+            // Luôn lấy thông tin sản phẩm và quy đổi đơn vị để snapshot
+            product = await queryRunner.manager.findOne(Product, {
+              where: { id: item.product_id },
+              relations: ['unit', 'unit_conversions'],
+            });
+            
+            if (!productName) {
+              productName = product?.trade_name || product?.name;
+            }
+            
+            if (!unitName) {
+              unitName = product?.unit?.name;
             }
 
-            // ✅ Tính base_quantity (số lượng quy về đơn vị cơ sở để trừ kho)
-            // Nếu frontend gửi base_quantity thì dùng, không thì tự tính: quantity × conversion_factor
+            if (!taxSellingPrice) {
+              taxSellingPrice = product?.tax_selling_price;
+            }
+
+            // ✅ Tính base_quantity
             const conversionFactor = Number(item.conversion_factor || 1);
             const baseQty = item.base_quantity
               ? Number(item.base_quantity)
               : item.quantity * conversionFactor;
 
-            if (conversionFactor !== 1) {
-              if (!product) {
-                product = await queryRunner.manager.findOne(Product, {
-                  where: { id: item.product_id },
-                });
+            // ✅ LOGIC QUY ĐỔI ĐỐI ỨNG (Snapshot Bao/Kg)
+            let otherUnitName = '';
+            let otherUnitFactor = 1;
+
+            if (product && product.unit_conversions && product.unit_conversions.length > 1) {
+              const currentUnitId = item.sale_unit_id;
+              
+              // Tìm đơn vị cơ sở và các đơn vị quy đổi
+              const baseConv = product.unit_conversions.find(c => c.is_base_unit);
+              const otherConvs = product.unit_conversions.filter(c => !c.is_base_unit);
+
+              if (currentUnitId === baseConv?.unit_id) {
+                // ĐANG BÁN THEO ĐƠN VỊ CƠ SỞ (Kg) -> Tìm đơn vị quy đổi đối ứng (Bao)
+                // Ưu tiên đơn vị bán hàng, hoặc đơn vị đầu tiên trong danh sách
+                const targetConv = otherConvs.find(c => c.is_sales_unit) || otherConvs[0];
+                if (targetConv) {
+                  otherUnitName = targetConv.unit_name || '';
+                  otherUnitFactor = Number(targetConv.conversion_factor || 1);
+                }
+              } else {
+                // ĐANG BÁN THEO ĐƠN VỊ QUY ĐỔI (Bao) -> Tìm đơn vị cơ sở (Kg)
+                if (baseConv) {
+                  otherUnitName = baseConv.unit_name || '';
+                  otherUnitFactor = Number(baseConv.conversion_factor || 1);
+                }
               }
-              const productTaxPrice = Number(product?.tax_selling_price || 0);
+            }
+
+            if (conversionFactor !== 1 && product) {
+              const productTaxPrice = Number(product.tax_selling_price || 0);
               const currentTaxPrice = Number(taxSellingPrice || 0);
 
               if (productTaxPrice > 0) {
@@ -182,6 +203,8 @@ export class SalesService {
               total_price: totalPrice,
               conversion_factor: conversionFactor,
               base_quantity: baseQty,
+              other_unit_name: otherUnitName,
+              other_unit_factor: otherUnitFactor,
               ...(productName && { product_name: productName }),
               ...(unitName && { unit_name: unitName }),
               ...(taxSellingPrice && { tax_selling_price: taxSellingPrice }),

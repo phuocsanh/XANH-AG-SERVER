@@ -101,6 +101,21 @@ export class SalesInvoiceItem {
   })
   base_quantity?: number;
 
+  /** Tên đơn vị tính đối ứng để hiển thị quy đổi (ví dụ: BAO - khi đơn vị bán là KG) */
+  @Column({ name: 'other_unit_name', nullable: true })
+  other_unit_name?: string;
+
+  /** Hệ số quy đổi của đơn vị đối ứng tại thời điểm bán */
+  @Column({
+    name: 'other_unit_factor',
+    type: 'decimal',
+    precision: 15,
+    scale: 6,
+    default: 1,
+    nullable: true,
+  })
+  other_unit_factor?: number;
+
   /** Thời gian tạo chi tiết hóa đơn */
   @CreateDateColumn({ name: 'created_at' })
   created_at!: Date;
