@@ -35,6 +35,7 @@
     "migration:revert": "npm run typeorm migration:revert -- -d src/config/data-source.ts",
     "seed:rbac": "ts-node src/database/run-seed.ts",
     "seed:rbac:prod": "node dist/database/run-seed.js",
+    "db:sync": "./scripts/sync-db.sh",
     "deploy:render": "echo '📖 Xem hướng dẫn deploy tại RENDER_DEPLOYMENT.md'"
   },
   "keywords": [],
