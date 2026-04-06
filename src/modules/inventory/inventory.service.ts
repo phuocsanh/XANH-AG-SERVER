@@ -2275,16 +2275,20 @@ export class InventoryService {
         }
 
         // ✅ Tính số lượng thực tế nhập kho theo đơn vị cơ sở (base_quantity)
-        // Nếu có base_quantity (người dùng đã chọn BAO → quy đổi ra KG) thì dùng base_quantity
-        // Nếu không có (dữ liệu cũ hoặc không quy đổi) thì dùng quantity như cũ (tương thích ngược)
         const stockInQuantity = item.base_quantity
           ? Number(item.base_quantity)
-          : item.quantity;
+          : Number(item.quantity);
+
+        // ✅ Tính đơn giá chuẩn theo đơn vị cơ sở (Kg)
+        // Đảm bảo latest_purchase_price lưu theo Kg để đồng bộ
+        const normalizedCostPrice = stockInQuantity > 0 
+          ? (Number(item.total_price || 0) / stockInQuantity) 
+          : Number(item.unit_cost);
 
         const batch = await this.processStockIn(
           item.product_id,
           stockInQuantity, // ← dùng số lượng đã quy đổi về đơn vị cơ sở
-          costPrice,
+          normalizedCostPrice, // ← dùng đơn giá đã chuẩn hóa về KG
           userId,
           item.id,
           `LOT-${receipt.code.replace('REC-', '')}-${itemIndex}`,
