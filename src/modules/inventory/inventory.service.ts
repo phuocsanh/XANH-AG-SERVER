@@ -1650,7 +1650,11 @@ export class InventoryService {
 
       // ✅ Đánh dấu ảnh là đã sử dụng
       if (finalReceipt) {
-        await this.markInventoryImagesAsUsed('InventoryReceipt', finalReceipt.id, finalReceipt.images);
+        await this.markInventoryImagesAsUsed(
+          'InventoryReceipt',
+          finalReceipt.id,
+          finalReceipt.images,
+        );
       }
 
       return finalReceipt;
@@ -2007,7 +2011,8 @@ export class InventoryService {
         (field) =>
           !allowedFields.includes(field) &&
           updateData[field as keyof CreateInventoryReceiptDto] !== undefined &&
-          updateData[field as keyof CreateInventoryReceiptDto] !== receipt[field as keyof InventoryReceipt]
+          updateData[field as keyof CreateInventoryReceiptDto] !==
+            receipt[field as keyof InventoryReceipt],
       );
 
       if (invalidFields.length > 0) {
@@ -2265,7 +2270,7 @@ export class InventoryService {
       for (const item of items) {
         // Sử dụng đơn giá mua gốc (unit_cost) để tính giá nhập kho trung bình
         // Không cộng phí bốc vác vào giá vốn theo yêu cầu người dùng
-        const costPrice = Number(item.unit_cost);
+        // const costPrice = Number(item.unit_cost);
 
         // Lấy số lượng khai thuế từ item (nếu không có thì mặc định = 0)
         // Fallback: Nếu item chưa có taxable_quantity nhưng phiếu là is_taxable thì lấy full quantity
@@ -2281,9 +2286,10 @@ export class InventoryService {
 
         // ✅ Tính đơn giá chuẩn theo đơn vị cơ sở (Kg)
         // Đảm bảo latest_purchase_price lưu theo Kg để đồng bộ
-        const normalizedCostPrice = stockInQuantity > 0 
-          ? (Number(item.total_price || 0) / stockInQuantity) 
-          : Number(item.unit_cost);
+        const normalizedCostPrice =
+          stockInQuantity > 0
+            ? Number(item.total_price || 0) / stockInQuantity
+            : Number(item.unit_cost);
 
         const batch = await this.processStockIn(
           item.product_id,
@@ -2463,7 +2469,12 @@ export class InventoryService {
     return this.inventoryReceiptItemRepository.find({
       where: { receipt_id: receiptId },
       // Load đầy đủ quan hệ sản phẩm để frontend hiển thị tên, đơn vị tính
-      relations: ['product', 'product.unit', 'product.unit_conversions', 'product.unit_conversions.unit'],
+      relations: [
+        'product',
+        'product.unit',
+        'product.unit_conversions',
+        'product.unit_conversions.unit',
+      ],
     });
   }
 
@@ -2548,22 +2559,28 @@ export class InventoryService {
       }
 
       // 3. ĐỒNG BỘ GIÁ VỐN VÀO GIAO DỊCH VÀ LÔ HÀNG (Nếu đã duyệt)
-      if (receipt && receipt.status === ReceiptStatus.APPROVED && updateData.unit_cost !== undefined) {
+      if (
+        receipt &&
+        receipt.status === ReceiptStatus.APPROVED &&
+        updateData.unit_cost !== undefined
+      ) {
         const newUnitCost = Number(updateData.unit_cost);
-        
+
         // Cập nhật InventoryTransaction liên quan
         await this.inventoryTransactionRepository.update(
           { receipt_item_id: id },
-          { 
+          {
             unit_cost_price: newUnitCost.toString(),
-            total_value: (Number(updatedItem.quantity) * newUnitCost).toString()
-          }
+            total_value: (
+              Number(updatedItem.quantity) * newUnitCost
+            ).toString(),
+          },
         );
 
         // Cập nhật InventoryBatch liên quan
         await this.inventoryBatchRepository.update(
           { receipt_item_id: id },
-          { unit_cost_price: newUnitCost.toString() }
+          { unit_cost_price: newUnitCost.toString() },
         );
 
         // Tính lại tổng tiền phiếu nhập và công nợ
@@ -2637,7 +2654,9 @@ export class InventoryService {
       debt_amount: debtAmount,
     });
 
-    this.logger.log(`✅ Đã tính lại tài chính cho phiếu #${receiptId}: Tổng=${finalAmount}, Nợ=${debtAmount}`);
+    this.logger.log(
+      `✅ Đã tính lại tài chính cho phiếu #${receiptId}: Tổng=${finalAmount}, Nợ=${debtAmount}`,
+    );
   }
 
   /**
@@ -2763,8 +2782,8 @@ export class InventoryService {
       }
 
       const vatUnitCost = Number(item.vat_unit_cost || 0);
-      
-      // LOGIC MỚI: Chỉ tính trung bình trên các dòng có GIÁ VAT > 0. 
+
+      // LOGIC MỚI: Chỉ tính trung bình trên các dòng có GIÁ VAT > 0.
       // Những dòng VAT = 0 sẽ bị loại hoàn toàn khỏi phép tính trung bình.
       if (vatUnitCost <= 0) {
         continue;
@@ -3005,7 +3024,11 @@ export class InventoryService {
 
       // ✅ Đánh dấu ảnh là đã sử dụng
       if (result) {
-        await this.markInventoryImagesAsUsed('InventoryReturn', result.id, result.images);
+        await this.markInventoryImagesAsUsed(
+          'InventoryReturn',
+          result.id,
+          result.images,
+        );
       }
 
       this.logger.log(`Hoàn thành tạo phiếu trả hàng ${returnEntity.id}`);
@@ -4369,9 +4392,13 @@ export class InventoryService {
       (sum, b) => sum + b.taxable,
       0,
     );
-    const finalTaxableStockCount = hasTaxInfo
-      ? Math.max(0, remainingTaxInBatches)
-      : 0;
+    // ✅ FIX: Nếu tồn kho = 0 thì tồn thuế cũng phải bằng 0 (đã bán hết thì không còn tồn thuế)
+    const finalTaxableStockCount =
+      Number(product.quantity || 0) === 0
+        ? 0
+        : hasTaxInfo
+          ? Math.max(0, remainingTaxInBatches)
+          : 0;
 
     let productWasUpdated = false;
     if (
@@ -4404,7 +4431,12 @@ export class InventoryService {
     for (const url of images) {
       const file = await this.fileTrackingService.findByFileUrl(url);
       if (file) {
-        await this.fileTrackingService.createFileReference(file, entityType, entityId, 'images');
+        await this.fileTrackingService.createFileReference(
+          file,
+          entityType,
+          entityId,
+          'images',
+        );
         await this.fileTrackingService.incrementReferenceCount(file.id);
       }
     }
@@ -4423,17 +4455,26 @@ export class InventoryService {
     const newImgs = newImages || [];
 
     // 1. Tìm các ảnh bị gỡ
-    const removedImages = oldImgs.filter(url => !newImgs.includes(url));
+    const removedImages = oldImgs.filter((url) => !newImgs.includes(url));
     for (const url of removedImages) {
-      await this.fileTrackingService.removeFileReferenceByUrl(url, entityType, entityId);
+      await this.fileTrackingService.removeFileReferenceByUrl(
+        url,
+        entityType,
+        entityId,
+      );
     }
 
     // 2. Tìm các ảnh mới thêm
-    const addedImages = newImgs.filter(url => !oldImgs.includes(url));
+    const addedImages = newImgs.filter((url) => !oldImgs.includes(url));
     for (const url of addedImages) {
       const file = await this.fileTrackingService.findByFileUrl(url);
       if (file) {
-        await this.fileTrackingService.createFileReference(file, entityType, entityId, 'images');
+        await this.fileTrackingService.createFileReference(
+          file,
+          entityType,
+          entityId,
+          'images',
+        );
         await this.fileTrackingService.incrementReferenceCount(file.id);
       }
     }
