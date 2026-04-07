@@ -4224,11 +4224,15 @@ export class InventoryService {
     if (!product) return { productUpdated: false, salesItemsUpdated: 0 };
 
     // 1. Lấy lịch sử nhập hàng (kèm thông tin phiếu để lấy cờ is_taxable)
-    const receiptItems = await receiptItemRepo.find({
-      where: { product_id: product.id },
-      relations: ['receipt'],
-      order: { created_at: 'ASC' },
-    });
+    // ✅ FIX 1: Chỉ lấy receipt đã approved/completed, bỏ qua draft/cancelled
+    const receiptItems = await receiptItemRepo
+      .createQueryBuilder('item')
+      .innerJoinAndSelect('item.receipt', 'receipt')
+      .where('item.product_id = :productId', { productId: product.id })
+      .andWhere("receipt.status IN ('approved', 'completed')")
+      .andWhere('receipt.deleted_at IS NULL')
+      .orderBy('receipt.created_at', 'ASC')
+      .getMany();
 
     // 2. Lấy lịch sử bán hàng hợp lệ (chỉ lấy hóa đơn confirmed và paid, bỏ cancelled và draft, sắp xếp ASC để FIFO đúng thứ tự)
     const salesItems = await salesInvoiceItemRepo
@@ -4297,31 +4301,8 @@ export class InventoryService {
       };
     });
 
-    // TRƯỜNG HỢP ĐẶC BIỆT: Fallback cho tồn thuế thủ công (nếu không có lịch sử nhập khớp)
-    const currentTaxPool = batches.reduce(
-      (sum, b) => sum + (b?.taxable || 0),
-      0,
-    );
-    if (
-      currentTaxPool === 0 &&
-      product.has_input_invoice &&
-      Number(product.taxable_quantity_stock) > 0
-    ) {
-      const manualStockBase = Number(product.taxable_quantity_stock);
-      // Giả định lô hàng đầu tiên (hoặc tạo mới) có tồn thuế này
-      const b = batches[0];
-      if (b) {
-        b.taxable = Math.min(manualStockBase, b.total);
-        b.nonTaxable = Math.max(0, b.total - b.taxable);
-      } else {
-        batches.push({
-          id: 0,
-          taxable: manualStockBase,
-          nonTaxable: 0,
-          total: manualStockBase,
-        });
-      }
-    }
+    // ✅ FIX 2: Xóa fallback đọc từ product.taxable_quantity_stock để tránh vòng lặp sai
+    // Chỉ tính toán từ receipt items thực tế, không đọc lại giá trị đã sync trước đó
 
     let salesItemsUpdatedCount = 0;
 
@@ -4369,7 +4350,11 @@ export class InventoryService {
 
         calculatedTaxableBase += takeTaxable;
         b.taxable -= takeTaxable;
-        b.nonTaxable -= takeFromThisBatch - takeTaxable;
+        // ✅ FIX 4: Clamp nonTaxable về 0 nếu bị âm (tránh tính toán sai)
+        b.nonTaxable = Math.max(
+          0,
+          b.nonTaxable - (takeFromThisBatch - takeTaxable),
+        );
         remainingToDeduct -= takeFromThisBatch;
       }
 
