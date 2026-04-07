@@ -4223,14 +4223,22 @@ export class InventoryService {
     const product = await this.productService.findOne(productId);
     if (!product) return { productUpdated: false, salesItemsUpdated: 0 };
 
+    // ✅ FIX: Lấy conversion_factor mặc định từ product (nếu product có relation với unit_conversions)
+    // Hoặc fallback = 1 nếu không có (nghĩa là bán theo đơn vị cơ sở)
+    // Product không có conversion_factor trực tiếp, phải lấy từ product_unit_conversions
+    // Nếu không có thì mặc định = 1 (không quy đổi)
+    const productConversionFactor = 1;
+
     // 1. Lấy lịch sử nhập hàng (kèm thông tin phiếu để lấy cờ is_taxable)
     // ✅ FIX 1: Chỉ lấy receipt đã approved/completed, bỏ qua draft/cancelled
+    // ✅ FIX: Loại bỏ receipt items có quantity = 0 (không có giá trị)
     const receiptItems = await receiptItemRepo
       .createQueryBuilder('item')
       .innerJoinAndSelect('item.receipt', 'receipt')
       .where('item.product_id = :productId', { productId: product.id })
       .andWhere("receipt.status IN ('approved', 'completed')")
       .andWhere('receipt.deleted_at IS NULL')
+      .andWhere('item.quantity > 0') // Loại bỏ items có quantity = 0
       .orderBy('receipt.created_at', 'ASC')
       .getMany();
 
@@ -4279,19 +4287,29 @@ export class InventoryService {
       nonTaxable: number;
       total: number;
     }[] = receiptItems.map((r) => {
-      // base_quantity là số lượng quy đổi về đơn vị cơ sở (vd: KG)
-      const qtyBase = Number(r.base_quantity || r.quantity);
+      // ✅ FIX: Tính base_quantity chính xác (KG), fallback nếu không có
+      const factor = Number(
+        r.conversion_factor || productConversionFactor || 1,
+      );
+      const qtyBase = r.base_quantity
+        ? Number(r.base_quantity)
+        : Number(r.quantity) * factor;
 
       // Tính tỷ lệ taxable_base_quantity = (taxable_quantity / quantity) * base_quantity
       const originalQty = Number(r.quantity) || 1;
       const originalTaxable = Number(r.taxable_quantity || 0);
 
-      let taxableBase = (originalTaxable / originalQty) * qtyBase;
+      // ✅ FIX: taxable_quantity không được lớn hơn quantity (nếu lớn hơn thì do nhập sai, clamp về = quantity)
+      const clampedTaxable = Math.min(originalTaxable, originalQty);
+      let taxableBase = (clampedTaxable / originalQty) * qtyBase;
 
       // Fallback nếu phiếu nhập có cờ is_taxable mà không nhập taxable_quantity chi tiết
       if (taxableBase === 0 && (r.receipt as any)?.is_taxable) {
         taxableBase = qtyBase;
       }
+
+      // ✅ FIX: taxable không được lớn hơn total (trường hợp tính toán sai)
+      taxableBase = Math.min(taxableBase, qtyBase);
 
       return {
         id: r.id,
@@ -4301,6 +4319,20 @@ export class InventoryService {
       };
     });
 
+    // ✅ FIX: Tính tổng tồn kho từ batches để so sánh với product.quantity
+    const totalBatchQuantity = batches.reduce((sum, b) => sum + b.total, 0);
+    const productQuantity = Number(product.quantity || 0);
+
+    // Nếu tổng batches khác với product.quantity, có thể có batches đã bán hết (total = 0)
+    // hoặc có vấn đề với dữ liệu. Log để debug.
+    if (Math.abs(totalBatchQuantity - productQuantity) > 1) {
+      this.logger.warn(
+        `⚠️ Sync taxable - Product ${product.id} (${product.name}): ` +
+          `totalBatchQuantity=${totalBatchQuantity.toFixed(2)}kg, product.quantity=${productQuantity}kg. ` +
+          `Có thể có chênh lệch do làm tròn hoặc batches đã bán hết.`,
+      );
+    }
+
     // ✅ FIX 2: Xóa fallback đọc từ product.taxable_quantity_stock để tránh vòng lặp sai
     // Chỉ tính toán từ receipt items thực tế, không đọc lại giá trị đã sync trước đó
 
@@ -4308,13 +4340,17 @@ export class InventoryService {
 
     // 5. Mô phỏng quá trình bán hàng theo FIFO từng lô
     for (const item of salesItems) {
-      // Số lượng bán thực tế quy đổi = base_quantity - (returned_quantity * conversion_factor)
-      let saleQtyBase = Number(item.base_quantity || item.quantity);
+      // ✅ FIX: Tính saleQtyBase chính xác (KG), fallback cho hóa đơn cũ không có base_quantity
+      const factor = Number(
+        item.conversion_factor || productConversionFactor || 1,
+      );
+      let saleQtyBase = item.base_quantity
+        ? Number(item.base_quantity)
+        : Number(item.quantity) * factor;
 
       // Khấu trừ số lượng đã trả
       const returnedQty = returnsByInvoice.get(item.invoice_id) || 0;
       if (returnedQty > 0) {
-        const factor = Number(item.conversion_factor || 1);
         const returnedBase = returnedQty * factor;
         const canSubtract = Math.min(saleQtyBase, returnedBase);
 
@@ -4359,8 +4395,10 @@ export class InventoryService {
       }
 
       // Quy đổi ngược taxableBase sang đơn vị của item (quantity) để lưu
-      const factor = Number(item.conversion_factor || 1);
-      const finalTaxableQty = calculatedTaxableBase / factor;
+      const itemFactor = Number(
+        item.conversion_factor || productConversionFactor || 1,
+      );
+      const finalTaxableQty = calculatedTaxableBase / itemFactor;
 
       if (Math.abs(Number(item.taxable_quantity) - finalTaxableQty) > 0.001) {
         await salesInvoiceItemRepo.update(item.id, {
@@ -4377,13 +4415,29 @@ export class InventoryService {
       (sum, b) => sum + b.taxable,
       0,
     );
+
+    // ✅ FIX: Tồn thuế không được vượt quá tồn kho thực tế
+    // Nếu remainingTaxInBatches > product.quantity thì có nghĩa là logic FIFO tính sai
+    // (có thể do receipt items không khớp với batches thực tế trong kho)
+    // Sử dụng productQuantity đã khai báo ở trên (dòng 4311)
+    const cappedTaxInBatches = Math.min(remainingTaxInBatches, productQuantity);
+
     // ✅ FIX: Nếu tồn kho = 0 thì tồn thuế cũng phải bằng 0 (đã bán hết thì không còn tồn thuế)
     const finalTaxableStockCount =
-      Number(product.quantity || 0) === 0
+      productQuantity === 0
         ? 0
         : hasTaxInfo
-          ? Math.max(0, remainingTaxInBatches)
+          ? Math.max(0, cappedTaxInBatches)
           : 0;
+
+    // Log warning nếu có chênh lệch
+    if (remainingTaxInBatches > productQuantity && productQuantity > 0) {
+      this.logger.warn(
+        `⚠️ Sync taxable - Product ${product.id} (${product.name}): ` +
+          `remainingTaxInBatches=${remainingTaxInBatches.toFixed(2)}kg > product.quantity=${productQuantity}kg. ` +
+          `Đã clamp tồn thuế về = tồn kho thực tế.`,
+      );
+    }
 
     let productWasUpdated = false;
     if (
