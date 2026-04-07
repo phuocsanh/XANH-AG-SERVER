@@ -404,3 +404,27 @@ throw new BusinessLogicException('Mã lỗi', 'Thông báo lỗi');
 1. **Kiểm tra lỗi TypeScript**: Chạy `npx tsc --noEmit`
 2. **Chạy build test**: Chạy `npm run build`
 3. **Xác nhận thành công**: Đảm bảo không có lỗi TypeScript mới do thay đổi (lỗi pre-existing không tính)
+
+## 🚫 QUY TẮC PUSH CODE - CỰC KỲ QUAN TRỌNG
+
+**KHÔNG BAO GIỜ tự động push code lên GitHub mà không có sự đồng ý của user!**
+
+```
+❌ TUYỆT ĐỐI KHÔNG:
+- git push origin dev
+- git push origin main
+- Tự động commit và push sau khi sửa code
+
+✅ PHẢI LÀM:
+- Chỉ sửa code và hiển thị diff cho user xem
+- Hỏi user: "Bạn có muốn tôi push code này không?"
+- Chờ user approve rồi mới push
+- Nếu user yêu cầu, có thể tạo commit nhưng KHÔNG push
+```
+
+**Quy trình đúng khi sửa code:**
+
+1. Sửa file cần thiết (using `write_to_file` or `replace_in_file`)
+2. Hiển thị diff thay đổi cho user
+3. CHỜ user approve hoặc yêu cầu chỉnh sửa thêm
+4. NẾU user yêu cầu push → mới thực hiện `git add`, `git commit`, `git push`
