@@ -1526,14 +1526,14 @@ export class InventoryService {
           itemData.manufacturing_date = item.manufacturing_date;
         }
 
-        // Xử lý taxable_quantity: Chỉ tính thuế nếu phiếu là hàng tính thuế
-        if (receiptData.is_taxable === true) {
-          // Nếu phiếu được đánh dấu "Tất cả là hàng tính thuế", thì taxable_quantity = quantity
-          itemData.taxable_quantity = item.quantity;
-        } else {
-          // Nếu KHÔNG phải hàng tính thuế, KHÔNG nhận taxable_quantity từ FE
-          itemData.taxable_quantity = 0;
-        }
+        // Xử lý taxable_quantity: Dùng giá trị từ FE (cột SL Thuế)
+        // is_taxable chỉ dùng để tự động fill nếu FE không gửi giá trị cụ thể
+        itemData.taxable_quantity =
+          item.taxable_quantity !== undefined && item.taxable_quantity !== null
+            ? item.taxable_quantity
+            : receiptData.is_taxable
+              ? item.quantity
+              : 0;
 
         const itemEntity = queryRunner.manager.create(
           InventoryReceiptItem,
