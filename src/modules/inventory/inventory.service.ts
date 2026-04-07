@@ -4290,17 +4290,6 @@ export class InventoryService {
         ? Number(r.base_quantity)
         : Number(r.quantity) * factor;
 
-      // ✅ FIX: Kiểm tra is_taxable của receipt trước khi tính toán
-      // Nếu phiếu không tính thuế, bỏ qua hoàn toàn item này
-      if (!(r.receipt as any)?.is_taxable) {
-        return {
-          id: r.id,
-          taxable: 0,
-          nonTaxable: qtyBase,
-          total: qtyBase,
-        };
-      }
-
       // Tính tỷ lệ taxable_base_quantity = (taxable_quantity / quantity) * base_quantity
       const originalQty = Number(r.quantity) || 1;
       const originalTaxable = Number(r.taxable_quantity || 0);
@@ -4308,6 +4297,11 @@ export class InventoryService {
       // ✅ FIX: taxable_quantity không được lớn hơn quantity (nếu lớn hơn thì do nhập sai, clamp về = quantity)
       const clampedTaxable = Math.min(originalTaxable, originalQty);
       let taxableBase = (clampedTaxable / originalQty) * qtyBase;
+
+      // Fallback nếu phiếu nhập có cờ is_taxable mà không nhập taxable_quantity chi tiết
+      if (taxableBase === 0 && (r.receipt as any)?.is_taxable) {
+        taxableBase = qtyBase;
+      }
 
       // ✅ FIX: taxable không được lớn hơn total (trường hợp tính toán sai)
       taxableBase = Math.min(taxableBase, qtyBase);
