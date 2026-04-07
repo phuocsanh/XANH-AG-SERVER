@@ -1526,17 +1526,12 @@ export class InventoryService {
           itemData.manufacturing_date = item.manufacturing_date;
         }
 
-        // Xử lý taxable_quantity: Ưu tiên giá trị từ item, nếu không có thì dựa vào is_taxable của phiếu
-        if (
-          item.taxable_quantity !== undefined &&
-          item.taxable_quantity !== null
-        ) {
-          itemData.taxable_quantity = item.taxable_quantity;
-        } else if (receiptData.is_taxable === true) {
+        // Xử lý taxable_quantity: Chỉ tính thuế nếu phiếu là hàng tính thuế
+        if (receiptData.is_taxable === true) {
           // Nếu phiếu được đánh dấu "Tất cả là hàng tính thuế", thì taxable_quantity = quantity
           itemData.taxable_quantity = item.quantity;
         } else {
-          // Mặc định là 0 nếu không có thông tin
+          // Nếu KHÔNG phải hàng tính thuế, KHÔNG nhận taxable_quantity từ FE
           itemData.taxable_quantity = 0;
         }
 
