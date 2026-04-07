@@ -150,11 +150,9 @@ export class SalesService {
               taxSellingPrice = product?.tax_selling_price;
             }
 
-            // ✅ Tính base_quantity
+            // ✅ Tính base_quantity (Ưu tiên tính toán từ quantity * factor để tránh lỗi FE gửi sai)
             const conversionFactor = Number(item.conversion_factor || 1);
-            const baseQty = item.base_quantity
-              ? Number(item.base_quantity)
-              : item.quantity * conversionFactor;
+            const baseQty = item.quantity * conversionFactor;
 
             // ✅ LOGIC QUY ĐỔI ĐỐI ỨNG (Snapshot Bao/Kg)
             let otherUnitName = '';

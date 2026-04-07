@@ -884,7 +884,9 @@ export class InventoryService {
       );
       const deductTaxable = Math.max(0, deductFromBatch - deductNonTaxable);
 
-      totalTaxableDeducted += deductTaxable;
+      // ✅ Làm tròn để tránh số lẻ thập phân do sai số JavaScript (ví dụ: 50.0000000001 -> 50)
+      const roundedDeductTaxable = Math.round(deductTaxable * 100) / 100;
+      totalTaxableDeducted += roundedDeductTaxable;
       // ---------------------------------------
 
       batch.remaining_quantity -= deductFromBatch;
@@ -4282,13 +4284,12 @@ export class InventoryService {
       nonTaxable: number;
       total: number;
     }[] = receiptItems.map((r) => {
-      // ✅ FIX: Tính base_quantity chính xác (KG), fallback nếu không có
-      const factor = Number(
-        r.conversion_factor || productConversionFactor || 1,
+      // ✅ FIX: Đảm bảo qtyBase luôn chuẩn xác (Ưu tiên tính toán từ quantity * factor)
+      const factor = Number(r.conversion_factor || productConversionFactor || 1);
+      const qtyBase = Math.max(
+        r.base_quantity ? Number(r.base_quantity) : 0,
+        Number(r.quantity) * factor
       );
-      const qtyBase = r.base_quantity
-        ? Number(r.base_quantity)
-        : Number(r.quantity) * factor;
 
       // Tính tỷ lệ taxable_base_quantity = (taxable_quantity / quantity) * base_quantity
       const originalQty = Number(r.quantity) || 1;
@@ -4335,13 +4336,14 @@ export class InventoryService {
 
     // 5. Mô phỏng quá trình bán hàng theo FIFO từng lô
     for (const item of salesItems) {
-      // ✅ FIX: Tính saleQtyBase chính xác (KG), fallback cho hóa đơn cũ không có base_quantity
+      // ✅ FIX: Đảm bảo saleQtyBase luôn chuẩn xác (Ưu tiên tính toán từ quantity * factor)
       const factor = Number(
         item.conversion_factor || productConversionFactor || 1,
       );
-      let saleQtyBase = item.base_quantity
-        ? Number(item.base_quantity)
-        : Number(item.quantity) * factor;
+      let saleQtyBase = Math.max(
+        item.base_quantity ? Number(item.base_quantity) : 0,
+        Number(item.quantity) * factor
+      );
 
       // Khấu trừ số lượng đã trả
       const returnedQty = returnsByInvoice.get(item.invoice_id) || 0;
@@ -4440,8 +4442,10 @@ export class InventoryService {
         Number(product.taxable_quantity_stock) - finalTaxableStockCount,
       ) > 0.001
     ) {
+      // ✅ Làm tròn trước khi lưu để tránh số lẻ thập phân vô nghĩa
+      const roundedTaxableStock = Math.round(finalTaxableStockCount * 100) / 100;
       await this.productService.update(product.id, {
-        taxable_quantity_stock: finalTaxableStockCount,
+        taxable_quantity_stock: roundedTaxableStock,
       });
       productWasUpdated = true;
     }
