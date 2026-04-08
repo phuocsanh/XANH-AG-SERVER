@@ -2001,6 +2001,8 @@ export class InventoryService {
         'images',
         'bill_date',
         'payment_due_date',
+        'shared_shipping_cost',
+        'shipping_allocation_method',
       ];
       const attemptedFields = Object.keys(updateData);
 
@@ -2014,7 +2016,7 @@ export class InventoryService {
 
       if (invalidFields.length > 0) {
         throw new BadRequestException(
-          `Phiếu đã duyệt không được phép sửa các thông tin ảnh hưởng đến kho và giá vốn. Bạn chỉ có thể sửa: Nhà cung cấp, Ghi chú, Ảnh, Ngày hóa đơn. (Lỗi tại trường: ${invalidFields.join(', ')})`,
+          `Phiếu đã duyệt không được phép sửa các thông tin ảnh hưởng đến kho và giá vốn. Bạn chỉ có thể sửa: Nhà cung cấp, Ghi chú, Ảnh, Ngày hóa đơn, Phí bốc vác, Phương thức phân bổ. (Lỗi tại trường: ${invalidFields.join(', ')})`,
         );
       }
     } else if (receipt.status !== ReceiptStatus.DRAFT) {
@@ -2112,7 +2114,112 @@ export class InventoryService {
     // 1. LOGGING thay đổi metadata
     await this.logReceiptMetadataChanges(receipt, updateData, userId);
 
+    // 2. XỬ LÝ PHÍ VẬN CHUYỂN NẾU PHIẾU ĐÃ DUYỆT
+    if (
+      receipt.status === ReceiptStatus.APPROVED &&
+      (updateData.shared_shipping_cost !== undefined ||
+        updateData.shipping_allocation_method !== undefined)
+    ) {
+      this.logger.log(
+        `Phát hiện thay đổi phí vận chuyển trên phiếu đã duyệt #${id}. Bắt đầu tính toán lại giá vốn...`,
+      );
+      await this.recalculateApprovedReceiptShipping(id);
+
+      // Re-fetch để trả về data đã update items
+      return this.findReceiptById(id);
+    }
+
     return updatedReceipt;
+  }
+
+  /**
+   * Tính toán lại phí phân bổ và giá vốn cho phiếu nhập đã duyệt
+   */
+  private async recalculateApprovedReceiptShipping(receiptId: number) {
+    const receipt = await this.inventoryReceiptRepository.findOne({
+      where: { id: receiptId },
+      relations: ['items'],
+    });
+
+    if (!receipt || !receipt.items || receipt.items.length === 0) return;
+
+    const sharedShippingCost = Number(receipt.shared_shipping_cost) || 0;
+    const allocationMethod = receipt.shipping_allocation_method || 'by_value';
+
+    // Tính tổng giá trị và số lượng để phân bổ
+    let totalValue = 0;
+    let totalQuantity = 0;
+
+    for (const item of receipt.items) {
+      totalValue += Number(item.quantity) * Number(item.unit_cost);
+      totalQuantity += Number(item.quantity);
+    }
+
+    const affectedProductIds = new Set<number>();
+
+    for (const item of receipt.items) {
+      let allocatedShipping = 0;
+      if (sharedShippingCost > 0) {
+        if (allocationMethod === 'by_value' && totalValue > 0) {
+          const itemValue = Number(item.quantity) * Number(item.unit_cost);
+          allocatedShipping = (itemValue / totalValue) * sharedShippingCost;
+        } else if (allocationMethod === 'by_quantity' && totalQuantity > 0) {
+          allocatedShipping =
+            (Number(item.quantity) / totalQuantity) * sharedShippingCost;
+        }
+      }
+
+      const individualShipping = Number(item.individual_shipping_cost) || 0;
+      const totalShippingForItem = individualShipping + allocatedShipping;
+      const shippingPerUnit = totalShippingForItem / Number(item.quantity);
+      const finalUnitCost = Number(item.unit_cost) + shippingPerUnit;
+
+      const roundedAllocatedShipping = Math.round(allocatedShipping);
+      const roundedFinalUnitCost = Math.round(finalUnitCost);
+
+      // 1. Cập nhật InventoryReceiptItem
+      await this.inventoryReceiptItemRepository.update(item.id, {
+        allocated_shipping_cost: roundedAllocatedShipping,
+        final_unit_cost: roundedFinalUnitCost,
+      });
+
+      // 2. Cập nhật InventoryTransaction liên quan
+      await this.inventoryTransactionRepository.update(
+        { receipt_item_id: item.id },
+        {
+          unit_cost_price: roundedFinalUnitCost.toString(),
+          total_value: (
+            Number(item.quantity) * roundedFinalUnitCost
+          ).toString(),
+        },
+      );
+
+      // 3. Cập nhật InventoryBatch liên quan
+      await this.inventoryBatchRepository.update(
+        { receipt_item_id: item.id },
+        { unit_cost_price: roundedFinalUnitCost.toString() },
+      );
+
+      affectedProductIds.add(Number(item.product_id));
+    }
+
+    // 4. Tính toán lại WAC cho từng sản phẩm bị ảnh hưởng
+    for (const productId of affectedProductIds) {
+      try {
+        const wacResult = await this.recalculateWeightedAverageCost(productId);
+        await this.productService.update(productId, {
+          average_cost_price: wacResult.newAverageCost.toFixed(2),
+        });
+        this.logger.log(
+          `✅ Đã cập nhật lại WAC cho SP #${productId}: ${wacResult.newAverageCost}`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Lỗi khi tính lại WAC cho SP #${productId}:`,
+          error instanceof Error ? error.message : 'Unknown error',
+        );
+      }
+    }
   }
 
   /**
@@ -2561,26 +2668,14 @@ export class InventoryService {
         receipt.status === ReceiptStatus.APPROVED &&
         updateData.unit_cost !== undefined
       ) {
-        const newUnitCost = Number(updateData.unit_cost);
-
-        // Cập nhật InventoryTransaction liên quan
-        await this.inventoryTransactionRepository.update(
-          { receipt_item_id: id },
-          {
-            unit_cost_price: newUnitCost.toString(),
-            total_value: (
-              Number(updatedItem.quantity) * newUnitCost
-            ).toString(),
-          },
+        // Nếu thay đổi đơn giá mua, ta cần tính toán lại toàn bộ phí phân bổ
+        // (vì tổng giá trị đơn hàng thay đổi, ảnh hưởng đến tỷ lệ phân bổ by_value)
+        this.logger.log(
+          `Đơn giá sản phẩm #${updatedItem.product_id} thay đổi trên phiếu đã duyệt. Tính toán lại toàn bộ chi phí...`,
         );
+        await this.recalculateApprovedReceiptShipping(updatedItem.receipt_id);
 
-        // Cập nhật InventoryBatch liên quan
-        await this.inventoryBatchRepository.update(
-          { receipt_item_id: id },
-          { unit_cost_price: newUnitCost.toString() },
-        );
-
-        // Tính lại tổng tiền phiếu nhập và công nợ
+        // Tính lại tổng tiền phiếu nhập và công nợ (Finance)
         await this.recalculateReceiptFinance(updatedItem.receipt_id);
       }
 
@@ -4285,10 +4380,12 @@ export class InventoryService {
       total: number;
     }[] = receiptItems.map((r) => {
       // ✅ FIX: Đảm bảo qtyBase luôn chuẩn xác (Ưu tiên tính toán từ quantity * factor)
-      const factor = Number(r.conversion_factor || productConversionFactor || 1);
+      const factor = Number(
+        r.conversion_factor || productConversionFactor || 1,
+      );
       const qtyBase = Math.max(
         r.base_quantity ? Number(r.base_quantity) : 0,
-        Number(r.quantity) * factor
+        Number(r.quantity) * factor,
       );
 
       // Tính tỷ lệ taxable_base_quantity = (taxable_quantity / quantity) * base_quantity
@@ -4342,7 +4439,7 @@ export class InventoryService {
       );
       let saleQtyBase = Math.max(
         item.base_quantity ? Number(item.base_quantity) : 0,
-        Number(item.quantity) * factor
+        Number(item.quantity) * factor,
       );
 
       // Khấu trừ số lượng đã trả
@@ -4443,7 +4540,8 @@ export class InventoryService {
       ) > 0.001
     ) {
       // ✅ Làm tròn trước khi lưu để tránh số lẻ thập phân vô nghĩa
-      const roundedTaxableStock = Math.round(finalTaxableStockCount * 100) / 100;
+      const roundedTaxableStock =
+        Math.round(finalTaxableStockCount * 100) / 100;
       await this.productService.update(product.id, {
         taxable_quantity_stock: roundedTaxableStock,
       });
