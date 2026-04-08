@@ -2121,11 +2121,14 @@ export class InventoryService {
         updateData.shipping_allocation_method !== undefined)
     ) {
       this.logger.log(
-        `Phát hiện thay đổi phí vận chuyển trên phiếu đã duyệt #${id}. Bắt đầu tính toán lại giá vốn...`,
+        `Phát hiện thay đổi phí vận chuyển trên phiếu đã duyệt #${id}. Bắt đầu tính toán lại giá vốn và tài chính...`,
       );
       await this.recalculateApprovedReceiptShipping(id);
 
-      // Re-fetch để trả về data đã update items
+      // Tính toán lại tài chính để đảm bảo supplier_amount và total_amount đúng
+      await this.recalculateReceiptFinance(id);
+
+      // Re-fetch để trả về data đã update
       return this.findReceiptById(id);
     }
 
@@ -2720,8 +2723,8 @@ export class InventoryService {
 
     if (!receipt) return;
 
-    // Tính tổng tiền hàng gốc từ các item
-    const totalAmount = receipt.items.reduce(
+    // Tính tổng tiền hàng gốc từ các item (Đây là số tiền thực sự nợ NCC cho hàng hóa)
+    const goodsTotal = receipt.items.reduce(
       (sum, item) => sum + Number(item.total_price || 0),
       0,
     );
@@ -2735,19 +2738,24 @@ export class InventoryService {
       0,
     );
 
-    const finalAmount = Math.round(totalAmount);
-    const excludedShipping = Number(sharedShipping) + Number(itemShipping);
-    const supplierAmount = Math.round(finalAmount - excludedShipping);
+    const totalShipping = Number(sharedShipping) + Number(itemShipping);
+
+    // supplier_amount là tiền hàng (không bao gồm phí vận chuyển tự chịu)
+    const supplierAmount = Math.round(goodsTotal);
+
+    // total_amount là TỔNG GIÁ TRỊ PHIẾU (Tiền hàng + Phí vận chuyển)
+    const totalAmount = Math.round(supplierAmount + totalShipping);
+
     const debtAmount = Math.max(0, Math.round(supplierAmount - paidAmount));
 
     await this.inventoryReceiptRepository.update(receiptId, {
-      total_amount: finalAmount,
+      total_amount: totalAmount,
       supplier_amount: supplierAmount,
       debt_amount: debtAmount,
     });
 
     this.logger.log(
-      `✅ Đã tính lại tài chính cho phiếu #${receiptId}: Tổng=${finalAmount}, Nợ=${debtAmount}`,
+      `✅ Đã tính lại tài chính cho phiếu #${receiptId}: Tiền hàng=${supplierAmount}, Tổng=${totalAmount}, Nợ=${debtAmount}`,
     );
   }
 
