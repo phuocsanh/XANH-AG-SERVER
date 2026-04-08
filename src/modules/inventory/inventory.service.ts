@@ -1295,7 +1295,7 @@ export class InventoryService {
         supplier_id: createInventoryReceiptDto.supplier_id,
         total_amount: createInventoryReceiptDto.total_amount,
         status: createInventoryReceiptDto.status,
-        is_taxable: createInventoryReceiptDto.is_taxable || false,
+
         created_by: userId, // Lấy từ JWT token
         updated_by: userId, // Người tạo cũng là người cập nhật đầu tiên
       };
@@ -1529,13 +1529,7 @@ export class InventoryService {
         }
 
         // Xử lý taxable_quantity: Dùng giá trị từ FE (cột SL Thuế)
-        // is_taxable chỉ dùng để tự động fill nếu FE không gửi giá trị cụ thể
-        itemData.taxable_quantity =
-          item.taxable_quantity !== undefined && item.taxable_quantity !== null
-            ? item.taxable_quantity
-            : receiptData.is_taxable
-              ? item.quantity
-              : 0;
+        itemData.taxable_quantity = item.taxable_quantity || 0;
 
         const itemEntity = queryRunner.manager.create(
           InventoryReceiptItem,
@@ -2048,8 +2042,6 @@ export class InventoryService {
     if (updateData.shipping_allocation_method !== undefined)
       entityUpdateData.shipping_allocation_method =
         updateData.shipping_allocation_method;
-    if (updateData.is_taxable !== undefined)
-      entityUpdateData.is_taxable = updateData.is_taxable;
 
     // === TÍNH TOÁN LẠI TÀI CHÍNH KHI UPDATE ===
     const totalAmount =
@@ -2380,11 +2372,7 @@ export class InventoryService {
         // const costPrice = Number(item.unit_cost);
 
         // Lấy số lượng khai thuế từ item (nếu không có thì mặc định = 0)
-        // Fallback: Nếu item chưa có taxable_quantity nhưng phiếu là is_taxable thì lấy full quantity
         let taxableQty = Number(item.taxable_quantity || 0);
-        if (taxableQty === 0 && receipt.is_taxable) {
-          taxableQty = item.quantity;
-        }
 
         // ✅ Tính số lượng thực tế nhập kho theo đơn vị cơ sở (base_quantity)
         const stockInQuantity = item.base_quantity
@@ -4329,7 +4317,7 @@ export class InventoryService {
     // Nếu không có thì mặc định = 1 (không quy đổi)
     const productConversionFactor = 1;
 
-    // 1. Lấy lịch sử nhập hàng (kèm thông tin phiếu để lấy cờ is_taxable)
+    // 1. Lấy lịch sử nhập hàng
     // ✅ FIX 1: Chỉ lấy receipt đã approved/completed, bỏ qua draft/cancelled
     // ✅ FIX: Loại bỏ receipt items có quantity = 0 (không có giá trị)
     const receiptItems = await receiptItemRepo
@@ -4404,10 +4392,6 @@ export class InventoryService {
       const clampedTaxable = Math.min(originalTaxable, originalQty);
       let taxableBase = (clampedTaxable / originalQty) * qtyBase;
 
-      // Fallback nếu phiếu nhập có cờ is_taxable mà không nhập taxable_quantity chi tiết
-      if (taxableBase === 0 && (r.receipt as any)?.is_taxable) {
-        taxableBase = qtyBase;
-      }
 
       // ✅ FIX: taxable không được lớn hơn total (trường hợp tính toán sai)
       taxableBase = Math.min(taxableBase, qtyBase);

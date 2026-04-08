@@ -142,7 +142,4 @@ export class CreateInventoryReceiptDto {
   @IsString()
   payment_due_date?: string;
 
-  @IsOptional()
-  @IsBoolean()
-  is_taxable?: boolean;
 }
