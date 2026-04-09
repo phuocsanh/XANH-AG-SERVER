@@ -137,7 +137,17 @@ export class PurchaseMergeService {
       status: ext.payment_status || 'paid',
       payment_method: 'cash',
       source: 'external',
-      items: ext.items || [],
+      items: (ext.items || []).map(item => ({
+        ...item,
+        quantity: Number(item.quantity || 0),
+        unit_price: Number(item.unit_price || 0),
+        total_price: Number(item.total_price || 0),
+        // Hóa đơn mua ngoài không có quy đổi phức tạp nên để null/0
+        other_unit_name: null,
+        other_unit_factor: 0,
+        conversion_factor: 1,
+        base_quantity: Number(item.quantity || 0),
+      })),
       notes: ext.notes,
       created_by: ext.created_by,
     }));
