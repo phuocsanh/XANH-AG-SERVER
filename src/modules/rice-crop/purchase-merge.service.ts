@@ -49,7 +49,7 @@ export class PurchaseMergeService {
     // 1. Lấy hóa đơn từ hệ thống
     const systemInvoices = await this.salesInvoiceRepository.find({
       where: { rice_crop_id: riceCropId },
-      relations: ['items', 'items.product'],
+      relations: ['items', 'items.product', 'items.product.unit', 'items.product.unit_conversions'],
       order: { created_at: 'DESC' },
     });
 
