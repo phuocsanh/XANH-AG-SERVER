@@ -46,26 +46,23 @@ export class PurchaseMergeService {
       external_count: number;
     };
   }> {
-    // 1. Lấy hóa đơn từ hệ thống
+    // 1. Lấy hóa đơn từ hệ thống (dùng string notation để load deep relation unit_conversions -> unit)
     const systemInvoices = await this.salesInvoiceRepository.find({
       where: { rice_crop_id: riceCropId },
-      relations: {
-        items: {
-          product: {
-            unit: true,
-            unit_conversions: true,
-          },
-        },
-      },
+      relations: [
+        'items',
+        'items.product',
+        'items.product.unit',
+        'items.product.unit_conversions',
+        'items.product.unit_conversions.unit',
+      ],
       order: { created_at: 'DESC' },
     });
 
     // 2. Lấy hóa đơn nông dân tự nhập
     const externalPurchases = await this.externalPurchaseRepository.find({
       where: { rice_crop_id: riceCropId },
-      relations: {
-        items: true,
-      },
+      relations: ['items'],
       order: { purchase_date: 'DESC' },
     });
 
@@ -81,21 +78,49 @@ export class PurchaseMergeService {
       status: inv.status,
       payment_method: inv.payment_method,
       source: 'system',
-      items: (inv.items || []).map(item => ({
-        ...item,
-        // Đảm bảo các trường decimal được chuyển sang number nếu cần
-        quantity: Number(item.quantity),
-        unit_price: Number(item.unit_price),
-        total_price: Number(item.total_price),
-        conversion_factor: Number(item.conversion_factor || 1),
-        other_unit_factor: Number(item.other_unit_factor || 1),
-        base_quantity: Number(item.base_quantity || 0),
-        // Giữ nguyên các trường khác
-        other_unit_name: item.other_unit_name,
-        unit_name: item.unit_name,
-        product_name: item.product_name,
-        product: item.product,
-      })),
+      items: (inv.items || []).map(item => {
+        const quantity = Number(item.quantity);
+        const unitPrice = Number(item.unit_price);
+        const conversionFactor = Number(item.conversion_factor || 1);
+
+        // Tính toán other_unit_name/factor - ưu tiên snapshot, fallback từ product.unit_conversions
+        let otherUnitName = item.other_unit_name || '';
+        let otherUnitFactor = Number(item.other_unit_factor || 0);
+
+        // Nếu thiếu snapshot (hóa đơn cũ), tự tính từ product.unit_conversions
+        if (!otherUnitName && item.product?.unit_conversions?.length > 1) {
+          const conversions = item.product.unit_conversions;
+          const currentUnitName = (item.unit_name || item.product?.unit?.name || '').toLowerCase();
+
+          // Tìm đơn vị khác với đơn vị hiện tại (lấy tên từ relation unit.name)
+          const targetConv = conversions.find(
+            (c) => {
+              const convUnitName = (c.unit_name || c.unit?.name || '').toLowerCase();
+              return convUnitName && convUnitName !== currentUnitName;
+            },
+          );
+
+          if (targetConv) {
+            otherUnitName = targetConv.unit_name || targetConv.unit?.name || '';
+            otherUnitFactor = Number(targetConv.conversion_factor || 0);
+          }
+        }
+
+        return {
+          ...item,
+          quantity,
+          unit_price: unitPrice,
+          total_price: Number(item.total_price),
+          conversion_factor: conversionFactor,
+          base_quantity: Number(item.base_quantity || 0),
+          // Trả về other_unit đã tính toán sẵn
+          other_unit_name: otherUnitName || null,
+          other_unit_factor: otherUnitFactor || 0,
+          unit_name: item.unit_name,
+          product_name: item.product_name,
+          product: item.product,
+        };
+      }),
       notes: inv.notes,
       created_by: inv.created_by,
     }));
