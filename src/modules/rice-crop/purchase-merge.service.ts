@@ -49,14 +49,23 @@ export class PurchaseMergeService {
     // 1. Lấy hóa đơn từ hệ thống
     const systemInvoices = await this.salesInvoiceRepository.find({
       where: { rice_crop_id: riceCropId },
-      relations: ['items', 'items.product', 'items.product.unit', 'items.product.unit_conversions'],
+      relations: {
+        items: {
+          product: {
+            unit: true,
+            unit_conversions: true,
+          },
+        },
+      },
       order: { created_at: 'DESC' },
     });
 
     // 2. Lấy hóa đơn nông dân tự nhập
     const externalPurchases = await this.externalPurchaseRepository.find({
       where: { rice_crop_id: riceCropId },
-      relations: ['items'],
+      relations: {
+        items: true,
+      },
       order: { purchase_date: 'DESC' },
     });
 
@@ -72,7 +81,21 @@ export class PurchaseMergeService {
       status: inv.status,
       payment_method: inv.payment_method,
       source: 'system',
-      items: inv.items || [],
+      items: (inv.items || []).map(item => ({
+        ...item,
+        // Đảm bảo các trường decimal được chuyển sang number nếu cần
+        quantity: Number(item.quantity),
+        unit_price: Number(item.unit_price),
+        total_price: Number(item.total_price),
+        conversion_factor: Number(item.conversion_factor || 1),
+        other_unit_factor: Number(item.other_unit_factor || 1),
+        base_quantity: Number(item.base_quantity || 0),
+        // Giữ nguyên các trường khác
+        other_unit_name: item.other_unit_name,
+        unit_name: item.unit_name,
+        product_name: item.product_name,
+        product: item.product,
+      })),
       notes: inv.notes,
       created_by: inv.created_by,
     }));
