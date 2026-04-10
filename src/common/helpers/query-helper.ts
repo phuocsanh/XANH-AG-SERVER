@@ -46,32 +46,13 @@ export class QueryHelper {
     
     query.skip(skip).take(limit);
 
-    // 2. Sắp xếp (Sort)
-    if (dto.sort) {
-      const field = dto.sort.split(':')[0];
-      const order = dto.sort.split(':')[1];
-      if (field) {
-         const sortField = field.includes('.') ? field : `${alias}.${field}`;
-         const sortOrder = (order || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
-         query.orderBy(sortField, sortOrder);
-      }
-    }
-    else if (dto.sort_by) {
-      // Cho phép sort theo relations
-      const sortField = dto.sort_by.includes('.') ? dto.sort_by : `${alias}.${dto.sort_by}`;
-      const sortOrder = dto.sort_order === 'ASC' ? 'ASC' : 'DESC';
-      query.orderBy(sortField, sortOrder);
-    } else {
-      // Default sort
-      query.orderBy(`${alias}.created_at`, 'DESC');
-    }
-
-    // 3. Global Search (Keyword)
+    // 2. Global Search (Keyword) & Relevance Score
+    let hasRelevanceScore = false;
     if (dto.keyword && searchFields.length > 0) {
       const sanitizedKeyword = this.sanitizeKeyword(dto.keyword);
       const searchTerms = sanitizedKeyword.toLowerCase();
       
-      // 3.1. Thêm điều kiện tìm kiếm cụm từ nguyên bản (ưu tiên)
+      // 2.1. Thêm điều kiện tìm kiếm cụm từ nguyên bản (ưu tiên)
       // Sử dụng fuzzy logic: unaccent + bỏ ký tự đặc biệt nhưng GIỮ LẠI khoảng trắng
       const phraseConditions = searchFields.map((field, fIndex) => {
         const col = field.includes('.') ? field : `${alias}.${field}`;
@@ -81,11 +62,11 @@ export class QueryHelper {
         return `regexp_replace(unaccent(${col}::text), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent(:${pName})`;
       });
 
-      // 3.2. Tách từ khóa thành các tokens để tìm kiếm linh hoạt (AND logic)
+      // 2.2. Tách từ khóa thành các tokens để tìm kiếm linh hoạt (AND logic)
       const tokens = searchTerms.split(/\s+/).filter(t => t.length > 0);
 
       if (tokens.length > 1) {
-        // Nếu có nhiều hơn 1 từ, kết hợp cả tìm kiếm cụm từ HOẶC tất cả các từ xuất hiện
+        // Nếu có nhiều hơn 1 từ, kết hợp cả tìm kiếm cụm từ HOẶC tất cả các từ đơn lẻ
         const tokenQueries: string[] = [];
         tokens.forEach((token, tIndex) => {
           const conditions = searchFields.map((field, fIndex) => {
@@ -103,6 +84,49 @@ export class QueryHelper {
         // Chỉ có 1 từ
         query.andWhere(`(${phraseConditions.join(' OR ')})`);
       }
+
+      // 2.3. Tính toán Relevance Score
+      const nameCol = `${alias}.name`;
+      const tradeNameCol = `${alias}.trade_name`;
+      const pExact = `exact_match_keyword`;
+      const pLike = `phrase_match_keyword`;
+      query.setParameter(pExact, `${searchTerms}`);
+      query.setParameter(pLike, `%${searchTerms}%`);
+
+      query.addSelect(`
+        CASE 
+          WHEN (unaccent(${nameCol}) ILIKE unaccent(:${pExact})) THEN 1
+          WHEN (unaccent(${tradeNameCol}) ILIKE unaccent(:${pExact})) THEN 1
+          WHEN (unaccent(${nameCol}) ILIKE unaccent(:${pLike})) THEN 2
+          WHEN (unaccent(${tradeNameCol}) ILIKE unaccent(:${pLike})) THEN 2
+          ELSE 3
+        END
+      `, 'relevance_score');
+      
+      query.orderBy('relevance_score', 'ASC');
+      hasRelevanceScore = true;
+    }
+
+    // 3. Sắp xếp (Sort) - Nếu đã có relevance_score thì dùng addOrderBy để không ghi đè
+    if (dto.sort) {
+      const field = dto.sort.split(':')[0];
+      const order = dto.sort.split(':')[1];
+      if (field) {
+         const sortField = field.includes('.') ? field : `${alias}.${field}`;
+         const sortOrder = (order || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+         if (hasRelevanceScore) query.addOrderBy(sortField, sortOrder);
+         else query.orderBy(sortField, sortOrder);
+      }
+    }
+    else if (dto.sort_by) {
+      const sortField = dto.sort_by.includes('.') ? dto.sort_by : `${alias}.${dto.sort_by}`;
+      const sortOrder = dto.sort_order === 'ASC' ? 'ASC' : 'DESC';
+      if (hasRelevanceScore) query.addOrderBy(sortField, sortOrder);
+      else query.orderBy(sortField, sortOrder);
+    } else {
+      // Default sort
+      if (hasRelevanceScore) query.addOrderBy(`${alias}.created_at`, 'DESC');
+      else query.orderBy(`${alias}.created_at`, 'DESC');
     }
 
     // 4. Date Range Search
