@@ -68,24 +68,40 @@ export class QueryHelper {
 
     // 3. Global Search (Keyword)
     if (dto.keyword && searchFields.length > 0) {
-      // 1. Chuẩn hóa và tách từ khóa thành các từ đơn (tokens)
       const sanitizedKeyword = this.sanitizeKeyword(dto.keyword);
-      const tokens = sanitizedKeyword.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+      const searchTerms = sanitizedKeyword.toLowerCase();
+      
+      // 3.1. Thêm điều kiện tìm kiếm cụm từ nguyên bản (ưu tiên)
+      // Sử dụng fuzzy logic: unaccent + bỏ ký tự đặc biệt nhưng GIỮ LẠI khoảng trắng
+      const phraseConditions = searchFields.map((field, fIndex) => {
+        const col = field.includes('.') ? field : `${alias}.${field}`;
+        const pName = `phrase_search_${fIndex}`;
+        query.setParameter(pName, `%${searchTerms}%`);
+        // Giữ lại khoảng trắng trong regex để khớp cụm từ
+        return `regexp_replace(unaccent(${col}::text), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent(:${pName})`;
+      });
 
-      if (tokens.length > 0) {
-        // 2. Với mỗi từ trong tokens, nó phải tồn tại trong ít nhất một trong các searchFields (AND logic giữa các tokens)
+      // 3.2. Tách từ khóa thành các tokens để tìm kiếm linh hoạt (AND logic)
+      const tokens = searchTerms.split(/\s+/).filter(t => t.length > 0);
+
+      if (tokens.length > 1) {
+        // Nếu có nhiều hơn 1 từ, kết hợp cả tìm kiếm cụm từ HOẶC tất cả các từ xuất hiện
+        const tokenQueries: string[] = [];
         tokens.forEach((token, tIndex) => {
           const conditions = searchFields.map((field, fIndex) => {
             const col = field.includes('.') ? field : `${alias}.${field}`;
             const pName = `global_search_${tIndex}_${fIndex}`;
             query.setParameter(pName, `%${token}%`);
-            // Loại bỏ ký tự đặc biệt trong DB column trước khi so sánh với token
-            return `regexp_replace(unaccent(${col}::text), '[^a-zA-Z0-9]', '', 'g') ILIKE unaccent(:${pName})`;
+            return `regexp_replace(unaccent(${col}::text), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent(:${pName})`;
           });
-          
-          // Mỗi TOKEN phải được thỏa mãn bởi ít nhất một FIELD (Tên HOẶC Số ĐT HOẶC Mã)
-          query.andWhere(`(${conditions.join(' OR ')})`);
+          tokenQueries.push(`(${conditions.join(' OR ')})`);
         });
+        
+        // Kết hợp: (Khớp nguyên cụm từ) OR (Khớp tất cả các từ đơn lẻ)
+        query.andWhere(`((${phraseConditions.join(' OR ')}) OR (${tokenQueries.join(' AND ')}))`);
+      } else if (tokens.length === 1) {
+        // Chỉ có 1 từ
+        query.andWhere(`(${phraseConditions.join(' OR ')})`);
       }
     }
 
