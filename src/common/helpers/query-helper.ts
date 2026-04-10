@@ -86,19 +86,26 @@ export class QueryHelper {
       }
 
       // 2.3. Tính toán Relevance Score
-      const nameCol = `${alias}.name`;
-      const tradeNameCol = `${alias}.trade_name`;
       const pExact = `exact_match_keyword`;
       const pLike = `phrase_match_keyword`;
       query.setParameter(pExact, `${searchTerms}`);
       query.setParameter(pLike, `%${searchTerms}%`);
 
+      // Tự động xây dựng CASE statement dựa trên danh sách searchFields
+      const exactMatchCases = searchFields.map(field => {
+        const col = field.includes('.') ? field : `${alias}.${field}`;
+        return `WHEN (unaccent(${col}::text) ILIKE unaccent(:${pExact})) THEN 1`;
+      });
+
+      const phraseMatchCases = searchFields.map(field => {
+        const col = field.includes('.') ? field : `${alias}.${field}`;
+        return `WHEN (unaccent(${col}::text) ILIKE unaccent(:${pLike})) THEN 2`;
+      });
+
       query.addSelect(`
         CASE 
-          WHEN (unaccent(${nameCol}) ILIKE unaccent(:${pExact})) THEN 1
-          WHEN (unaccent(${tradeNameCol}) ILIKE unaccent(:${pExact})) THEN 1
-          WHEN (unaccent(${nameCol}) ILIKE unaccent(:${pLike})) THEN 2
-          WHEN (unaccent(${tradeNameCol}) ILIKE unaccent(:${pLike})) THEN 2
+          ${exactMatchCases.join('\n          ')}
+          ${phraseMatchCases.join('\n          ')}
           ELSE 3
         END
       `, 'relevance_score');
