@@ -888,4 +888,13 @@ export class InventoryController {
   syncTaxableData() {
     return this.inventoryService.syncTaxableData();
   }
+
+  /**
+   * Đồng bộ dữ liệu tồn kho thuế v2 - lọc theo ngày nhập hàng
+   */
+  @Post('sync-taxable-data-v2')
+  @RequirePermissions('inventory:manage')
+  syncTaxableDataV2(@Body('startDate') startDate: string) {
+    return this.inventoryService.syncTaxableDataV2(startDate);
+  }
 }

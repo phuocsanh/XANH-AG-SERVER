@@ -1,3 +1,4 @@
+import dayjs from 'dayjs';
 import {
   Injectable,
   Inject,
@@ -4295,11 +4296,59 @@ export class InventoryService {
   }
 
   /**
+   * Đồng bộ dữ liệu tồn kho thuế V2 - Chỉ lấy những sản phẩm có hóa đơn nhập (bill_date) từ startDate
+   * @param startDate - Ngày bắt đầu lọc (YYYY-MM-DD)
+   */
+  async syncTaxableDataV2(startDate?: string): Promise<{
+    productsUpdated: number;
+    salesItemsUpdated: number;
+  }> {
+    const filterDate = startDate || '2026-01-01';
+    this.logger.log(
+      `🚀 [V2] Bắt đầu đồng bộ dữ liệu thuế cho sản phẩm có hóa đơn nhập từ ${filterDate}...`,
+    );
+
+    // 1. Tìm danh sách ID sản phẩm có ít nhất một phiếu nhập "có thuế" từ ngày filterDate
+    const receiptItemRepo = this.inventoryReceiptRepository.manager.getRepository(InventoryReceiptItem);
+    const productIdsWithRecentTax = await receiptItemRepo
+      .createQueryBuilder('item')
+      .innerJoin('item.receipt', 'receipt')
+      .select('DISTINCT item.product_id', 'product_id')
+      .where('receipt.bill_date >= :filterDate', { filterDate })
+      .andWhere("receipt.status IN ('approved', 'completed')")
+      .getRawMany();
+
+    const ids = productIdsWithRecentTax.map(p => p.product_id);
+    
+    if (ids.length === 0) {
+      this.logger.log('ℹ️ Không tìm thấy sản phẩm nào thỏa mãn điều kiện.');
+      return { productsUpdated: 0, salesItemsUpdated: 0 };
+    }
+
+    this.logger.log(`🔍 Tìm thấy ${ids.length} sản phẩm cần đồng bộ.`);
+
+    let productsUpdated = 0;
+    let salesItemsUpdated = 0;
+
+    for (const productId of ids) {
+      const result = await this.syncTaxableDataForProduct(productId, filterDate);
+      if (result.productUpdated) productsUpdated++;
+      salesItemsUpdated += result.salesItemsUpdated;
+    }
+
+    this.logger.log(
+      `✅ [V2] Hoàn tất: ${productsUpdated} sản phẩm, ${salesItemsUpdated} item hóa đơn.`,
+    );
+    return { productsUpdated, salesItemsUpdated };
+  }
+
+  /**
    * Đồng bộ dữ liệu tồn kho thuế cho một sản phẩm cụ thể
    * @param productId - ID sản phẩm
    */
   async syncTaxableDataForProduct(
     productId: number,
+    taxStartDate?: string,
   ): Promise<{ productUpdated: boolean; salesItemsUpdated: number }> {
     const receiptItemRepo =
       this.inventoryReceiptRepository.manager.getRepository(
@@ -4327,7 +4376,8 @@ export class InventoryService {
       .andWhere("receipt.status IN ('approved', 'completed')")
       .andWhere('receipt.deleted_at IS NULL')
       .andWhere('item.quantity > 0') // Loại bỏ items có quantity = 0
-      .orderBy('receipt.created_at', 'ASC')
+      .orderBy('COALESCE(receipt.bill_date, receipt.created_at)', 'ASC')
+      .addOrderBy('receipt.created_at', 'ASC')
       .getMany();
 
     // 2. Lấy lịch sử bán hàng hợp lệ (chỉ lấy hóa đơn confirmed và paid, bỏ cancelled và draft, sắp xếp ASC để FIFO đúng thứ tự)
@@ -4340,7 +4390,8 @@ export class InventoryService {
       })
       .andWhere('si.deleted_at IS NULL')
       .andWhere('sii.deleted_at IS NULL')
-      .orderBy('sii.created_at', 'ASC')
+      .orderBy('COALESCE(si.sale_date, si.created_at)', 'ASC')
+      .addOrderBy('si.created_at', 'ASC')
       .getMany();
 
     // 3. Lấy dữ liệu trả hàng (để loại trừ khỏi lượng xuất kho)
@@ -4368,12 +4419,28 @@ export class InventoryService {
     if (receiptItems.length === 0 && salesItems.length === 0)
       return { productUpdated: false, salesItemsUpdated: 0 };
 
+    // 3. Lấy dữ liệu trả hàng nhập (để loại trừ khỏi lượng nhập kho)
+    const inventoryReturnItemRepo = this.inventoryReceiptRepository.manager.getRepository(InventoryReturnItem);
+    const invReturnItems = await inventoryReturnItemRepo
+      .createQueryBuilder('iri')
+      .innerJoin('iri.inventory_return', 'ir')
+      .where('iri.product_id = :productId', { productId: product.id })
+      .andWhere('ir.status != :cancelled', { cancelled: 'cancelled' })
+      .getMany();
+
+    const returnsByReceiptItem = new Map<number, number>();
+    for (const ri of invReturnItems) {
+      const qty = Number(ri.base_quantity || ri.quantity);
+      returnsByReceiptItem.set(ri.inventory_receipt_item_id, (returnsByReceiptItem.get(ri.inventory_receipt_item_id) || 0) + qty);
+    }
+
     // 4. Cấu trúc các lô hàng để mô phỏng (Sử dụng BASE_QUANTITY để chính xác đơn vị tính)
     let batches: {
       id: number;
       taxable: number;
       nonTaxable: number;
       total: number;
+      taxSellingPrice: number;
     }[] = receiptItems.map((r) => {
       // ✅ FIX: Đảm bảo qtyBase luôn chuẩn xác (Ưu tiên tính toán từ quantity * factor)
       const factor = Number(
@@ -4384,23 +4451,37 @@ export class InventoryService {
         Number(r.quantity) * factor,
       );
 
-      // Tính tỷ lệ taxable_base_quantity = (taxable_quantity / quantity) * base_quantity
+      const returnedQty = returnsByReceiptItem.get(r.id) || 0;
+      const netQtyBase = Math.max(0, qtyBase - returnedQty);
+
       const originalQty = Number(r.quantity) || 1;
-      const originalTaxable = Number(r.taxable_quantity || 0);
+      
+      // ✅ FIX: Chỉ tính taxable_quantity nếu hóa đơn nhập từ taxStartDate trở đi
+      let originalTaxable = Number(r.taxable_quantity || 0);
+      
+      if (taxStartDate) {
+        // Chuyển ngày so sánh về dạng timestamp để so sánh số cho chính xác tuyệt đối
+        const filterTime = new Date(taxStartDate).getTime();
+        const receiptDate = r.receipt?.bill_date || r.receipt?.created_at;
+        
+        if (receiptDate) {
+          const receiptTime = new Date(receiptDate).getTime();
+          if (receiptTime < filterTime) {
+            originalTaxable = 0; // Hóa đơn cũ -> ép thuế về 0
+          }
+        }
+      }
 
-      // ✅ FIX: taxable_quantity không được lớn hơn quantity (nếu lớn hơn thì do nhập sai, clamp về = quantity)
-      const clampedTaxable = Math.min(originalTaxable, originalQty);
-      let taxableBase = (clampedTaxable / originalQty) * qtyBase;
-
-
-      // ✅ FIX: taxable không được lớn hơn total (trường hợp tính toán sai)
-      taxableBase = Math.min(taxableBase, qtyBase);
+      // Điều chỉnh taxable quantity theo tỷ lệ hàng còn lại sau khi trả
+      const taxableRatio = originalTaxable / originalQty;
+      const adjustedTaxableBase = taxableRatio * netQtyBase;
 
       return {
         id: r.id,
-        taxable: taxableBase,
-        nonTaxable: Math.max(0, qtyBase - taxableBase),
-        total: qtyBase,
+        taxable: adjustedTaxableBase,
+        nonTaxable: Math.max(0, netQtyBase - adjustedTaxableBase),
+        total: netQtyBase,
+        taxSellingPrice: Number(r.tax_selling_price || product.tax_selling_price || 0),
       };
     });
 
@@ -4425,6 +4506,12 @@ export class InventoryService {
 
     // 5. Mô phỏng quá trình bán hàng theo FIFO từng lô
     for (const item of salesItems) {
+      // ✅ FIX: Ép kiểu số để tránh lỗi chữ "0" (string) vẫn được coi là có giá trị
+      const itemTaxPrice = Number(item.tax_selling_price || 0);
+      let currentTaxPrice = itemTaxPrice > 0 
+        ? itemTaxPrice 
+        : Number(item.product?.tax_selling_price || 0);
+      
       // ✅ FIX: Đảm bảo saleQtyBase luôn chuẩn xác (Ưu tiên tính toán từ quantity * factor)
       const factor = Number(
         item.conversion_factor || productConversionFactor || 1,
@@ -4464,6 +4551,9 @@ export class InventoryService {
       for (let b of batches) {
         if (!b || remainingToDeduct <= 0) continue;
 
+        // Cập nhật giá bán thuế từ lô hàng (nếu có)
+        currentTaxPrice = b.taxSellingPrice || currentTaxPrice;
+
         const batchTotal = b.taxable + b.nonTaxable;
         if (batchTotal <= 0) continue;
 
@@ -4486,9 +4576,11 @@ export class InventoryService {
       );
       const finalTaxableQty = calculatedTaxableBase / itemFactor;
 
-      if (Math.abs(Number(item.taxable_quantity) - finalTaxableQty) > 0.001) {
+      const priceDiff = Math.abs(Number(item.tax_selling_price || 0) - currentTaxPrice);
+      if (Math.abs(Number(item.taxable_quantity) - finalTaxableQty) > 0.001 || priceDiff > 0.1) {
         await salesInvoiceItemRepo.update(item.id, {
           taxable_quantity: finalTaxableQty,
+          tax_selling_price: currentTaxPrice,
         });
         salesItemsUpdatedCount++;
       }

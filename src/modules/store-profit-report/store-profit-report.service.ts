@@ -11,6 +11,7 @@ import { FarmServiceCost } from '../../entities/farm-service-cost.entity';
 import { FarmGiftCost } from '../../entities/farm-gift-cost.entity';
 import { QueryHelper } from '../../common/helpers/query-helper';
 
+import { InventoryReceiptItem } from '../../entities/inventory-receipt-items.entity';
 import { 
   InvoiceProfitDto, 
   InvoiceItemProfitDto 
@@ -1183,10 +1184,28 @@ export class StoreProfitReportService {
   async getPeriodProfitReport(
     startDate: Date, 
     endDate: Date, 
-    taxableFilter: 'all' | 'yes' | 'no' = 'all'
+    taxableFilter: 'all' | 'yes' | 'no' = 'all',
+    filterByReceiptDate?: string,
   ): Promise<PeriodReportDto> {
     try {
       this.logger.log(`📊 Báo cáo lợi nhuận từ ${startDate.toISOString()} đến ${endDate.toISOString()}`);
+
+      let allowedProductIds: Set<number> | null = null;
+      if (filterByReceiptDate) {
+        this.logger.log(`🔍 Chỉ lấy sản phẩm có hóa đơn nhập từ ${filterByReceiptDate}`);
+        const receiptItemRepo = this.salesInvoiceRepository.manager.getRepository(InventoryReceiptItem);
+        const productsWithReceipt = await receiptItemRepo
+          .createQueryBuilder('item')
+          .innerJoin('item.receipt', 'receipt')
+          .select('DISTINCT item.product_id', 'product_id')
+          .where('receipt.bill_date >= :filterDate', { filterDate: filterByReceiptDate })
+          .andWhere('item.taxable_quantity > 0') // BẮT BUỘC: Phải có số lượng thuế trong năm 2026
+          .andWhere("receipt.status IN ('approved', 'completed')")
+          .getRawMany();
+        
+        allowedProductIds = new Set(productsWithReceipt.map(p => Number(p.product_id)));
+        this.logger.log(`🔍 Tìm thấy ${allowedProductIds.size} sản phẩm thỏa mãn điều kiện nhập hàng.`);
+      }
 
       // 1. Lấy tất cả hóa đơn trong khoảng thời gian (chỉ lấy confirmed và paid, bỏ draft/cancelled/refunded)
       const invoices = await this.salesInvoiceRepository.find({
@@ -1230,6 +1249,11 @@ export class StoreProfitReportService {
         const itemsDto: PeriodInvoiceItemDto[] = [];
 
         for (const item of invoice.items || []) {
+          // Lọc theo ID sản phẩm nếu có yêu cầu
+          if (allowedProductIds && !allowedProductIds.has(item.product_id)) {
+            continue;
+          }
+
           const itemGrossPrice = Number(item.total_price);
           const avgCost = Number(item.product?.average_cost_price || 0);
           const itemOriginalCOGS = Number(item.base_quantity || item.quantity) * avgCost;
@@ -1266,9 +1290,14 @@ export class StoreProfitReportService {
             itemTaxPrice > 0 &&
             productTaxPrice > 0 &&
             Math.abs(itemTaxPrice - productTaxPrice) < 0.000001;
-          const effectiveTaxPrice = shouldNormalizeLegacyTaxPrice
-            ? itemTaxPrice * conversionFactor
-            : Number(item.tax_selling_price || item.product?.tax_selling_price || 0);
+          // ✅ FIX: Luôn ưu tiên giá từ danh mục sản phẩm nếu giá trong đơn bán đang là 0
+          // Lý do: sales_invoice_items.tax_selling_price hay bị lưu "0" với dữ liệu cũ
+          const effectiveTaxPrice = (() => {
+            if (shouldNormalizeLegacyTaxPrice) return itemTaxPrice * conversionFactor;
+            if (productTaxPrice > 0) return productTaxPrice; // Ưu tiên giá từ danh mục sản phẩm
+            if (itemTaxPrice > 0) return itemTaxPrice;       // Fallback giá trong đơn bán
+            return 0;
+          })();
           const itemTaxableTotalAmount = taxableQty * effectiveTaxPrice;
 
           if (taxableQty > 0) {
@@ -1298,15 +1327,17 @@ export class StoreProfitReportService {
           });
         }
 
-        // Thêm vào danh sách hóa đơn của DTO
-        invoiceDtoList.push({
-          invoice_id: invoice.id,
-          invoice_code: invoice.code,
-          customer_name: invoice.customer_name,
-          sale_date: invoice.sale_date || invoice.created_at,
-          total_amount: invoiceFinalAmount,
-          items: itemsDto,
-        });
+        // Thêm vào danh sách hóa đơn của DTO nếu có ít nhất 1 item thỏa mãn
+        if (itemsDto.length > 0) {
+          invoiceDtoList.push({
+            invoice_id: invoice.id,
+            invoice_code: invoice.code,
+            customer_name: invoice.customer_name,
+            sale_date: invoice.sale_date || invoice.created_at,
+            total_amount: invoiceFinalAmount,
+            items: itemsDto,
+          });
+        }
       }
 
       // 3. Lấy chi phí vận hành cửa hàng
