@@ -4423,18 +4423,16 @@ export class InventoryService {
     const inventoryReturnItemRepo = this.inventoryReceiptRepository.manager.getRepository(InventoryReturnItem);
     const invReturnItems = await inventoryReturnItemRepo
       .createQueryBuilder('iri')
-      .innerJoin('iri.inventory_return', 'ir')
+      .innerJoin('iri.return', 'ir') // ✅ FIX: relation đúng tên là 'return' không phải 'inventory_return'
       .where('iri.product_id = :productId', { productId: product.id })
       .andWhere('ir.status != :cancelled', { cancelled: 'cancelled' })
       .getMany();
 
-    const returnsByReceiptItem = new Map<number, number>();
-    for (const ri of invReturnItems) {
-      const qty = Number(ri.base_quantity || ri.quantity);
-      returnsByReceiptItem.set(ri.inventory_receipt_item_id, (returnsByReceiptItem.get(ri.inventory_receipt_item_id) || 0) + qty);
-    }
+    const totalReturnedQty = invReturnItems.reduce((sum, ri) => sum + Number(ri.quantity || 0), 0);
 
-    // 4. Cấu trúc các lô hàng để mô phỏng (Sử dụng BASE_QUANTITY để chính xác đơn vị tính)
+    // Phân bổ số lượng trả hàng cho lô đầu tiên (FIFO - trả hàng nhập cũ nhất trước)
+    let remainingReturnQty = totalReturnedQty;
+
     let batches: {
       id: number;
       taxable: number;
@@ -4451,8 +4449,10 @@ export class InventoryService {
         Number(r.quantity) * factor,
       );
 
-      const returnedQty = returnsByReceiptItem.get(r.id) || 0;
-      const netQtyBase = Math.max(0, qtyBase - returnedQty);
+      // Trừ số lượng trả hàng vào lô này (FIFO - trả từ lô cũ nhất)
+      const returnedFromThisBatch = Math.min(remainingReturnQty, qtyBase);
+      remainingReturnQty = Math.max(0, remainingReturnQty - returnedFromThisBatch);
+      const netQtyBase = Math.max(0, qtyBase - returnedFromThisBatch);
 
       const originalQty = Number(r.quantity) || 1;
       
