@@ -4440,7 +4440,7 @@ export class InventoryService {
       total: number;
       taxSellingPrice: number;
     }[] = receiptItems.map((r) => {
-      // ✅ FIX: Đảm bảo qtyBase luôn chuẩn xác (Ưu tiên tính toán từ quantity * factor)
+      // ✅ Đảm bảo qtyBase luôn chuẩn xác (Ưu tiên tính toán từ quantity * factor)
       const factor = Number(
         r.conversion_factor || productConversionFactor || 1,
       );
@@ -4455,30 +4455,21 @@ export class InventoryService {
       const netQtyBase = Math.max(0, qtyBase - returnedFromThisBatch);
 
       const originalQty = Number(r.quantity) || 1;
-      
-      // ✅ FIX: Chỉ tính taxable_quantity nếu hóa đơn nhập từ taxStartDate trở đi
-      let originalTaxable = Number(r.taxable_quantity || 0);
-      
-      if (taxStartDate) {
-        // Chuyển ngày so sánh về dạng timestamp để so sánh số cho chính xác tuyệt đối
-        const filterTime = new Date(taxStartDate).getTime();
-        const receiptDate = r.receipt?.bill_date || r.receipt?.created_at;
-        
-        if (receiptDate) {
-          const receiptTime = new Date(receiptDate).getTime();
-          if (receiptTime < filterTime) {
-            originalTaxable = 0; // Hóa đơn cũ -> ép thuế về 0
-          }
-        }
-      }
+
+      // ✅ Dùng đúng số lượng thuế đã khai báo trong phiếu nhập - KHÔNG ép về 0
+      // Việc lọc sản phẩm nào cần đồng bộ đã được xử lý ở syncTaxableDataV2 rồi
+      const originalTaxable = Math.min(
+        Number(r.taxable_quantity || 0),
+        originalQty, // Clamp: taxable không được vượt quá quantity
+      );
 
       // Điều chỉnh taxable quantity theo tỷ lệ hàng còn lại sau khi trả
-      const taxableRatio = originalTaxable / originalQty;
+      const taxableRatio = originalQty > 0 ? originalTaxable / originalQty : 0;
       const adjustedTaxableBase = taxableRatio * netQtyBase;
 
       return {
         id: r.id,
-        taxable: adjustedTaxableBase,
+        taxable: Math.min(adjustedTaxableBase, netQtyBase),
         nonTaxable: Math.max(0, netQtyBase - adjustedTaxableBase),
         total: netQtyBase,
         taxSellingPrice: Number(r.tax_selling_price || product.tax_selling_price || 0),
