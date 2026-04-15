@@ -1554,10 +1554,16 @@ export class InventoryService {
               ? Number(item.base_quantity)
               : item.quantity;
 
+            // ✅ Tính đơn giá chuẩn theo đơn vị cơ sở (Kg) bằng cách chia cho hệ số quy đổi
+            // Ví dụ: 600.000 / Bao (50kg) -> 12.000 / Kg
+            const unitCost = Number(item.final_unit_cost || item.unit_cost);
+            const factor = Number(item.conversion_factor || 1);
+            const normalizedCostPrice = factor > 0 ? unitCost / factor : unitCost;
+
             const batch = await this.processStockIn(
               item.product_id,
-              stockInQuantity, // ← dùng số lượng quy đổi
-              Number(item.final_unit_cost || item.unit_cost),
+              stockInQuantity, // ← đã là số lượng quy đổi (Kg)
+              normalizedCostPrice, // ← đơn giá cũng phải quy đổi tương ứng (VND/Kg)
               userId,
               item.id,
               `LOT-${receiptEntity.code.replace('REC-', '')}-${itemIndex}`,
