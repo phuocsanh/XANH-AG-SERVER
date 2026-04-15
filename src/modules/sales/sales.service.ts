@@ -219,11 +219,31 @@ export class SalesService {
           for (const item of items) {
              const product = await queryRunner.manager.findOne(Product, {
                where: { id: item.product_id },
+               relations: ['unit_conversions'],
              });
              
              if (product) {
                const avgCost = Number(product.average_cost_price || 0);
-                totalCOGS += Number(item.base_quantity || item.quantity) * avgCost;
+               
+               // Tìm hệ số quy đổi chuẩn từ DB cho đơn vị đang bán
+               let dbFactor = 1;
+               if (product.unit_conversions && product.unit_conversions.length > 0) {
+                 const currentUnitId = item.sale_unit_id;
+                 const conversion = product.unit_conversions.find(c => c.unit_id === currentUnitId);
+                 if (conversion) {
+                   dbFactor = Number(conversion.conversion_factor || 1);
+                 }
+               }
+
+               // Tính lượng quy đổi chuẩn (base_quantity) dựa trên hệ số trong DB
+               const correctedBaseQty = item.quantity * dbFactor;
+               
+               // Log cảnh báo nếu có sự sai lệch lớn so với dữ liệu FE gửi lên
+               if (Math.abs(correctedBaseQty - (item.base_quantity || 0)) > 0.01) {
+                 this.logger.warn(`🛡️ Hệ thống tự sửa lệch base_qty: SP \${product.name} (HĐ: \${savedInvoice.code}). FE gửi \${item.base_quantity}, DB tính lại \${correctedBaseQty}`);
+               }
+
+               totalCOGS += correctedBaseQty * avgCost;
              }
           }
 

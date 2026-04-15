@@ -574,7 +574,23 @@ export class InventoryService {
     });
 
     if (batches.length === 0) {
-      return 0;
+      // Khi không còn lô hàng nào, lấy giá vốn TB hiện tại từ bảng products
+      // để tránh reset giá vốn về 0 khi bán hết hàng
+      const productRepo = queryRunner
+        ? queryRunner.manager.getRepository(Product)
+        : this.productService['productRepository'];
+      const product = await productRepo.findOne({ where: { id: productId } });
+      const currentAvgCost = product
+        ? parseFloat(product.average_cost_price?.toString() || '0')
+        : 0;
+
+      if (currentAvgCost > 0) {
+        this.logger.log(
+          `ℹ️ Không còn lô hàng cho SP ${productId}, giữ giá vốn TB hiện tại: ${currentAvgCost}`,
+        );
+      }
+
+      return currentAvgCost;
     }
 
     let totalValue = 0;
