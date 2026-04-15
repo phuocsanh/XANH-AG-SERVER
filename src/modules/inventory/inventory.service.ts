@@ -2531,9 +2531,11 @@ export class InventoryService {
         // Tạo transaction xuất kho (ngược lại với nhập kho)
         // Dùng referenceType đặc biệt để tracking
         // ✅ Dùng số lượng đã quy đổi về đơn vị cơ sở (base_quantity) để hoàn tác
-        const stockOutQuantity = item.base_quantity
+        // ✅ Tính số lượng thực tế hoàn tác dựa trên hệ số quy đổi để đảm bảo chính xác cho cả dữ liệu cũ
+        const conversionFactor = Number(item.conversion_factor || 1);
+        const stockOutQuantity = item.base_quantity && Number(item.base_quantity) > item.quantity
           ? Number(item.base_quantity)
-          : item.quantity;
+          : item.quantity * conversionFactor;
 
         await this.processStockOut(
           item.product_id,

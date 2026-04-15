@@ -1864,9 +1864,14 @@ export class SalesService {
         const outTrans = outTransactions.find(t => t.product_id === item.product_id);
         const unitCostPrice = outTrans ? parseFloat(outTrans.unit_cost_price) : 0;
 
+        // ✅ Tính số lượng thực tế hoàn kho theo đơn vị cơ sở (base_quantity)
+        const stockInQuantity = item.base_quantity
+          ? Number(item.base_quantity)
+          : item.quantity;
+
         await this.inventoryService.processStockIn(
           item.product_id,
-          item.quantity,
+          stockInQuantity,
           unitCostPrice,
           userId || invoice.created_by,
           undefined,
