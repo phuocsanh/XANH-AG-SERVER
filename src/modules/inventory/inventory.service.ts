@@ -1351,9 +1351,7 @@ export class InventoryService {
       const paidAmount = Math.round(
         Number(createInventoryReceiptDto.paid_amount) || 0,
       );
-      const totalAmount = Math.round(
-        Number(createInventoryReceiptDto.total_amount),
-      );
+
       const returnedAmount = Math.round(
         Number(receiptData.returned_amount) || 0,
       );
@@ -1385,11 +1383,14 @@ export class InventoryService {
         }
       }
 
-      // Tính giá trị thực tế sau khi trừ trả hàng
-      const finalAmount = Math.round(totalAmount - returnedAmount);
+      // Tính giá trị tiền hàng thực tế (Tổng quantity * unit_cost)
+      const goodsTotal = createInventoryReceiptDto.items.reduce(
+        (sum, item) =>
+          sum + Math.round(Number(item.quantity) * Number(item.unit_cost)),
+        0,
+      );
 
-      // Tính số tiền thực sự nợ NCC
-      // Phí vận chuyển do người dùng tự chịu, luôn loại trừ phí vận chuyển (cả chung và riêng) khỏi công nợ NCC
+      // Phí vận chuyển do người dùng tự chịu, loại trừ phí vận chuyển (cả chung và riêng) khỏi công nợ NCC
       const excludedShipping =
         (Number(createInventoryReceiptDto.shared_shipping_cost) || 0) +
         createInventoryReceiptDto.items.reduce(
@@ -1397,7 +1398,13 @@ export class InventoryService {
           0,
         );
 
-      const supplierAmount = Math.round(finalAmount - excludedShipping);
+      // Phải trả NCC = Tiền hàng - Trả hàng (nếu có)
+      const supplierAmount = Math.round(goodsTotal - returnedAmount);
+
+      // Tổng giá trị phiếu nhập = Phải trả NCC + Phí vận chuyển
+      const calculatedTotalAmount = Math.round(
+        supplierAmount + excludedShipping,
+      );
 
       // VALIDATION: Nếu còn nợ NCC, phải có hạn thanh toán
       if (
@@ -1420,7 +1427,8 @@ export class InventoryService {
       // Thêm các trường thanh toán vào receiptData
       receiptData.paid_amount = paidAmount;
       receiptData.payment_status = paymentStatus;
-      receiptData.final_amount = finalAmount;
+      receiptData.final_amount = supplierAmount; // supplier_amount là giá trị thực tế của hàng hóa
+      receiptData.total_amount = calculatedTotalAmount; // Tổng giá trị bao gồm phí vận chuyển
       receiptData.supplier_amount = supplierAmount;
       receiptData.debt_amount = debtAmount;
 
@@ -2067,10 +2075,6 @@ export class InventoryService {
         updateData.shipping_allocation_method;
 
     // === TÍNH TOÁN LẠI TÀI CHÍNH KHI UPDATE ===
-    const totalAmount =
-      updateData.total_amount !== undefined
-        ? Math.round(updateData.total_amount)
-        : receipt.total_amount;
     const paidAmount =
       updateData.paid_amount !== undefined
         ? Math.round(updateData.paid_amount)
@@ -2080,30 +2084,51 @@ export class InventoryService {
         ? Math.round(updateData.shared_shipping_cost)
         : receipt.shared_shipping_cost || 0;
 
-    // Tính individual shipping từ updateData.items nếu có, không thì lấy từ DB
+    // Tính tổng tiền hàng (sum of items quantity * unit_cost)
+    let goodsTotal = 0;
     let itemShipping = 0;
+
     if (updateData.items && Array.isArray(updateData.items)) {
+      goodsTotal = updateData.items.reduce(
+        (sum, item) =>
+          sum + Math.round(Number(item.quantity) * Number(item.unit_cost)),
+        0,
+      );
       itemShipping = updateData.items.reduce(
         (sum, item) => sum + (Number(item.individual_shipping_cost) || 0),
         0,
       );
     } else {
-      // Nếu không gửi items mới, lấy sum từ items hiện tại trong DB
+      // Nếu không gửi items mới, lấy từ items hiện tại trong DB
       const currentItems = await this.inventoryReceiptItemRepository.find({
         where: { receipt_id: id },
       });
+      goodsTotal = currentItems.reduce(
+        (sum, item) =>
+          sum + Math.round(Number(item.quantity) * Number(item.unit_cost)),
+        0,
+      );
       itemShipping = currentItems.reduce(
         (sum, item) => sum + (Number(item.individual_shipping_cost) || 0),
         0,
       );
     }
 
-    const finalAmount = totalAmount; // Giả định đơn giản, thực tế cần trừ returned_amount nếu có
-    const excludedShipping = Number(sharedShipping) + Number(itemShipping);
-    const supplierAmount = Math.round(finalAmount - excludedShipping);
+    // Phí vận chuyển do người dùng tự chịu
+    const totalShipping = Number(sharedShipping) + Number(itemShipping);
+
+    // Phải trả NCC = Tiền hàng (trước đây dùng final_amount nhưng đúng nhất là goodsTotal trừ trả hàng)
+    // Giả định đơn giản: không cập nhật returned_amount ở đây (nó được cập nhật khi có phiếu trả hàng)
+    const returnedAmount = Number(receipt.returned_amount || 0);
+    const supplierAmount = Math.round(goodsTotal - returnedAmount);
+
+    // Tổng giá trị phiếu nhập = Phải trả NCC + Phí vận chuyển
+    const totalAmount = Math.round(supplierAmount + totalShipping);
+
     const debtAmount = Math.max(0, Math.round(supplierAmount - paidAmount));
 
-    entityUpdateData.final_amount = finalAmount;
+    entityUpdateData.total_amount = totalAmount;
+    entityUpdateData.final_amount = supplierAmount; // final_amount là giá trị hàng hóa thực tế
     entityUpdateData.supplier_amount = supplierAmount;
     entityUpdateData.debt_amount = debtAmount;
     entityUpdateData.paid_amount = paidAmount;

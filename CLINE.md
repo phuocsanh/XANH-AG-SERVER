@@ -428,3 +428,18 @@ throw new BusinessLogicException('Mã lỗi', 'Thông báo lỗi');
 2. Hiển thị diff thay đổi cho user
 3. CHỜ user approve hoặc yêu cầu chỉnh sửa thêm
 4. NẾU user yêu cầu push → mới thực hiện `git add`, `git commit`, `git push`
+## Finance Logic Rules
+
+### Phiếu Nhập Hàng (Inventory Receipts)
+
+Đây là các quy tắc bất biến khi tính toán tài chính cho phiếu nhập hàng:
+
+1.  **Tiền hàng (Goods Total):** Tổng cộng giá trị các sản phẩm (`quantity` * `unit_cost`).
+2.  **Phí bốc vác/vận chuyển (Shipping Fee):** Chi phí phát sinh để nhập hàng.
+3.  **Phải trả NCC (Supplier Amount):** LUÔN LUÔN chỉ bao gồm **Tiền hàng**.
+    - ⚠️ **Cấm:** Không bao giờ cộng hoặc trừ phí bốc vác vào số tiền phải trả nhà cung cấp (vì phí này do chủ cửa hàng tự trả cho bên thứ 3).
+4.  **Tổng giá trị phiếu (Total Amount):** `Tiền hàng` + `Phí bốc vác`.
+5.  **Còn nợ (Debt Amount):** `Phải trả NCC` - `Tiền đã thanh toán`.
+6.  **Giá vốn kho:** Phí bốc vác PHẢI được phân bổ vào đơn giá vốn của từng sản phẩm để tính lợi nhuận đúng, nhưng KHÔNG ảnh hưởng đến công nợ NCC.
+
+> **QUAN TRỌNG:** Khi thực hiện tính toán trong `inventory.service.ts`, luôn tính `supplier_amount` từ tổng các mặt hàng thay vì tính ngược từ `total_amount` trừ phí vận chuyển để tránh sai sót.
