@@ -4083,21 +4083,13 @@ export class InventoryService {
       );
     }
 
-    if (receipt.has_returns || receipt.has_adjustments) {
-      throw new BadRequestException(
-        'Phiếu đã có trả hàng hoặc điều chỉnh. Vui lòng xử lý qua phiếu liên quan.',
-      );
-    }
-
     const currentPaidAmount = Number(receipt.paid_amount) || 0;
-    const finalAmount =
-      Number(receipt.final_amount) || Number(receipt.total_amount);
-    const supplierAmount = Number(receipt.supplier_amount) || finalAmount;
+    const supplierAmount = Number(receipt.supplier_amount) || Number(receipt.final_amount) || Number(receipt.total_amount);
     const newPaidAmount = currentPaidAmount + Number(paymentDto.amount);
 
-    if (newPaidAmount > finalAmount) {
+    if (newPaidAmount > supplierAmount) {
       throw new BadRequestException(
-        `Số tiền thanh toán vượt quá số tiền còn nợ (${finalAmount - currentPaidAmount}đ)`,
+        `Số tiền thanh toán vượt quá số tiền còn nợ NCC (${supplierAmount - currentPaidAmount}đ)`,
       );
     }
 
