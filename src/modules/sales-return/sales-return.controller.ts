@@ -26,4 +26,13 @@ export class SalesReturnController {
   search(@Body() searchDto: SearchSalesReturnDto) {
     return this.salesReturnService.search(searchDto);
   }
+
+  @Post(':id/cancel')
+  @RequirePermissions('sales:manage')
+  cancel(
+    @Body('id') id: number,
+    @CurrentUser('id') userId: number,
+  ) {
+    return this.salesReturnService.cancel(id, userId);
+  }
 }

@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import {
@@ -19,6 +19,7 @@ import { Product } from '../../entities/products.entity';
 import { InventoryTransaction } from '../../entities/inventory-transactions.entity';
 import { InventoryService } from '../inventory/inventory.service';
 import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
+import { CustomerRewardTracking } from '../../entities/customer-reward-tracking.entity';
 
 @Injectable()
 export class SalesReturnService {
@@ -567,5 +568,111 @@ export class SalesReturnService {
       .padStart(3, '0');
 
     return `RF${year}${month}${day}${hours}${minutes}${seconds}${random}`;
+  }
+
+  /**
+   * Hủy phiếu trả hàng
+   * Đảo ngược các tác động đến tồn kho và tài chính
+   */
+  async cancel(id: number, userId: number): Promise<SalesReturn> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // 1. Tìm phiếu trả hàng cùng các quan hệ cần thiết
+      const salesReturn = await queryRunner.manager.findOne(SalesReturn, {
+        where: { id },
+        relations: ['items', 'invoice', 'customer'],
+      });
+
+      if (!salesReturn) {
+        throw new NotFoundException(`Không tìm thấy phiếu trả hàng #${id}`);
+      }
+
+      if (salesReturn.status === SalesReturnStatus.CANCELLED) {
+        throw new BadRequestException('Phiếu trả hàng đã bị hủy trước đó');
+      }
+
+      // 2. Cập nhật trạng thái
+      salesReturn.status = SalesReturnStatus.CANCELLED;
+      await queryRunner.manager.save(salesReturn);
+
+      // 3. Đảo ngược tác động tài chính lên hóa đơn gốc
+      const invoice = salesReturn.invoice;
+      if (invoice) {
+        // Tính toán lại COGS hoàn lại để đảo ngược
+        let totalCostOfReturn = 0;
+        for (const item of salesReturn.items || []) {
+          const invoiceItem = await queryRunner.manager.findOne(SalesInvoiceItem, {
+            where: {
+              sales_invoice_id: invoice.id,
+              product_id: item.product_id,
+            },
+          });
+          if (invoiceItem) {
+            const costPerBaseUnit =
+              Number(invoiceItem.total_cost || 0) /
+              Number(invoiceItem.base_quantity || 1);
+            totalCostOfReturn += costPerBaseUnit * Number(item.base_quantity);
+          }
+        }
+
+        // Hoàn trả lại tiền vào hóa đơn (Final Amount và COGS)
+        invoice.final_amount =
+          Number(invoice.final_amount) + Number(salesReturn.total_refund_amount);
+        invoice.cost_of_goods_sold =
+          Number(invoice.cost_of_goods_sold) + totalCostOfReturn;
+        
+        // Cập nhật lại số tiền còn nợ (remaining_amount)
+        invoice.remaining_amount = 
+          Number(invoice.remaining_amount || 0) + Number(salesReturn.total_refund_amount);
+
+        await queryRunner.manager.save(invoice);
+      }
+
+      // 4. Đảo ngược tác động kho (Trừ lại tồn kho)
+      for (const item of salesReturn.items || []) {
+        // Thực hiện xuất kho ngược lại (OUT)
+        await this.inventoryService.processStockOut(
+          item.product_id,
+          Number(item.base_quantity || item.quantity),
+          'RETURN_CANCEL',
+          userId,
+          salesReturn.id,
+          `Hủy phiếu trả hàng ${salesReturn.code}`,
+          queryRunner,
+        );
+      }
+
+      // 5. Đảo ngược điểm tích lũy (Nếu có)
+      // Khi trả hàng ta đã làm giảm nợ khách hàng (giảm tích lũy), 
+      // giờ hủy trả hàng ta phải tăng lại tích lũy cho khách
+      if (salesReturn.customer_id && salesReturn.total_refund_amount > 0) {
+        let tracking = await queryRunner.manager.findOne(CustomerRewardTracking, {
+          where: { customer_id: salesReturn.customer_id },
+        });
+
+        if (tracking) {
+          tracking.pending_amount =
+            Number(tracking.pending_amount) +
+            Number(salesReturn.total_refund_amount);
+          tracking.total_accumulated =
+            Number(tracking.total_accumulated) +
+            Number(salesReturn.total_refund_amount);
+          await queryRunner.manager.save(tracking);
+        }
+      }
+
+      await queryRunner.commitTransaction();
+      this.logger.log(`✅ Đã hủy phiếu trả hàng #${salesReturn.code}`);
+      return salesReturn;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      this.logger.error(`❌ Lỗi khi hủy phiếu trả hàng: ${error.message}`);
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 }
