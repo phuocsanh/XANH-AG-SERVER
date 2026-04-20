@@ -150,9 +150,20 @@ export class SalesService {
               taxSellingPrice = product?.tax_selling_price;
             }
 
-            // ✅ Tính base_quantity (Ưu tiên tính toán từ quantity * factor để tránh lỗi FE gửi sai)
-            const conversionFactor = Number(item.conversion_factor || 1);
-            const baseQty = item.quantity * conversionFactor;
+            // ✅ Tính base_quantity chuẩn từ DB
+            let dbConversionFactor = 1;
+            if (product && item.sale_unit_id) {
+              const conversions = product.unit_conversions || [];
+              const conv = conversions.find(c => Number(c.unit_id) === Number(item.sale_unit_id));
+              if (conv) {
+                dbConversionFactor = Number(conv.conversion_factor || 1);
+              } else if (Number(item.sale_unit_id) === Number(product.unit_id)) {
+                // Nếu là đơn vị cơ sở nhưng không tìm thấy trong bảng quy đổi (hiếm khi xảy ra)
+                dbConversionFactor = 1;
+              }
+            }
+            
+            const baseQty = item.quantity * dbConversionFactor;
 
             // ✅ LOGIC QUY ĐỔI ĐỐI ỨNG (Snapshot Bao/Kg)
             let otherUnitName = '';
@@ -182,15 +193,15 @@ export class SalesService {
               }
             }
 
-            if (conversionFactor !== 1 && product) {
+            if (dbConversionFactor !== 1 && product) {
               const productTaxPrice = Number(product.tax_selling_price || 0);
               const currentTaxPrice = Number(taxSellingPrice || 0);
 
               if (productTaxPrice > 0) {
                 if (!taxSellingPrice) {
-                  taxSellingPrice = String(productTaxPrice * conversionFactor);
+                  taxSellingPrice = String(productTaxPrice * dbConversionFactor);
                 } else if (Math.abs(currentTaxPrice - productTaxPrice) < 0.000001) {
-                  taxSellingPrice = String(productTaxPrice * conversionFactor);
+                  taxSellingPrice = String(productTaxPrice * dbConversionFactor);
                 }
               }
             }
@@ -199,7 +210,7 @@ export class SalesService {
               ...item,
               invoice_id: savedInvoice.id,
               total_price: totalPrice,
-              conversion_factor: conversionFactor,
+              conversion_factor: dbConversionFactor,
               base_quantity: baseQty,
               other_unit_name: otherUnitName,
               other_unit_factor: otherUnitFactor,

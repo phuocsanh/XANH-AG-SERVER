@@ -1517,6 +1517,25 @@ export class InventoryService {
       // Tạo các item trong phiếu và xử lý nhập kho cho từng sản phẩm
       const savedItems: any[] = [];
       for (const item of itemsWithShipping) {
+        // ✅ QUY ĐỔI ĐƠN VỊ TÍNH CHUẨN TỪ DB
+        let dbConversionFactor = 1;
+        const product = await queryRunner.manager.findOne(Product, {
+          where: { id: item.product_id },
+          relations: ['unit_conversions'],
+        });
+
+        if (product && item.unit_id) {
+          const conversions = product.unit_conversions || [];
+          const conv = conversions.find(
+            (c) => Number(c.unit_id) === Number(item.unit_id),
+          );
+          if (conv) {
+            dbConversionFactor = Number(conv.conversion_factor || 1);
+          } else if (Number(item.unit_id) === Number(product.unit_id)) {
+            dbConversionFactor = 1;
+          }
+        }
+
         const itemData: any = {
           receipt_id: receiptEntity.id,
           product_id: item.product_id,
@@ -1530,12 +1549,10 @@ export class InventoryService {
           batch_number: item.batch_number,
           unit_name: item.unit_name,
 
-          // ✅ QUY ĐỔI ĐƠN VỊ TÍNH
+          // ✅ LƯU HỆ SỐ QUY ĐỔI ĐÃ XÁC THỰC
           unit_id: item.unit_id,
-          conversion_factor: item.conversion_factor || 1,
-          // Nếu không có base_quantity thì tự tính từ quantity * conversion_factor
-          base_quantity:
-            item.base_quantity || item.quantity * (item.conversion_factor || 1),
+          conversion_factor: dbConversionFactor,
+          base_quantity: item.quantity * dbConversionFactor,
         };
 
         // Only add notes if it's not undefined
@@ -1582,7 +1599,8 @@ export class InventoryService {
             // Ví dụ: 600.000 / Bao (50kg) -> 12.000 / Kg
             const unitCost = Number(item.final_unit_cost || item.unit_cost);
             const factor = Number(item.conversion_factor || 1);
-            const normalizedCostPrice = factor > 0 ? unitCost / factor : unitCost;
+            const normalizedCostPrice =
+              factor > 0 ? unitCost / factor : unitCost;
 
             const batch = await this.processStockIn(
               item.product_id,
@@ -2574,9 +2592,10 @@ export class InventoryService {
         // ✅ Dùng số lượng đã quy đổi về đơn vị cơ sở (base_quantity) để hoàn tác
         // ✅ Tính số lượng thực tế hoàn tác dựa trên hệ số quy đổi để đảm bảo chính xác cho cả dữ liệu cũ
         const conversionFactor = Number(item.conversion_factor || 1);
-        const stockOutQuantity = item.base_quantity && Number(item.base_quantity) > item.quantity
-          ? Number(item.base_quantity)
-          : item.quantity * conversionFactor;
+        const stockOutQuantity =
+          item.base_quantity && Number(item.base_quantity) > item.quantity
+            ? Number(item.base_quantity)
+            : item.quantity * conversionFactor;
 
         await this.processStockOut(
           item.product_id,
@@ -4084,7 +4103,10 @@ export class InventoryService {
     }
 
     const currentPaidAmount = Number(receipt.paid_amount) || 0;
-    const supplierAmount = Number(receipt.supplier_amount) || Number(receipt.final_amount) || Number(receipt.total_amount);
+    const supplierAmount =
+      Number(receipt.supplier_amount) ||
+      Number(receipt.final_amount) ||
+      Number(receipt.total_amount);
     const newPaidAmount = currentPaidAmount + Number(paymentDto.amount);
 
     if (newPaidAmount > supplierAmount) {
@@ -4350,7 +4372,10 @@ export class InventoryService {
     );
 
     // 1. Tìm danh sách ID sản phẩm có ít nhất một phiếu nhập "có thuế" từ ngày filterDate
-    const receiptItemRepo = this.inventoryReceiptRepository.manager.getRepository(InventoryReceiptItem);
+    const receiptItemRepo =
+      this.inventoryReceiptRepository.manager.getRepository(
+        InventoryReceiptItem,
+      );
     const productIdsWithRecentTax = await receiptItemRepo
       .createQueryBuilder('item')
       .innerJoin('item.receipt', 'receipt')
@@ -4359,8 +4384,8 @@ export class InventoryService {
       .andWhere("receipt.status IN ('approved', 'completed')")
       .getRawMany();
 
-    const ids = productIdsWithRecentTax.map(p => p.product_id);
-    
+    const ids = productIdsWithRecentTax.map((p) => p.product_id);
+
     if (ids.length === 0) {
       this.logger.log('ℹ️ Không tìm thấy sản phẩm nào thỏa mãn điều kiện.');
       return { productsUpdated: 0, salesItemsUpdated: 0 };
@@ -4372,7 +4397,10 @@ export class InventoryService {
     let salesItemsUpdated = 0;
 
     for (const productId of ids) {
-      const result = await this.syncTaxableDataForProduct(productId, filterDate);
+      const result = await this.syncTaxableDataForProduct(
+        productId,
+        filterDate,
+      );
       if (result.productUpdated) productsUpdated++;
       salesItemsUpdated += result.salesItemsUpdated;
     }
@@ -4461,7 +4489,10 @@ export class InventoryService {
       return { productUpdated: false, salesItemsUpdated: 0 };
 
     // 3. Lấy dữ liệu trả hàng nhập (để loại trừ khỏi lượng nhập kho)
-    const inventoryReturnItemRepo = this.inventoryReceiptRepository.manager.getRepository(InventoryReturnItem);
+    const inventoryReturnItemRepo =
+      this.inventoryReceiptRepository.manager.getRepository(
+        InventoryReturnItem,
+      );
     const invReturnItems = await inventoryReturnItemRepo
       .createQueryBuilder('iri')
       .innerJoin('iri.return', 'ir') // ✅ FIX: relation đúng tên là 'return' không phải 'inventory_return'
@@ -4469,7 +4500,10 @@ export class InventoryService {
       .andWhere('ir.status != :cancelled', { cancelled: 'cancelled' })
       .getMany();
 
-    const totalReturnedQty = invReturnItems.reduce((sum, ri) => sum + Number(ri.quantity || 0), 0);
+    const totalReturnedQty = invReturnItems.reduce(
+      (sum, ri) => sum + Number(ri.quantity || 0),
+      0,
+    );
 
     // Phân bổ số lượng trả hàng cho lô đầu tiên (FIFO - trả hàng nhập cũ nhất trước)
     let remainingReturnQty = totalReturnedQty;
@@ -4492,7 +4526,10 @@ export class InventoryService {
 
       // Trừ số lượng trả hàng vào lô này (FIFO - trả từ lô cũ nhất)
       const returnedFromThisBatch = Math.min(remainingReturnQty, qtyBase);
-      remainingReturnQty = Math.max(0, remainingReturnQty - returnedFromThisBatch);
+      remainingReturnQty = Math.max(
+        0,
+        remainingReturnQty - returnedFromThisBatch,
+      );
       const netQtyBase = Math.max(0, qtyBase - returnedFromThisBatch);
 
       const originalQty = Number(r.quantity) || 1;
@@ -4513,7 +4550,7 @@ export class InventoryService {
         taxable: Math.min(adjustedTaxableBase, netQtyBase),
         nonTaxable: Math.max(0, netQtyBase - adjustedTaxableBase),
         total: netQtyBase,
-        taxSellingPrice: Number(r.tax_selling_price || product.tax_selling_price || 0),
+        taxSellingPrice: Number(product.tax_selling_price || 0),
       };
     });
 
@@ -4540,10 +4577,11 @@ export class InventoryService {
     for (const item of salesItems) {
       // ✅ FIX: Ép kiểu số để tránh lỗi chữ "0" (string) vẫn được coi là có giá trị
       const itemTaxPrice = Number(item.tax_selling_price || 0);
-      let currentTaxPrice = itemTaxPrice > 0 
-        ? itemTaxPrice 
-        : Number(item.product?.tax_selling_price || 0);
-      
+      let currentTaxPrice =
+        itemTaxPrice > 0
+          ? itemTaxPrice
+          : Number(item.product?.tax_selling_price || 0);
+
       // ✅ FIX: Đảm bảo saleQtyBase luôn chuẩn xác (Ưu tiên tính toán từ quantity * factor)
       const factor = Number(
         item.conversion_factor || productConversionFactor || 1,
@@ -4608,11 +4646,16 @@ export class InventoryService {
       );
       const finalTaxableQty = calculatedTaxableBase / itemFactor;
 
-      const priceDiff = Math.abs(Number(item.tax_selling_price || 0) - currentTaxPrice);
-      if (Math.abs(Number(item.taxable_quantity) - finalTaxableQty) > 0.001 || priceDiff > 0.1) {
+      const priceDiff = Math.abs(
+        Number(item.tax_selling_price || 0) - currentTaxPrice,
+      );
+      if (
+        Math.abs(Number(item.taxable_quantity) - finalTaxableQty) > 0.001 ||
+        priceDiff > 0.1
+      ) {
         await salesInvoiceItemRepo.update(item.id, {
           taxable_quantity: finalTaxableQty,
-          tax_selling_price: currentTaxPrice,
+          tax_selling_price: currentTaxPrice.toString(),
         });
         salesItemsUpdatedCount++;
       }

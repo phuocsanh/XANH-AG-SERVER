@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, QueryRunner } from 'typeorm';
 import { ProductUnitConversion } from '../../entities/product-unit-conversions.entity';
@@ -36,7 +41,10 @@ export class ProductUnitConversionService {
    * Lấy đơn vị cơ sở của sản phẩm (is_base_unit = true).
    * @param productId - ID sản phẩm
    */
-  async getBaseUnit(productId: number, queryRunner?: QueryRunner): Promise<ProductUnitConversion | null> {
+  async getBaseUnit(
+    productId: number,
+    queryRunner?: QueryRunner,
+  ): Promise<ProductUnitConversion | null> {
     const repo = queryRunner
       ? queryRunner.manager.getRepository(ProductUnitConversion)
       : this.conversionRepository;
@@ -53,7 +61,10 @@ export class ProductUnitConversionService {
    * @param productId - ID sản phẩm
    * @param unitId - ID đơn vị cần quy đổi
    */
-  async getConversionFactor(productId: number, unitId: number): Promise<number> {
+  async getConversionFactor(
+    productId: number,
+    unitId: number,
+  ): Promise<number> {
     if (!unitId) return 1;
 
     const conversion = await this.conversionRepository.findOne({
@@ -76,7 +87,9 @@ export class ProductUnitConversionService {
     quantity: number,
     unitId?: number,
   ): Promise<{ baseQuantity: number; conversionFactor: number }> {
-    const factor = unitId ? await this.getConversionFactor(productId, unitId) : 1;
+    const factor = unitId
+      ? await this.getConversionFactor(productId, unitId)
+      : 1;
     return {
       baseQuantity: quantity * factor,
       conversionFactor: factor,
@@ -103,7 +116,9 @@ export class ProductUnitConversionService {
    * Tạo mới một quy đổi đơn vị.
    * @param dto - Dữ liệu tạo mới
    */
-  async create(dto: CreateProductUnitConversionDto): Promise<ProductUnitConversion> {
+  async create(
+    dto: CreateProductUnitConversionDto,
+  ): Promise<ProductUnitConversion> {
     if (!dto.product_id) {
       throw new BadRequestException('ID sản phẩm là bắt buộc.');
     }
@@ -135,7 +150,10 @@ export class ProductUnitConversionService {
    * @param id - ID cần cập nhật
    * @param dto - Dữ liệu cập nhật
    */
-  async update(id: number, dto: UpdateProductUnitConversionDto): Promise<ProductUnitConversion> {
+  async update(
+    id: number,
+    dto: UpdateProductUnitConversionDto,
+  ): Promise<ProductUnitConversion> {
     const entity = await this.conversionRepository.findOne({ where: { id } });
     if (!entity) {
       throw new NotFoundException(`Không tìm thấy quy đổi đơn vị ID ${id}`);
@@ -186,9 +204,11 @@ export class ProductUnitConversionService {
       : this.conversionRepository;
 
     // Validate: phải có đúng 1 đơn vị cơ sở
-    const baseUnits = items.filter(i => i.is_base_unit);
+    const baseUnits = items.filter((i) => i.is_base_unit);
     if (baseUnits.length === 0 && items.length > 0) {
-      throw new BadRequestException('Phải có ít nhất 1 đơn vị cơ sở (is_base_unit = true).');
+      throw new BadRequestException(
+        'Phải có ít nhất 1 đơn vị cơ sở (is_base_unit = true).',
+      );
     }
     if (baseUnits.length > 1) {
       throw new BadRequestException('Chỉ được phép có 1 đơn vị cơ sở.');
@@ -196,8 +216,9 @@ export class ProductUnitConversionService {
 
     // Validate: đơn vị cơ sở phải có factor = 1
     const baseUnit = baseUnits[0];
-    if (baseUnit && Number(baseUnit.conversion_factor) !== 1) {
-      throw new BadRequestException('Đơn vị cơ sở phải có hệ số quy đổi = 1.');
+    if (baseUnit) {
+      // Đảm bảo đơn vị cơ sở luôn có hệ số = 1, không cho phép sai lệch
+      baseUnit.conversion_factor = 1;
     }
 
     // Xóa tất cả quy đổi cũ của sản phẩm
@@ -206,7 +227,7 @@ export class ProductUnitConversionService {
     if (items.length === 0) return [];
 
     // Tạo các quy đổi mới
-    const entities = items.map(item =>
+    const entities = items.map((item) =>
       repo.create({ ...item, product_id: productId }),
     );
 
@@ -225,7 +246,7 @@ export class ProductUnitConversionService {
   async getConversionMap(productId: number): Promise<Map<number, number>> {
     const conversions = await this.findByProduct(productId);
     const map = new Map<number, number>();
-    conversions.forEach(c => map.set(c.unit_id, Number(c.conversion_factor)));
+    conversions.forEach((c) => map.set(c.unit_id, Number(c.conversion_factor)));
     return map;
   }
 }
