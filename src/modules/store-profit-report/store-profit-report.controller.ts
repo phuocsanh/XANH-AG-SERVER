@@ -132,6 +132,8 @@ export class StoreProfitReportController {
     @Query('endDate') endDate: string,
     @Query('taxableFilter') taxableFilter: 'all' | 'yes' | 'no' = 'all',
     @Query('onlyRecentTaxedProducts') filterByReceiptDate?: string,
+    @Query('sortBy') sortBy: string = 'sale_date',
+    @Query('sortOrder') sortOrder: 'ASC' | 'DESC' = 'DESC',
   ): Promise<PeriodReportDto> {
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -139,6 +141,6 @@ export class StoreProfitReportController {
     // Đặt giờ cuối ngày cho endDate để bao gồm cả ngày đó
     end.setHours(23, 59, 59, 999);
     
-    return this.service.getPeriodProfitReport(start, end, taxableFilter, filterByReceiptDate);
+    return this.service.getPeriodProfitReport(start, end, taxableFilter, filterByReceiptDate, sortBy, sortOrder);
   }
 }

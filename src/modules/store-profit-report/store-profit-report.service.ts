@@ -1186,6 +1186,8 @@ export class StoreProfitReportService {
     endDate: Date, 
     taxableFilter: 'all' | 'yes' | 'no' = 'all',
     filterByReceiptDate?: string,
+    sortBy: string = 'sale_date',
+    sortOrder: 'ASC' | 'DESC' = 'DESC',
   ): Promise<PeriodReportDto> {
     try {
       this.logger.log(`📊 Báo cáo lợi nhuận từ ${startDate.toISOString()} đến ${endDate.toISOString()}`);
@@ -1216,7 +1218,10 @@ export class StoreProfitReportService {
           { sale_date: IsNull(), created_at: Between(startDate, endDate), status: SalesInvoiceStatus.PAID },
         ],
         relations: ['items', 'items.product'],
-        order: { sale_date: 'DESC', created_at: 'DESC' },
+        order: { 
+          [sortBy === 'total_amount' ? 'final_amount' : sortBy]: sortOrder, 
+          created_at: 'DESC' 
+        } as any,
       });
 
       const invoiceDtoList: PeriodInvoiceDto[] = [];
