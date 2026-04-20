@@ -601,34 +601,59 @@ export class SalesReturnService {
       // 3. Đảo ngược tác động tài chính lên hóa đơn gốc
       const invoice = salesReturn.invoice;
       if (invoice) {
-        // Tính toán lại COGS hoàn lại để đảo ngược
-        let totalCostOfReturn = 0;
-        for (const item of salesReturn.items || []) {
-          const invoiceItem = await queryRunner.manager.findOne(SalesInvoiceItem, {
+        // TẢI LẠI HÓA ĐƠN VỚI ĐỦ ITEM VÀ CÁC PHIẾU TRẢ KHÁC ĐỂ TÍNH TOÁN LẠI
+        const fullInvoice = await queryRunner.manager.findOne(SalesInvoice, {
+          where: { id: invoice.id },
+          relations: ['items'],
+        });
+
+        if (fullInvoice) {
+          // A. Tính tổng tiền gốc (trước mọi lần trả hàng)
+          const originalFinalAmount = Number(fullInvoice.total_amount) - Number(fullInvoice.discount_amount || 0);
+
+          // B. Lấy tất cả các phiếu trả hàng KHÁC (đã duyệt và không phải phiếu đang hủy)
+          const otherReturns = await queryRunner.manager.find(SalesReturn, {
             where: {
-              sales_invoice_id: invoice.id,
-              product_id: item.product_id,
+              invoice_id: invoice.id,
+              status: SalesReturnStatus.APPROVED,
             },
           });
-          if (invoiceItem) {
-            const costPerBaseUnit =
-              Number(invoiceItem.total_cost || 0) /
-              Number(invoiceItem.base_quantity || 1);
-            totalCostOfReturn += costPerBaseUnit * Number(item.base_quantity);
+          const otherReturnsToKeep = otherReturns.filter(r => r.id !== salesReturn.id);
+          const totalOtherRefundAmount = otherReturnsToKeep.reduce((sum, r) => sum + Number(r.total_refund_amount), 0);
+
+          // C. Giá trị hóa đơn MỚI sau khi hủy phiếu này
+          const newFinalAmount = originalFinalAmount - totalOtherRefundAmount;
+          
+          // D. Tính toán COGS mới
+          let totalCostOfAllReturns = 0;
+          for (const ret of otherReturnsToKeep) {
+            // ... (Logic tính COGS cho các phiếu khác nếu cần, nhưng đơn giản nhất là lấy hiệu số)
           }
+          // Để đơn giản và chính xác, ta chỉ đảo ngược phần COGS của phiếu đang hủy
+          let totalCostOfThisReturn = 0;
+          for (const item of salesReturn.items || []) {
+            const invoiceItem = fullInvoice.items?.find(ii => ii.product_id === item.product_id);
+            if (invoiceItem) {
+              const costPerBaseUnit = Number(invoiceItem.total_cost || 0) / Number(invoiceItem.base_quantity || 1);
+              totalCostOfThisReturn += costPerBaseUnit * Number(item.base_quantity);
+            }
+          }
+
+          // Cập nhật hóa đơn
+          fullInvoice.final_amount = newFinalAmount;
+          fullInvoice.cost_of_goods_sold = Number(fullInvoice.cost_of_goods_sold) + totalCostOfThisReturn;
+          fullInvoice.remaining_amount = Number(fullInvoice.final_amount) - Number(fullInvoice.partial_payment_amount || 0);
+          
+          // Cập nhật lợi nhuận gộp
+          fullInvoice.gross_profit = fullInvoice.final_amount - fullInvoice.cost_of_goods_sold;
+          fullInvoice.gross_profit_margin = fullInvoice.final_amount > 0 ? (fullInvoice.gross_profit / fullInvoice.final_amount) * 100 : 0;
+
+          if (fullInvoice.final_amount > 0 && fullInvoice.status === SalesInvoiceStatus.REFUNDED) {
+            fullInvoice.status = SalesInvoiceStatus.PAID; // Hoặc CONFIRMED tùy logic
+          }
+
+          await queryRunner.manager.save(fullInvoice);
         }
-
-        // Hoàn trả lại tiền vào hóa đơn (Final Amount và COGS)
-        invoice.final_amount =
-          Number(invoice.final_amount) + Number(salesReturn.total_refund_amount);
-        invoice.cost_of_goods_sold =
-          Number(invoice.cost_of_goods_sold) + totalCostOfReturn;
-        
-        // Cập nhật lại số tiền còn nợ (remaining_amount)
-        invoice.remaining_amount = 
-          Number(invoice.remaining_amount || 0) + Number(salesReturn.total_refund_amount);
-
-        await queryRunner.manager.save(invoice);
       }
 
       // 4. Đảo ngược tác động kho (Trừ lại tồn kho)
