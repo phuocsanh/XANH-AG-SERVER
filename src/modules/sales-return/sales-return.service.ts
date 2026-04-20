@@ -6,7 +6,7 @@ import {
   SalesReturnStatus,
 } from '../../entities/sales-return.entity';
 import { SalesReturnItem } from '../../entities/sales-return-items.entity';
-import { SalesInvoice } from '../../entities/sales-invoices.entity';
+import { SalesInvoice, SalesInvoiceStatus } from '../../entities/sales-invoices.entity';
 import { CreateSalesReturnDto } from './dto/create-sales-return.dto';
 import { SearchSalesReturnDto } from './dto/search-sales-return.dto';
 import { InventoryBatch } from '../../entities/inventories.entity';
