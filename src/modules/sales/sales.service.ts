@@ -496,6 +496,7 @@ export class SalesService {
       .leftJoinAndSelect('invoice.season', 'season')
       .leftJoinAndSelect('invoice.rice_crop', 'rice_crop')
       .leftJoinAndSelect('invoice.delivery_logs', 'delivery_logs')
+      .leftJoinAndSelect('invoice.returns', 'returns')
       .leftJoin('invoice.creator', 'creator')
       .addSelect(['creator.id', 'creator.account'])
       .where('invoice.id = :id', { id })

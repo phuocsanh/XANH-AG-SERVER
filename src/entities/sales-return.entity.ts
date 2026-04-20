@@ -30,7 +30,7 @@ export class SalesReturn {
   @Column({ name: 'invoice_id' })
   invoice_id!: number;
 
-  @ManyToOne(() => SalesInvoice)
+  @ManyToOne(() => SalesInvoice, (invoice) => invoice.returns)
   @JoinColumn({ name: 'invoice_id' })
   invoice?: SalesInvoice;
 
