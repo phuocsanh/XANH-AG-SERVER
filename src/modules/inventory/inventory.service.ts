@@ -4577,10 +4577,10 @@ export class InventoryService {
     for (const item of salesItems) {
       // ✅ FIX: Ép kiểu số để tránh lỗi chữ "0" (string) vẫn được coi là có giá trị
       const itemTaxPrice = Number(item.tax_selling_price || 0);
-      let currentTaxPrice =
-        itemTaxPrice > 0
-          ? itemTaxPrice
-          : Number(item.product?.tax_selling_price || 0);
+      const hasExistingSnapshot = itemTaxPrice > 0;
+      let currentTaxPrice = hasExistingSnapshot
+        ? itemTaxPrice
+        : Number(item.product?.tax_selling_price || 0);
 
       // ✅ FIX: Đảm bảo saleQtyBase luôn chuẩn xác (Ưu tiên tính toán từ quantity * factor)
       const factor = Number(
@@ -4621,8 +4621,10 @@ export class InventoryService {
       for (let b of batches) {
         if (!b || remainingToDeduct <= 0) continue;
 
-        // Cập nhật giá bán thuế từ lô hàng (nếu có)
-        currentTaxPrice = b.taxSellingPrice || currentTaxPrice;
+        // Cập nhật giá bán thuế từ lô hàng (nếu có) - CHỈ khi hóa đơn chưa có snapshot
+        if (!hasExistingSnapshot) {
+          currentTaxPrice = b.taxSellingPrice || currentTaxPrice;
+        }
 
         const batchTotal = b.taxable + b.nonTaxable;
         if (batchTotal <= 0) continue;

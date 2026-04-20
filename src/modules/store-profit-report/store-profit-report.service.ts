@@ -1299,8 +1299,10 @@ export class StoreProfitReportService {
           // Lý do: sales_invoice_items.tax_selling_price hay bị lưu "0" với dữ liệu cũ
           const effectiveTaxPrice = (() => {
             if (shouldNormalizeLegacyTaxPrice) return itemTaxPrice * conversionFactor;
-            if (productTaxPrice > 0) return productTaxPrice; // Ưu tiên giá từ danh mục sản phẩm
-            if (itemTaxPrice > 0) return itemTaxPrice;       // Fallback giá trong đơn bán
+            // ✅ Ưu tiên 1: Giá snapshot trong đơn bán (đã được đồng bộ hoặc lưu lúc bán)
+            if (itemTaxPrice > 0) return itemTaxPrice;
+            // ⚠️ Ưu tiên 2: Fallback giá từ danh mục sản phẩm (cho dữ liệu cũ)
+            if (productTaxPrice > 0) return productTaxPrice;
             return 0;
           })();
           const itemTaxableTotalAmount = taxableQty * effectiveTaxPrice;
