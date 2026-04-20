@@ -30,6 +30,31 @@ export class SalesReturnItem {
   @Column()
   quantity!: number;
 
+  @Column({ name: 'unit_name', nullable: true })
+  unit_name?: string;
+
+  @Column({ name: 'sale_unit_id', nullable: true })
+  sale_unit_id?: number;
+
+  @Column({
+    name: 'conversion_factor',
+    type: 'decimal',
+    precision: 15,
+    scale: 6,
+    default: 1,
+    nullable: true,
+  })
+  conversion_factor?: number;
+
+  @Column({
+    name: 'base_quantity',
+    type: 'decimal',
+    precision: 15,
+    scale: 4,
+    nullable: true,
+  })
+  base_quantity?: number;
+
   @Column({ type: 'decimal', precision: 15, scale: 2 })
   unit_price!: number;
 

@@ -10,6 +10,18 @@ export class CreateSalesReturnItemDto {
   @IsNotEmpty()
   quantity!: number;
   
+  @IsString()
+  @IsOptional()
+  unit_name?: string;
+
+  @IsNumber()
+  @IsOptional()
+  sale_unit_id?: number;
+
+  @IsNumber()
+  @IsOptional()
+  conversion_factor?: number;
+
   // Unit price will be fetched from original invoice ideally, but can be passed for now
   @IsNumber()
   @IsNotEmpty()
