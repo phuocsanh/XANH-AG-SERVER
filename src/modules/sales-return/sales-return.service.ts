@@ -9,16 +9,12 @@ import { SalesReturnItem } from '../../entities/sales-return-items.entity';
 import { SalesInvoice, SalesInvoiceStatus } from '../../entities/sales-invoices.entity';
 import { CreateSalesReturnDto } from './dto/create-sales-return.dto';
 import { SearchSalesReturnDto } from './dto/search-sales-return.dto';
-import { InventoryBatch } from '../../entities/inventories.entity';
 import { QueryHelper } from '../../common/helpers/query-helper';
 import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 import { Payment } from '../../entities/payment.entity';
 import { DebtNote, DebtNoteStatus } from '../../entities/debt-note.entity';
 import { CustomerRewardService } from '../customer-reward/customer-reward.service'; // ✅ Thêm import
-import { Product } from '../../entities/products.entity';
-import { InventoryTransaction } from '../../entities/inventory-transactions.entity';
 import { InventoryService } from '../inventory/inventory.service';
-import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
 import { CustomerRewardTracking } from '../../entities/customer-reward-tracking.entity';
 
 @Injectable()
@@ -153,8 +149,8 @@ export class SalesReturnService {
         const returnItem = this.salesReturnItemRepository.create({
           product_id: itemDto.product_id,
           quantity: itemDto.quantity,
-          unit_name: itemDto.unit_name || invoiceItem?.unit_name,
-          sale_unit_id: itemDto.sale_unit_id || invoiceItem?.sale_unit_id,
+          unit_name: itemDto.unit_name || invoiceItem?.unit_name || '',
+          sale_unit_id: itemDto.sale_unit_id || invoiceItem?.sale_unit_id || 0,
           conversion_factor: factor,
           base_quantity: baseQty,
           unit_price: itemDto.unit_price,
@@ -604,7 +600,7 @@ export class SalesReturnService {
         // TẢI LẠI HÓA ĐƠN VỚI ĐỦ ITEM VÀ CÁC PHIẾU TRẢ KHÁC ĐỂ TÍNH TOÁN LẠI
         const fullInvoice = await queryRunner.manager.findOne(SalesInvoice, {
           where: { id: invoice.id },
-          relations: ['items'],
+          relations: ['items', 'items.product'],
         });
 
         if (fullInvoice) {
@@ -624,18 +620,13 @@ export class SalesReturnService {
           // C. Giá trị hóa đơn MỚI sau khi hủy phiếu này
           const newFinalAmount = originalFinalAmount - totalOtherRefundAmount;
           
-          // D. Tính toán COGS mới
-          let totalCostOfAllReturns = 0;
-          for (const ret of otherReturnsToKeep) {
-            // ... (Logic tính COGS cho các phiếu khác nếu cần, nhưng đơn giản nhất là lấy hiệu số)
-          }
           // Để đơn giản và chính xác, ta chỉ đảo ngược phần COGS của phiếu đang hủy
           let totalCostOfThisReturn = 0;
           for (const item of salesReturn.items || []) {
             const invoiceItem = fullInvoice.items?.find(ii => ii.product_id === item.product_id);
             if (invoiceItem) {
-              const costPerBaseUnit = Number(invoiceItem.total_cost || 0) / Number(invoiceItem.base_quantity || 1);
-              totalCostOfThisReturn += costPerBaseUnit * Number(item.base_quantity);
+              const avgCost = invoiceItem.product?.average_cost_price ? Number(invoiceItem.product.average_cost_price) : 0;
+              totalCostOfThisReturn += avgCost * Number(item.base_quantity);
             }
           }
 
@@ -692,8 +683,9 @@ export class SalesReturnService {
       await queryRunner.commitTransaction();
       this.logger.log(`✅ Đã hủy phiếu trả hàng #${salesReturn.code}`);
       return salesReturn;
-    } catch (error) {
+    } catch (err) {
       await queryRunner.rollbackTransaction();
+      const error = err as Error;
       this.logger.error(`❌ Lỗi khi hủy phiếu trả hàng: ${error.message}`);
       throw error;
     } finally {

@@ -424,6 +424,19 @@ export class InventoryController {
     }
   }
 
+  @Post('receipts/export')
+  @RequirePermissions('inventory:read')
+  exportReceipts(@Body() searchDto: SearchInventoryDto) {
+    try {
+      return this.inventoryService.exportReceipts(searchDto);
+    } catch (error) {
+      throw new HttpException(
+        'Error occurred while exporting inventory receipts',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
 
   /**
    * Tìm phiếu nhập kho theo ID

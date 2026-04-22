@@ -1,4 +1,3 @@
-import dayjs from 'dayjs';
 import {
   Injectable,
   Inject,
@@ -1725,6 +1724,9 @@ export class InventoryService {
         'items',
         'items.product',
         'supplier',
+        'payments',
+        'payments.creator',
+        'payments.creator.user_profile',
         'creator',
         'creator.user_profile',
         'approver',
@@ -1738,6 +1740,14 @@ export class InventoryService {
     });
 
     if (receipt) {
+      if (receipt.payments?.length) {
+        receipt.payments.forEach((payment) => {
+          if (payment.creator) {
+            (payment.creator as any).full_name =
+              payment.creator.user_profile?.nickname || payment.creator.account;
+          }
+        });
+      }
       if (receipt.creator) {
         (receipt.creator as any).full_name =
           receipt.creator.user_profile?.nickname || receipt.creator.account;
@@ -1870,6 +1880,99 @@ export class InventoryService {
       page,
       limit,
     };
+  }
+
+  async exportReceipts(searchDto: SearchInventoryDto): Promise<InventoryReceipt[]> {
+    const queryBuilder =
+      this.inventoryReceiptRepository.createQueryBuilder('receipt');
+
+    queryBuilder.leftJoinAndSelect('receipt.supplier', 'supplier');
+    queryBuilder.leftJoinAndSelect('receipt.creator', 'creator');
+    queryBuilder.leftJoinAndSelect('creator.user_profile', 'creator_profile');
+    queryBuilder.leftJoinAndSelect('receipt.items', 'items');
+    queryBuilder.leftJoinAndSelect('items.product', 'product');
+    queryBuilder.leftJoinAndSelect('receipt.payments', 'payments');
+    queryBuilder.leftJoinAndSelect('payments.creator', 'payment_creator');
+    queryBuilder.leftJoinAndSelect(
+      'payment_creator.user_profile',
+      'payment_creator_profile',
+    );
+
+    const { start_date, end_date, page, limit, status, ...baseSearchDto } =
+      searchDto;
+
+    QueryHelper.applyBaseSearch(
+      queryBuilder,
+      baseSearchDto,
+      'receipt',
+      ['code', 'supplier.name', 'notes'],
+    );
+    queryBuilder.skip(undefined);
+    queryBuilder.take(undefined);
+    queryBuilder.offset(undefined);
+    queryBuilder.limit(undefined);
+
+    if (start_date && end_date) {
+      queryBuilder.andWhere(
+        '(COALESCE(receipt.bill_date, receipt.created_at) BETWEEN :start_date AND :end_date)',
+        {
+          start_date: new Date(start_date),
+          end_date: new Date(end_date),
+        },
+      );
+    } else if (start_date) {
+      queryBuilder.andWhere(
+        'COALESCE(receipt.bill_date, receipt.created_at) >= :start_date',
+        { start_date: new Date(start_date) },
+      );
+    } else if (end_date) {
+      queryBuilder.andWhere(
+        'COALESCE(receipt.bill_date, receipt.created_at) <= :end_date',
+        { end_date: new Date(end_date) },
+      );
+    }
+
+    QueryHelper.applyFilters(
+      queryBuilder,
+      { ...baseSearchDto, start_date, end_date },
+      'receipt',
+      ['filters', 'nested_filters', 'operator', 'page', 'limit', 'sort'],
+      {
+        supplier_name: 'supplier.name',
+        supplier_id: 'receipt.supplier_id',
+        creator_account: 'creator.account',
+      },
+    );
+
+    queryBuilder.andWhere('receipt.status = :approvedStatus', {
+      approvedStatus: ReceiptStatus.APPROVED,
+    });
+
+    queryBuilder.orderBy('receipt.bill_date', 'ASC', 'NULLS LAST');
+    queryBuilder.addOrderBy('receipt.created_at', 'ASC');
+    queryBuilder.addOrderBy('items.id', 'ASC');
+    queryBuilder.addOrderBy('payments.payment_date', 'ASC');
+
+    const receipts = await queryBuilder.getMany();
+
+    receipts.forEach((receipt) => {
+      if (receipt.creator) {
+        (receipt.creator as any).full_name =
+          receipt.creator.user_profile?.nickname || receipt.creator.account;
+      }
+
+      if (receipt.payments?.length) {
+        receipt.payments.forEach((payment) => {
+          if (payment.creator) {
+            (payment.creator as any).full_name =
+              payment.creator.user_profile?.nickname ||
+              payment.creator.account;
+          }
+        });
+      }
+    });
+
+    return receipts;
   }
 
   /**
@@ -4399,7 +4502,6 @@ export class InventoryService {
     for (const productId of ids) {
       const result = await this.syncTaxableDataForProduct(
         productId,
-        filterDate,
       );
       if (result.productUpdated) productsUpdated++;
       salesItemsUpdated += result.salesItemsUpdated;
@@ -4417,7 +4519,6 @@ export class InventoryService {
    */
   async syncTaxableDataForProduct(
     productId: number,
-    taxStartDate?: string,
   ): Promise<{ productUpdated: boolean; salesItemsUpdated: number }> {
     const receiptItemRepo =
       this.inventoryReceiptRepository.manager.getRepository(
