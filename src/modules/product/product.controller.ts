@@ -29,6 +29,13 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 export class ProductController {
   constructor(private readonly productService: ProductService) {}
 
+  private sanitizeProductTaxFields<T extends { taxable_quantity_stock?: number }>(
+    productDto: T,
+  ): Omit<T, 'taxable_quantity_stock'> {
+    const { taxable_quantity_stock, ...safeDto } = productDto;
+    return safeDto;
+  }
+
   /**
    * Tạo sản phẩm mới
    * @param createProductDto - Dữ liệu tạo sản phẩm mới
@@ -38,7 +45,9 @@ export class ProductController {
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermissions('product:manage')
   async create(@Body() createProductDto: CreateProductDto): Promise<Product> {
-    return this.productService.create(createProductDto);
+    return this.productService.create(
+      this.sanitizeProductTaxFields(createProductDto),
+    );
   }
 
   /**
@@ -50,7 +59,9 @@ export class ProductController {
   async createWithSuggestedPrice(
     @Body() createProductDto: CreateProductDto,
   ): Promise<Product> {
-    return this.productService.createWithSuggestedPrice(createProductDto);
+    return this.productService.createWithSuggestedPrice(
+      this.sanitizeProductTaxFields(createProductDto),
+    );
   }
 
 
@@ -82,7 +93,10 @@ export class ProductController {
     @Param('id', ParseIntPipe) id: number,
     @Body() updateProductDto: UpdateProductDto,
   ): Promise<Product> {
-    const product = await this.productService.update(id, updateProductDto);
+    const product = await this.productService.update(
+      id,
+      this.sanitizeProductTaxFields(updateProductDto),
+    );
     if (!product) {
       throw new NotFoundException(`Không tìm thấy sản phẩm với ID ${id}`);
     }
