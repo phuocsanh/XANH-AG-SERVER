@@ -24,7 +24,7 @@ export interface ApplicationProduct {
 
 /**
  * Entity biểu diễn nhật ký phun thuốc/bón phân
- * Ánh xạ với bảng 'application_records' trong cơ sở dữ liệu
+ * Ánh xạ với bảng 'application_records' trong cơ sở dữ liệu 
  */
 @Entity('application_records')
 export class ApplicationRecord {
