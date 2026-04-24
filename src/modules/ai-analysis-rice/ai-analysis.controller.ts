@@ -39,7 +39,7 @@ export class AiAnalysisController {
   ) {}
 
   /**
-   * Endpoint phân tích thị trường lúa (chỉ lúa, không phải gạo)
+   * Endpoint phân tích thị trường lúa (chỉ lúa, không phải gạo )
    * Luồng: Lấy 5 bài viết đầu tiên từ congthuong.vn -> Lọc bài mới nhất có tiêu đề chứa 'Giá lúa gạo hôm nay ngày' -> Lấy dữ liệu giá lúa từ link chi tiết -> AI phân tích
    * @returns Promise<AnalysisResponseDto> - Dữ liệu phân tích thị trường lúa gạo 
    */
