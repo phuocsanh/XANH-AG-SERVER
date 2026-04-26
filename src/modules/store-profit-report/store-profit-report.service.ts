@@ -9,6 +9,8 @@ import { RiceCrop } from '../../entities/rice-crop.entity';
 import { Customer } from '../../entities/customer.entity';
 import { FarmServiceCost } from '../../entities/farm-service-cost.entity';
 import { FarmGiftCost } from '../../entities/farm-gift-cost.entity';
+import { SalesReturnItem } from '../../entities/sales-return-items.entity';
+import { SalesReturnStatus } from '../../entities/sales-return.entity';
 import { QueryHelper } from '../../common/helpers/query-helper';
 
 import { InventoryReceiptItem } from '../../entities/inventory-receipt-items.entity';
@@ -1224,6 +1226,38 @@ export class StoreProfitReportService {
         } as any,
       });
 
+      const approvedReturnRows = await this.salesInvoiceRepository.manager
+        .getRepository(SalesReturnItem)
+        .createQueryBuilder('item')
+        .innerJoin('item.sales_return', 'sales_return')
+        .select('sales_return.invoice_id', 'invoice_id')
+        .addSelect('item.product_id', 'product_id')
+        .addSelect('COALESCE(SUM(item.quantity), 0)', 'returned_quantity')
+        .addSelect(
+          'COALESCE(SUM(COALESCE(item.base_quantity, item.quantity)), 0)',
+          'returned_base_quantity',
+        )
+        .where('sales_return.status = :status', {
+          status: SalesReturnStatus.APPROVED,
+        })
+        .groupBy('sales_return.invoice_id')
+        .addGroupBy('item.product_id')
+        .getRawMany();
+
+      const approvedReturnsByInvoiceProduct = new Map<
+        string,
+        { returnedQuantity: number; returnedBaseQuantity: number }
+      >();
+      for (const row of approvedReturnRows) {
+        approvedReturnsByInvoiceProduct.set(
+          `${row.invoice_id}-${row.product_id}`,
+          {
+            returnedQuantity: Number(row.returned_quantity || 0),
+            returnedBaseQuantity: Number(row.returned_base_quantity || 0),
+          },
+        );
+      }
+
       const invoiceDtoList: PeriodInvoiceDto[] = [];
 
       // 2. Tính toán doanh thu và giá vốn (phân loại theo has_input_invoice)
@@ -1262,6 +1296,13 @@ export class StoreProfitReportService {
           const itemGrossPrice = Number(item.total_price);
           const avgCost = Number(item.product?.average_cost_price || 0);
           const itemOriginalCOGS = Number(item.base_quantity || item.quantity) * avgCost;
+          const returnStats =
+            approvedReturnsByInvoiceProduct.get(
+              `${invoice.id}-${item.product_id}`,
+            ) || {
+              returnedQuantity: 0,
+              returnedBaseQuantity: 0,
+            };
 
           // Phân bổ doanh thu thực tế (đã trừ trả hàng) cho item này
           const itemNetRevenue = invoiceItemsGross > 0 
@@ -1273,18 +1314,28 @@ export class StoreProfitReportService {
             ? (itemOriginalCOGS / invoiceOriginalCOGSTotal) * invoiceActualCOGS
             : 0;
 
-          const taxableQty = Number(item.taxable_quantity || 0);
-          const originalQty = Number(item.quantity || 1); // Tránh chia cho 0
-          
-          // Tính số lượng thực bán hiện tại (sau trả hàng) để làm mẫu số cho tỷ lệ thuế
-          // Tỷ lệ = Doanh thu thực tế / Doanh thu gốc * Số lượng gốc
-          const currentQtySold = itemGrossPrice > 0 
-            ? (itemNetRevenue / itemGrossPrice) * originalQty 
-            : 0;
+          const originalTaxableQty = Number(item.taxable_quantity || 0);
+          const originalQty = Number(item.quantity || 0);
+          const originalBaseQty = Number(item.base_quantity || item.quantity || 0);
+          const currentQtySold = Math.max(
+            0,
+            originalQty - returnStats.returnedQuantity,
+          );
+          const currentBaseQtySold = Math.max(
+            0,
+            originalBaseQty - returnStats.returnedBaseQuantity,
+          );
+          const taxableQty = Math.max(
+            0,
+            originalTaxableQty - returnStats.returnedBaseQuantity,
+          );
 
           // Tỷ lệ khai thuế trên lượng hàng "thực tế còn lại" sau khi trả
           // Nếu bán 10 trả 5, còn lại 5. Nếu 5 bao đó đều có thuế thì tỷ lệ là 100% (1)
-          const taxableRatio = currentQtySold > 0 ? Math.min(1, taxableQty / currentQtySold) : 0;
+          const taxableRatio =
+            currentBaseQtySold > 0
+              ? Math.min(1, taxableQty / currentBaseQtySold)
+              : 0;
           
           // Doanh thu khai thuế = số lượng khai thuế * giá khai thuế (ưu tiên lấy từ snapshot của item)
           const itemTaxPrice = Number(item.tax_selling_price || 0);
@@ -1323,10 +1374,10 @@ export class StoreProfitReportService {
           itemsDto.push({
             product_trade_name: item.product_name || item.product?.trade_name || 'Không xác định',
             product_name: item.product?.name || item.product_name || 'Không xác định',
-            quantity: Number(item.quantity),
+            quantity: currentQtySold,
             unit_name: item.unit_name || 'Đơn vị',
             unit_price: Number(item.unit_price),
-            total_price: Number(item.total_price),
+            total_price: itemNetRevenue,
             has_input_invoice: taxableQty > 0,
             taxable_quantity: taxableQty,
             tax_selling_price: effectiveTaxPrice,
