@@ -36,6 +36,38 @@ export class ProductController {
     return safeDto;
   }
 
+  private sanitizeInventoryManagedFields<
+    T extends {
+      quantity?: number;
+      average_cost_price?: string;
+      average_vat_input_cost?: string;
+      taxable_quantity_stock?: number;
+      latest_purchase_price?: string;
+      has_input_invoice?: boolean;
+    },
+  >(
+    productDto: T,
+  ): Omit<
+    T,
+    | 'quantity'
+    | 'average_cost_price'
+    | 'average_vat_input_cost'
+    | 'taxable_quantity_stock'
+    | 'latest_purchase_price'
+    | 'has_input_invoice'
+  > {
+    const {
+      quantity,
+      average_cost_price,
+      average_vat_input_cost,
+      taxable_quantity_stock,
+      latest_purchase_price,
+      has_input_invoice,
+      ...safeDto
+    } = productDto;
+    return safeDto;
+  }
+
   /**
    * Tạo sản phẩm mới
    * @param createProductDto - Dữ liệu tạo sản phẩm mới
@@ -95,7 +127,7 @@ export class ProductController {
   ): Promise<Product> {
     const product = await this.productService.update(
       id,
-      this.sanitizeProductTaxFields(updateProductDto),
+      this.sanitizeInventoryManagedFields(updateProductDto),
     );
     if (!product) {
       throw new NotFoundException(`Không tìm thấy sản phẩm với ID ${id}`);
