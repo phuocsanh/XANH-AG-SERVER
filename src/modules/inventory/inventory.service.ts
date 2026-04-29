@@ -3222,7 +3222,28 @@ export class InventoryService {
         this.logger.log(`Đã lưu item với ID: ${savedItem.id}`);
       }
 
-      // Commit transaction
+      if (returnEntity.status === ReturnStatus.APPROVED) {
+        this.logger.log(
+          `Phiếu trả hàng ${returnEntity.id} được tạo ở trạng thái đã duyệt, đang trừ tồn kho...`,
+        );
+
+        for (const item of savedItems) {
+          await this.processStockOut(
+            item.product_id,
+            item.quantity,
+            'RETURN',
+            userId,
+            returnEntity.id,
+            `Trả hàng cho nhà cung cấp - Phiếu ${returnEntity.code}`,
+            queryRunner,
+          );
+        }
+
+        await queryRunner.manager.update(InventoryReturn, returnEntity.id, {
+          approved_at: new Date(),
+          approved_by: userId,
+        });
+      }
 
       // ===== CẬP NHẬT PHIẾU NHẬP GỐC NẾU CÓ =====
       if (createInventoryReturnDto.receipt_id) {
