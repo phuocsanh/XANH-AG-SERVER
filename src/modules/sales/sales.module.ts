@@ -22,6 +22,7 @@ import { DeliveryNotificationService } from './delivery-notification.service';
 import { FarmServiceCostModule } from '../farm-service-cost/farm-service-cost.module';
 import { InventoryModule } from '../inventory/inventory.module';
 import { CustomerRewardModule } from '../customer-reward/customer-reward.module';
+import { PromotionCampaignModule } from '../promotion-campaign/promotion-campaign.module';
 
 /**
  * SalesModule - Module quản lý bán hàng
@@ -58,6 +59,7 @@ import { CustomerRewardModule } from '../customer-reward/customer-reward.module'
     InventoryModule,
     DebtNoteModule,
     CustomerRewardModule,
+    PromotionCampaignModule,
   ],
   controllers: [SalesController, DeliveryController], // Controllers xử lý các request
   providers: [SalesService, DeliveryNotificationService], // Service xử lý logic nghiệp vụ bán hàng và thông báo

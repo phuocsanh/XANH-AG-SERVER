@@ -16,6 +16,7 @@ import { DebtNote, DebtNoteStatus } from '../../entities/debt-note.entity';
 import { CustomerRewardService } from '../customer-reward/customer-reward.service'; // ✅ Thêm import
 import { InventoryService } from '../inventory/inventory.service';
 import { CustomerRewardTracking } from '../../entities/customer-reward-tracking.entity';
+import { PromotionCampaignService } from '../promotion-campaign/promotion-campaign.service';
 
 @Injectable()
 export class SalesReturnService {
@@ -29,6 +30,7 @@ export class SalesReturnService {
     private dataSource: DataSource,
     private customerRewardService: CustomerRewardService, // ✅ Thêm CustomerRewardService
     private inventoryService: InventoryService, // ✅ Thêm InventoryService
+    private promotionCampaignService: PromotionCampaignService,
   ) {}
 
   async create(
@@ -424,6 +426,11 @@ export class SalesReturnService {
         }
       }
 
+      await this.promotionCampaignService.processSalesReturnReversal(
+        queryRunner.manager,
+        savedReturn.id,
+      );
+
       // 7. Cập nhật tồn kho (Tăng lại số lượng cho sản phẩm trả)
       for (const item of returnItems) {
         // Lấy thông tin invoice item để biết hàng trả có tính thuế không
@@ -679,6 +686,11 @@ export class SalesReturnService {
           await queryRunner.manager.save(tracking);
         }
       }
+
+      await this.promotionCampaignService.processSalesReturnCancellationRestore(
+        queryRunner.manager,
+        salesReturn.id,
+      );
 
       await queryRunner.commitTransaction();
       this.logger.log(`✅ Đã hủy phiếu trả hàng #${salesReturn.code}`);

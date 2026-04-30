@@ -26,6 +26,7 @@ import { CustomerRewardService } from '../customer-reward/customer-reward.servic
 import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 import { InventoryService } from '../inventory/inventory.service';
 import { InventoryTransaction } from '../../entities/inventory-transactions.entity';
+import { PromotionCampaignService } from '../promotion-campaign/promotion-campaign.service';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến quản lý bán hàng
@@ -58,6 +59,7 @@ export class SalesService {
     private deliveryNotificationService: DeliveryNotificationService,
     private inventoryService: InventoryService,
     private customerRewardService: CustomerRewardService,
+    private promotionCampaignService: PromotionCampaignService,
   ) {}
 
   /**
@@ -406,6 +408,10 @@ export class SalesService {
 
       // 🆕 Trừ tồn kho nếu trạng thái là CONFIRMED hoặc PAID
       if (savedInvoice.status === SalesInvoiceStatus.CONFIRMED || savedInvoice.status === SalesInvoiceStatus.PAID) {
+        await this.promotionCampaignService.processInvoiceAccrual(
+          queryRunner.manager,
+          savedInvoice.id,
+        );
         await this.handleInventoryDeduction(savedInvoice.id, userId);
       }
 
@@ -647,11 +653,23 @@ export class SalesService {
       if (updatedInvoice && userId) {
         // 🆕 Nếu cập nhật trạng thái sang CONFIRMED hoặc PAID, thực hiện trừ kho
         if (updatedInvoice.status === SalesInvoiceStatus.CONFIRMED || updatedInvoice.status === SalesInvoiceStatus.PAID) {
+          await this.promotionCampaignService.processInvoiceAccrual(
+            queryRunner.manager,
+            id,
+          );
           await this.handleInventoryDeduction(id, userId, queryRunner);
         }
         
         // 🆕 Nếu cập nhật trạng thái sang CANCELLED hoặc REFUNDED, thực hiện hoàn kho
         if (updatedInvoice.status === SalesInvoiceStatus.CANCELLED || updatedInvoice.status === SalesInvoiceStatus.REFUNDED) {
+          await this.promotionCampaignService.processInvoiceReversal(
+            queryRunner.manager,
+            id,
+            updatedInvoice.status === SalesInvoiceStatus.CANCELLED
+              ? 'invoice_cancel'
+              : 'invoice_refund',
+            `Thu hoi tich luy do cap nhat trang thai hoa don ${updatedInvoice.code}`,
+          );
           await this.handleInventoryRestoration(id, userId, queryRunner);
         }
       }
@@ -712,6 +730,10 @@ export class SalesService {
       const savedInvoice = await queryRunner.manager.save(invoice);
 
       if (userId) {
+        await this.promotionCampaignService.processInvoiceAccrual(
+          queryRunner.manager,
+          savedInvoice.id,
+        );
         await this.handleInventoryDeduction(savedInvoice.id, userId, queryRunner);
       }
 
@@ -801,6 +823,10 @@ export class SalesService {
       }
 
       if (userId) {
+        await this.promotionCampaignService.processInvoiceAccrual(
+          queryRunner.manager,
+          savedInvoice.id,
+        );
         await this.handleInventoryDeduction(savedInvoice.id, userId, queryRunner);
       }
 
@@ -838,6 +864,12 @@ export class SalesService {
       const savedInvoice = await queryRunner.manager.save(invoice);
 
       if (userId) {
+        await this.promotionCampaignService.processInvoiceReversal(
+          queryRunner.manager,
+          savedInvoice.id,
+          'invoice_cancel',
+          `Thu hoi tich luy do huy hoa don ${savedInvoice.code}`,
+        );
         await this.handleInventoryRestoration(savedInvoice.id, userId, queryRunner);
       }
 
@@ -907,6 +939,12 @@ export class SalesService {
       const savedInvoice = await queryRunner.manager.save(invoice);
 
       if (userId) {
+        await this.promotionCampaignService.processInvoiceReversal(
+          queryRunner.manager,
+          savedInvoice.id,
+          'invoice_refund',
+          `Thu hoi tich luy do hoan hoa don ${savedInvoice.code}`,
+        );
         await this.handleInventoryRestoration(savedInvoice.id, userId, queryRunner);
       }
 
@@ -1934,4 +1972,3 @@ export class SalesService {
     }
   }
 }
-

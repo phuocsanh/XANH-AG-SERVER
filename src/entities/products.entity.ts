@@ -224,4 +224,14 @@ export class Product {
   /** Danh sách các thành phần cấu tạo (BOM) nếu là sản phẩm phối trộn */
   @OneToMany(() => ProductComponent, (component) => component.product)
   components!: ProductComponent[];
+
+  /** Campaign khuyến mãi đang tham gia (runtime field, không lưu DB) */
+  active_promotions?: Array<{
+    id: number;
+    code: string;
+    name: string;
+    status: string;
+    start_at: Date;
+    end_at: Date;
+  }>;
 }

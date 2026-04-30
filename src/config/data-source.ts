@@ -30,7 +30,7 @@ export const AppDataSource = new DataSource({
   url: databaseUrl,  // Non-null assertion - đảm bảo sẽ có giá trị
   ssl: hasSSL ? { rejectUnauthorized: false } : false,
   entities: ['src/entities/*.entity.ts'],
-  // migrations: ['src/database/migrations/*.ts'], // Đã xóa migrations
+  migrations: ['src/migrations/*.ts'],
   synchronize: true, // TỰ ĐỘNG TẠO BẢNG TỪ ENTITIES KHI KHỞI ĐỘNG
   logging: ['error', 'warn'],
 });

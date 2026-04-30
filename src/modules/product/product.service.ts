@@ -2,6 +2,10 @@ import { Injectable, Logger, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, QueryRunner } from 'typeorm';
 import { Product } from '../../entities/products.entity';
+import {
+  PromotionCampaignStatus,
+} from '../../entities/promotion-campaign.entity';
+import { PromotionCampaignProduct } from '../../entities/promotion-campaign-product.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
@@ -33,6 +37,8 @@ export class ProductService extends BaseSearchService<Product> {
   constructor(
     @InjectRepository(Product)
     private productRepository: Repository<Product>,
+    @InjectRepository(PromotionCampaignProduct)
+    private promotionCampaignProductRepository: Repository<PromotionCampaignProduct>,
     private fileTrackingService: FileTrackingService,
     private operatingCostService: OperatingCostService,
     private unitConversionService: ProductUnitConversionService,
@@ -239,13 +245,14 @@ export class ProductService extends BaseSearchService<Product> {
    * @returns Danh sách sản phẩm
    */
   async findAll(): Promise<Product[]> {
-    return this.productRepository
+    const products = await this.productRepository
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.unit', 'unit')
       .leftJoinAndSelect('product.symbol', 'symbol')
       .where('product.status = :status', { status: BaseStatus.ACTIVE })
       .andWhere('product.deleted_at IS NULL')
       .getMany();
+    return this.attachActivePromotions(products);
   }
 
   /**
@@ -265,13 +272,14 @@ export class ProductService extends BaseSearchService<Product> {
    * @returns Danh sách sản phẩm theo trạng thái
    */
   async findByStatus(status: BaseStatus): Promise<Product[]> {
-    return this.productRepository
+    const products = await this.productRepository
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.unit', 'unit')
       .leftJoinAndSelect('product.symbol', 'symbol')
       .where('product.status = :status', { status })
       .andWhere('product.deleted_at IS NULL')
       .getMany();
+    return this.attachActivePromotions(products);
   }
 
   /**
@@ -281,7 +289,7 @@ export class ProductService extends BaseSearchService<Product> {
    */
   async findOne(id: number, queryRunner?: QueryRunner): Promise<Product | null> {
     const repo = queryRunner ? queryRunner.manager.getRepository(Product) : this.productRepository;
-    return repo
+    const product = await repo
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.unit', 'unit')
       .leftJoinAndSelect('product.symbol', 'symbol')
@@ -293,6 +301,14 @@ export class ProductService extends BaseSearchService<Product> {
       .where('product.id = :id', { id })
       .andWhere('product.deleted_at IS NULL')
       .getOne();
+    if (!product) {
+      return null;
+    }
+    const [enriched] = await this.attachActivePromotions(
+      [product],
+      queryRunner,
+    );
+    return enriched || product;
   }
 
   /**
@@ -544,11 +560,12 @@ export class ProductService extends BaseSearchService<Product> {
     const condTrade = QueryHelper.applyFuzzyCondition(queryBuilder, 'product.trade_name', query, 'q_trade');
     const condDesc = QueryHelper.applyFuzzyCondition(queryBuilder, 'product.description', query, 'q_desc');
 
-    return queryBuilder
+    const products = await queryBuilder
       .where(`(${condName} OR ${condTrade} OR product.code ILIKE :query OR ${condDesc})`, { query: `%${query}%` })
       .andWhere('product.status = :status', { status: BaseStatus.ACTIVE })
       .andWhere('product.deleted_at IS NULL')
       .getMany();
+    return this.attachActivePromotions(products);
   }
 
   /**
@@ -623,9 +640,10 @@ export class ProductService extends BaseSearchService<Product> {
     queryBuilder.andWhere('product.deleted_at IS NULL');
 
     const [data, total] = await queryBuilder.getManyAndCount();
+    const enrichedData = await this.attachActivePromotions(data);
 
     return {
-      data,
+      data: enrichedData,
       total,
       page,
       limit,
@@ -638,7 +656,7 @@ export class ProductService extends BaseSearchService<Product> {
    * @returns Danh sách sản phẩm thuộc loại đó
    */
   async findByType(productType: number): Promise<Product[]> {
-    return this.productRepository
+    const products = await this.productRepository
       .createQueryBuilder('product')
       .leftJoinAndSelect('product.unit', 'unit')
       .leftJoinAndSelect('product.symbol', 'symbol')
@@ -646,6 +664,62 @@ export class ProductService extends BaseSearchService<Product> {
       .andWhere('product.status = :status', { status: BaseStatus.ACTIVE })
       .andWhere('product.deleted_at IS NULL')
       .getMany();
+    return this.attachActivePromotions(products);
+  }
+
+  private async attachActivePromotions(
+    products: Product[],
+    queryRunner?: QueryRunner,
+  ): Promise<Product[]> {
+    if (!products.length) {
+      return products;
+    }
+
+    const productIds = products.map((product) => product.id);
+    const repo = queryRunner
+      ? queryRunner.manager.getRepository(PromotionCampaignProduct)
+      : this.promotionCampaignProductRepository;
+
+    const rows = await repo
+      .createQueryBuilder('pcp')
+      .leftJoin('pcp.campaign', 'campaign')
+      .select([
+        'pcp.product_id AS product_id',
+        'campaign.id AS campaign_id',
+        'campaign.code AS campaign_code',
+        'campaign.name AS campaign_name',
+        'campaign.status AS campaign_status',
+        'campaign.start_at AS campaign_start_at',
+        'campaign.end_at AS campaign_end_at',
+      ])
+      .where('pcp.product_id IN (:...productIds)', { productIds })
+      .andWhere('campaign.status = :status', {
+        status: PromotionCampaignStatus.ACTIVE,
+      })
+      .andWhere('campaign.start_at <= NOW()')
+      .andWhere('campaign.end_at >= NOW()')
+      .orderBy('campaign.start_at', 'ASC')
+      .getRawMany();
+
+    const promotionMap = new Map<number, Product['active_promotions']>();
+    for (const row of rows) {
+      const productId = Number(row.product_id);
+      const list = promotionMap.get(productId) || [];
+      list.push({
+        id: Number(row.campaign_id),
+        code: row.campaign_code,
+        name: row.campaign_name,
+        status: row.campaign_status,
+        start_at: row.campaign_start_at,
+        end_at: row.campaign_end_at,
+      });
+      promotionMap.set(productId, list);
+    }
+
+    return products.map((product) => ({
+      ...product,
+      active_promotions: promotionMap.get(product.id) || [],
+    }));
   }
 
   /**

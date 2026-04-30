@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Product } from '../../entities/products.entity';
+import { PromotionCampaignProduct } from '../../entities/promotion-campaign-product.entity';
 import { ProductService } from './product.service';
 import { ProductController } from './product.controller';
 import { FileTrackingModule } from '../file-tracking/file-tracking.module';
@@ -25,7 +26,7 @@ import { ProductComponentModule } from '../product-component/product-component.m
 @Module({
   imports: [
     // Import TypeORM feature module với các entity liên quan đến sản phẩm
-    TypeOrmModule.forFeature([Product]),
+    TypeOrmModule.forFeature([Product, PromotionCampaignProduct]),
     // Import FileTrackingModule để sử dụng FileTrackingService
     FileTrackingModule,
     // Import InventoryModule để sử dụng InventoryService

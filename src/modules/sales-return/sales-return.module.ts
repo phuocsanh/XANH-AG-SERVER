@@ -7,6 +7,7 @@ import { SalesReturnItem } from '../../entities/sales-return-items.entity';
 import { SalesInvoice } from '../../entities/sales-invoices.entity';
 import { CustomerRewardModule } from '../customer-reward/customer-reward.module';
 import { InventoryModule } from '../inventory/inventory.module';
+import { PromotionCampaignModule } from '../promotion-campaign/promotion-campaign.module';
 
 /**
  * SalesReturnModule - Module quản lý trả hàng
@@ -22,6 +23,7 @@ import { InventoryModule } from '../inventory/inventory.module';
     TypeOrmModule.forFeature([SalesReturn, SalesReturnItem, SalesInvoice]),
     CustomerRewardModule,
     InventoryModule,
+    PromotionCampaignModule,
   ],
   controllers: [SalesReturnController],
   providers: [SalesReturnService],
