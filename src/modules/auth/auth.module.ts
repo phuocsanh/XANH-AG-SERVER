@@ -7,6 +7,7 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { LocalStrategy } from './local.strategy';
 import { RefreshJwtStrategy } from './refresh-jwt.strategy';
+import { JWT_ACCESS_TOKEN_EXPIRY } from '../../common/constants/app.constants';
 
 /**
  * AuthModule - Module xử lý xác thực và ủy quyền
@@ -29,7 +30,7 @@ import { RefreshJwtStrategy } from './refresh-jwt.strategy';
     // Cấu hình JwtModule với secret key và thời gian hết hạn
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'my_jwt_secret_key', // Secret key để ký và xác minh token
-      signOptions: { expiresIn: '1h' }, // Thời gian hết hạn của token (1 giờ)
+      signOptions: { expiresIn: JWT_ACCESS_TOKEN_EXPIRY }, // Sử dụng constant thay vì hardcode - hiện tại là 1 ngày
     }),
   ],
   controllers: [AuthController], // Controller xử lý các request liên quan đến xác thực
