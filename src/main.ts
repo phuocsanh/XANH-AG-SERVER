@@ -63,11 +63,20 @@ async function bootstrap(): Promise<any> {
       return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
     }).filter(o => o.length > 0);
 
+    // Luôn cho phép tên miền chính và các subdomain liên quan
+    const allowedOrigins = [
+      ...origins,
+      'https://www.xanh.pro.vn',
+      'https://xanh.pro.vn',
+      'https://xanh-ag.vercel.app',
+      'https://gn-farm.vercel.app'
+    ];
+
     app.enableCors({
       ...corsOptions,
-      origin: origins,
+      origin: [...new Set(allowedOrigins)], // Loại bỏ trùng lặp
     });
-    logger.log(`✅ CORS: Restricted to ${JSON.stringify(origins)}`);
+    logger.log(`✅ CORS: Restricted to ${JSON.stringify([...new Set(allowedOrigins)])}`);
   }
 
   // Đăng ký global validation pipe để tự động xác thực dữ liệu đầu vào
