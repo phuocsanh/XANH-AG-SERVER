@@ -6,6 +6,7 @@ import {
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, ILike, In, Repository } from 'typeorm';
 import { CustomerPromotionLedger } from '../../entities/customer-promotion-ledger.entity';
+import { CustomerPromotionOverride } from '../../entities/customer-promotion-override.entity';
 import { CustomerPromotionProgress } from '../../entities/customer-promotion-progress.entity';
 import { CustomerPromotionSpinLog } from '../../entities/customer-promotion-spin-log.entity';
 import { PromotionCampaign, PromotionCampaignStatus } from '../../entities/promotion-campaign.entity';
@@ -17,6 +18,7 @@ import { Product } from '../../entities/products.entity';
 import { SalesInvoice, SalesInvoiceStatus } from '../../entities/sales-invoices.entity';
 import { SalesReturn } from '../../entities/sales-return.entity';
 import { CreatePromotionCampaignDto } from './dto/create-promotion-campaign.dto';
+import { SearchPromotionParticipantsDto } from './dto/search-promotion-participants.dto';
 import { SearchPromotionRewardReservationDto } from './dto/search-promotion-reward-reservation.dto';
 import { SearchPromotionCampaignDto } from './dto/search-promotion-campaign.dto';
 import { UpdatePromotionCampaignDto } from './dto/update-promotion-campaign.dto';
@@ -34,6 +36,8 @@ export class PromotionCampaignService {
     private readonly campaignProductRepository: Repository<PromotionCampaignProduct>,
     @InjectRepository(CustomerPromotionProgress)
     private readonly progressRepository: Repository<CustomerPromotionProgress>,
+    @InjectRepository(CustomerPromotionOverride)
+    private readonly overrideRepository: Repository<CustomerPromotionOverride>,
     @InjectRepository(PromotionRewardPool)
     private readonly rewardPoolRepository: Repository<PromotionRewardPool>,
     @InjectRepository(PromotionRewardReleaseSchedule)
@@ -149,7 +153,20 @@ export class PromotionCampaignService {
       throw new NotFoundException('Không tìm thấy campaign');
     }
 
-    return this.mapCampaignDetail(campaign);
+    const detail = this.mapCampaignDetail(campaign);
+    for (const pool of detail.reward_pools || []) {
+      for (const release of pool.monthly_release || []) {
+        release.available_quantity =
+          await this.getAvailableRewardBucketQuantity(
+            this.rewardReleaseRepository.manager,
+            campaign.id,
+            pool.id,
+            release.month_index,
+          );
+      }
+    }
+
+    return detail;
   }
 
   async update(id: number, dto: UpdatePromotionCampaignDto) {
@@ -280,9 +297,10 @@ export class PromotionCampaignService {
         const campaign = progress.promotion!;
         const thresholdAmount = Number(campaign.threshold_amount || 0);
         const qualifiedAmount = Number(progress.qualified_amount || 0);
-        const rewards = (rewardMap.get(campaign.id) || []).slice(0, 3).map((pool) => ({
+        const rewards = (rewardMap.get(campaign.id) || []).map((pool) => ({
           rewardName: pool.reward_name,
           rewardValue: Number(pool.reward_value || 0),
+          totalQuantity: Number(pool.total_quantity || 0),
         }));
 
         return {
@@ -300,8 +318,8 @@ export class PromotionCampaignService {
           featuredRewards: rewards,
           statusLabel:
             progress.remaining_spin_count > 0
-              ? `Con ${progress.remaining_spin_count} luot quay`
-              : 'Chua co luot quay',
+              ? `Còn ${progress.remaining_spin_count} lượt quay`
+              : 'Chưa có lượt quay',
         };
       });
 
@@ -318,6 +336,28 @@ export class PromotionCampaignService {
     return {
       items: items.map((item) => ({
         id: item.id,
+        resultType: item.result_type,
+        rewardName: item.reward_name,
+        rewardValue: Number(item.reward_value || 0),
+        spunAt: item.spun_at,
+        note: item.note,
+      })),
+    };
+  }
+
+  async getMySpinHistory(customerId: number) {
+    const items = await this.spinLogRepository.find({
+      where: { customer_id: customerId },
+      relations: ['promotion'],
+      order: { spun_at: 'DESC' },
+      take: 100,
+    });
+
+    return {
+      items: items.map((item) => ({
+        id: item.id,
+        promotionId: item.promotion_id,
+        promotionName: item.promotion?.name || 'Chương trình quay thưởng',
         resultType: item.result_type,
         rewardName: item.reward_name,
         rewardValue: Number(item.reward_value || 0),
@@ -374,6 +414,83 @@ export class PromotionCampaignService {
       progress.last_spin_at = now;
 
       const winCountBeforeSpin = Number(progress.win_count || 0);
+      const override = await manager.findOne(CustomerPromotionOverride, {
+        where: { promotion_id: promotionId, customer_id: customerId },
+      });
+      const hasForceWin =
+        Number(override?.force_win_remaining_count || 0) > 0 &&
+        !!override?.assigned_reward_pool_id &&
+        !!override?.assigned_reward_name;
+
+      if (hasForceWin) {
+        const forcedRewardPoolId = override!.assigned_reward_pool_id!;
+        const forcedRewardName = override!.assigned_reward_name!;
+        const forcedRewardValue = Number(override!.assigned_reward_value || 0);
+
+        progress.win_count = winCountBeforeSpin + 1;
+        progress.last_win_at = now;
+
+        const spinLog = await manager.save(
+          manager.create(CustomerPromotionSpinLog, {
+            promotion_id: promotionId,
+            customer_id: customerId,
+            spin_no: progress.used_spin_count,
+            result_type: 'win',
+            reward_pool_id: forcedRewardPoolId,
+            reward_bucket_month: override!.assigned_reward_bucket_month || null,
+            reward_name: forcedRewardName,
+            reward_value: forcedRewardValue,
+            win_probability_applied: 100,
+            customer_win_count_before_spin: winCountBeforeSpin,
+            spun_at: now,
+            note: 'Force win one-time',
+          }),
+        );
+
+        await manager.save(
+          manager.create(PromotionRewardReservation, {
+            promotion_id: promotionId,
+            customer_id: customerId,
+            spin_log_id: spinLog.id,
+            reward_pool_id: forcedRewardPoolId,
+            reward_bucket_month: override!.assigned_reward_bucket_month || null,
+            reward_name: forcedRewardName,
+            reward_value: forcedRewardValue,
+            status: 'reserved',
+            reserved_at: now,
+            note: override?.note || 'Force win one-time',
+          }),
+        );
+
+        override!.force_win_remaining_count = Math.max(
+          0,
+          Number(override!.force_win_remaining_count || 0) - 1,
+        );
+        if (override!.force_win_remaining_count <= 0) {
+          override!.assigned_reward_pool_id = null;
+          override!.assigned_reward_name = null;
+          override!.assigned_reward_bucket_month = null;
+          override!.assigned_reward_value = 0;
+          override!.note = null;
+        }
+        await manager.save(override!);
+        await manager.save(progress);
+        await queryRunner.commitTransaction();
+
+        return {
+          success: true,
+          appliedRate: 100,
+          resultType: 'win',
+          remainingSpinCount: progress.remaining_spin_count,
+          winCount: progress.win_count,
+          reward: {
+            rewardName: spinLog.reward_name,
+            rewardValue: Number(spinLog.reward_value || 0),
+          },
+          message: `Ban da trung ${spinLog.reward_name}`,
+        };
+      }
+
       const configuredRate =
         winCountBeforeSpin >= Number(campaign.max_reward_per_customer || 2)
           ? 0
@@ -465,6 +582,7 @@ export class PromotionCampaignService {
           spin_no: spinNo,
           result_type: 'win',
           reward_pool_id: reservedReward.pool.id,
+          reward_bucket_month: reservedReward.bucketMonth,
           reward_name: reservedReward.pool.reward_name,
           reward_value: Number(reservedReward.pool.reward_value || 0),
           win_probability_applied: Number(appliedRate || 0),
@@ -480,6 +598,7 @@ export class PromotionCampaignService {
           customer_id: customerId,
           spin_log_id: spinLog.id,
           reward_pool_id: reservedReward.pool.id,
+          reward_bucket_month: reservedReward.bucketMonth,
           reward_name: reservedReward.pool.reward_name,
           reward_value: Number(reservedReward.pool.reward_value || 0),
           status: 'reserved',
@@ -530,6 +649,196 @@ export class PromotionCampaignService {
         note: item.note,
       })),
     };
+  }
+
+  async listParticipants(
+    promotionId: number,
+    query: SearchPromotionParticipantsDto,
+  ) {
+    const page = query.page || 1;
+    const limit = query.limit || 20;
+
+    const queryBuilder = this.progressRepository
+      .createQueryBuilder('progress')
+      .leftJoinAndSelect('progress.customer', 'customer')
+      .where('progress.promotion_id = :promotionId', { promotionId });
+
+    if (query.keyword?.trim()) {
+      queryBuilder.andWhere(
+        `(customer.name ILIKE :keyword OR customer.phone ILIKE :keyword OR customer.code ILIKE :keyword)`,
+        { keyword: `%${query.keyword.trim()}%` },
+      );
+    }
+
+    const [items, total] = await queryBuilder
+      .orderBy('progress.updated_at', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    const customerIds = items.map((item) => item.customer_id);
+    const overrides = customerIds.length
+      ? await this.overrideRepository.find({
+          where: { promotion_id: promotionId, customer_id: In(customerIds) },
+        })
+      : [];
+    const overrideMap = new Map<number, CustomerPromotionOverride>();
+    for (const override of overrides) {
+      overrideMap.set(override.customer_id, override);
+    }
+
+    return {
+      items: items.map((item) => {
+        const override = overrideMap.get(item.customer_id);
+        return {
+          customer_id: item.customer_id,
+          customer: item.customer,
+          qualified_amount: Number(item.qualified_amount || 0),
+          earned_spin_count: item.earned_spin_count,
+          used_spin_count: item.used_spin_count,
+          remaining_spin_count: item.remaining_spin_count,
+          win_count: item.win_count,
+          force_win_pending: Number(override?.force_win_remaining_count || 0) > 0,
+          force_win_remaining_count: Number(
+            override?.force_win_remaining_count || 0,
+          ),
+          forced_reward_name: override?.assigned_reward_name || null,
+          forced_reward_value: Number(override?.assigned_reward_value || 0),
+          forced_month_index: override?.assigned_reward_bucket_month || null,
+          force_set_at: override?.set_at || null,
+          override_note: override?.note || null,
+          updated_at: item.updated_at,
+        };
+      }),
+      total,
+      page,
+      limit,
+    };
+  }
+
+  async setForceWinOnce(
+    promotionId: number,
+    customerId: number,
+    userId: number,
+    rewardPoolId?: number,
+    bucketMonth?: number,
+    note?: string,
+  ) {
+    return this.dataSource.transaction(async (manager) => {
+      if (note === 'UNSET') {
+        return this.clearForceWinOnce(manager, promotionId, customerId);
+      }
+
+      if (!rewardPoolId || !bucketMonth) {
+        throw new BadRequestException('Vui lòng chọn quà và tháng muốn giữ riêng');
+      }
+
+      const campaign = await manager.findOne(PromotionCampaign, {
+        where: { id: promotionId },
+      });
+      if (!campaign) {
+        throw new NotFoundException('Không tìm thấy campaign');
+      }
+
+      const progress = await manager.findOne(CustomerPromotionProgress, {
+        where: { promotion_id: promotionId, customer_id: customerId },
+      });
+      if (!progress) {
+        throw new NotFoundException(
+          'Khách hàng này chưa tham gia campaign hoặc chưa có tích lũy',
+        );
+      }
+
+      let override = await manager.findOne(CustomerPromotionOverride, {
+        where: { promotion_id: promotionId, customer_id: customerId },
+      });
+
+      if (Number(override?.force_win_remaining_count || 0) > 0) {
+        throw new BadRequestException(
+          'Khách hàng này đã có một lượt force trúng đang chờ quay',
+        );
+      }
+
+      const reservedReward = await this.tryReserveSpecificReward(
+        manager,
+        campaign,
+        rewardPoolId,
+        bucketMonth,
+      );
+
+      if (!reservedReward) {
+        throw new BadRequestException(
+          'Quà của tháng này đã hết hoặc đã được giữ cho khách khác',
+        );
+      }
+
+      if (!override) {
+        override = manager.create(CustomerPromotionOverride, {
+          promotion_id: promotionId,
+          customer_id: customerId,
+        });
+      }
+
+      override.force_win_remaining_count = 1;
+      override.assigned_reward_pool_id = reservedReward.pool.id;
+      override.assigned_reward_name = reservedReward.pool.reward_name;
+      override.assigned_reward_bucket_month = reservedReward.bucketMonth;
+      override.assigned_reward_value = Number(
+        reservedReward.pool.reward_value || 0,
+      );
+      override.win_rate_multiplier = 1;
+      override.note = note || null;
+      override.set_by = userId;
+      override.set_at = new Date();
+
+      await manager.save(override);
+
+      return {
+        success: true,
+        message: `Đã giữ riêng quà "${reservedReward.pool.reward_name}" tháng ${reservedReward.bucketMonth} cho khách ở lượt quay kế tiếp`,
+      };
+    });
+  }
+
+  private async clearForceWinOnce(
+    manager: EntityManagerLike,
+    promotionId: number,
+    customerId: number,
+  ) {
+    const override = await manager.findOne(CustomerPromotionOverride, {
+      where: { promotion_id: promotionId, customer_id: customerId },
+    });
+
+    if (!override || Number(override.force_win_remaining_count || 0) <= 0) {
+      return { success: true, message: 'Khách hàng chưa có lượt giữ riêng nào' };
+    }
+
+    if (override.assigned_reward_pool_id) {
+      const pool = await manager
+        .createQueryBuilder(PromotionRewardPool, 'pool')
+        .setLock('pessimistic_write')
+        .where('pool.id = :poolId', { poolId: override.assigned_reward_pool_id })
+        .getOne();
+
+      if (pool) {
+        pool.remaining_quantity = Number(pool.remaining_quantity || 0) + 1;
+        pool.reserved_quantity = Math.max(
+          0,
+          Number(pool.reserved_quantity || 0) - 1,
+        );
+        await manager.save(pool);
+      }
+    }
+
+    override.force_win_remaining_count = 0;
+    override.assigned_reward_pool_id = null;
+    override.assigned_reward_name = null;
+    override.assigned_reward_bucket_month = null;
+    override.assigned_reward_value = 0;
+    override.note = null;
+    await manager.save(override);
+
+    return { success: true, message: 'Đã gỡ lượt giữ riêng cho khách hàng' };
   }
 
   async listAllReservations(query: SearchPromotionRewardReservationDto) {
@@ -958,6 +1267,7 @@ export class PromotionCampaignService {
             id: release.id,
             month_index: release.bucket_month,
             release_quantity: Number(release.release_quantity || 0),
+            available_quantity: Number(release.release_quantity || 0),
           })),
       })),
     };
@@ -1013,42 +1323,106 @@ export class PromotionCampaignService {
     campaignId: number,
     rewards: CreatePromotionCampaignDto['rewards'],
   ) {
+    // Lấy tất cả pool hiện có của campaign
     const existingPools = await this.rewardPoolRepository.find({
       where: { promotion_id: campaignId },
     });
-    const existingPoolIds = existingPools.map((pool) => pool.id);
-    if (existingPoolIds.length) {
-      await this.rewardReleaseRepository.delete({
-        reward_pool_id: In(existingPoolIds),
-      });
-      await this.rewardPoolRepository.delete({ promotion_id: campaignId });
-    }
+
+    // Map pool hiện có theo reward_name (lowercase) để match khi update
+    const existingByName = new Map(
+      existingPools.map((pool) => [pool.reward_name.trim().toLowerCase(), pool]),
+    );
+
+    // Tập hợp tên reward trong request mới
+    const incomingNames = new Set(
+      rewards.map((r) => r.reward_name.trim().toLowerCase()),
+    );
 
     const savedPools: PromotionRewardPool[] = [];
-    for (const reward of rewards) {
-      const pool = await this.rewardPoolRepository.save(
-        this.rewardPoolRepository.create({
-          promotion_id: campaignId,
-          reward_name: reward.reward_name,
-          reward_value: reward.reward_value,
-          total_quantity: reward.total_quantity,
-          remaining_quantity: reward.total_quantity,
-          reserved_quantity: 0,
-          issued_quantity: 0,
-          sort_order: reward.sort_order ?? 0,
-        }),
-      );
-      savedPools.push(pool);
 
-      const releases = reward.monthly_release.map((release) =>
-        this.rewardReleaseRepository.create({
-          promotion_id: campaignId,
-          reward_pool_id: pool.id,
-          bucket_month: release.month_index,
-          release_quantity: release.release_quantity,
-        }),
+    for (const reward of rewards) {
+      const key = reward.reward_name.trim().toLowerCase();
+      const existingPool = existingByName.get(key);
+
+      if (existingPool) {
+        // Pool đã tồn tại → UPDATE tại chỗ để tránh vi phạm FK từ reservations/spin_logs
+        existingPool.reward_value = reward.reward_value;
+        existingPool.total_quantity = reward.total_quantity;
+        existingPool.sort_order = reward.sort_order ?? 0;
+        // Tính lại remaining_quantity dựa trên issued + reserved hiện tại
+        existingPool.remaining_quantity = Math.max(
+          0,
+          reward.total_quantity
+            - Number(existingPool.issued_quantity || 0)
+            - Number(existingPool.reserved_quantity || 0),
+        );
+        const updated = await this.rewardPoolRepository.save(existingPool);
+        savedPools.push(updated);
+
+        // Xóa và tạo lại release schedules cho pool này
+        await this.rewardReleaseRepository.delete({ reward_pool_id: existingPool.id });
+        const releases = reward.monthly_release.map((release) =>
+          this.rewardReleaseRepository.create({
+            promotion_id: campaignId,
+            reward_pool_id: existingPool.id,
+            bucket_month: release.month_index,
+            release_quantity: release.release_quantity,
+          }),
+        );
+        await this.rewardReleaseRepository.save(releases);
+      } else {
+        // Pool mới → INSERT
+        const pool = await this.rewardPoolRepository.save(
+          this.rewardPoolRepository.create({
+            promotion_id: campaignId,
+            reward_name: reward.reward_name,
+            reward_value: reward.reward_value,
+            total_quantity: reward.total_quantity,
+            remaining_quantity: reward.total_quantity,
+            reserved_quantity: 0,
+            issued_quantity: 0,
+            sort_order: reward.sort_order ?? 0,
+          }),
+        );
+        savedPools.push(pool);
+
+        const releases = reward.monthly_release.map((release) =>
+          this.rewardReleaseRepository.create({
+            promotion_id: campaignId,
+            reward_pool_id: pool.id,
+            bucket_month: release.month_index,
+            release_quantity: release.release_quantity,
+          }),
+        );
+        await this.rewardReleaseRepository.save(releases);
+      }
+    }
+
+    // Xử lý các pool bị xóa khỏi danh sách reward mới
+    const removedPools = existingPools.filter(
+      (pool) => !incomingNames.has(pool.reward_name.trim().toLowerCase()),
+    );
+
+    for (const pool of removedPools) {
+      // Kiểm tra xem pool có reservation nào không (reservation.reward_pool_id là NOT NULL)
+      const reservationCount = await this.reservationRepository.count({
+        where: { reward_pool_id: pool.id },
+      });
+
+      if (reservationCount > 0) {
+        throw new BadRequestException(
+          `Không thể xóa loại quà "${pool.reward_name}" vì đã có ${reservationCount} khách hàng được thưởng. Hãy giữ nguyên hoặc đặt số lượng về 0.`,
+        );
+      }
+
+      // Null hóa FK trong spin_logs (nullable) trước khi xóa
+      await this.dataSource.query(
+        `UPDATE "customer_promotion_spin_logs" SET "reward_pool_id" = NULL WHERE "reward_pool_id" = $1`,
+        [pool.id],
       );
-      await this.rewardReleaseRepository.save(releases);
+      // Xóa release schedules rồi mới xóa pool
+      await this.rewardReleaseRepository.delete({ reward_pool_id: pool.id });
+      await this.rewardPoolRepository.delete({ id: pool.id });
     }
 
     return savedPools;
@@ -1141,7 +1515,7 @@ export class PromotionCampaignService {
     campaign: PromotionCampaign,
     customerId: number,
     winCountBeforeSpin: number,
-  ) {
+  ): Promise<{ pool: PromotionRewardPool; bucketMonth: number } | null> {
     const pools = await manager.find(PromotionRewardPool, {
       where: { promotion_id: campaign.id },
       order: { sort_order: 'ASC', id: 'ASC' },
@@ -1158,7 +1532,11 @@ export class PromotionCampaignService {
         .map((item: PromotionRewardReservation) => item.reward_name),
     );
 
-    const candidates: Array<{ pool: PromotionRewardPool; available: number }> = [];
+    const candidates: Array<{
+      pool: PromotionRewardPool;
+      bucketMonth: number;
+      available: number;
+    }> = [];
     for (const pool of pools) {
       if (
         winCountBeforeSpin >= 1 &&
@@ -1167,88 +1545,184 @@ export class PromotionCampaignService {
         continue;
       }
 
-      const releaseRows = await manager.find(PromotionRewardReleaseSchedule, {
-        where: {
-          promotion_id: campaign.id,
-          reward_pool_id: pool.id,
-        },
-      });
-      const cumulativeRelease = releaseRows
-        .filter((row: PromotionRewardReleaseSchedule) => row.bucket_month <= currentMonth)
-        .reduce(
-          (sum: number, row: PromotionRewardReleaseSchedule) =>
-            sum + Number(row.release_quantity || 0),
-          0,
-        );
-      const consumedCount = await manager.count(PromotionRewardReservation, {
-        where: {
-          promotion_id: campaign.id,
-          reward_pool_id: pool.id,
-          status: In(['reserved', 'issued']),
-        },
-      });
-      const availableBySchedule = cumulativeRelease - consumedCount;
-      const available = Math.min(
-        Number(pool.remaining_quantity || 0),
-        Math.max(0, availableBySchedule),
+      const availableBuckets = await this.getAvailableRewardBuckets(
+        manager,
+        campaign.id,
+        pool.id,
+        currentMonth,
       );
-      if (available > 0) {
-        candidates.push({ pool, available });
+      for (const bucket of availableBuckets) {
+        if (bucket.available > 0) {
+          candidates.push({
+            pool,
+            bucketMonth: bucket.monthIndex,
+            available: bucket.available,
+          });
+        }
       }
     }
 
     if (!candidates.length) return null;
 
     const weighted = candidates.flatMap((candidate) =>
-      Array.from({ length: candidate.available }).map(() => candidate.pool.id),
+      Array.from({ length: candidate.available }).map(() => ({
+        poolId: candidate.pool.id,
+        bucketMonth: candidate.bucketMonth,
+      })),
     );
-    const shuffledIds = weighted.sort(() => Math.random() - 0.5);
-    const uniqueIds = Array.from(new Set(shuffledIds));
+    const shuffledEntries = weighted.sort(() => Math.random() - 0.5);
+    const uniqueEntries = Array.from(
+      new Map(
+        shuffledEntries.map((entry) => [
+          `${entry.poolId}:${entry.bucketMonth}`,
+          entry,
+        ]),
+      ).values(),
+    );
 
-    for (const poolId of uniqueIds) {
-      const lockedPool = await manager
-        .createQueryBuilder(PromotionRewardPool, 'pool')
-        .setLock('pessimistic_write')
-        .where('pool.id = :poolId', { poolId })
-        .getOne();
+    for (const entry of uniqueEntries) {
+      const reserved = await this.tryReserveSpecificReward(
+        manager,
+        campaign,
+        entry.poolId,
+        entry.bucketMonth,
+      );
+      if (reserved) {
+        return reserved;
+      }
+    }
 
-      if (!lockedPool) continue;
+    return null;
+  }
 
-      const releaseRows = await manager.find(PromotionRewardReleaseSchedule, {
-        where: {
-          promotion_id: campaign.id,
-          reward_pool_id: lockedPool.id,
-        },
-      });
-      const cumulativeRelease = releaseRows
-        .filter((row: PromotionRewardReleaseSchedule) => row.bucket_month <= currentMonth)
-        .reduce(
-          (sum: number, row: PromotionRewardReleaseSchedule) =>
-            sum + Number(row.release_quantity || 0),
-          0,
-        );
-      const consumedCount = await manager.count(PromotionRewardReservation, {
-        where: {
-          promotion_id: campaign.id,
-          reward_pool_id: lockedPool.id,
-          status: In(['reserved', 'issued']),
-        },
-      });
-      const availableBySchedule = cumulativeRelease - consumedCount;
+  private async tryReserveSpecificReward(
+    manager: EntityManagerLike,
+    campaign: PromotionCampaign,
+    rewardPoolId: number,
+    bucketMonth: number,
+  ): Promise<{ pool: PromotionRewardPool; bucketMonth: number } | null> {
+    const release = await manager
+      .createQueryBuilder(PromotionRewardReleaseSchedule, 'release')
+      .setLock('pessimistic_write')
+      .where('release.promotion_id = :promotionId', { promotionId: campaign.id })
+      .andWhere('release.reward_pool_id = :rewardPoolId', { rewardPoolId })
+      .andWhere('release.bucket_month = :bucketMonth', { bucketMonth })
+      .getOne();
+
+    if (!release || Number(release.release_quantity || 0) <= 0) {
+      return null;
+    }
+
+    const lockedPool = await manager
+      .createQueryBuilder(PromotionRewardPool, 'pool')
+      .setLock('pessimistic_write')
+      .where('pool.id = :poolId', { poolId: rewardPoolId })
+      .andWhere('pool.promotion_id = :promotionId', { promotionId: campaign.id })
+      .getOne();
+
+    if (!lockedPool || Number(lockedPool.remaining_quantity || 0) <= 0) {
+      return null;
+    }
+
+    const available = await this.getAvailableRewardBucketQuantity(
+      manager,
+      campaign.id,
+      rewardPoolId,
+      bucketMonth,
+    );
+    if (available <= 0) {
+      return null;
+    }
+
+    lockedPool.remaining_quantity = Number(lockedPool.remaining_quantity || 0) - 1;
+    lockedPool.reserved_quantity = Number(lockedPool.reserved_quantity || 0) + 1;
+    await manager.save(lockedPool);
+
+    return { pool: lockedPool, bucketMonth };
+  }
+
+  private async getAvailableRewardBuckets(
+    manager: EntityManagerLike,
+    promotionId: number,
+    rewardPoolId: number,
+    maxBucketMonth?: number,
+  ): Promise<Array<{ monthIndex: number; releaseQuantity: number; available: number }>> {
+    const releases = await manager.find(PromotionRewardReleaseSchedule, {
+      where: {
+        promotion_id: promotionId,
+        reward_pool_id: rewardPoolId,
+      },
+      order: { bucket_month: 'ASC' },
+    });
+
+    const buckets: Array<{
+      monthIndex: number;
+      releaseQuantity: number;
+      available: number;
+    }> = [];
+    for (const release of releases) {
       if (
-        Number(lockedPool.remaining_quantity || 0) <= 0 ||
-        availableBySchedule <= 0
+        maxBucketMonth &&
+        Number(release.bucket_month || 0) > maxBucketMonth
       ) {
         continue;
       }
 
-      lockedPool.remaining_quantity = Number(lockedPool.remaining_quantity || 0) - 1;
-      lockedPool.reserved_quantity = Number(lockedPool.reserved_quantity || 0) + 1;
-      await manager.save(lockedPool);
-      return { pool: lockedPool };
+      const available = await this.getAvailableRewardBucketQuantity(
+        manager,
+        promotionId,
+        rewardPoolId,
+        release.bucket_month,
+      );
+      buckets.push({
+        monthIndex: release.bucket_month,
+        releaseQuantity: Number(release.release_quantity || 0),
+        available,
+      });
     }
 
-    return null;
+    return buckets;
+  }
+
+  private async getAvailableRewardBucketQuantity(
+    manager: EntityManagerLike,
+    promotionId: number,
+    rewardPoolId: number,
+    bucketMonth: number,
+  ) {
+    const pool = await manager.findOne(PromotionRewardPool, {
+      where: { id: rewardPoolId, promotion_id: promotionId },
+    });
+    if (!pool || Number(pool.remaining_quantity || 0) <= 0) return 0;
+
+    const release = await manager.findOne(PromotionRewardReleaseSchedule, {
+      where: {
+        promotion_id: promotionId,
+        reward_pool_id: rewardPoolId,
+        bucket_month: bucketMonth,
+      },
+    });
+    const releaseQuantity = Number(release?.release_quantity || 0);
+    if (releaseQuantity <= 0) return 0;
+
+    const consumedCount = await manager.count(PromotionRewardReservation, {
+      where: {
+        promotion_id: promotionId,
+        reward_pool_id: rewardPoolId,
+        reward_bucket_month: bucketMonth,
+        status: In(['reserved', 'issued']),
+      },
+    });
+    const forcedReservedCount = await manager.count(CustomerPromotionOverride, {
+      where: {
+        promotion_id: promotionId,
+        assigned_reward_pool_id: rewardPoolId,
+        assigned_reward_bucket_month: bucketMonth,
+        force_win_remaining_count: In([1]),
+      },
+    });
+
+    return Math.max(0, releaseQuantity - consumedCount - forcedReservedCount);
   }
 
   private async calculateEffectiveWinRate(
@@ -1308,7 +1782,20 @@ export class PromotionCampaignService {
           0,
         );
       const consumedCount = consumedByPool.get(pool.id) || 0;
-      const availableBySchedule = Math.max(0, cumulativeRelease - consumedCount);
+      const forcedReservedCount = await manager.count(
+        CustomerPromotionOverride,
+        {
+          where: {
+            promotion_id: campaign.id,
+            assigned_reward_pool_id: pool.id,
+            force_win_remaining_count: In([1]),
+          },
+        },
+      );
+      const availableBySchedule = Math.max(
+        0,
+        cumulativeRelease - consumedCount - forcedReservedCount,
+      );
       const poolAvailable = Math.min(
         Number(pool.remaining_quantity || 0),
         availableBySchedule,

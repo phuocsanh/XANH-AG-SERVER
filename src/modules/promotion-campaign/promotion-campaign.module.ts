@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CustomerPromotionLedger } from '../../entities/customer-promotion-ledger.entity';
+import { CustomerPromotionOverride } from '../../entities/customer-promotion-override.entity';
 import { CustomerPromotionProgress } from '../../entities/customer-promotion-progress.entity';
 import { CustomerPromotionSpinLog } from '../../entities/customer-promotion-spin-log.entity';
 import { Product } from '../../entities/products.entity';
@@ -18,6 +19,7 @@ import { PromotionCampaignService } from './promotion-campaign.service';
       PromotionCampaign,
       PromotionCampaignProduct,
       CustomerPromotionProgress,
+      CustomerPromotionOverride,
       CustomerPromotionLedger,
       CustomerPromotionSpinLog,
       PromotionRewardPool,

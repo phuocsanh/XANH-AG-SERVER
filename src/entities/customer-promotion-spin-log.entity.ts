@@ -45,6 +45,9 @@ export class CustomerPromotionSpinLog {
   @Column({ name: 'reward_name', nullable: true })
   reward_name?: string;
 
+  @Column({ name: 'reward_bucket_month', type: 'int', nullable: true })
+  reward_bucket_month?: number | null;
+
   @Column({
     name: 'reward_value',
     type: 'decimal',

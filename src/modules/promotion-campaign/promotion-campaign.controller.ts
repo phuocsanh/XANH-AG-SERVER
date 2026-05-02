@@ -15,8 +15,10 @@ import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { User } from '../../entities/users.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreatePromotionCampaignDto } from './dto/create-promotion-campaign.dto';
+import { SearchPromotionParticipantsDto } from './dto/search-promotion-participants.dto';
 import { SearchPromotionRewardReservationDto } from './dto/search-promotion-reward-reservation.dto';
 import { SearchPromotionCampaignDto } from './dto/search-promotion-campaign.dto';
+import { SetForceWinDto } from './dto/set-force-win.dto';
 import { UpdatePromotionCampaignStatusDto } from './dto/update-promotion-campaign-status.dto';
 import { UpdatePromotionCampaignDto } from './dto/update-promotion-campaign.dto';
 import { PromotionCampaignService } from './promotion-campaign.service';
@@ -52,6 +54,17 @@ export class PromotionCampaignController {
     }
 
     return this.promotionCampaignService.getMyProgress(user.customer_id);
+  }
+
+  @Get('my-spin-history')
+  getMySpinHistory(@CurrentUser() user: User) {
+    if (!user.customer_id) {
+      throw new BadRequestException(
+        'Tài khoản của bạn không liên kết với khách hàng nào',
+      );
+    }
+
+    return this.promotionCampaignService.getMySpinHistory(user.customer_id);
   }
 
   @Get('reward-reservations')
@@ -94,6 +107,33 @@ export class PromotionCampaignController {
   @RequirePermissions('sales:read')
   listReservations(@Param('id') id: string) {
     return this.promotionCampaignService.listReservations(+id);
+  }
+
+  @Get(':id/participants')
+  @RequirePermissions('sales:read')
+  listParticipants(
+    @Param('id') id: string,
+    @Query() query: SearchPromotionParticipantsDto,
+  ) {
+    return this.promotionCampaignService.listParticipants(+id, query);
+  }
+
+  @Patch(':id/participants/:customerId/force-win')
+  @RequirePermissions('sales:manage')
+  setForceWin(
+    @Param('id') id: string,
+    @Param('customerId') customerId: string,
+    @Body() dto: SetForceWinDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.promotionCampaignService.setForceWinOnce(
+      +id,
+      +customerId,
+      user.id,
+      dto.reward_pool_id,
+      dto.bucket_month,
+      dto.note,
+    );
   }
 
   @Patch(':id/reservations/:reservationId/issue')
