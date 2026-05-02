@@ -497,15 +497,22 @@ export class PromotionCampaignService {
           : winCountBeforeSpin === 0
             ? Number(campaign.base_win_rate || 0)
             : Number(campaign.second_win_rate || 0);
-      const appliedRate =
-        configuredRate > 0
-          ? await this.calculateEffectiveWinRate(
-              manager,
-              campaign,
-              configuredRate,
-              now,
-            )
-          : 0;
+
+      let appliedRate = 0;
+
+      if (override && Number(override.win_rate_multiplier) === 0) {
+        appliedRate = 0;
+      } else {
+        appliedRate =
+          configuredRate > 0
+            ? await this.calculateEffectiveWinRate(
+                manager,
+                campaign,
+                configuredRate,
+                now,
+              )
+            : 0;
+      }
 
       const spinNo = progress.used_spin_count;
       const shouldTryWin =
@@ -707,6 +714,7 @@ export class PromotionCampaignService {
           forced_month_index: override?.assigned_reward_bucket_month || null,
           force_set_at: override?.set_at || null,
           override_note: override?.note || null,
+          is_blocked: Number(override?.win_rate_multiplier) === 0,
           updated_at: item.updated_at,
         };
       }),
@@ -727,6 +735,10 @@ export class PromotionCampaignService {
     return this.dataSource.transaction(async (manager) => {
       if (note === 'UNSET') {
         return this.clearForceWinOnce(manager, promotionId, customerId);
+      }
+
+      if (note === 'BLOCK') {
+        return this.blockCustomerSpin(manager, promotionId, customerId, userId);
       }
 
       if (!rewardPoolId || !bucketMonth) {
@@ -841,6 +853,45 @@ export class PromotionCampaignService {
     return { success: true, message: 'Đã gỡ lượt giữ riêng cho khách hàng' };
   }
 
+  private async blockCustomerSpin(
+    manager: EntityManagerLike,
+    promotionId: number,
+    customerId: number,
+    userId: number,
+  ) {
+    let override = await manager.findOne(CustomerPromotionOverride, {
+      where: { promotion_id: promotionId, customer_id: customerId },
+    });
+
+    if (override && Number(override.force_win_remaining_count || 0) > 0) {
+      await this.clearForceWinOnce(manager, promotionId, customerId);
+    }
+
+    if (!override) {
+      override = manager.create(CustomerPromotionOverride, {
+        promotion_id: promotionId,
+        customer_id: customerId,
+      });
+    }
+
+    override.force_win_remaining_count = 0;
+    override.assigned_reward_pool_id = null;
+    override.assigned_reward_name = null;
+    override.assigned_reward_bucket_month = null;
+    override.assigned_reward_value = 0;
+    override.win_rate_multiplier = 0;
+    override.note = 'Bị chặn trúng thưởng';
+    override.set_by = userId;
+    override.set_at = new Date();
+
+    await manager.save(override);
+
+    return {
+      success: true,
+      message: 'Đã chặn khách hàng này không cho trúng thưởng nữa',
+    };
+  }
+
   async listAllReservations(query: SearchPromotionRewardReservationDto) {
     const page = query.page || 1;
     const limit = query.limit || 20;
@@ -931,6 +982,44 @@ export class PromotionCampaignService {
     return {
       success: true,
       message: 'Đã xác nhận trao quà',
+    };
+  }
+
+  /**
+   * Hoàn tác xác nhận trao quà: đặt reservation về trạng thái 'reserved',
+   * xóa thông tin trao và giảm issued_quantity của pool.
+   */
+  async cancelIssueReservation(promotionId: number, reservationId: number) {
+    const reservation = await this.reservationRepository.findOne({
+      where: { id: reservationId, promotion_id: promotionId },
+    });
+    if (!reservation) {
+      throw new NotFoundException('Không tìm thấy quà đã reserve');
+    }
+    if (reservation.status !== 'issued') {
+      throw new BadRequestException('Chỉ có thể hoàn tác quà đang ở trạng thái "Đã trao"');
+    }
+
+    const pool = await this.rewardPoolRepository.findOne({
+      where: { id: reservation.reward_pool_id },
+    });
+
+    // Đặt lại trạng thái về reserved và xóa thông tin trao
+    reservation.status = 'reserved';
+    reservation.issued_at = null as any;
+    reservation.issued_by = null as any;
+    reservation.expense_posted_at = null as any;
+    await this.reservationRepository.save(reservation);
+
+    // Giảm issued_quantity của pool (không để âm)
+    if (pool) {
+      pool.issued_quantity = Math.max(0, Number(pool.issued_quantity || 0) - 1);
+      await this.rewardPoolRepository.save(pool);
+    }
+
+    return {
+      success: true,
+      message: 'Đã hoàn tác xác nhận trao quà',
     };
   }
 

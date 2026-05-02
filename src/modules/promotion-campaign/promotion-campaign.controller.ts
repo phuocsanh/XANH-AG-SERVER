@@ -150,6 +150,15 @@ export class PromotionCampaignController {
     );
   }
 
+  @Patch(':id/reservations/:reservationId/cancel-issue')
+  @RequirePermissions('sales:manage')
+  cancelIssueReservation(
+    @Param('id') id: string,
+    @Param('reservationId') reservationId: string,
+  ) {
+    return this.promotionCampaignService.cancelIssueReservation(+id, +reservationId);
+  }
+
   @Patch(':id')
   @RequirePermissions('sales:manage')
   update(@Param('id') id: string, @Body() dto: UpdatePromotionCampaignDto) {
