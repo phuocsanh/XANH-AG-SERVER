@@ -3,6 +3,10 @@ import { Type } from 'class-transformer';
 
 export class CreateSalesReturnItemDto {
   @IsNumber()
+  @IsOptional()
+  sales_invoice_item_id?: number;
+
+  @IsNumber()
   @IsNotEmpty()
   product_id!: number;
 

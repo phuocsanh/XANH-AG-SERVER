@@ -4,7 +4,11 @@ import { Repository, Brackets } from 'typeorm';
 import { Payment } from '../../entities/payment.entity';
 import { PaymentAllocation } from '../../entities/payment-allocation.entity';
 import { DebtNote, DebtNoteStatus } from '../../entities/debt-note.entity';
-import { SalesInvoice, SalesPaymentStatus } from '../../entities/sales-invoices.entity';
+import {
+  SalesInvoice,
+  SalesInvoiceStatus,
+  SalesPaymentStatus,
+} from '../../entities/sales-invoices.entity';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { SearchPaymentDto } from './dto/search-payment.dto';
 import { SettleDebtDto } from './dto/settle-debt.dto';
@@ -308,6 +312,14 @@ export class PaymentService {
         invoice.remaining_amount = invoiceDebt - amountToAllocate;
         if (invoice.remaining_amount <= 0) {
           invoice.payment_status = SalesPaymentStatus.PAID;
+          invoice.status = SalesInvoiceStatus.PAID;
+          invoice.remaining_amount = 0;
+        } else if (Number(invoice.partial_payment_amount || 0) > 0) {
+          invoice.payment_status = SalesPaymentStatus.PARTIAL;
+          invoice.status = SalesInvoiceStatus.CONFIRMED;
+        } else {
+          invoice.payment_status = SalesPaymentStatus.PENDING;
+          invoice.status = SalesInvoiceStatus.CONFIRMED;
         }
         await queryRunner.manager.save(invoice);
         
@@ -435,8 +447,10 @@ export class PaymentService {
 
           if (invoice.remaining_amount > 0) {
             invoice.payment_status = invoice.partial_payment_amount > 0 ? SalesPaymentStatus.PARTIAL : SalesPaymentStatus.PENDING;
+            invoice.status = SalesInvoiceStatus.CONFIRMED;
           } else {
             invoice.payment_status = SalesPaymentStatus.PAID;
+            invoice.status = SalesInvoiceStatus.PAID;
           }
 
           await queryRunner.manager.save(invoice);

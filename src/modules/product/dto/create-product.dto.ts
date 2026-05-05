@@ -5,8 +5,10 @@ import {
   IsArray,
   IsEnum,
   IsBoolean,
+  IsIn,
 } from 'class-validator';
 import { BaseStatus } from '../../../entities/base-status.enum';
+import { ProductCostingMethod } from '../../../entities/products.entity';
 import { CreateProductUnitConversionDto } from '../../product-unit-conversion/dto/create-product-unit-conversion.dto';
 import { CreateProductComponentDto } from './create-product-component.dto';
 import { Type } from 'class-transformer';
@@ -108,6 +110,23 @@ export class CreateProductDto {
   @IsOptional()
   @IsString()
   average_cost_price?: string;
+
+  /** Cách chốt giá vốn khi bán hàng */
+  @IsOptional()
+  @IsIn(Object.values(ProductCostingMethod), {
+    message: 'Cách tính giá vốn không hợp lệ',
+  })
+  costing_method?: ProductCostingMethod;
+
+  /** Giá vốn khi bán tiền mặt */
+  @IsOptional()
+  @IsString()
+  cash_cost_price?: string;
+
+  /** Giá vốn khi bán nợ */
+  @IsOptional()
+  @IsString()
+  credit_cost_price?: string;
 
   /** Giá nhập trung bình trên hóa đơn VAT (tùy chọn) */
   @IsOptional()

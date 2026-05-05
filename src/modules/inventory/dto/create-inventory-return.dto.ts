@@ -15,6 +15,11 @@ import { ReturnStatus } from '../enums/return-status.enum';
  * DTO cho chi tiết sản phẩm trong phiếu xuất trả hàng
  */
 export class CreateInventoryReturnItemDto {
+  /** ID dòng phiếu nhập gốc */
+  @IsOptional()
+  @IsNumber({}, { message: 'ID dòng phiếu nhập phải là số' })
+  receipt_item_id?: number;
+
   /** ID của sản phẩm */
   @IsNotEmpty({ message: 'ID sản phẩm không được để trống' })
   @IsNumber({}, { message: 'ID sản phẩm phải là số' })
@@ -25,6 +30,26 @@ export class CreateInventoryReturnItemDto {
   @IsNumber({}, { message: 'Số lượng phải là số' })
   @Min(1, { message: 'Số lượng phải lớn hơn 0' })
   quantity!: number;
+
+  /** Tên đơn vị trả hàng (snapshot, ví dụ: Bao) */
+  @IsOptional()
+  @IsString({ message: 'Tên đơn vị phải là chuỗi' })
+  unit_name?: string;
+
+  /** ID đơn vị trả hàng */
+  @IsOptional()
+  @IsNumber({}, { message: 'ID đơn vị phải là số' })
+  unit_id?: number;
+
+  /** Hệ số quy đổi về đơn vị cơ sở */
+  @IsOptional()
+  @IsNumber({}, { message: 'Hệ số quy đổi phải là số' })
+  conversion_factor?: number;
+
+  /** Số lượng quy về đơn vị cơ sở để tác động kho */
+  @IsOptional()
+  @IsNumber({}, { message: 'Số lượng quy đổi phải là số' })
+  base_quantity?: number;
 
   /** Giá vốn đơn vị */
   @IsNotEmpty({ message: 'Giá vốn đơn vị không được để trống' })

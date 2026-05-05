@@ -7,6 +7,7 @@ import {
 } from 'typeorm';
 import { SalesReturn } from './sales-return.entity';
 import { Product } from './products.entity';
+import { SalesInvoiceItem } from './sales-invoice-items.entity';
 
 @Entity('sales_return_items')
 export class SalesReturnItem {
@@ -22,6 +23,13 @@ export class SalesReturnItem {
 
   @Column({ name: 'product_id' })
   product_id!: number;
+
+  @Column({ name: 'sales_invoice_item_id', nullable: true })
+  sales_invoice_item_id?: number;
+
+  @ManyToOne(() => SalesInvoiceItem, { nullable: true })
+  @JoinColumn({ name: 'sales_invoice_item_id' })
+  sales_invoice_item?: SalesInvoiceItem;
 
   @ManyToOne(() => Product)
   @JoinColumn({ name: 'product_id' })

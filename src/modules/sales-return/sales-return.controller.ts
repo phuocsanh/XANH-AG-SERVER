@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Param, ParseIntPipe } from '@nestjs/common';
 import { SalesReturnService } from './sales-return.service';
 import { CreateSalesReturnDto } from './dto/create-sales-return.dto';
 import { SearchSalesReturnDto } from './dto/search-sales-return.dto';
@@ -30,7 +30,7 @@ export class SalesReturnController {
   @Post(':id/cancel')
   @RequirePermissions('sales:manage')
   cancel(
-    @Body('id') id: number,
+    @Param('id', ParseIntPipe) id: number,
     @CurrentUser('id') userId: number,
   ) {
     return this.salesReturnService.cancel(id, userId);

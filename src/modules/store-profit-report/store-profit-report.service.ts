@@ -60,6 +60,102 @@ export class StoreProfitReportService {
 
   ) {}
 
+  private getInvoiceItemCostPrice(item: any): number {
+    if (item?.cost_price === null || item?.cost_price === undefined) {
+      return Number(item?.product?.average_cost_price || 0);
+    }
+
+    const snapshotCost = Number(item?.cost_price);
+    if (Number.isFinite(snapshotCost) && snapshotCost >= 0) {
+      return snapshotCost;
+    }
+
+    return Number(item?.product?.average_cost_price || 0);
+  }
+
+  private getInvoiceItemCOGS(item: any): number {
+    return Number(item?.base_quantity || item?.quantity || 0) * this.getInvoiceItemCostPrice(item);
+  }
+
+  private getReturnStatsKey(
+    invoiceId: number,
+    item?: { id?: number; product_id?: number },
+    productId?: number,
+  ): string {
+    if (item?.id) {
+      return `${invoiceId}:item:${item.id}`;
+    }
+    return `${invoiceId}:product:${productId ?? item?.product_id}`;
+  }
+
+  private async getApprovedReturnStats(invoiceIds: number[]): Promise<
+    Map<string, { returnedQuantity: number; returnedBaseQuantity: number; returnedAmount: number }>
+  > {
+    const statsMap = new Map<
+      string,
+      { returnedQuantity: number; returnedBaseQuantity: number; returnedAmount: number }
+    >();
+
+    if (!invoiceIds.length) {
+      return statsMap;
+    }
+
+    const rows = await this.salesInvoiceRepository.manager
+      .getRepository(SalesReturnItem)
+      .createQueryBuilder('item')
+      .innerJoin('item.sales_return', 'sales_return')
+      .select('sales_return.invoice_id', 'invoice_id')
+      .addSelect('item.sales_invoice_item_id', 'sales_invoice_item_id')
+      .addSelect('item.product_id', 'product_id')
+      .addSelect('COALESCE(SUM(item.quantity), 0)', 'returned_quantity')
+      .addSelect(
+        'COALESCE(SUM(COALESCE(item.base_quantity, item.quantity * COALESCE(item.conversion_factor, 1))), 0)',
+        'returned_base_quantity',
+      )
+      .addSelect('COALESCE(SUM(item.total_price), 0)', 'returned_amount')
+      .where('sales_return.status = :status', {
+        status: SalesReturnStatus.APPROVED,
+      })
+      .andWhere('sales_return.invoice_id IN (:...invoiceIds)', { invoiceIds })
+      .groupBy('sales_return.invoice_id')
+      .addGroupBy('item.sales_invoice_item_id')
+      .addGroupBy('item.product_id')
+      .getRawMany();
+
+    for (const row of rows) {
+      const invoiceId = Number(row.invoice_id);
+      const invoiceItemId = row.sales_invoice_item_id
+        ? Number(row.sales_invoice_item_id)
+        : undefined;
+      const productId = Number(row.product_id);
+      const key = invoiceItemId
+        ? `${invoiceId}:item:${invoiceItemId}`
+        : `${invoiceId}:product:${productId}`;
+      statsMap.set(key, {
+        returnedQuantity: Number(row.returned_quantity || 0),
+        returnedBaseQuantity: Number(row.returned_base_quantity || 0),
+        returnedAmount: Number(row.returned_amount || 0),
+      });
+    }
+
+    return statsMap;
+  }
+
+  private getReturnStatsForItem(
+    statsMap: Map<string, { returnedQuantity: number; returnedBaseQuantity: number; returnedAmount: number }>,
+    invoiceId: number,
+    item: { id?: number; product_id?: number },
+  ): { returnedQuantity: number; returnedBaseQuantity: number; returnedAmount: number } {
+    return (
+      statsMap.get(this.getReturnStatsKey(invoiceId, item)) ||
+      statsMap.get(this.getReturnStatsKey(invoiceId, undefined, item.product_id)) || {
+        returnedQuantity: 0,
+        returnedBaseQuantity: 0,
+        returnedAmount: 0,
+      }
+    );
+  }
+
   /**
    * Tính lợi nhuận chi tiết cho 1 đơn hàng
    */
@@ -78,13 +174,35 @@ export class StoreProfitReportService {
       // Tính giá vốn và lợi nhuận cho từng sản phẩm
       let totalCOGS = 0;
       const itemDetails: InvoiceItemProfitDto[] = [];
+      const returnStatsMap = await this.getApprovedReturnStats([invoice.id]);
+      const invoiceItemsGross = (invoice.items || []).reduce(
+        (sum, item) => sum + Number(item.total_price || 0),
+        0,
+      );
 
       for (const item of invoice.items || []) {
-        const avgCost = Number(item.product?.average_cost_price || 0);
-        const itemCOGS = Number(item.base_quantity || item.quantity) * avgCost;
-        const itemProfit = item.total_price - itemCOGS;
-        const itemMargin = item.total_price > 0 
-          ? (itemProfit / item.total_price) * 100 
+        const avgCost = this.getInvoiceItemCostPrice(item);
+        const returnStats = this.getReturnStatsForItem(
+          returnStatsMap,
+          invoice.id,
+          item,
+        );
+        const itemGrossPrice = Number(item.total_price || 0);
+        const invoiceDiscountShare = invoiceItemsGross > 0
+          ? Number(invoice.discount_amount || 0) * (itemGrossPrice / invoiceItemsGross)
+          : 0;
+        const itemRevenue = Math.max(
+          0,
+          itemGrossPrice - invoiceDiscountShare - returnStats.returnedAmount,
+        );
+        const itemCOGS = Math.max(
+          0,
+          this.getInvoiceItemCOGS(item) -
+            returnStats.returnedBaseQuantity * avgCost,
+        );
+        const itemProfit = itemRevenue - itemCOGS;
+        const itemMargin = itemRevenue > 0 
+          ? (itemProfit / itemRevenue) * 100 
           : 0;
 
         totalCOGS += itemCOGS;
@@ -94,7 +212,10 @@ export class StoreProfitReportService {
 
         itemDetails.push({
           product_name: productName,
-          quantity: item.quantity,
+          quantity: Math.max(
+            0,
+            Number(item.quantity || 0) - returnStats.returnedQuantity,
+          ),
           unit_price: item.unit_price,
           avg_cost: avgCost,
           cogs: itemCOGS,
@@ -183,7 +304,7 @@ export class StoreProfitReportService {
           { season_id: seasonId, status: SalesInvoiceStatus.CONFIRMED },
           { season_id: seasonId, status: SalesInvoiceStatus.PAID },
         ],
-        relations: ['items', 'items.product', 'customer'],
+        relations: ['items', 'items.product', 'items.product.unit', 'customer'],
       });
 
       this.logger.log(`📊 [DEBUG_REPORT] Found ${invoices.length} invoices for seasonId ${seasonId}`);
@@ -209,10 +330,14 @@ export class StoreProfitReportService {
       const productProfitMap = new Map<number, {
         id: number;
         name: string;
+        unitName?: string | undefined;
         quantity: number;
         revenue: number;
         profit: number;
       }>();
+      const approvedReturnStats = await this.getApprovedReturnStats(
+        invoices.map((invoice) => invoice.id),
+      );
 
       for (const invoice of invoices) {
         // Explicitly cast to number to handle TypeORM decimal strings
@@ -232,34 +357,46 @@ export class StoreProfitReportService {
           // Fallback: Tính từ average_cost_price CHỈ KHI cost_of_goods_sold = null
           this.logger.warn(`⚠️ Invoice ${invoice.code} has no cost_of_goods_sold. Calculating from items.`);
           for (const item of invoice.items) {
-            const avgCost = Number(item.product?.average_cost_price || 0);
+            const avgCost = this.getInvoiceItemCostPrice(item);
             invoiceCOGS += Number(item.base_quantity || item.quantity) * avgCost;
           }
         }
         
-        // Tính tổng giá vốn tạm tính (theo số lượng ban đầu) để làm trọng số phân bổ
-        const invoiceOriginalCOGSTotal = (invoice.items || []).reduce((sum, item) => {
-          const avgCost = Number(item.product?.average_cost_price || 0);
-          return sum + (Number(item.base_quantity || item.quantity) * avgCost);
-        }, 0);
-
         const invoiceItemsGross = (invoice.items || []).reduce((sum, item) => sum + Number(item.total_price), 0);
 
         // Track product profit (chỉ khi hóa đơn còn giá trị sau khi trừ trả hàng)
         if (finalAmount > 0 && invoice.items && invoice.items.length > 0) {
           for (const item of invoice.items) {
             const itemGrossPrice = Number(item.total_price);
-            const avgCost = Number(item.product?.average_cost_price || 0);
+            const avgCost = this.getInvoiceItemCostPrice(item);
             const itemOriginalCOGS = Number(item.base_quantity || item.quantity) * avgCost;
+            const returnStats = this.getReturnStatsForItem(
+              approvedReturnStats,
+              invoice.id,
+              item,
+            );
 
-            // Phân bổ doanh thu/giá vốn thực tế (đã trừ trả hàng) cho item này
-            const itemNetRevenue = invoiceItemsGross > 0 ? (itemGrossPrice / invoiceItemsGross) * finalAmount : 0;
-            const itemActualCOGS = invoiceOriginalCOGSTotal > 0 ? (itemOriginalCOGS / invoiceOriginalCOGSTotal) * invoiceCOGS : 0;
+            const invoiceDiscountShare = invoiceItemsGross > 0
+              ? Number(invoice.discount_amount || 0) * (itemGrossPrice / invoiceItemsGross)
+              : 0;
+            const itemNetRevenue = Math.max(
+              0,
+              itemGrossPrice - invoiceDiscountShare - returnStats.returnedAmount,
+            );
+            const itemActualCOGS = Math.max(
+              0,
+              itemOriginalCOGS - returnStats.returnedBaseQuantity * avgCost,
+            );
             const itemProfit = itemNetRevenue - itemActualCOGS;
 
             // Tính số lượng thực bán (đã trừ trả hàng)
-            const originalQty = Number(item.quantity) || 1;
-            const currentQtySold = itemGrossPrice > 0 ? (itemNetRevenue / itemGrossPrice) * originalQty : 0;
+            const originalBaseQty = Number(
+              item.base_quantity || item.quantity || 0,
+            );
+            const currentBaseQtySold = Math.max(
+              0,
+              originalBaseQty - returnStats.returnedBaseQuantity,
+            );
 
             // Track product profit
             const productId = item.product_id;
@@ -268,13 +405,14 @@ export class StoreProfitReportService {
               productProfitMap.set(productId, {
                 id: productId,
                 name: productName,
+                unitName: item.product?.unit?.name || item.unit_name,
                 quantity: 0,
                 revenue: 0,
                 profit: 0,
               });
             }
             const productData = productProfitMap.get(productId)!;
-            productData.quantity += currentQtySold; // Use currentQtySold for accurate quantity
+            productData.quantity += currentBaseQtySold;
             productData.revenue += itemNetRevenue; // Use itemNetRevenue for accurate revenue
             productData.profit += itemProfit; // Use itemProfit for accurate profit
           }
@@ -385,6 +523,7 @@ export class StoreProfitReportService {
           product_id: p.id,
           product_name: p.name,
           quantity_sold: p.quantity,
+          unit_name: p.unitName,
           total_revenue: p.revenue,
           total_profit: p.profit,
           margin: p.revenue > 0 ? Math.round((p.profit / p.revenue) * 10000) / 100 : 0,
@@ -642,7 +781,7 @@ export class StoreProfitReportService {
         } else if (invoice.items && invoice.items.length > 0) {
           // Fallback only if null/undefined
           for (const item of invoice.items) {
-            const avgCost = Number(item.product?.average_cost_price || 0);
+            const avgCost = this.getInvoiceItemCostPrice(item);
             invoiceCOGS += Number(item.base_quantity || item.quantity) * avgCost;
           }
         }
@@ -706,7 +845,7 @@ export class StoreProfitReportService {
         } else if (invoice.items && invoice.items.length > 0) {
           // Fallback only if null/undefined
           for (const item of invoice.items) {
-            const avgCost = Number(item.product?.average_cost_price || 0);
+            const avgCost = this.getInvoiceItemCostPrice(item);
             invoiceCOGS += Number(item.base_quantity || item.quantity) * avgCost;
           }
         }
@@ -1051,7 +1190,7 @@ export class StoreProfitReportService {
         } else if (invoice.items && invoice.items.length > 0) {
           // Fallback: Tính từ average_cost_price nếu cost_of_goods_sold = null
           for (const item of invoice.items) {
-            const avgCost = Number(item.product?.average_cost_price || 0);
+            const avgCost = this.getInvoiceItemCostPrice(item);
             invoiceCOGS += Number(item.base_quantity || item.quantity) * avgCost;
           }
           this.logger.log(`  ⚠️ Fallback tính lại: ${invoiceCOGS}`);
@@ -1226,39 +1365,21 @@ export class StoreProfitReportService {
         } as any,
       });
 
-      const approvedReturnRows = await this.salesInvoiceRepository.manager
-        .getRepository(SalesReturnItem)
-        .createQueryBuilder('item')
-        .innerJoin('item.sales_return', 'sales_return')
-        .select('sales_return.invoice_id', 'invoice_id')
-        .addSelect('item.product_id', 'product_id')
-        .addSelect('COALESCE(SUM(item.quantity), 0)', 'returned_quantity')
-        .addSelect(
-          'COALESCE(SUM(COALESCE(item.base_quantity, item.quantity)), 0)',
-          'returned_base_quantity',
-        )
-        .where('sales_return.status = :status', {
-          status: SalesReturnStatus.APPROVED,
-        })
-        .groupBy('sales_return.invoice_id')
-        .addGroupBy('item.product_id')
-        .getRawMany();
-
-      const approvedReturnsByInvoiceProduct = new Map<
-        string,
-        { returnedQuantity: number; returnedBaseQuantity: number }
-      >();
-      for (const row of approvedReturnRows) {
-        approvedReturnsByInvoiceProduct.set(
-          `${row.invoice_id}-${row.product_id}`,
-          {
-            returnedQuantity: Number(row.returned_quantity || 0),
-            returnedBaseQuantity: Number(row.returned_base_quantity || 0),
-          },
-        );
-      }
+      const approvedReturnStats = await this.getApprovedReturnStats(
+        invoices.map((invoice) => invoice.id),
+      );
 
       const invoiceDtoList: PeriodInvoiceDto[] = [];
+      const invoiceReportRows: Array<{
+        invoice: PeriodInvoiceDto;
+        totalRevenue: number;
+        revenueWithInvoice: number;
+        revenueNoInvoice: number;
+        taxableRevenue: number;
+        totalCOGS: number;
+        cogsWithInvoice: number;
+        cogsNoInvoice: number;
+      }> = [];
 
       // 2. Tính toán doanh thu và giá vốn (phân loại theo has_input_invoice)
       let totalRevenue = 0;
@@ -1271,21 +1392,15 @@ export class StoreProfitReportService {
       let cogsNoInvoice = 0;
 
       for (const invoice of invoices) {
-        const invoiceFinalAmount = Number(invoice.final_amount);
-        totalRevenue += invoiceFinalAmount;
-
-        // Ưu tiên dùng giá vốn thực tế từ hóa đơn (đã được xử lý trả hàng chính xác)
-        const invoiceActualCOGS = Number(invoice.cost_of_goods_sold || 0);
-        totalCOGS += invoiceActualCOGS;
-        
-        // Tính tổng giá vốn tạm tính (theo số lượng ban đầu) để làm trọng số phân bổ
-        const invoiceOriginalCOGSTotal = (invoice.items || []).reduce((sum, item) => {
-          const avgCost = Number(item.product?.average_cost_price || 0);
-          return sum + (Number(item.base_quantity || item.quantity) * avgCost);
-        }, 0);
-
         const invoiceItemsGross = (invoice.items || []).reduce((sum, item) => sum + Number(item.total_price), 0);
         const itemsDto: PeriodInvoiceItemDto[] = [];
+        let invoiceRevenue = 0;
+        let invoiceRevenueWithInvoice = 0;
+        let invoiceRevenueNoInvoice = 0;
+        let invoiceTaxableRevenue = 0;
+        let invoiceCOGS = 0;
+        let invoiceCOGSWithInvoice = 0;
+        let invoiceCOGSNoInvoice = 0;
 
         for (const item of invoice.items || []) {
           // Lọc theo ID sản phẩm nếu có yêu cầu
@@ -1294,33 +1409,35 @@ export class StoreProfitReportService {
           }
 
           const itemGrossPrice = Number(item.total_price);
-          const avgCost = Number(item.product?.average_cost_price || 0);
+          const avgCost = this.getInvoiceItemCostPrice(item);
           const itemOriginalCOGS = Number(item.base_quantity || item.quantity) * avgCost;
-          const returnStats =
-            approvedReturnsByInvoiceProduct.get(
-              `${invoice.id}-${item.product_id}`,
-            ) || {
-              returnedQuantity: 0,
-              returnedBaseQuantity: 0,
-            };
+          const returnStats = this.getReturnStatsForItem(
+            approvedReturnStats,
+            invoice.id,
+            item,
+          );
 
           // Phân bổ doanh thu thực tế (đã trừ trả hàng) cho item này
-          const itemNetRevenue = invoiceItemsGross > 0 
-            ? (itemGrossPrice / invoiceItemsGross) * invoiceFinalAmount 
+          const invoiceDiscountShare = invoiceItemsGross > 0
+            ? Number(invoice.discount_amount || 0) * (itemGrossPrice / invoiceItemsGross)
             : 0;
+          const itemNetRevenue = Math.max(
+            0,
+            itemGrossPrice - invoiceDiscountShare - returnStats.returnedAmount,
+          );
 
           // Phân bổ giá vốn thực tế (đã trừ trả hàng) cho item này
-          const itemActualCOGS = invoiceOriginalCOGSTotal > 0
-            ? (itemOriginalCOGS / invoiceOriginalCOGSTotal) * invoiceActualCOGS
-            : 0;
+          const itemActualCOGS = Math.max(
+            0,
+            itemOriginalCOGS -
+              returnStats.returnedBaseQuantity * this.getInvoiceItemCostPrice(item),
+          );
+
+          invoiceRevenue += itemNetRevenue;
+          invoiceCOGS += itemActualCOGS;
 
           const originalTaxableQty = Number(item.taxable_quantity || 0);
-          const originalQty = Number(item.quantity || 0);
           const originalBaseQty = Number(item.base_quantity || item.quantity || 0);
-          const currentQtySold = Math.max(
-            0,
-            originalQty - returnStats.returnedQuantity,
-          );
           const currentBaseQtySold = Math.max(
             0,
             originalBaseQty - returnStats.returnedBaseQuantity,
@@ -1359,23 +1476,23 @@ export class StoreProfitReportService {
           const itemTaxableTotalAmount = taxableQty * effectiveTaxPrice;
 
           if (taxableQty > 0) {
-            revenueWithInvoice += itemNetRevenue * taxableRatio;
-            cogsWithInvoice += itemActualCOGS * taxableRatio;
-            taxableRevenue += itemTaxableTotalAmount;
+            invoiceRevenueWithInvoice += itemNetRevenue * taxableRatio;
+            invoiceCOGSWithInvoice += itemActualCOGS * taxableRatio;
+            invoiceTaxableRevenue += itemTaxableTotalAmount;
           }
           
-          if (currentQtySold > taxableQty) {
+          if (currentBaseQtySold > taxableQty) {
             const nonTaxableRatio = Math.max(0, 1 - taxableRatio);
-            revenueNoInvoice += itemNetRevenue * nonTaxableRatio;
-            cogsNoInvoice += itemActualCOGS * nonTaxableRatio;
+            invoiceRevenueNoInvoice += itemNetRevenue * nonTaxableRatio;
+            invoiceCOGSNoInvoice += itemActualCOGS * nonTaxableRatio;
           }
 
           // Thêm vào danh sách item của DTO
           itemsDto.push({
             product_trade_name: item.product_name || item.product?.trade_name || 'Không xác định',
             product_name: item.product?.name || item.product_name || 'Không xác định',
-            quantity: currentQtySold,
-            unit_name: item.unit_name || 'Đơn vị',
+            quantity: currentBaseQtySold,
+            unit_name: item.product?.unit?.name || item.unit_name || 'Đơn vị',
             unit_price: Number(item.unit_price),
             total_price: itemNetRevenue,
             has_input_invoice: taxableQty > 0,
@@ -1387,13 +1504,24 @@ export class StoreProfitReportService {
 
         // Thêm vào danh sách hóa đơn của DTO nếu có ít nhất 1 item thỏa mãn
         if (itemsDto.length > 0) {
-          invoiceDtoList.push({
+          const invoiceDto = {
             invoice_id: invoice.id,
             invoice_code: invoice.code,
             customer_name: invoice.customer_name,
             sale_date: invoice.sale_date || invoice.created_at,
-            total_amount: invoiceFinalAmount,
+            total_amount: invoiceRevenue,
             items: itemsDto,
+          };
+          invoiceDtoList.push(invoiceDto);
+          invoiceReportRows.push({
+            invoice: invoiceDto,
+            totalRevenue: invoiceRevenue,
+            revenueWithInvoice: invoiceRevenueWithInvoice,
+            revenueNoInvoice: invoiceRevenueNoInvoice,
+            taxableRevenue: invoiceTaxableRevenue,
+            totalCOGS: invoiceCOGS,
+            cogsWithInvoice: invoiceCOGSWithInvoice,
+            cogsNoInvoice: invoiceCOGSNoInvoice,
           });
         }
       }
@@ -1426,21 +1554,48 @@ export class StoreProfitReportService {
       const deliveryStats = await this.getSeasonDeliveryStats(startDate, endDate);
       const totalDeliveryCosts = deliveryStats?.total_delivery_cost || 0;
 
-      // 6. Tính toán lợi nhuận
-      const grossProfit = totalRevenue - totalCOGS;
-      const netProfit = grossProfit - totalOperatingCosts - totalStoreServiceCosts - totalDeliveryCosts;
-
-      // 7. Lọc danh sách hóa đơn theo yêu cầu (nếu Filter không phải 'all')
-      let filteredInvoices = invoiceDtoList;
+      // 6. Lọc danh sách hóa đơn theo yêu cầu (nếu Filter không phải 'all')
+      let filteredRows = invoiceReportRows;
       if (taxableFilter === 'yes') {
-        filteredInvoices = invoiceDtoList.filter(inv => 
-          inv.items.some(item => Number(item.taxable_quantity) > 0)
+        filteredRows = invoiceReportRows.filter(row =>
+          row.invoice.items.some(item => Number(item.taxable_quantity) > 0)
         );
       } else if (taxableFilter === 'no') {
-        filteredInvoices = invoiceDtoList.filter(inv => 
-          inv.items.every(item => Number(item.taxable_quantity) === 0)
+        filteredRows = invoiceReportRows.filter(row =>
+          row.invoice.items.every(item => Number(item.taxable_quantity) === 0)
         );
       }
+      const filteredInvoices = filteredRows.map(row => row.invoice);
+      const allRowsRevenue = invoiceReportRows.reduce(
+        (sum, row) => sum + row.totalRevenue,
+        0,
+      );
+
+      totalRevenue = filteredRows.reduce((sum, row) => sum + row.totalRevenue, 0);
+      revenueWithInvoice = filteredRows.reduce((sum, row) => sum + row.revenueWithInvoice, 0);
+      revenueNoInvoice = filteredRows.reduce((sum, row) => sum + row.revenueNoInvoice, 0);
+      taxableRevenue = filteredRows.reduce((sum, row) => sum + row.taxableRevenue, 0);
+      totalCOGS = filteredRows.reduce((sum, row) => sum + row.totalCOGS, 0);
+      cogsWithInvoice = filteredRows.reduce((sum, row) => sum + row.cogsWithInvoice, 0);
+      cogsNoInvoice = filteredRows.reduce((sum, row) => sum + row.cogsNoInvoice, 0);
+
+      // 7. Tính toán lợi nhuận theo đúng tập hóa đơn sau lọc
+      const grossProfit = totalRevenue - totalCOGS;
+      const sharedCostAllocationRatio =
+        taxableFilter === 'all' || allRowsRevenue <= 0
+          ? 1
+          : totalRevenue / allRowsRevenue;
+      const allocatedOperatingCosts =
+        totalOperatingCosts * sharedCostAllocationRatio;
+      const allocatedStoreServiceCosts =
+        totalStoreServiceCosts * sharedCostAllocationRatio;
+      const allocatedDeliveryCosts =
+        totalDeliveryCosts * sharedCostAllocationRatio;
+      const netProfit =
+        grossProfit -
+        allocatedOperatingCosts -
+        allocatedStoreServiceCosts -
+        allocatedDeliveryCosts;
 
       const summary: PeriodSummaryDto = {
         total_revenue: Math.round(totalRevenue),
@@ -1451,10 +1606,10 @@ export class StoreProfitReportService {
         cogs_with_invoice: Math.round(cogsWithInvoice),
         cogs_no_invoice: Math.round(cogsNoInvoice),
         gross_profit: Math.round(grossProfit),
-        total_operating_costs: Math.round(totalOperatingCosts),
-        total_gift_costs: Math.round(totalStoreServiceCosts + totalDeliveryCosts), // Gộp phí giao hàng vào chi phí dịch vụ/quà tặng
+        total_operating_costs: Math.round(allocatedOperatingCosts),
+        total_gift_costs: Math.round(allocatedStoreServiceCosts + allocatedDeliveryCosts), // Gộp phí giao hàng vào chi phí dịch vụ/quà tặng
         net_profit: Math.round(netProfit),
-        invoice_count: invoices.length,
+        invoice_count: filteredInvoices.length,
       };
 
       return {

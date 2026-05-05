@@ -42,17 +42,16 @@ const typeOrmConfig: TypeOrmModuleOptions = {
         password: process.env.DB_PASSWORD || 'postgres', // Mật khẩu để kết nối database
         database: process.env.DB_NAME || 'gn_argi', // Tên database
       }),
-  ssl: !!databaseUrl, // Bật SSL nếu dùng connection string (thường là cloud DB như Supabase)
+  ssl: !!databaseUrl, // Bật SSL nếu dùng connection string cloud (Neon/Postgres managed)
   extra: databaseUrl
     ? {
         ssl: {
           rejectUnauthorized: false, // Chấp nhận self-signed cert (cần thiết cho một số cloud provider)
         },
-        // ===== SUPABASE FREE TIER OPTIMIZATION =====
-        // Supabase Free có giới hạn ~60 connections đồng thời
-        // Giảm pool size để tránh vượt quá giới hạn
-        max: 3,                      // Tối đa 3 connections (giảm từ 5)
-        min: 1,                      // Tối thiểu 1 connection
+        // ===== CLOUD POSTGRES / POOLER SETTINGS =====
+        // Giu pool nho de an toan voi serverless pooler nhu Neon
+        max: 3,
+        min: 1,
         
         // Timeout settings - Tăng lên để tránh ETIMEDOUT
         connectionTimeoutMillis: 20000,  // 20 giây (tăng từ 30s để nhanh hơn)
@@ -62,39 +61,34 @@ const typeOrmConfig: TypeOrmModuleOptions = {
         // Idle connection management
         idleTimeoutMillis: 30000,        // Đóng connection sau 30s không dùng
         
-        // Keep alive để maintain connection với Supabase
+        // Keep alive để maintain connection với DB pooler
         keepAlive: true,
         keepAliveInitialDelayMillis: 10000, // 10 giây
         
-        // Application name để debug trên Supabase Dashboard
+        // Application name để debug trên dashboard provider
         application_name: 'xanh-ag-server',
         
         // ===== TRANSACTION POOLER (PGBOUNCER) OPTIMIZATION =====
         // Nếu dùng port 6543 (Transaction Pooler), cần tắt prepared statements
         // PgBouncer không hỗ trợ prepared statements trong transaction mode
-        // Xem: https://supabase.com/docs/guides/database/connecting-to-postgres#connection-pooler
         prepareStatements: false,  // TẮT prepared statements cho pgbouncer
       }
     : undefined,
   entities: [path.join(__dirname, '../entities/*.entity{.ts,.js}')], // Đường dẫn đến các entity
   // migrations: [path.join(__dirname, '../database/migrations/*{.ts,.js}')], // ĐÃ XÓA MIGRATIONS
   
-  // Tự động đồng bộ schema từ entities
-  // TypeORM sẽ tự tạo/update tables dựa trên entities khi khởi động
-  // ⚠️ CHÚ Ý: Chỉ dùng synchronize: true trong development, KHÔNG dùng trong production
-  synchronize: true, // TỰ ĐỘNG TẠO BẢNG TỪ ENTITIES
+  // Chỉ tự đồng bộ schema trong development. Production phải dùng migration để có backfill/constraint đúng.
+  synchronize: !isProduction,
   
   // Logging
   logging: isProduction ? ['error', 'warn'] : true,
   
-  // ===== CONNECTION POOL SETTINGS (OPTIMIZED FOR SUPABASE) =====
-  // Supabase Free tier giới hạn ~60 connections
-  // Giảm pool size để tránh connection timeout
+  // ===== CONNECTION POOL SETTINGS =====
+  // Giu pool size vua phai de tranh timeout tren managed Postgres/pooler
   poolSize: isProduction ? 5 : 3,  // Dev: 3, Prod: 5 (giảm từ 10)
   
-  // ===== RETRY CONNECTION (IMPORTANT FOR SUPABASE) =====
-  // Supabase có thể pause database sau 1 tuần không hoạt động
-  // Retry nhiều lần để "đánh thức" database
+  // ===== RETRY CONNECTION =====
+  // Managed Postgres/pooler co the cold-start/cham nhat thoi
   retryAttempts: isProduction ? 5 : 3,  // Retry 3-5 lần
   retryDelay: 3000,                     // Chờ 3 giây giữa các lần retry
   

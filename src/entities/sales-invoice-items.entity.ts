@@ -10,6 +10,12 @@ import {
 } from 'typeorm';
 import { SalesInvoice } from './sales-invoices.entity';
 import { Product } from './products.entity';
+import { ProductCostingMethod } from './products.entity';
+
+export enum SalesInvoiceItemPriceType {
+  CASH = 'cash',
+  CREDIT = 'credit',
+}
 
 /**
  * Entity biểu diễn thông tin chi tiết hóa đơn bán hàng
@@ -52,6 +58,34 @@ export class SalesInvoiceItem {
   /** Tổng giá tiền của sản phẩm */
   @Column({ name: 'total_price' })
   total_price!: number;
+
+  /** Loại giá bán tại thời điểm bán */
+  @Column({
+    name: 'price_type',
+    type: 'varchar',
+    length: 20,
+    nullable: true,
+  })
+  price_type?: SalesInvoiceItemPriceType;
+
+  /** Giá vốn đã chốt tại thời điểm bán, tính theo đơn vị cơ sở */
+  @Column({
+    name: 'cost_price',
+    type: 'decimal',
+    precision: 15,
+    scale: 2,
+    nullable: true,
+  })
+  cost_price?: number;
+
+  /** Cách tính giá vốn snapshot tại thời điểm bán */
+  @Column({
+    name: 'costing_method_snapshot',
+    type: 'varchar',
+    length: 50,
+    nullable: true,
+  })
+  costing_method_snapshot?: ProductCostingMethod;
 
   /** Ghi chú về chi tiết hóa đơn */
   @Column({ name: 'notes', nullable: true })

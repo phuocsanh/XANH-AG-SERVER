@@ -9,6 +9,7 @@ import {
 import { Payment } from './payment.entity';
 import { SalesInvoice } from './sales-invoices.entity';
 import { DebtNote } from './debt-note.entity';
+import { SalesReturn } from './sales-return.entity';
 
 /**
  * Entity phân bổ thanh toán
@@ -55,6 +56,15 @@ export class PaymentAllocation {
   @ManyToOne(() => DebtNote)
   @JoinColumn({ name: 'debt_note_id' })
   debt_note?: DebtNote;
+
+  /** ID phiếu trả hàng liên quan đến phân bổ hoàn tiền/hoàn tác */
+  @Column({ name: 'sales_return_id', nullable: true })
+  sales_return_id?: number;
+
+  /** Thông tin phiếu trả hàng */
+  @ManyToOne(() => SalesReturn, { nullable: true })
+  @JoinColumn({ name: 'sales_return_id' })
+  sales_return?: SalesReturn;
 
   /** Số tiền phân bổ */
   @Column({ name: 'amount', type: 'decimal', precision: 15, scale: 2 })

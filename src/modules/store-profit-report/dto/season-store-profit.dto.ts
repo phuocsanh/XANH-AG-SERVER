@@ -70,6 +70,9 @@ export class TopProductProfitDto {
   @ApiProperty({ description: 'Số lượng bán', example: 500 })
   quantity_sold!: number;
 
+  @ApiProperty({ description: 'Đơn vị tính cơ sở', example: 'Kg', required: false })
+  unit_name?: string | undefined;
+
   @ApiProperty({ description: 'Tổng doanh thu', example: 75000000 })
   total_revenue!: number;
 

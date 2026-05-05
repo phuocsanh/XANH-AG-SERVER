@@ -6,8 +6,11 @@ import {
   SalesInvoiceStatus,
   SalesPaymentStatus,
 } from '../../entities/sales-invoices.entity';
-import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
-import { Product } from '../../entities/products.entity';
+import {
+  SalesInvoiceItem,
+  SalesInvoiceItemPriceType,
+} from '../../entities/sales-invoice-items.entity';
+import { Product, ProductCostingMethod } from '../../entities/products.entity';
 import { DeliveryLog } from '../../entities/delivery-log.entity';
 import { DeliveryLogItem } from '../../entities/delivery-log-item.entity';
 import { CreateSalesInvoiceDto } from './dto/create-sales-invoice.dto';
@@ -27,6 +30,9 @@ import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper'
 import { InventoryService } from '../inventory/inventory.service';
 import { InventoryTransaction } from '../../entities/inventory-transactions.entity';
 import { PromotionCampaignService } from '../promotion-campaign/promotion-campaign.service';
+import { InventoryBatch } from '../../entities/inventories.entity';
+import { InventoryReceiptItem } from '../../entities/inventory-receipt-items.entity';
+import { SalesInvoiceItemStockAllocation } from '../../entities/sales-invoice-item-stock-allocations.entity';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến quản lý bán hàng
@@ -62,6 +68,274 @@ export class SalesService {
     private promotionCampaignService: PromotionCampaignService,
   ) {}
 
+  private parseMoney(value: unknown): number {
+    if (value === null || value === undefined || value === '') {
+      return Number.NaN;
+    }
+
+    if (typeof value === 'number') {
+      return value;
+    }
+
+    const normalized = String(value).replace(/[^0-9.-]/g, '');
+    return Number(normalized);
+  }
+
+  private roundMoney(value: number): number {
+    return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+  }
+
+  private isPostedInvoiceStatus(status: SalesInvoiceStatus): boolean {
+    return (
+      status === SalesInvoiceStatus.CONFIRMED ||
+      status === SalesInvoiceStatus.PAID
+    );
+  }
+
+  private calculateInvoiceSubtotal(items: CreateSalesInvoiceDto['items']): number {
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new BadRequestException('Hóa đơn phải có ít nhất 1 sản phẩm');
+    }
+
+    return this.roundMoney(
+      items.reduce((sum, item, index) => {
+        const quantity = Number(item.quantity);
+        const unitPrice = Number(item.unit_price);
+        const discountAmount = Number(item.discount_amount || 0);
+
+        if (!Number.isFinite(quantity) || quantity <= 0) {
+          throw new BadRequestException(`Số lượng dòng ${index + 1} phải lớn hơn 0`);
+        }
+
+        if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+          throw new BadRequestException(`Đơn giá dòng ${index + 1} không hợp lệ`);
+        }
+
+        if (!Number.isFinite(discountAmount) || discountAmount < 0) {
+          throw new BadRequestException(`Giảm giá dòng ${index + 1} không hợp lệ`);
+        }
+
+        const lineTotal = this.roundMoney(quantity * unitPrice - discountAmount);
+        if (lineTotal < 0) {
+          throw new BadRequestException(
+            `Giảm giá dòng ${index + 1} không được lớn hơn thành tiền của dòng`,
+          );
+        }
+
+        return sum + lineTotal;
+      }, 0),
+    );
+  }
+
+  private assertInvoiceAmountMatches(
+    label: string,
+    submittedValue: unknown,
+    computedValue: number,
+  ): void {
+    if (submittedValue === undefined || submittedValue === null || submittedValue === '') {
+      return;
+    }
+
+    const submittedNumber = this.roundMoney(Number(submittedValue));
+    if (!Number.isFinite(submittedNumber)) {
+      throw new BadRequestException(`${label} không hợp lệ`);
+    }
+
+    if (Math.abs(submittedNumber - computedValue) > 1) {
+      throw new BadRequestException(
+        `${label} không khớp với chi tiết sản phẩm. FE gửi ${submittedNumber.toLocaleString()}đ, backend tính ${computedValue.toLocaleString()}đ`,
+      );
+    }
+  }
+
+  private async createRefundPaymentForInvoice(
+    manager: any,
+    invoice: SalesInvoice,
+    amount: number,
+    userId: number | undefined,
+    notes: string,
+  ): Promise<void> {
+    const refundAmount = this.roundMoney(Number(amount || 0));
+    if (refundAmount <= 0) {
+      return;
+    }
+
+    const refundCode = CodeGeneratorHelper.generateUniqueCode('PAY-REF');
+    const refundPayment = manager.create(Payment, {
+      code: refundCode,
+      customer_id: invoice.customer_id || null,
+      amount: -refundAmount,
+      allocated_amount: -refundAmount,
+      payment_date: new Date(),
+      payment_method: 'REFUND',
+      notes,
+      created_by: userId || (invoice.created_by as any),
+    });
+    const savedPayment = await manager.save(refundPayment);
+
+    await manager.save(PaymentAllocation, {
+      payment_id: savedPayment.id,
+      invoice_id: invoice.id,
+      allocation_type: 'invoice',
+      amount: -refundAmount,
+    });
+  }
+
+  private async postInvoiceFinancialEntries(
+    manager: any,
+    invoice: SalesInvoice,
+    userId: number,
+  ): Promise<void> {
+    if (!invoice.customer_id || !invoice.season_id) {
+      return;
+    }
+
+    const debtNote = await this.debtNoteService.findOrCreateForSeason(
+      invoice.customer_id,
+      invoice.season_id,
+      invoice.created_by,
+      manager,
+    );
+
+    if ((debtNote.source_invoices || []).includes(invoice.id)) {
+      this.logger.log(
+        `ℹ️ Hóa đơn #${invoice.code} đã được post vào công nợ, bỏ qua post lại.`,
+      );
+      return;
+    }
+
+    await this.debtNoteService.addInvoiceToDebtNote(
+      debtNote.id,
+      invoice.id,
+      invoice.final_amount,
+      invoice.partial_payment_amount,
+      manager,
+    );
+
+    const partialPayment = this.roundMoney(
+      Number(invoice.partial_payment_amount || 0),
+    );
+
+    if (partialPayment > 0) {
+      const paymentCode = CodeGeneratorHelper.generateUniqueCode('PAY');
+      const payment = manager.create(Payment, {
+        code: paymentCode,
+        customer_id: invoice.customer_id || null,
+        amount: partialPayment,
+        allocated_amount: partialPayment,
+        payment_date: new Date(),
+        payment_method: invoice.payment_method || 'cash',
+        notes: `Thanh toán khi xác nhận hóa đơn #${invoice.code}`,
+        created_by: userId,
+        debt_note_code: debtNote?.code || null,
+      });
+      const savedPayment = await manager.save(payment);
+
+      const allocation = manager.create(PaymentAllocation, {
+        payment_id: savedPayment.id,
+        invoice_id: invoice.id,
+        ...(debtNote?.id && { debt_note_id: debtNote.id }),
+        allocation_type: 'invoice',
+        amount: partialPayment,
+      });
+      await manager.save(allocation);
+
+      this.logger.log(
+        `✅ Đã tạo phiếu thu #${paymentCode} và phân bổ ${partialPayment.toLocaleString()} đ cho hóa đơn #${invoice.code}`,
+      );
+    }
+
+    const giftValue = Number(invoice.gift_value || 0);
+    if (invoice.gift_description || giftValue > 0 || partialPayment > 0) {
+      const updatedDebtNote = await manager.findOne(DebtNote, {
+        where: {
+          customer_id: invoice.customer_id as number,
+          season_id: invoice.season_id as number,
+        },
+        relations: ['customer', 'season'],
+      });
+
+      if (updatedDebtNote) {
+        await this.customerRewardService.handleDebtNoteSettlement(
+          manager,
+          updatedDebtNote,
+          {
+            payment_amount: partialPayment,
+            gift_description: invoice.gift_description,
+            gift_value: giftValue,
+            gift_status: 'delivered',
+            rice_crop_id: invoice.rice_crop_id,
+            notes: invoice.notes
+              ? invoice.notes
+              : invoice.gift_description
+                ? `Tặng quà kèm hóa đơn #${invoice.code}`
+                : `Tích lũy từ thanh toán hóa đơn #${invoice.code}`,
+          },
+          userId,
+          false,
+        );
+      }
+    }
+
+    this.logger.log(
+      `✅ Đã post công nợ/thanh toán/tích lũy cho hóa đơn #${invoice.code}`,
+    );
+  }
+
+  private normalizePriceType(
+    priceType?: string,
+    paymentMethod?: string,
+  ): SalesInvoiceItemPriceType {
+    if (priceType === SalesInvoiceItemPriceType.CREDIT) {
+      return SalesInvoiceItemPriceType.CREDIT;
+    }
+
+    if (priceType === SalesInvoiceItemPriceType.CASH) {
+      return SalesInvoiceItemPriceType.CASH;
+    }
+
+    return paymentMethod === 'debt'
+      ? SalesInvoiceItemPriceType.CREDIT
+      : SalesInvoiceItemPriceType.CASH;
+  }
+
+  private resolveProductCostPrice(
+    product: Product,
+    priceType: SalesInvoiceItemPriceType,
+  ): number {
+    const costingMethod =
+      product.costing_method || ProductCostingMethod.FIXED;
+
+    if (costingMethod === ProductCostingMethod.BY_PRICE_TYPE) {
+      const sourceCost =
+        priceType === SalesInvoiceItemPriceType.CREDIT
+          ? product.credit_cost_price
+          : product.cash_cost_price;
+      const cost = this.parseMoney(sourceCost);
+
+      if (!Number.isFinite(cost) || cost <= 0) {
+        const priceTypeName =
+          priceType === SalesInvoiceItemPriceType.CREDIT
+            ? 'bán nợ'
+            : 'tiền mặt';
+        throw new BadRequestException(
+          `Sản phẩm "${product.trade_name || product.name}" chưa cấu hình giá vốn ${priceTypeName}`,
+        );
+      }
+
+      return cost;
+    }
+
+    const cost = this.parseMoney(product.average_cost_price);
+    if (!Number.isFinite(cost) || cost <= 0) {
+      throw new BadRequestException(
+        `Sản phẩm "${product.trade_name || product.name}" chưa có giá vốn`,
+      );
+    }
+
+    return cost;
+  }
+
   /**
    * Tạo hóa đơn bán hàng mới
    * @param createSalesInvoiceDto - Dữ liệu tạo hóa đơn bán hàng mới
@@ -79,11 +353,73 @@ export class SalesService {
     await queryRunner.startTransaction();
 
     try {
-      // ✅ Tính toán số tiền còn nợ
-      // Sử dụng giá trị partial_payment_amount từ form (người dùng nhập)
-      const partialPayment = Number(createSalesInvoiceDto.partial_payment_amount || 0);
-      const finalAmount = Number(createSalesInvoiceDto.final_amount);
-      const remainingAmount = finalAmount - partialPayment;
+      const computedTotalAmount = this.calculateInvoiceSubtotal(
+        createSalesInvoiceDto.items,
+      );
+      const invoiceDiscountAmount = this.roundMoney(
+        Number(createSalesInvoiceDto.discount_amount || 0),
+      );
+
+      if (!Number.isFinite(invoiceDiscountAmount) || invoiceDiscountAmount < 0) {
+        throw new BadRequestException('Giảm giá hóa đơn không hợp lệ');
+      }
+
+      if (invoiceDiscountAmount > computedTotalAmount) {
+        throw new BadRequestException(
+          'Giảm giá hóa đơn không được lớn hơn tổng tiền sản phẩm',
+        );
+      }
+
+      const computedFinalAmount = this.roundMoney(
+        computedTotalAmount - invoiceDiscountAmount,
+      );
+      this.assertInvoiceAmountMatches(
+        'Tổng tiền hóa đơn',
+        createSalesInvoiceDto.total_amount,
+        computedTotalAmount,
+      );
+      this.assertInvoiceAmountMatches(
+        'Thành tiền sau giảm giá',
+        createSalesInvoiceDto.final_amount,
+        computedFinalAmount,
+      );
+
+      const partialPayment = this.roundMoney(
+        Number(createSalesInvoiceDto.partial_payment_amount || 0),
+      );
+
+      if (!Number.isFinite(partialPayment) || partialPayment < 0) {
+        throw new BadRequestException('Số tiền đã thanh toán không hợp lệ');
+      }
+
+      if (partialPayment - computedFinalAmount > 1) {
+        throw new BadRequestException(
+          'Số tiền đã thanh toán không được lớn hơn thành tiền hóa đơn',
+        );
+      }
+
+      const finalAmount = computedFinalAmount;
+      const remainingAmount = this.roundMoney(finalAmount - partialPayment);
+      const initialStatus =
+        createSalesInvoiceDto.status || SalesInvoiceStatus.DRAFT;
+
+      if (
+        ![
+          SalesInvoiceStatus.DRAFT,
+          SalesInvoiceStatus.CONFIRMED,
+          SalesInvoiceStatus.PAID,
+        ].includes(initialStatus)
+      ) {
+        throw new BadRequestException(
+          'Trạng thái hóa đơn không hợp lệ khi tạo mới. Chỉ cho phép draft, confirmed hoặc paid.',
+        );
+      }
+
+      if (initialStatus === SalesInvoiceStatus.PAID && remainingAmount > 1) {
+        throw new BadRequestException(
+          'Không thể tạo hóa đơn đã thanh toán khi vẫn còn số tiền nợ',
+        );
+      }
 
       // Tự động sinh mã hóa đơn nếu không có
       const invoiceCode = createSalesInvoiceDto.invoice_code || CodeGeneratorHelper.generateUniqueCode('HD');
@@ -96,19 +432,21 @@ export class SalesService {
         customer_phone: createSalesInvoiceDto.customer_phone,
         customer_email: createSalesInvoiceDto.customer_email,
         customer_address: createSalesInvoiceDto.customer_address,
-        total_amount: createSalesInvoiceDto.total_amount,
-        discount_amount: createSalesInvoiceDto.discount_amount || 0,
-        final_amount: createSalesInvoiceDto.final_amount,
+        total_amount: computedTotalAmount,
+        discount_amount: invoiceDiscountAmount,
+        final_amount: finalAmount,
         payment_method: createSalesInvoiceDto.payment_method,
         notes: createSalesInvoiceDto.notes,
         warning: createSalesInvoiceDto.warning,
         created_by: userId, // Lấy từ JWT token
-        status: createSalesInvoiceDto.status || SalesInvoiceStatus.DRAFT, // Trạng thái từ DTO hoặc mặc định là DRAFT
+        status: initialStatus, // Trạng thái từ DTO hoặc mặc định là DRAFT
         partial_payment_amount: partialPayment,
         remaining_amount: remainingAmount,
         payment_status: remainingAmount <= 0 ? SalesPaymentStatus.PAID : (partialPayment > 0 ? SalesPaymentStatus.PARTIAL : SalesPaymentStatus.PENDING),
         rice_crop_id: createSalesInvoiceDto.rice_crop_id,
         season_id: createSalesInvoiceDto.season_id,
+        gift_description: createSalesInvoiceDto.gift_description,
+        gift_value: createSalesInvoiceDto.gift_value || 0,
         sale_date: createSalesInvoiceDto.sale_date ? new Date(createSalesInvoiceDto.sale_date) : new Date(),
       };
       
@@ -125,8 +463,9 @@ export class SalesService {
         items = await Promise.all(
           createSalesInvoiceDto.items.map(async (item) => {
           // Tính tổng giá tiền = (giá đơn vị * số lượng) - số tiền giảm giá
-          const totalPrice =
-            item.unit_price * item.quantity - (item.discount_amount || 0);
+          const totalPrice = this.roundMoney(
+            item.unit_price * item.quantity - (item.discount_amount || 0),
+          );
 
             // Lấy tên sản phẩm, đơn vị tính và giá khai thuế từ DB nếu không có trong DTO
             let productName = item.product_name;
@@ -140,6 +479,20 @@ export class SalesService {
               relations: ['unit', 'unit_conversions'],
             });
             
+            if (!product) {
+              throw new BadRequestException(
+                `Sản phẩm ID ${item.product_id} không tồn tại`,
+              );
+            }
+
+            const priceType = this.normalizePriceType(
+              item.price_type,
+              createSalesInvoiceDto.payment_method,
+            );
+            const costPrice = this.resolveProductCostPrice(product, priceType);
+            const costingMethodSnapshot =
+              product.costing_method || ProductCostingMethod.FIXED;
+
             if (!productName) {
               productName = product?.trade_name || product?.name;
             }
@@ -212,6 +565,9 @@ export class SalesService {
               ...item,
               invoice_id: savedInvoice.id,
               total_price: totalPrice,
+              price_type: priceType,
+              cost_price: costPrice,
+              costing_method_snapshot: costingMethodSnapshot,
               conversion_factor: dbConversionFactor,
               base_quantity: baseQty,
               other_unit_name: otherUnitName,
@@ -226,111 +582,35 @@ export class SalesService {
         await queryRunner.manager.save(items);
         savedInvoice.items = items;
 
-        // 🆕 Tự động tính lợi nhuận ngay trong transaction
-        try {
-          let totalCOGS = 0;
-          for (const item of items) {
-             const product = await queryRunner.manager.findOne(Product, {
-               where: { id: item.product_id },
-               relations: ['unit_conversions'],
-             });
-             
-             if (product) {
-               const avgCost = Number(product.average_cost_price || 0);
-               
-               // Tìm hệ số quy đổi chuẩn từ DB cho đơn vị đang bán
-               let dbFactor = 1;
-               if (product.unit_conversions && product.unit_conversions.length > 0) {
-                 const currentUnitId = item.sale_unit_id;
-                 const conversion = product.unit_conversions.find(c => c.unit_id === currentUnitId);
-                 if (conversion) {
-                   dbFactor = Number(conversion.conversion_factor || 1);
-                 }
-               }
+        const totalCOGS = this.roundMoney(
+          items.reduce((sum, item) => {
+            const baseQty = Number(item.base_quantity || item.quantity || 0);
+            const costPrice = Number(item.cost_price || 0);
+            return sum + baseQty * costPrice;
+          }, 0),
+        );
 
-               // Tính lượng quy đổi chuẩn (base_quantity) dựa trên hệ số trong DB
-               const correctedBaseQty = item.quantity * dbFactor;
-               
-               // Log cảnh báo nếu có sự sai lệch lớn so với dữ liệu FE gửi lên
-               if (Math.abs(correctedBaseQty - (item.base_quantity || 0)) > 0.01) {
-                 this.logger.warn(`🛡️ Hệ thống tự sửa lệch base_qty: SP \${product.name} (HĐ: \${savedInvoice.code}). FE gửi \${item.base_quantity}, DB tính lại \${correctedBaseQty}`);
-               }
+        const grossProfit = this.roundMoney(Number(savedInvoice.final_amount) - totalCOGS);
+        const margin = savedInvoice.final_amount > 0
+          ? Math.round((grossProfit / savedInvoice.final_amount) * 10000) / 100
+          : 0;
 
-               totalCOGS += correctedBaseQty * avgCost;
-             }
-          }
+        savedInvoice.cost_of_goods_sold = totalCOGS;
+        savedInvoice.gross_profit = grossProfit;
+        savedInvoice.gross_profit_margin = margin;
 
-          const grossProfit = Number(savedInvoice.final_amount) - totalCOGS;
-          const margin = savedInvoice.final_amount > 0 
-            ? Math.round((grossProfit / savedInvoice.final_amount) * 10000) / 100
-            : 0;
+        await queryRunner.manager.save(savedInvoice);
 
-          savedInvoice.cost_of_goods_sold = totalCOGS;
-          savedInvoice.gross_profit = grossProfit;
-          savedInvoice.gross_profit_margin = margin;
-          
-          await queryRunner.manager.save(savedInvoice);
-          
-          this.logger.log(`✅ Đã tính lợi nhuận cho đơn #${savedInvoice.id}: ${grossProfit.toLocaleString()} đ (${margin}%)`);
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          this.logger.warn(`⚠️  Không thể tính lợi nhuận cho đơn #${savedInvoice.id}:`, errorMessage);
-          // Không throw error để không làm gián đoạn luồng tạo đơn (nhưng vẫn nằm trong transaction)
-        }
+        this.logger.log(`✅ Đã tính lợi nhuận cho đơn #${savedInvoice.id}: ${grossProfit.toLocaleString()} đ (${margin}%)`);
       }
 
-      // 🆕 Tự động tạo/cập nhật phiếu công nợ (Bao gồm cả hóa đơn đã trả tiền mặt để tích lũy doanh số mùa vụ)
-      if (savedInvoice.customer_id && savedInvoice.season_id) {
+      // Chỉ ghi công nợ/thanh toán/tích lũy khi hóa đơn đã được post.
+      if (this.isPostedInvoiceStatus(savedInvoice.status)) {
         try {
-          // Tìm hoặc tạo phiếu công nợ cho mùa vụ (PASS MANAGER)
-          const debtNote = await this.debtNoteService.findOrCreateForSeason(
-            savedInvoice.customer_id,
-            savedInvoice.season_id,
-            savedInvoice.created_by,
-            queryRunner.manager, // Pass transaction manager
-          );
-
-          // Thêm hóa đơn vào phiếu công nợ (PASS MANAGER)
-          // Ghi nhận cả tổng giá trị đơn và số tiền đã thanh toán (kể cả trả 100% tiền mặt)
-          await this.debtNoteService.addInvoiceToDebtNote(
-            debtNote.id,
-            savedInvoice.id,
-            savedInvoice.final_amount,
-            savedInvoice.partial_payment_amount,
-            queryRunner.manager, // Pass transaction manager
-          );
-
-          // 🆕 TRUY VẾT THANH TOÁN: Nếu có thanh toán ngay, tạo Payment và PaymentAllocation
-          if (partialPayment > 0) {
-            const paymentCode = CodeGeneratorHelper.generateUniqueCode('PAY');
-            const paymentData: any = {
-              code: paymentCode,
-              customer_id: savedInvoice.customer_id || null, // Chuyển undefined sang null để khớp type
-              amount: partialPayment,
-              allocated_amount: partialPayment, // 🔥 Tích hợp phân bổ ngay để thống kê chính xác
-              payment_date: new Date(),
-              payment_method: savedInvoice.payment_method || 'cash',
-              notes: `Thanh toán khi tạo hóa đơn #${savedInvoice.code}`,
-              created_by: userId,
-              debt_note_code: debtNote?.code || null, // Chuyển undefined sang null để khớp type
-            };
-            const payment = queryRunner.manager.create(Payment, paymentData);
-            const savedPayment = await queryRunner.manager.save(payment);
-
-            const allocation = queryRunner.manager.create(PaymentAllocation, {
-              payment_id: savedPayment.id,
-              invoice_id: savedInvoice.id,
-              ...(debtNote?.id && { debt_note_id: debtNote.id }), // Chỉ truyền nếu có ID
-              allocation_type: 'invoice',
-              amount: partialPayment,
-            });
-            await queryRunner.manager.save(allocation);
-            
-            this.logger.log(`✅ Đã tạo phiếu thu #${paymentCode} và phân bổ ${partialPayment.toLocaleString()} đ cho thanh toán ban đầu của hóa đơn #${savedInvoice.code}`);
-          }
-
-          this.logger.log(
-            `✅ Đã cập nhật phiếu công nợ #${debtNote.code} cho hóa đơn #${savedInvoice.code}`,
+          await this.postInvoiceFinancialEntries(
+            queryRunner.manager,
+            savedInvoice,
+            userId,
           );
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -364,56 +644,16 @@ export class SalesService {
         }
       }
 
-      // 🆕 Tự động xử lý Quà tặng và Tích lũy doanh số
-      if (createSalesInvoiceDto.gift_description || (createSalesInvoiceDto.gift_value && createSalesInvoiceDto.gift_value > 0) || partialPayment > 0) {
-        try {
-          // Lấy lại DebtNote mới nhất để đảm bảo số tiền tích lũy chính xác
-          const updatedDebtNote = await queryRunner.manager.findOne(DebtNote, {
-            where: { 
-              customer_id: savedInvoice.customer_id as number, 
-              season_id: savedInvoice.season_id as number 
-            },
-            relations: ['customer', 'season']
-          });
-
-          if (updatedDebtNote) {
-            await this.customerRewardService.handleDebtNoteSettlement(
-              queryRunner.manager,
-              updatedDebtNote,
-              {
-                payment_amount: partialPayment, // 🔥 Ghi nhận cả số tiền trả ngay
-                gift_description: createSalesInvoiceDto.gift_description,
-                gift_value: createSalesInvoiceDto.gift_value || 0,
-                gift_status: createSalesInvoiceDto.gift_status, // ✅ Truyền trạng thái quà tặng
-                rice_crop_id: createSalesInvoiceDto.rice_crop_id, // ✅ Lưu thông tin ruộng lúa
-                notes: createSalesInvoiceDto.notes ? createSalesInvoiceDto.notes : (createSalesInvoiceDto.gift_description 
-                  ? `Tặng quà kèm hóa đơn #${savedInvoice.code}`
-                  : `Tích lũy từ thanh toán hóa đơn #${savedInvoice.code}`),
-              },
-              userId,
-              false // isFinal = false
-            );
-
-            this.logger.log(`✅ Đã ghi nhận tích lũy/quà tặng cho hóa đơn #${savedInvoice.code}`);
-          }
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          this.logger.error(`❌ Lỗi khi xử lý quà tặng tích lũy: ${errorMessage}`);
-          // Không throw error để không làm gián đoạn transaction chính
-        }
-      }
-
-      await queryRunner.commitTransaction();
-      this.logger.log(`Đã commit transaction cho hóa đơn ${savedInvoice.id}`);
-
-      // 🆕 Trừ tồn kho nếu trạng thái là CONFIRMED hoặc PAID
-      if (savedInvoice.status === SalesInvoiceStatus.CONFIRMED || savedInvoice.status === SalesInvoiceStatus.PAID) {
+      if (this.isPostedInvoiceStatus(savedInvoice.status)) {
         await this.promotionCampaignService.processInvoiceAccrual(
           queryRunner.manager,
           savedInvoice.id,
         );
-        await this.handleInventoryDeduction(savedInvoice.id, userId);
+        await this.handleInventoryDeduction(savedInvoice.id, userId, queryRunner);
       }
+
+      await queryRunner.commitTransaction();
+      this.logger.log(`Đã commit transaction cho hóa đơn ${savedInvoice.id}`);
 
       return savedInvoice;
     } catch (error) {
@@ -518,7 +758,7 @@ export class SalesService {
     if (invoice.items && invoice.items.length > 0) {
       const manager = queryRunner ? queryRunner.manager : this.dataSource.manager;
       for (const item of invoice.items) {
-        // Query tổng số lượng đã trả của sản phẩm này trong hóa đơn
+        // Query tổng số lượng đã trả của đúng dòng hóa đơn; fallback product_id cho dữ liệu cũ
         const returnedData = await manager
           .createQueryBuilder()
           .select('COALESCE(SUM(return_item.quantity), 0)', 'total_returned')
@@ -526,7 +766,10 @@ export class SalesService {
           .innerJoin('sales_returns', 'sales_return', 'sales_return.id = return_item.sales_return_id')
           .where('sales_return.invoice_id = :invoiceId', { invoiceId: id })
           .andWhere('sales_return.status = :status', { status: 'approved' })
-          .andWhere('return_item.product_id = :productId', { productId: item.product_id })
+          .andWhere(
+            '(return_item.sales_invoice_item_id = :invoiceItemId OR (return_item.sales_invoice_item_id IS NULL AND return_item.product_id = :productId))',
+            { invoiceItemId: item.id, productId: item.product_id },
+          )
           .getRawOne();
 
         // Gán vào item
@@ -566,7 +809,7 @@ export class SalesService {
     // ✅ Tính số lượng đã trả cho mỗi item
     if (invoice.items && invoice.items.length > 0) {
       for (const item of invoice.items) {
-        // Query tổng số lượng đã trả của sản phẩm này trong hóa đơn
+        // Query tổng số lượng đã trả của đúng dòng hóa đơn; fallback product_id cho dữ liệu cũ
         const returnedData = await this.dataSource
           .createQueryBuilder()
           .select('COALESCE(SUM(return_item.quantity), 0)', 'total_returned')
@@ -574,7 +817,10 @@ export class SalesService {
           .innerJoin('sales_returns', 'sales_return', 'sales_return.id = return_item.sales_return_id')
           .where('sales_return.invoice_id = :invoiceId', { invoiceId: invoice.id })
           .andWhere('sales_return.status = :status', { status: 'approved' })
-          .andWhere('return_item.product_id = :productId', { productId: item.product_id })
+          .andWhere(
+            '(return_item.sales_invoice_item_id = :invoiceItemId OR (return_item.sales_invoice_item_id IS NULL AND return_item.product_id = :productId))',
+            { invoiceItemId: item.id, productId: item.product_id },
+          )
           .getRawOne();
 
         // Gán vào item
@@ -640,39 +886,135 @@ export class SalesService {
   async update(
     id: number,
     updateSalesInvoiceDto: UpdateSalesInvoiceDto,
-    userId?: number,
+    _userId?: number,
   ): Promise<SalesInvoice | null> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      await queryRunner.manager.update(SalesInvoice, id, updateSalesInvoiceDto);
-      const updatedInvoice = await this.findOne(id, queryRunner);
-      
-      if (updatedInvoice && userId) {
-        // 🆕 Nếu cập nhật trạng thái sang CONFIRMED hoặc PAID, thực hiện trừ kho
-        if (updatedInvoice.status === SalesInvoiceStatus.CONFIRMED || updatedInvoice.status === SalesInvoiceStatus.PAID) {
-          await this.promotionCampaignService.processInvoiceAccrual(
-            queryRunner.manager,
-            id,
-          );
-          await this.handleInventoryDeduction(id, userId, queryRunner);
-        }
-        
-        // 🆕 Nếu cập nhật trạng thái sang CANCELLED hoặc REFUNDED, thực hiện hoàn kho
-        if (updatedInvoice.status === SalesInvoiceStatus.CANCELLED || updatedInvoice.status === SalesInvoiceStatus.REFUNDED) {
-          await this.promotionCampaignService.processInvoiceReversal(
-            queryRunner.manager,
-            id,
-            updatedInvoice.status === SalesInvoiceStatus.CANCELLED
-              ? 'invoice_cancel'
-              : 'invoice_refund',
-            `Thu hoi tich luy do cap nhat trang thai hoa don ${updatedInvoice.code}`,
-          );
-          await this.handleInventoryRestoration(id, userId, queryRunner);
-        }
+      const currentInvoice = await this.findOne(id, queryRunner);
+      if (!currentInvoice) {
+        throw new BadRequestException('Hóa đơn không tồn tại');
       }
+
+      const hasItemChanges = Array.isArray(updateSalesInvoiceDto.items);
+      const financialFields = [
+        'payment_method',
+        'total_amount',
+        'discount_amount',
+        'final_amount',
+        'partial_payment_amount',
+      ];
+      const hasFinancialChanges = financialFields.some(
+        (field) => (updateSalesInvoiceDto as any)[field] !== undefined,
+      );
+      const requestedStatus = updateSalesInvoiceDto.status;
+
+      if (
+        requestedStatus &&
+        requestedStatus !== currentInvoice.status
+      ) {
+        throw new BadRequestException(
+          'Không được đổi trạng thái hóa đơn qua API cập nhật chung. Hãy dùng đúng chức năng xác nhận, thanh toán, hủy hoặc hoàn tiền.',
+        );
+      }
+
+      if (
+        currentInvoice.status !== SalesInvoiceStatus.DRAFT &&
+        (hasItemChanges || hasFinancialChanges || requestedStatus !== undefined)
+      ) {
+        throw new BadRequestException(
+          'Không được sửa sản phẩm, giá bán, phương thức thanh toán hoặc số tiền của hóa đơn đã xác nhận/đã thanh toán. Hãy hủy và tạo hóa đơn mới để đảm bảo kho, công nợ và lợi nhuận chính xác.',
+        );
+      }
+
+      if (hasItemChanges) {
+        throw new BadRequestException(
+          'Chưa hỗ trợ sửa trực tiếp danh sách sản phẩm trong hóa đơn. Hãy hủy hóa đơn nháp và tạo lại.',
+        );
+      }
+
+      const { items, delivery_log, ...invoiceUpdateData } =
+        updateSalesInvoiceDto as any;
+
+      if (hasFinancialChanges) {
+        const computedTotalAmount = this.roundMoney(
+          (currentInvoice.items || []).reduce((sum, item) => {
+            return sum + Number(item.total_price || 0);
+          }, 0),
+        );
+        const discountAmount = this.roundMoney(
+          Number(
+            updateSalesInvoiceDto.discount_amount ??
+              currentInvoice.discount_amount ??
+              0,
+          ),
+        );
+
+        if (!Number.isFinite(discountAmount) || discountAmount < 0) {
+          throw new BadRequestException('Giảm giá hóa đơn không hợp lệ');
+        }
+        if (discountAmount > computedTotalAmount) {
+          throw new BadRequestException(
+            'Giảm giá hóa đơn không được lớn hơn tổng tiền sản phẩm',
+          );
+        }
+
+        const finalAmount = this.roundMoney(
+          computedTotalAmount - discountAmount,
+        );
+        this.assertInvoiceAmountMatches(
+          'Tổng tiền hóa đơn',
+          updateSalesInvoiceDto.total_amount,
+          computedTotalAmount,
+        );
+        this.assertInvoiceAmountMatches(
+          'Thành tiền sau giảm giá',
+          updateSalesInvoiceDto.final_amount,
+          finalAmount,
+        );
+
+        const partialPayment = this.roundMoney(
+          Number(
+            updateSalesInvoiceDto.partial_payment_amount ??
+              currentInvoice.partial_payment_amount ??
+              0,
+          ),
+        );
+        if (!Number.isFinite(partialPayment) || partialPayment < 0) {
+          throw new BadRequestException('Số tiền đã thanh toán không hợp lệ');
+        }
+        if (partialPayment - finalAmount > 1) {
+          throw new BadRequestException(
+            'Số tiền đã thanh toán không được lớn hơn thành tiền hóa đơn',
+          );
+        }
+
+        const cogs = Number(currentInvoice.cost_of_goods_sold || 0);
+        const grossProfit = this.roundMoney(finalAmount - cogs);
+        invoiceUpdateData.total_amount = computedTotalAmount;
+        invoiceUpdateData.discount_amount = discountAmount;
+        invoiceUpdateData.final_amount = finalAmount;
+        invoiceUpdateData.partial_payment_amount = partialPayment;
+        invoiceUpdateData.remaining_amount = this.roundMoney(
+          finalAmount - partialPayment,
+        );
+        invoiceUpdateData.payment_status =
+          invoiceUpdateData.remaining_amount <= 0
+            ? SalesPaymentStatus.PAID
+            : partialPayment > 0
+              ? SalesPaymentStatus.PARTIAL
+              : SalesPaymentStatus.PENDING;
+        invoiceUpdateData.gross_profit = grossProfit;
+        invoiceUpdateData.gross_profit_margin =
+          finalAmount > 0
+            ? Math.round((grossProfit / finalAmount) * 10000) / 100
+            : 0;
+      }
+
+      await queryRunner.manager.update(SalesInvoice, id, invoiceUpdateData);
+      const updatedInvoice = await this.findOne(id, queryRunner);
       
       await queryRunner.commitTransaction();
       return updatedInvoice;
@@ -692,20 +1034,12 @@ export class SalesService {
    * @returns Thông tin hóa đơn bán hàng đã cập nhật
    */
   async updateStatus(
-    id: number,
-    status: SalesInvoiceStatus,
+    _id: number,
+    _status: SalesInvoiceStatus,
   ): Promise<SalesInvoice | null> {
-    const invoice = await this.findOne(id);
-    if (!invoice) {
-      return null;
-    }
-
-    await this.salesInvoiceRepository.update(id, {
-      status,
-      updated_at: new Date(),
-    });
-
-    return this.findOne(id);
+    throw new BadRequestException(
+      'Không được đổi trạng thái hóa đơn trực tiếp. Hãy dùng các luồng xác nhận, thanh toán, hủy hoặc hoàn tiền để hệ thống cập nhật kho, công nợ và lợi nhuận đúng.',
+    );
   }
 
   /**
@@ -721,8 +1055,21 @@ export class SalesService {
     try {
       const invoice = await queryRunner.manager.findOne(SalesInvoice, { where: { id } });
       if (!invoice) {
-        await queryRunner.release();
         return null;
+      }
+
+      if (
+        invoice.status === SalesInvoiceStatus.CONFIRMED ||
+        invoice.status === SalesInvoiceStatus.PAID
+      ) {
+        await queryRunner.commitTransaction();
+        return invoice;
+      }
+
+      if (invoice.status !== SalesInvoiceStatus.DRAFT) {
+        throw new BadRequestException(
+          'Chỉ hóa đơn nháp mới được xác nhận. Hóa đơn đã hủy/hoàn tiền không được xác nhận lại.',
+        );
       }
 
       invoice.status = SalesInvoiceStatus.CONFIRMED;
@@ -730,6 +1077,11 @@ export class SalesService {
       const savedInvoice = await queryRunner.manager.save(invoice);
 
       if (userId) {
+        await this.postInvoiceFinancialEntries(
+          queryRunner.manager,
+          savedInvoice,
+          userId,
+        );
         await this.promotionCampaignService.processInvoiceAccrual(
           queryRunner.manager,
           savedInvoice.id,
@@ -761,8 +1113,18 @@ export class SalesService {
     try {
       const invoice = await queryRunner.manager.findOne(SalesInvoice, { where: { id } });
       if (!invoice) {
-        await queryRunner.release();
         return null;
+      }
+
+      if (invoice.status === SalesInvoiceStatus.PAID) {
+        await queryRunner.commitTransaction();
+        return invoice;
+      }
+
+      if (invoice.status !== SalesInvoiceStatus.CONFIRMED) {
+        throw new BadRequestException(
+          'Chỉ hóa đơn đã xác nhận và còn nợ mới được đánh dấu đã thanh toán.',
+        );
       }
 
       invoice.status = SalesInvoiceStatus.PAID;
@@ -807,10 +1169,25 @@ export class SalesService {
           });
 
           // 🔥 Tích lũy điểm tích lũy cho nông dân
-          if (debtNote) {
-            await this.customerRewardService.handleDebtNoteSettlement(
-              queryRunner.manager,
-              debtNote,
+	          if (debtNote) {
+              debtNote.paid_amount =
+                Number(debtNote.paid_amount || 0) + paymentAmountToProcess;
+              debtNote.remaining_amount = Math.max(
+                0,
+                Number(debtNote.remaining_amount || 0) -
+                  paymentAmountToProcess,
+              );
+              if (debtNote.remaining_amount <= 0) {
+                debtNote.status = DebtNoteStatus.PAID;
+                debtNote.remaining_amount = 0;
+              } else {
+                debtNote.status = DebtNoteStatus.ACTIVE;
+              }
+              await queryRunner.manager.save(debtNote);
+
+	            await this.customerRewardService.handleDebtNoteSettlement(
+	              queryRunner.manager,
+	              debtNote,
               {
                 payment_amount: paymentAmountToProcess,
                 gift_status: 'delivered', // Hạch toán thủ công thì mặc định là đã giao
@@ -854,14 +1231,44 @@ export class SalesService {
     try {
       const invoice = await queryRunner.manager.findOne(SalesInvoice, { where: { id } });
       if (!invoice) {
-        await queryRunner.release();
         return null;
       }
 
+      if (invoice.status === SalesInvoiceStatus.CANCELLED) {
+        await queryRunner.commitTransaction();
+        return invoice;
+      }
+
+      if (
+        invoice.status === SalesInvoiceStatus.PAID ||
+        invoice.status === SalesInvoiceStatus.REFUNDED
+      ) {
+        throw new BadRequestException(
+          'Hóa đơn đã thanh toán/đã hoàn tiền phải xử lý bằng luồng hoàn tiền, không dùng hủy hóa đơn.',
+        );
+      }
+
+      const originalFinalAmount = Number(invoice.final_amount || 0);
+      const originalPaidAmount = Number(invoice.partial_payment_amount || 0);
+
       invoice.status = SalesInvoiceStatus.CANCELLED;
       invoice.payment_status = SalesPaymentStatus.CANCELLED; // Đồng bộ trạng thái thanh toán
+      invoice.final_amount = 0;
+      invoice.partial_payment_amount = 0;
+      invoice.remaining_amount = 0;
+      invoice.cost_of_goods_sold = 0;
+      invoice.gross_profit = 0;
+      invoice.gross_profit_margin = 0;
       invoice.updated_at = new Date();
       const savedInvoice = await queryRunner.manager.save(invoice);
+
+      await this.createRefundPaymentForInvoice(
+        queryRunner.manager,
+        savedInvoice,
+        originalPaidAmount,
+        userId,
+        `Hoàn tiền do hủy hóa đơn #${savedInvoice.code}`,
+      );
 
       if (userId) {
         await this.promotionCampaignService.processInvoiceReversal(
@@ -884,12 +1291,12 @@ export class SalesService {
         if (debtNote) {
             await this.debtNoteService.removeInvoiceFromDebtNote(
               savedInvoice.id,
-              savedInvoice.final_amount,
-              savedInvoice.partial_payment_amount,
+              originalFinalAmount,
+              originalPaidAmount,
               queryRunner.manager,
             );
 
-            const amountToRevoke = Number(savedInvoice.partial_payment_amount || 0);
+            const amountToRevoke = originalPaidAmount;
             if (amountToRevoke > 0) {
               await this.customerRewardService.handleDebtNoteSettlement(
                 queryRunner.manager,
@@ -929,14 +1336,41 @@ export class SalesService {
     try {
       const invoice = await queryRunner.manager.findOne(SalesInvoice, { where: { id } });
       if (!invoice) {
-        await queryRunner.release();
         return null;
       }
 
+      if (invoice.status === SalesInvoiceStatus.REFUNDED) {
+        await queryRunner.commitTransaction();
+        return invoice;
+      }
+
+      if (invoice.status !== SalesInvoiceStatus.PAID) {
+        throw new BadRequestException(
+          'Chỉ hóa đơn đã thanh toán mới được hoàn tiền toàn bộ. Hóa đơn còn nợ hãy dùng hủy hóa đơn hoặc phiếu trả hàng.',
+        );
+      }
+
+      const originalFinalAmount = Number(invoice.final_amount || 0);
+      const originalPaidAmount = Number(invoice.partial_payment_amount || 0);
+
       invoice.status = SalesInvoiceStatus.REFUNDED;
       invoice.payment_status = SalesPaymentStatus.REFUNDED; // Đồng bộ trạng thái thanh toán
+      invoice.final_amount = 0;
+      invoice.partial_payment_amount = 0;
+      invoice.remaining_amount = 0;
+      invoice.cost_of_goods_sold = 0;
+      invoice.gross_profit = 0;
+      invoice.gross_profit_margin = 0;
       invoice.updated_at = new Date();
       const savedInvoice = await queryRunner.manager.save(invoice);
+
+      await this.createRefundPaymentForInvoice(
+        queryRunner.manager,
+        savedInvoice,
+        originalPaidAmount,
+        userId,
+        `Hoàn tiền toàn bộ hóa đơn #${savedInvoice.code}`,
+      );
 
       if (userId) {
         await this.promotionCampaignService.processInvoiceReversal(
@@ -959,12 +1393,12 @@ export class SalesService {
         if (debtNote) {
             await this.debtNoteService.removeInvoiceFromDebtNote(
               savedInvoice.id,
-              savedInvoice.final_amount,
-              savedInvoice.partial_payment_amount,
+              originalFinalAmount,
+              originalPaidAmount,
               queryRunner.manager,
             );
 
-            const amountToRevoke = Number(savedInvoice.partial_payment_amount || 0);
+            const amountToRevoke = originalPaidAmount;
             if (amountToRevoke > 0) {
               await this.customerRewardService.handleDebtNoteSettlement(
                 queryRunner.manager,
@@ -1056,15 +1490,12 @@ export class SalesService {
    * @returns Thông tin hóa đơn bán hàng đã cập nhật
    */
   async updatePaymentStatus(
-    id: number,
-    payment_status: SalesPaymentStatus,
+    _id: number,
+    _payment_status: SalesPaymentStatus,
   ): Promise<SalesInvoice | null> {
-    const invoice = await this.findOne(id);
-    if (!invoice) {
-      return null;
-    }
-    invoice.payment_status = payment_status; // Cập nhật trạng thái thanh toán
-    return this.salesInvoiceRepository.save(invoice);
+    throw new BadRequestException(
+      'Không được đổi trạng thái thanh toán trực tiếp. Hãy dùng chức năng thanh toán thêm, hủy hoặc hoàn tiền để hệ thống tạo phiếu thu và cập nhật công nợ đúng.',
+    );
   }
 
   /**
@@ -1092,11 +1523,34 @@ export class SalesService {
         throw new Error('Hóa đơn không tồn tại');
       }
 
+      if (invoice.status !== SalesInvoiceStatus.CONFIRMED) {
+        throw new BadRequestException(
+          'Chỉ hóa đơn đã xác nhận và còn nợ mới được thanh toán thêm.',
+        );
+      }
+
+      const amountNumber = this.roundMoney(Number(amount));
+      if (!Number.isFinite(amountNumber) || amountNumber <= 0) {
+        throw new BadRequestException('Số tiền thanh toán phải lớn hơn 0');
+      }
+
       // 1. Cập nhật số tiền trên hóa đơn
       const currentPartialPayment = parseFloat(invoice.partial_payment_amount?.toString() || '0');
       const finalAmount = parseFloat(invoice.final_amount?.toString() || '0');
-      const newPartialPayment = currentPartialPayment + amount;
-      const newRemainingAmount = finalAmount - newPartialPayment;
+      const currentRemainingAmount = parseFloat(invoice.remaining_amount?.toString() || '0');
+
+      if (currentRemainingAmount <= 0) {
+        throw new BadRequestException('Hóa đơn này không còn số tiền nợ để thanh toán thêm');
+      }
+
+      if (amountNumber - currentRemainingAmount > 1) {
+        throw new BadRequestException(
+          `Số tiền thanh toán không được lớn hơn số tiền còn nợ (${currentRemainingAmount.toLocaleString()}đ)`,
+        );
+      }
+
+      const newPartialPayment = this.roundMoney(currentPartialPayment + amountNumber);
+      const newRemainingAmount = this.roundMoney(finalAmount - newPartialPayment);
 
       if (newRemainingAmount <= 0) {
         invoice.status = SalesInvoiceStatus.PAID;
@@ -1112,12 +1566,12 @@ export class SalesService {
       const savedInvoice = await queryRunner.manager.save(invoice);
 
       // 2. Tạo phiếu thu (Payment)
-      if (invoice.customer_id) {
         const paymentCode = CodeGeneratorHelper.generateUniqueCode('PAY');
         const paymentData: any = {
           code: paymentCode,
-          customer_id: invoice.customer_id,
-          amount: amount,
+          customer_id: invoice.customer_id || null,
+          amount: amountNumber,
+          allocated_amount: amountNumber,
           payment_date: new Date(),
           payment_method: invoice.payment_method || 'cash',
           notes: `Thanh toán cho hóa đơn #${invoice.code}`,
@@ -1128,7 +1582,7 @@ export class SalesService {
 
         // 3. Tạo phân bổ thanh toán (PaymentAllocation)
         let debtNoteId: number | undefined;
-        if (invoice.season_id) {
+        if (invoice.customer_id && invoice.season_id) {
           const debtNote = await queryRunner.manager.findOne(DebtNote, {
             where: { customer_id: invoice.customer_id, season_id: invoice.season_id }
           });
@@ -1140,12 +1594,12 @@ export class SalesService {
           invoice_id: invoice.id,
           ...(debtNoteId && { debt_note_id: debtNoteId }),
           allocation_type: 'invoice',
-          amount: amount,
+          amount: amountNumber,
         });
         await queryRunner.manager.save(allocation);
 
         // 4. Cập nhật phiếu công nợ (DebtNote) nếu có
-        if (invoice.season_id) {
+        if (invoice.customer_id && invoice.season_id) {
           const debtNote = await queryRunner.manager.findOne(DebtNote, {
             where: {
               customer_id: invoice.customer_id,
@@ -1156,9 +1610,6 @@ export class SalesService {
           if (debtNote) {
             const currentPaid = parseFloat(debtNote.paid_amount?.toString() || '0');
             const currentRemaining = parseFloat(debtNote.remaining_amount?.toString() || '0');
-            // Ép kiểu Number() tường minh để tránh bug cộng chuỗi khi amount từ controller là string
-            const amountNumber = Number(amount) || 0;
-            
             debtNote.paid_amount = currentPaid + amountNumber;
             debtNote.remaining_amount = currentRemaining - amountNumber;
 
@@ -1179,7 +1630,7 @@ export class SalesService {
               queryRunner.manager,
               debtNote,
               {
-                payment_amount: Number(amount),
+                payment_amount: amountNumber,
                 gift_status: 'delivered', // Trả tiền mặt thì quà/tích lũy mặc định là đã trao
                 notes: `Thanh toán cho hóa đơn #${invoice.code}`,
               },
@@ -1188,10 +1639,9 @@ export class SalesService {
             );
           }
         }
-      }
 
       await queryRunner.commitTransaction();
-      this.logger.log(`✅ Thanh toán thành công cho hóa đơn #${invoice.code}: ${amount.toLocaleString()} đ`);
+      this.logger.log(`✅ Thanh toán thành công cho hóa đơn #${invoice.code}: ${amountNumber.toLocaleString()} đ`);
       
       return savedInvoice;
     } catch (error) {
@@ -1222,19 +1672,22 @@ export class SalesService {
    * @returns Thông tin chi tiết hóa đơn bán hàng đã cập nhật
    */
   async updateInvoiceItem(
-    id: number,
-    updateData: Partial<SalesInvoiceItem>,
+    _id: number,
+    _updateData: Partial<SalesInvoiceItem>,
   ): Promise<SalesInvoiceItem | null> {
-    await this.salesInvoiceItemRepository.update(id, updateData);
-    return this.salesInvoiceItemRepository.findOne({ where: { id } });
+    throw new BadRequestException(
+      'Không được sửa trực tiếp dòng hóa đơn vì sẽ làm lệch tổng tiền, kho và lợi nhuận. Hãy dùng luồng cập nhật hóa đơn được kiểm soát.',
+    );
   }
 
   /**
    * Xóa chi tiết hóa đơn bán hàng theo ID
    * @param id - ID của chi tiết hóa đơn bán hàng cần xóa
    */
-  async removeInvoiceItem(id: number): Promise<void> {
-    await this.salesInvoiceItemRepository.delete(id);
+  async removeInvoiceItem(_id: number): Promise<void> {
+    throw new BadRequestException(
+      'Không được xóa trực tiếp dòng hóa đơn vì sẽ làm lệch tổng tiền, kho và lợi nhuận. Hãy hủy hóa đơn hoặc dùng phiếu trả hàng.',
+    );
   }
 
   /**
@@ -1757,18 +2210,109 @@ export class SalesService {
                 .addOrderBy('invoice.created_at', 'ASC');
 
     const items = await queryBuilder.getMany();
+    if (!items.length) {
+      return [];
+    }
+
+    const invoiceIds = Array.from(
+      new Set(items.map((item) => Number(item.invoice_id)).filter(Boolean)),
+    );
+
+    const approvedReturns = await this.dataSource.manager
+      .createQueryBuilder()
+      .select('sr.invoice_id', 'invoice_id')
+      .addSelect('sri.sales_invoice_item_id', 'sales_invoice_item_id')
+      .addSelect('sri.product_id', 'product_id')
+      .addSelect('COALESCE(SUM(sri.quantity), 0)', 'returned_quantity')
+      .addSelect('COALESCE(SUM(sri.total_price), 0)', 'returned_total')
+      .from('sales_return_items', 'sri')
+      .innerJoin('sales_returns', 'sr', 'sr.id = sri.sales_return_id')
+      .where('sr.status = :approvedStatus', { approvedStatus: 'approved' })
+      .andWhere('sr.invoice_id IN (:...invoiceIds)', { invoiceIds })
+      .groupBy('sr.invoice_id')
+      .addGroupBy('sri.sales_invoice_item_id')
+      .addGroupBy('sri.product_id')
+      .getRawMany();
+
+    const returnByItemId = new Map<number, { qty: number; total: number }>();
+    const returnByLegacyProductKey = new Map<string, { qty: number; total: number }>();
+
+    for (const row of approvedReturns) {
+      const invoiceId = Number(row.invoice_id);
+      const invoiceItemId = row.sales_invoice_item_id
+        ? Number(row.sales_invoice_item_id)
+        : 0;
+      const productId = Number(row.product_id);
+      const returnedQty = Number(row.returned_quantity || 0);
+      const returnedTotal = Number(row.returned_total || 0);
+
+      if (invoiceItemId > 0) {
+        const current = returnByItemId.get(invoiceItemId) || { qty: 0, total: 0 };
+        returnByItemId.set(invoiceItemId, {
+          qty: current.qty + returnedQty,
+          total: current.total + returnedTotal,
+        });
+      } else {
+        const legacyKey = `${invoiceId}:${productId}`;
+        const current = returnByLegacyProductKey.get(legacyKey) || {
+          qty: 0,
+          total: 0,
+        };
+        returnByLegacyProductKey.set(legacyKey, {
+          qty: current.qty + returnedQty,
+          total: current.total + returnedTotal,
+        });
+      }
+    }
+
+    const legacyReturnRemaining = new Map(returnByLegacyProductKey);
 
     // Chuẩn hóa dữ liệu trả về giống mẫu Excel
-    return items.map(item => ({
-      date: item.invoice.sale_date || item.invoice.created_at,
-      product_name: item.product_name || item.product?.trade_name || item.product?.name || 'Sản phẩm không tên',
-      unit: item.unit_name || item.product?.unit?.name || 'Cái', 
-      quantity: Number(item.quantity || 0),
-      unit_price: Number(item.unit_price || 0),
-      total_price: Number(item.total_price || 0),
-      invoice_code: item.invoice.code,
-      invoice_id: item.invoice.id,
-    }));
+    return items.map(item => {
+      const itemReturn = returnByItemId.get(Number(item.id));
+      const legacyKey = `${Number(item.invoice_id)}:${Number(item.product_id)}`;
+      const legacyReturn = legacyReturnRemaining.get(legacyKey);
+      const itemReturnedQty = Number(itemReturn?.qty || 0);
+      const itemReturnedTotal = Number(itemReturn?.total || 0);
+      let legacyReturnedQty = 0;
+      let legacyReturnedTotal = 0;
+
+      if (legacyReturn && legacyReturn.qty > 0) {
+        const remainingLineQty = Math.max(0, Number(item.quantity || 0) - itemReturnedQty);
+        legacyReturnedQty = Math.min(legacyReturn.qty, remainingLineQty);
+        legacyReturnedTotal =
+          legacyReturn.qty > 0
+            ? (legacyReturn.total * legacyReturnedQty) / legacyReturn.qty
+            : 0;
+
+        const nextQty = Math.max(0, legacyReturn.qty - legacyReturnedQty);
+        const nextTotal = Math.max(0, legacyReturn.total - legacyReturnedTotal);
+        if (nextQty > 0) {
+          legacyReturnRemaining.set(legacyKey, {
+            qty: nextQty,
+            total: nextTotal,
+          });
+        } else {
+          legacyReturnRemaining.delete(legacyKey);
+        }
+      }
+
+      const returnedQuantity = itemReturnedQty + legacyReturnedQty;
+      const returnedTotalPrice = itemReturnedTotal + legacyReturnedTotal;
+      const quantity = Math.max(0, Number(item.quantity || 0) - returnedQuantity);
+      const totalPrice = Math.max(0, Number(item.total_price || 0) - returnedTotalPrice);
+
+      return {
+        date: item.invoice.sale_date || item.invoice.created_at,
+        product_name: item.product_name || item.product?.trade_name || item.product?.name || 'Sản phẩm không tên',
+        unit: item.unit_name || item.product?.unit?.name || 'Cái',
+        quantity,
+        unit_price: Number(item.unit_price || 0),
+        total_price: totalPrice,
+        invoice_code: item.invoice.code,
+        invoice_id: item.invoice.id,
+      };
+    });
   }
   /**
    * Xử lý trừ tồn kho cho hóa đơn
@@ -1805,6 +2349,7 @@ export class SalesService {
       // 3. Trừ tồn kho cho từng sản phẩm theo phương pháp FIFO
       for (const item of invoice.items) {
         try {
+          const manager = queryRunner ? queryRunner.manager : this.salesInvoiceItemRepository.manager;
           // Lưu ý: userId có thể truyền từ JWT, nếu không có lấy người tạo hóa đơn
           const performerId = userId || invoice.created_by;
           
@@ -1823,10 +2368,47 @@ export class SalesService {
             invoice.id,
             `Bán hàng theo hóa đơn #${invoice.code}`,
             queryRunner
-          );
+	          );
+
+          await manager.delete(SalesInvoiceItemStockAllocation, {
+            sales_invoice_item_id: item.id,
+          });
+
+          for (const affectedBatch of result.affectedBatches || []) {
+            const batch = await manager.findOne(InventoryBatch, {
+              where: { id: affectedBatch.batchId },
+            });
+            const receiptItem = batch?.receipt_item_id
+              ? await manager.findOne(InventoryReceiptItem, {
+                  where: { id: batch.receipt_item_id },
+                  relations: ['receipt'],
+                })
+              : null;
+            const supplierId =
+              batch?.supplier_id || receiptItem?.receipt?.supplier_id;
+            const quantity = Number(affectedBatch.deductedQuantity || 0);
+            const unitCost = Number(affectedBatch.cost || 0);
+            const allocationData: any = {
+              invoice_id: invoice.id,
+              sales_invoice_item_id: item.id,
+              product_id: item.product_id,
+              quantity,
+              unit_cost: unitCost,
+              total_cost: quantity * unitCost,
+            };
+            if (batch?.id) allocationData.inventory_batch_id = batch.id;
+            if (batch?.receipt_item_id) {
+              allocationData.receipt_item_id = batch.receipt_item_id;
+            }
+            if (supplierId) allocationData.supplier_id = supplierId;
+
+            await manager.save(
+              SalesInvoiceItemStockAllocation,
+              allocationData,
+            );
+          }
 
           // Cập nhật số lượng tính thuế vào item
-          const manager = queryRunner ? queryRunner.manager : this.salesInvoiceItemRepository.manager;
           await manager.update(SalesInvoiceItem, item.id, {
             taxable_quantity: result.taxableQuantity
           });
@@ -1834,7 +2416,7 @@ export class SalesService {
           this.logger.log(`✅ Đã trừ kho sản phẩm ID ${item.product_id}, SL: ${item.quantity}, SL Thuế: ${result.taxableQuantity}`);
         } catch (error) {
           this.logger.error(`❌ Lỗi khi trừ kho sản phẩm ID ${item.product_id}: ${(error as any).message}`);
-          // Vẫn tiếp tục với các sản phẩm khác
+          throw error;
         }
       }
 
@@ -1928,6 +2510,9 @@ export class SalesService {
       if (!invoice || !invoice.items) return;
 
       this.logger.log(`🚀 Bắt đầu hoàn tồn kho cho hóa đơn #${invoice.code}`);
+      await transRepo.manager.delete(SalesInvoiceItemStockAllocation, {
+        invoice_id: invoiceId,
+      });
 
       for (const item of invoice.items) {
         // Lấy giá vốn từ giao dịch xuất kho tương ứng để hoàn lại đúng giá

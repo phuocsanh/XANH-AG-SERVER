@@ -1,7 +1,12 @@
-import { Injectable, Logger, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, QueryRunner } from 'typeorm';
-import { Product } from '../../entities/products.entity';
+import { Product, ProductCostingMethod } from '../../entities/products.entity';
 import {
   PromotionCampaignStatus,
 } from '../../entities/promotion-campaign.entity';
@@ -115,6 +120,42 @@ export class ProductService extends BaseSearchService<Product> {
     }
   }
 
+  private parseMoney(value: unknown): number {
+    if (value === null || value === undefined || value === '') {
+      return Number.NaN;
+    }
+
+    if (typeof value === 'number') {
+      return value;
+    }
+
+    return Number(String(value).replace(/[^0-9.-]/g, ''));
+  }
+
+  private validateCostingConfig(product: Partial<Product | CreateProductDto>): void {
+    const costingMethod =
+      product.costing_method || ProductCostingMethod.FIXED;
+
+    if (costingMethod !== ProductCostingMethod.BY_PRICE_TYPE) {
+      return;
+    }
+
+    const cashCost = this.parseMoney(product.cash_cost_price);
+    const creditCost = this.parseMoney(product.credit_cost_price);
+
+    if (!Number.isFinite(cashCost) || cashCost <= 0) {
+      throw new BadRequestException(
+        'Sản phẩm tính giá vốn theo loại giá phải có giá vốn tiền mặt',
+      );
+    }
+
+    if (!Number.isFinite(creditCost) || creditCost <= 0) {
+      throw new BadRequestException(
+        'Sản phẩm tính giá vốn theo loại giá phải có giá vốn bán nợ',
+      );
+    }
+  }
+
   /**
    * Tạo sản phẩm mới
    * @param createProductDto - Dữ liệu tạo sản phẩm mới
@@ -127,6 +168,7 @@ export class ProductService extends BaseSearchService<Product> {
         createProductDto.name,
         createProductDto.trade_name,
       );
+      this.validateCostingConfig(createProductDto);
 
       // Tạo product mới trực tiếp, bỏ qua Factory pattern vì logic xử lý attributes đã được thống nhất
       const product = new Product();
@@ -175,6 +217,7 @@ export class ProductService extends BaseSearchService<Product> {
         createProductDto.name,
         createProductDto.trade_name,
       );
+      this.validateCostingConfig(createProductDto);
 
       // Tạo sản phẩm
       const product = new Product();
@@ -366,6 +409,11 @@ export class ProductService extends BaseSearchService<Product> {
           id, // Loại trừ sản phẩm hiện tại khi kiểm tra
         );
       }
+
+      this.validateCostingConfig({
+        ...currentProduct,
+        ...updateProductDto,
+      });
 
       // Cập nhật sản phẩm
       const repo = queryRunner ? queryRunner.manager.getRepository(Product) : this.productRepository;
@@ -738,6 +786,13 @@ export class ProductService extends BaseSearchService<Product> {
     const product = await this.findOne(productId, queryRunner);
     if (!product) {
       throw new Error(`Không tìm thấy sản phẩm với ID: ${productId}`);
+    }
+
+    if (product.costing_method === ProductCostingMethod.BY_PRICE_TYPE) {
+      await this.productRepository.update(productId, {
+        average_cost_price: averageCostPrice.toFixed(2),
+      });
+      return this.findOne(productId);
     }
 
     // Lấy phần trăm lợi nhuận (mặc định 15% nếu không có)

@@ -24,7 +24,7 @@ export default new DataSource({
       }
     : undefined,
   entities: [__dirname + '/src/entities/*.entity{.ts,.js}'],
-  migrations: [__dirname + '/src/database/migrations/*{.ts,.js}'],
-  synchronize: true, // Enable schema synchronization for development
+  migrations: [__dirname + '/src/migrations/*{.ts,.js}'],
+  synchronize: process.env.NODE_ENV !== 'production',
   logging: true,
 });

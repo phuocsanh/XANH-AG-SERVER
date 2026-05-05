@@ -1,6 +1,7 @@
-import { IsNumber, IsString, IsOptional, IsArray, ValidateNested, IsEnum } from 'class-validator';
+import { IsNumber, IsString, IsOptional, IsArray, ValidateNested, IsEnum, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 import { SalesInvoiceStatus } from '../../../entities/sales-invoices.entity';
+import { SalesInvoiceItemPriceType } from '../../../entities/sales-invoice-items.entity';
 import { CreateDeliveryLogDto } from './delivery-log.dto';
 
 /**
@@ -34,6 +35,13 @@ export class CreateSalesInvoiceItemDto {
   @IsNumber()
   @IsOptional()
   discount_amount?: number;
+
+  /** Loại giá bán của dòng hàng */
+  @IsOptional()
+  @IsIn(Object.values(SalesInvoiceItemPriceType), {
+    message: 'Loại giá bán không hợp lệ',
+  })
+  price_type?: SalesInvoiceItemPriceType;
 
   /** Ghi chú về chi tiết hóa đơn (tùy chọn) */
   @IsString()

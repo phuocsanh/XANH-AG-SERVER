@@ -37,7 +37,8 @@ Click **Advanced** → Add các biến sau:
 ```bash
 NODE_ENV=production
 PORT=3003
-DATABASE_URL=postgresql://postgres.xxx:password@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres
+# Production hien tai dung Neon/Postgres, khong dung Supabase nua.
+DATABASE_URL=postgresql://<user>:<password>@<host>/<database>?sslmode=require&channel_binding=require
 JWT_SECRET=<từ-bước-1.1>
 JWT_REFRESH_SECRET=<từ-bước-1.1>
 CORS_ORIGIN=https://your-frontend-domain.com
@@ -86,7 +87,7 @@ npm run migration:run
 # Export từ local
 pg_dump -h localhost -U postgres -d gn_argi > backup.sql
 
-# Import vào Supabase SQL Editor
+# Supabase SQL Editor la tai lieu cu, bo qua neu dang dung Neon.
 ```
 
 ---
@@ -114,7 +115,7 @@ pg_dump -h localhost -U postgres -d gn_argi > backup.sql
 # Thêm vào DATABASE_URL:
 ?sslmode=require
 
-# Kiểm tra IP Render có được whitelist trong Supabase
+# Kiem tra rule/network access tren provider DB neu co
 ```
 
 ### CORS Error

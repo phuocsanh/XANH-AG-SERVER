@@ -15,6 +15,11 @@ import { Symbol } from './symbols.entity';
 import { ProductUnitConversion } from './product-unit-conversions.entity';
 import { ProductComponent } from './product-components.entity';
 
+export enum ProductCostingMethod {
+  FIXED = 'fixed',
+  BY_PRICE_TYPE = 'by_price_type',
+}
+
 /**
  * Entity biểu diễn thông tin sản phẩm trong hệ thống
  * Ánh xạ với bảng 'products' trong cơ sở dữ liệu
@@ -150,6 +155,23 @@ export class Product {
   /** Giá vốn trung bình của sản phẩm */
   @Column({ name: 'average_cost_price', nullable: true })
   average_cost_price?: string;
+
+  /** Cách chốt giá vốn khi bán hàng */
+  @Column({
+    name: 'costing_method',
+    type: 'varchar',
+    length: 50,
+    default: ProductCostingMethod.FIXED,
+  })
+  costing_method!: ProductCostingMethod;
+
+  /** Giá vốn khi bán tiền mặt, dùng cho costing_method = by_price_type */
+  @Column({ name: 'cash_cost_price', nullable: true })
+  cash_cost_price?: string;
+
+  /** Giá vốn khi bán nợ, dùng cho costing_method = by_price_type */
+  @Column({ name: 'credit_cost_price', nullable: true })
+  credit_cost_price?: string;
 
   /** Giá nhập trung bình trên hóa đơn VAT của sản phẩm */
   @Column({ name: 'average_vat_input_cost', nullable: true })

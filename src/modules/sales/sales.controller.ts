@@ -132,7 +132,8 @@ export class SalesController {
    * @returns Thông tin hóa đơn bán hàng đã xác nhận
    */
   @Patch('invoice/:id/confirm')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('sales:manage')
   confirmInvoice(@Param('id') id: string, @CurrentUser('id') userId: number) {
     return this.salesService.confirmInvoice(+id, userId);
   }
@@ -143,7 +144,8 @@ export class SalesController {
    * @returns Thông tin hóa đơn bán hàng đã thanh toán
    */
   @Patch('invoice/:id/paid')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('sales:manage')
   markAsPaid(@Param('id') id: string, @CurrentUser('id') userId: number) {
     return this.salesService.markAsPaid(+id, userId);
   }
@@ -154,7 +156,8 @@ export class SalesController {
    * @returns Thông tin hóa đơn bán hàng đã hủy
    */
   @Patch('invoice/:id/cancel')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('sales:manage')
   cancelInvoice(@Param('id') id: string, @CurrentUser('id') userId: number) {
     return this.salesService.cancelInvoice(+id, userId);
   }
@@ -165,7 +168,8 @@ export class SalesController {
    * @returns Thông tin hóa đơn bán hàng đã hoàn tiền
    */
   @Patch('invoice/:id/refund')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('sales:manage')
   refundInvoice(@Param('id') id: string, @CurrentUser('id') userId: number) {
     return this.salesService.refundInvoice(+id, userId);
   }
@@ -176,6 +180,8 @@ export class SalesController {
    * @returns Thông tin hóa đơn bán hàng đã xóa mềm
    */
   @Delete('invoice/:id/soft')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('sales:manage')
   softDelete(@Param('id') id: string) {
     return this.salesService.softDelete(+id);
   }
@@ -186,6 +192,8 @@ export class SalesController {
    * @returns Thông tin hóa đơn bán hàng đã khôi phục
    */
   @Patch('invoice/:id/restore')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('sales:manage')
   restore(@Param('id') id: string) {
     return this.salesService.restore(+id);
   }
@@ -209,6 +217,8 @@ export class SalesController {
    * @returns Thông tin hóa đơn bán hàng đã cập nhật
    */
   @Patch('invoice/:id/payment-status')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('sales:manage')
   updatePaymentStatus(
     @Param('id') id: string,
     @Body('paymentStatus') paymentStatus: SalesPaymentStatus,
@@ -252,6 +262,8 @@ export class SalesController {
    * @returns Thông tin chi tiết hóa đơn bán hàng đã cập nhật
    */
   @Patch('invoice/item/:id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('sales:manage')
   updateInvoiceItem(
     @Param('id') id: string,
     @Body() updateData: Partial<SalesInvoiceItem>,
@@ -265,6 +277,8 @@ export class SalesController {
    * @returns Kết quả xóa chi tiết hóa đơn bán hàng
    */
   @Delete('invoice/item/:id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('sales:manage')
   removeInvoiceItem(@Param('id') id: string) {
     return this.salesService.removeInvoiceItem(+id);
   }

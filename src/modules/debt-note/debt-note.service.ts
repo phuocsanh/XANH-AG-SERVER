@@ -198,9 +198,11 @@ export class DebtNoteService {
       debtNote.source_invoices = [];
     }
 
-    if (!debtNote.source_invoices.includes(invoiceId)) {
-      debtNote.source_invoices.push(invoiceId);
+    if (debtNote.source_invoices.includes(invoiceId)) {
+      return debtNote;
     }
+
+    debtNote.source_invoices.push(invoiceId);
 
     const currentAmount = Number(debtNote.amount) || 0;
     const currentPaid = Number(debtNote.paid_amount) || 0;

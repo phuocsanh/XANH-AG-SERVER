@@ -20,6 +20,12 @@ const getDatabaseUrl = () => {
 
 const databaseUrl = getDatabaseUrl();
 const hasSSL = !!process.env.DATABASE_URL || !!process.env.DATABASE_URL_DEV;
+const entityGlob = isProduction
+  ? 'dist/entities/*.entity.js'
+  : 'src/entities/*.entity.ts';
+const migrationGlob = isProduction
+  ? 'dist/migrations/*.js'
+  : 'src/migrations/*.ts';
 
 /**
  * DataSource cho TypeORM CLI (migrations)
@@ -29,8 +35,8 @@ export const AppDataSource = new DataSource({
   type: 'postgres',
   url: databaseUrl,  // Non-null assertion - đảm bảo sẽ có giá trị
   ssl: hasSSL ? { rejectUnauthorized: false } : false,
-  entities: ['src/entities/*.entity.ts'],
-  migrations: ['src/migrations/*.ts'],
-  synchronize: true, // TỰ ĐỘNG TẠO BẢNG TỪ ENTITIES KHI KHỞI ĐỘNG
+  entities: [entityGlob],
+  migrations: [migrationGlob],
+  synchronize: false,
   logging: ['error', 'warn'],
 });
