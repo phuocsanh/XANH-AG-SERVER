@@ -1683,6 +1683,22 @@ export class InventoryService {
 
       await queryRunner.commitTransaction();
 
+      if (receiptData.status === ReceiptStatus.APPROVED) {
+        const affectedProductIds = Array.from(
+          new Set(savedItems.map((i) => Number(i.product_id))),
+        );
+        for (const productId of affectedProductIds) {
+          try {
+            await this.syncTaxableDataForProduct(productId);
+          } catch (error) {
+            this.logger.error(
+              `Lỗi đồng bộ tồn thuế cho sản phẩm #${productId} sau khi tạo phiếu ${receiptEntity.code}:`,
+              error instanceof Error ? error.message : 'Unknown error',
+            );
+          }
+        }
+      }
+
       const finalReceipt = await this.inventoryReceiptRepository.findOne({
         where: { id: receiptEntity.id },
         relations: ['supplier'], // Bao gồm thông tin nhà cung cấp
@@ -2755,6 +2771,18 @@ export class InventoryService {
 
       const savedReceipt = await queryRunner.manager.save(receipt);
       await queryRunner.commitTransaction();
+
+      for (const productId of affectedProductIds) {
+        try {
+          await this.syncTaxableDataForProduct(productId);
+        } catch (error) {
+          this.logger.error(
+            `Lỗi đồng bộ tồn thuế cho sản phẩm #${productId} sau khi duyệt phiếu #${id}:`,
+            error instanceof Error ? error.message : 'Unknown error',
+          );
+        }
+      }
+
       return savedReceipt;
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -2781,6 +2809,8 @@ export class InventoryService {
       this.inventoryReceiptRepository.manager.connection.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
+
+    let affectedProductIds: number[] = [];
 
     try {
       const receipt = await queryRunner.manager.findOne(InventoryReceipt, {
@@ -2816,7 +2846,7 @@ export class InventoryService {
             where: { receipt_id: id },
           },
         );
-        const affectedProductIds = Array.from(
+        affectedProductIds = Array.from(
           new Set(receiptItems.map((i) => Number(i.product_id))),
         );
         for (const productId of affectedProductIds) {
@@ -2825,6 +2855,20 @@ export class InventoryService {
       }
 
       await queryRunner.commitTransaction();
+
+      if (wasApproved) {
+        for (const productId of affectedProductIds) {
+          try {
+            await this.syncTaxableDataForProduct(productId);
+          } catch (error) {
+            this.logger.error(
+              `Lỗi đồng bộ tồn thuế cho sản phẩm #${productId} sau khi hủy phiếu #${id}:`,
+              error instanceof Error ? error.message : 'Unknown error',
+            );
+          }
+        }
+      }
+
       return savedReceipt;
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -4995,7 +5039,8 @@ export class InventoryService {
 
     // 6. Cập nhật Bể thuế còn lại cho Product
     const hasTaxInfo =
-      product.has_input_invoice && Number(product.tax_selling_price || 0) > 0;
+      product.has_input_invoice ||
+      receiptItems.some((item) => Number(item.taxable_quantity || 0) > 0);
     const remainingTaxInBatches = batches.reduce(
       (sum, b) => sum + b.taxable,
       0,
