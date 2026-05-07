@@ -152,7 +152,12 @@ export class Product {
   @UpdateDateColumn({ name: 'updated_at' })
   updated_at!: Date;
 
-  /** Giá vốn trung bình của sản phẩm */
+  /**
+   * Giá nhập trung bình của sản phẩm.
+   * Được tính từ trung bình của tất cả phiếu nhập hợp lệ (approved/completed),
+   * sau khi trừ các phiếu trả hàng nhập đã duyệt.
+   * Không dùng field này cho WAC của tồn kho còn lại.
+   */
   @Column({ name: 'average_cost_price', nullable: true })
   average_cost_price?: string;
 

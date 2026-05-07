@@ -236,9 +236,10 @@ export class ProductController {
   }
 
   /**
-   * Cập nhật giá vốn trung bình và giá bán sản phẩm
+   * Cập nhật average_cost_price và giá bán sản phẩm.
+   * average_cost_price ở đây được hiểu là giá nhập trung bình theo phiếu nhập hợp lệ.
    * @param productId - ID của sản phẩm cần cập nhật
-   * @param averageCostPrice - Giá vốn trung bình mới
+   * @param averageCostPrice - Giá nhập trung bình mới
    * @returns Thông tin sản phẩm đã cập nhật
    */
   @Put(':id/average-cost-price')

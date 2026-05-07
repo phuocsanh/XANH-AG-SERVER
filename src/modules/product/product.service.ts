@@ -771,10 +771,12 @@ export class ProductService extends BaseSearchService<Product> {
   }
 
   /**
-   * Cập nhật giá vốn trung bình và giá bán sản phẩm dựa trên phần trăm lợi nhuận
+   * Cập nhật average_cost_price và giá bán sản phẩm dựa trên phần trăm lợi nhuận.
+   * average_cost_price ở đây phải là giá nhập trung bình theo tất cả phiếu nhập hợp lệ,
+   * không phải WAC của tồn kho còn lại.
    * Tương tự như phương thức UpdateProductAverageCostAndPrice trong Go server
    * @param productId - ID của sản phẩm cần cập nhật
-   * @param averageCostPrice - Giá vốn trung bình mới
+   * @param averageCostPrice - Giá nhập trung bình mới
    * @returns Thông tin sản phẩm đã cập nhật
    */
   async updateProductAverageCostAndPrice(

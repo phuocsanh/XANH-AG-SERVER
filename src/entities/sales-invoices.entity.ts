@@ -152,7 +152,10 @@ export class SalesInvoice {
   })
   status!: SalesInvoiceStatus;
 
-  /** Tổng giá vốn hàng bán (Cost of Goods Sold) */
+  /**
+   * Tổng giá vốn hàng bán (Cost of Goods Sold).
+   * Được snapshot từ cost_price thực tế của các dòng hàng khi hóa đơn được post.
+   */
   @Column({ 
     name: 'cost_of_goods_sold', 
     type: 'decimal', 

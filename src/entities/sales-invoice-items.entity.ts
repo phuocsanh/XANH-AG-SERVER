@@ -68,7 +68,11 @@ export class SalesInvoiceItem {
   })
   price_type?: SalesInvoiceItemPriceType;
 
-  /** Giá vốn đã chốt tại thời điểm bán, tính theo đơn vị cơ sở */
+  /**
+   * Giá vốn đã chốt tại thời điểm bán, tính theo đơn vị cơ sở.
+   * Field này phải bám theo dữ liệu xuất kho thực tế của hóa đơn,
+   * không lấy trực tiếp từ products.average_cost_price.
+   */
   @Column({
     name: 'cost_price',
     type: 'decimal',

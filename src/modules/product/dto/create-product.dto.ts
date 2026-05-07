@@ -106,7 +106,7 @@ export class CreateProductDto {
   @IsOptional()
   attributes?: any;
 
-  /** Giá vốn trung bình của sản phẩm (tùy chọn) */
+  /** Giá nhập trung bình của sản phẩm theo phiếu nhập hợp lệ (tùy chọn) */
   @IsOptional()
   @IsString()
   average_cost_price?: string;
