@@ -573,23 +573,13 @@ export class InventoryService {
     });
 
     if (batches.length === 0) {
-      // Khi không còn lô hàng nào, lấy giá vốn TB hiện tại từ bảng products
-      // để tránh reset giá vốn về 0 khi bán hết hàng
-      const productRepo = queryRunner
-        ? queryRunner.manager.getRepository(Product)
-        : this.productService['productRepository'];
-      const product = await productRepo.findOne({ where: { id: productId } });
-      const currentAvgCost = product
-        ? parseFloat(product.average_cost_price?.toString() || '0')
-        : 0;
-
-      if (currentAvgCost > 0) {
-        this.logger.log(
-          `ℹ️ Không còn lô hàng cho SP ${productId}, giữ giá vốn TB hiện tại: ${currentAvgCost}`,
-        );
-      }
-
-      return currentAvgCost;
+      // average_cost_price hiện được chốt theo trung bình của tất cả phiếu nhập hợp lệ,
+      // không còn là WAC của tồn kho. Vì vậy khi không còn batch thì WAC phải về 0,
+      // không được fallback sang products.average_cost_price.
+      this.logger.log(
+        `ℹ️ Không còn lô hàng cho SP ${productId}, WAC tồn kho hiện tại = 0`,
+      );
+      return 0;
     }
 
     let totalValue = 0;
@@ -605,6 +595,89 @@ export class InventoryService {
 
     // Trả về giá vốn trung bình gia quyền
     return totalQuantity > 0 ? totalValue / totalQuantity : 0;
+  }
+
+  /**
+   * Tính lại average_cost_price theo trung bình của tất cả phiếu nhập hợp lệ,
+   * sau khi trừ các phiếu trả hàng nhập đã duyệt.
+   * Field này không đại diện cho WAC của tồn kho còn lại.
+   */
+  private async recalculateAverageCostPriceFromValidReceipts(
+    productId: number,
+    queryRunner?: QueryRunner,
+  ): Promise<number> {
+    const receiptItemRepo = queryRunner
+      ? queryRunner.manager.getRepository(InventoryReceiptItem)
+      : this.inventoryReceiptItemRepository;
+    const returnItemRepo = queryRunner
+      ? queryRunner.manager.getRepository(InventoryReturnItem)
+      : this.inventoryReturnItemRepository;
+    const productRepo = queryRunner
+      ? queryRunner.manager.getRepository(Product)
+      : this.productService['productRepository'];
+
+    const receiptSummary = await receiptItemRepo
+      .createQueryBuilder('item')
+      .innerJoin('item.receipt', 'receipt')
+      .select('COALESCE(SUM(item.total_price), 0)', 'totalValue')
+      .addSelect(
+        'COALESCE(SUM(COALESCE(item.base_quantity, item.quantity * COALESCE(item.conversion_factor, 1))), 0)',
+        'totalQuantity',
+      )
+      .where('item.product_id = :productId', { productId })
+      .andWhere('receipt.status IN (:...validStatuses)', {
+        validStatuses: [ReceiptStatus.APPROVED, 'completed'],
+      })
+      .getRawOne<{ totalValue?: string; totalQuantity?: string }>();
+
+    const returnSummary = await returnItemRepo
+      .createQueryBuilder('item')
+      .innerJoin('item.return', 'inventoryReturn')
+      .select('COALESCE(SUM(item.total_price), 0)', 'totalValue')
+      .addSelect(
+        'COALESCE(SUM(COALESCE(item.base_quantity, item.quantity * COALESCE(item.conversion_factor, 1))), 0)',
+        'totalQuantity',
+      )
+      .where('item.product_id = :productId', { productId })
+      .andWhere('inventoryReturn.status = :approvedStatus', {
+        approvedStatus: ReturnStatus.APPROVED,
+      })
+      .getRawOne<{ totalValue?: string; totalQuantity?: string }>();
+
+    const receiptTotalValue = Number(receiptSummary?.totalValue || 0);
+    const receiptTotalQuantity = Number(receiptSummary?.totalQuantity || 0);
+    const returnTotalValue = Number(returnSummary?.totalValue || 0);
+    const returnTotalQuantity = Number(returnSummary?.totalQuantity || 0);
+
+    const netQuantity = receiptTotalQuantity - returnTotalQuantity;
+    const netValue = receiptTotalValue - returnTotalValue;
+    const averageCostPrice = netQuantity > 0 ? netValue / netQuantity : 0;
+
+    await productRepo.update(productId, {
+      average_cost_price: averageCostPrice.toFixed(2),
+    });
+
+    this.logger.log(
+      `✅ Recalculated average_cost_price for SP #${productId}: ${averageCostPrice.toFixed(2)} (netQty=${netQuantity}, netValue=${netValue})`,
+    );
+
+    return averageCostPrice;
+  }
+
+  private async recalculateAverageCostPriceForProducts(
+    productIds: number[],
+    queryRunner?: QueryRunner,
+  ) {
+    const uniqueProductIds = Array.from(
+      new Set(productIds.map((id) => Number(id)).filter(Boolean)),
+    );
+
+    for (const productId of uniqueProductIds) {
+      await this.recalculateAverageCostPriceFromValidReceipts(
+        productId,
+        queryRunner,
+      );
+    }
   }
 
   /**
@@ -717,7 +790,8 @@ export class InventoryService {
       const updateData: any = {
         latest_purchase_price: unitCostPrice.toString(),
         quantity: newTotalQuantity,
-        average_cost_price: newAverageCost.toFixed(2),
+        // average_cost_price không cập nhật ở đây vì field này được tính
+        // theo toàn bộ phiếu nhập hợp lệ, không theo WAC tồn kho.
       };
 
       // Cộng số lượng thuế nếu có
@@ -733,7 +807,8 @@ export class InventoryService {
       const updateData: any = {
         latest_purchase_price: unitCostPrice.toString(),
         quantity: newTotalQuantity,
-        average_cost_price: newAverageCost.toFixed(2),
+        // average_cost_price không cập nhật ở đây vì field này được tính
+        // theo toàn bộ phiếu nhập hợp lệ, không theo WAC tồn kho.
       };
 
       // Cộng số lượng thuế nếu có
@@ -1635,6 +1710,10 @@ export class InventoryService {
           for (const productId of affectedProductIds) {
             await this.recalculateAverageVatInputCost(productId, queryRunner);
           }
+          await this.recalculateAverageCostPriceForProducts(
+            affectedProductIds,
+            queryRunner,
+          );
         } catch (error) {
           this.logger.error(
             `Lỗi nhập kho tự động cho phiếu ${receiptEntity.code}:`,
@@ -2547,22 +2626,10 @@ export class InventoryService {
       affectedProductIds.add(Number(item.product_id));
     }
 
-    // 4. Tính toán lại WAC cho từng sản phẩm bị ảnh hưởng
-    for (const productId of affectedProductIds) {
-      try {
-        const wacResult = await this.recalculateWeightedAverageCost(productId);
-        await this.productService.update(productId, {
-          average_cost_price: wacResult.newAverageCost.toFixed(2),
-        });
-        this.logger.log(
-          `✅ Đã cập nhật lại WAC cho SP #${productId}: ${wacResult.newAverageCost}`,
-        );
-      } catch (error) {
-        this.logger.error(
-          `Lỗi khi tính lại WAC cho SP #${productId}:`,
-          error instanceof Error ? error.message : 'Unknown error',
-        );
-      }
+    if (affectedProductIds.size > 0) {
+      this.logger.log(
+        `ℹ️ Đã cập nhật lại batch/transaction cho phiếu #${receiptId}. average_cost_price không đổi theo phí bốc vác vì field này được chốt theo trung bình của tất cả phiếu nhập hợp lệ.`,
+      );
     }
   }
 
@@ -2764,6 +2831,10 @@ export class InventoryService {
       for (const productId of affectedProductIds) {
         await this.recalculateAverageVatInputCost(productId, queryRunner);
       }
+      await this.recalculateAverageCostPriceForProducts(
+        affectedProductIds,
+        queryRunner,
+      );
 
       receipt.status = ReceiptStatus.APPROVED;
       receipt.approved_at = new Date();
@@ -2852,6 +2923,10 @@ export class InventoryService {
         for (const productId of affectedProductIds) {
           await this.recalculateAverageVatInputCost(productId, queryRunner);
         }
+        await this.recalculateAverageCostPriceForProducts(
+          affectedProductIds,
+          queryRunner,
+        );
       }
 
       await queryRunner.commitTransaction();
@@ -2919,9 +2994,6 @@ export class InventoryService {
           `Hủy phiếu nhập #${receiptId} (Sản phẩm ${item.product_id}): ${reason}`,
           queryRunner,
         );
-
-        // Tính lại giá vốn trung bình
-        await this.recalculateWeightedAverageCost(item.product_id, queryRunner);
       } catch (error) {
         this.logger.error(
           `Lỗi khi rollback inventory cho sản phẩm ${item.product_id} trong receipt #${receiptId}:`,
@@ -3050,27 +3122,10 @@ export class InventoryService {
 
         // Tính lại tổng tiền phiếu nhập và công nợ (Finance)
         await this.recalculateReceiptFinance(updatedItem.receipt_id);
-      }
-
-      // 2. TỰ ĐỘNG CẬP NHẬT LẠI GIÁ VỐN TRUNG BÌNH (WAC)
-      // Logic này cực kỳ quan trọng để sửa lỗi "kẹt" giá vốn cũ hoặc nhầm sản phẩm
-      try {
-        const wacResult = await this.recalculateWeightedAverageCost(
+        // average_cost_price phải bám theo toàn bộ phiếu nhập hợp lệ,
+        // nên sau khi đổi đơn giá trên phiếu đã duyệt phải tính lại từ lịch sử phiếu nhập.
+        await this.recalculateAverageCostPriceFromValidReceipts(
           updatedItem.product_id,
-        );
-
-        // Cập nhật con số thực tế vào bảng Product
-        await this.productService.update(updatedItem.product_id, {
-          average_cost_price: wacResult.newAverageCost.toFixed(2),
-        });
-
-        this.logger.log(
-          `✅ Đã tính lại giá vốn cho SP #${updatedItem.product_id}: ${wacResult.newAverageCost}`,
-        );
-      } catch (error) {
-        this.logger.error(
-          `Lỗi khi tính lại giá vốn cho SP #${updatedItem.product_id}:`,
-          error,
         );
       }
     }
@@ -3426,6 +3481,10 @@ export class InventoryService {
         });
       }
 
+      const affectedProductIds = Array.from(
+        new Set(savedItems.map((item) => Number(item.product_id))),
+      );
+
       // ===== CẬP NHẬT PHIẾU NHẬP GỐC NẾU CÓ =====
       if (createInventoryReturnDto.receipt_id) {
         const receipt = await queryRunner.manager.findOne(InventoryReceipt, {
@@ -3473,6 +3532,14 @@ export class InventoryService {
           );
         }
       }
+
+      if (returnEntity.status === ReturnStatus.APPROVED) {
+        await this.recalculateAverageCostPriceForProducts(
+          affectedProductIds,
+          queryRunner,
+        );
+      }
+
       await queryRunner.commitTransaction();
       this.logger.log(
         `Đã commit transaction cho phiếu trả hàng ${returnEntity.id}`,
@@ -3744,6 +3811,9 @@ export class InventoryService {
       const items = await queryRunner.manager.find(InventoryReturnItem, {
         where: { return_id: id },
       });
+      const affectedProductIds = Array.from(
+        new Set(items.map((item) => Number(item.product_id))),
+      );
 
       if (returnDoc.receipt_id) {
         await this.validateInventoryReturnItemsAgainstReceipt(
@@ -3770,6 +3840,11 @@ export class InventoryService {
       returnDoc.status = ReturnStatus.APPROVED;
       returnDoc.approved_at = new Date();
       returnDoc.approved_by = userId;
+
+      await this.recalculateAverageCostPriceForProducts(
+        affectedProductIds,
+        queryRunner,
+      );
 
       const savedReturn = await queryRunner.manager.save(returnDoc);
       await queryRunner.commitTransaction();
@@ -3818,6 +3893,9 @@ export class InventoryService {
         const items = await queryRunner.manager.find(InventoryReturnItem, {
           where: { return_id: id },
         });
+        const affectedProductIds = Array.from(
+          new Set(items.map((item) => Number(item.product_id))),
+        );
 
         for (const item of items) {
           const conversionFactor = Number(item.conversion_factor || 1);
@@ -3837,6 +3915,11 @@ export class InventoryService {
             queryRunner,
           );
         }
+
+        await this.recalculateAverageCostPriceForProducts(
+          affectedProductIds,
+          queryRunner,
+        );
       }
 
       returnDoc.status = ReturnStatus.CANCELLED;

@@ -337,6 +337,90 @@ export class SalesService {
   }
 
   /**
+   * Đồng bộ lại giá vốn snapshot của hóa đơn đã post từ dữ liệu xuất kho thực tế.
+   * Ưu tiên dùng sales_invoice_item_stock_allocations nếu có.
+   * Fallback sang inventory_transactions.total_value cho dữ liệu cũ chưa có allocation.
+   */
+  private async syncPostedInvoiceCostSnapshot(
+    invoiceId: number,
+    queryRunner?: QueryRunner,
+  ): Promise<void> {
+    const manager = queryRunner ? queryRunner.manager : this.dataSource.manager;
+    const invoice = await this.findOne(invoiceId, queryRunner);
+
+    if (!invoice || !invoice.items || invoice.items.length === 0) {
+      return;
+    }
+
+    let totalCOGS = 0;
+
+    for (const item of invoice.items) {
+      const baseQty = Number(item.base_quantity || item.quantity || 0);
+
+      const allocations = await manager.find(SalesInvoiceItemStockAllocation, {
+        where: { sales_invoice_item_id: item.id },
+      });
+
+      let itemTotalCost = 0;
+      let itemCostPrice = 0;
+
+      if (allocations.length > 0) {
+        const allocatedQty = allocations.reduce(
+          (sum, allocation) => sum + Number(allocation.quantity || 0),
+          0,
+        );
+        itemTotalCost = allocations.reduce(
+          (sum, allocation) => sum + Number(allocation.total_cost || 0),
+          0,
+        );
+        itemCostPrice =
+          allocatedQty > 0 ? itemTotalCost / allocatedQty : 0;
+      } else {
+        const tx = await manager.findOne(InventoryTransaction, {
+          where: {
+            type: 'OUT',
+            reference_type: 'SALE',
+            reference_id: invoiceId,
+            product_id: item.product_id,
+          },
+          order: { created_at: 'ASC' },
+        });
+
+        if (!tx) {
+          throw new BadRequestException(
+            `Không tìm thấy giao dịch kho để chốt giá vốn cho item #${item.id} của hóa đơn #${invoice.code}`,
+          );
+        }
+
+        itemTotalCost = Math.abs(Number(tx.total_value || 0));
+        itemCostPrice = baseQty > 0 ? itemTotalCost / baseQty : 0;
+      }
+
+      totalCOGS += itemTotalCost;
+
+      await manager.update(SalesInvoiceItem, item.id, {
+        cost_price: this.roundMoney(itemCostPrice),
+      });
+    }
+
+    const roundedCOGS = this.roundMoney(totalCOGS);
+    const grossProfit = this.roundMoney(
+      Number(invoice.final_amount || 0) - roundedCOGS,
+    );
+    const grossProfitMargin =
+      Number(invoice.final_amount || 0) > 0
+        ? Math.round((grossProfit / Number(invoice.final_amount || 0)) * 10000) /
+          100
+        : 0;
+
+    await manager.update(SalesInvoice, invoiceId, {
+      cost_of_goods_sold: roundedCOGS,
+      gross_profit: grossProfit,
+      gross_profit_margin: grossProfitMargin,
+    });
+  }
+
+  /**
    * Tạo hóa đơn bán hàng mới
    * @param createSalesInvoiceDto - Dữ liệu tạo hóa đơn bán hàng mới
    * @param userId - ID của user đang tạo hóa đơn (từ JWT token)
@@ -650,6 +734,7 @@ export class SalesService {
           savedInvoice.id,
         );
         await this.handleInventoryDeduction(savedInvoice.id, userId, queryRunner);
+        await this.syncPostedInvoiceCostSnapshot(savedInvoice.id, queryRunner);
       }
 
       await queryRunner.commitTransaction();
@@ -1087,6 +1172,7 @@ export class SalesService {
           savedInvoice.id,
         );
         await this.handleInventoryDeduction(savedInvoice.id, userId, queryRunner);
+        await this.syncPostedInvoiceCostSnapshot(savedInvoice.id, queryRunner);
       }
 
       await queryRunner.commitTransaction();
@@ -1205,6 +1291,7 @@ export class SalesService {
           savedInvoice.id,
         );
         await this.handleInventoryDeduction(savedInvoice.id, userId, queryRunner);
+        await this.syncPostedInvoiceCostSnapshot(savedInvoice.id, queryRunner);
       }
 
       await queryRunner.commitTransaction();
