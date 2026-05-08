@@ -1,6 +1,6 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull, Not, DataSource, QueryRunner } from 'typeorm';
+import { Repository, IsNull, Not, DataSource, QueryRunner, In } from 'typeorm';
 import {
   SalesInvoice,
   SalesInvoiceStatus,
@@ -90,6 +90,42 @@ export class SalesService {
       status === SalesInvoiceStatus.CONFIRMED ||
       status === SalesInvoiceStatus.PAID
     );
+  }
+
+  private async assertInvoiceProductMixingAllowed(
+    items: Array<{ product_id: number }>,
+    manager: any,
+  ): Promise<void> {
+    const productIds = Array.from(
+      new Set(items.map((item) => Number(item.product_id)).filter((id) => id > 0)),
+    );
+    if (!productIds.length) {
+      return;
+    }
+
+    const products = await manager.find(Product, {
+      where: { id: In(productIds) },
+    });
+    const productMap = new Map(products.map((product) => [Number(product.id), product]));
+
+    for (const productId of productIds) {
+      if (!productMap.has(productId)) {
+        throw new BadRequestException(`Sản phẩm ID ${productId} không tồn tại`);
+      }
+    }
+
+    const hasByPriceType = products.some(
+      (product) => product.costing_method === ProductCostingMethod.BY_PRICE_TYPE,
+    );
+    const hasStandard = products.some(
+      (product) => product.costing_method !== ProductCostingMethod.BY_PRICE_TYPE,
+    );
+
+    if (hasByPriceType && hasStandard) {
+      throw new BadRequestException(
+        'Không được trộn lúa giống quyết toán theo loại bán với sản phẩm thường trong cùng một phiếu bán.',
+      );
+    }
   }
 
   private calculateInvoiceSubtotal(items: CreateSalesInvoiceDto['items']): number {
@@ -356,6 +392,23 @@ export class SalesService {
 
     for (const item of invoice.items) {
       const baseQty = Number(item.base_quantity || item.quantity || 0);
+      const isByPriceType =
+        item.costing_method_snapshot === ProductCostingMethod.BY_PRICE_TYPE;
+
+      // Với lúa giống / sản phẩm chốt giá vốn theo loại giá bán,
+      // giữ nguyên snapshot đã chốt lúc tạo hóa đơn.
+      if (isByPriceType) {
+        const snapshotCostPrice = Number(item.cost_price || 0);
+
+        if (!Number.isFinite(snapshotCostPrice) || snapshotCostPrice <= 0) {
+          throw new BadRequestException(
+            `Item #${item.id} của hóa đơn #${invoice.code} chưa có giá vốn snapshot theo price_type`,
+          );
+        }
+
+        totalCOGS += this.roundMoney(baseQty * snapshotCostPrice);
+        continue;
+      }
 
       const allocations = await manager.find(SalesInvoiceItemStockAllocation, {
         where: { sales_invoice_item_id: item.id },
@@ -504,6 +557,11 @@ export class SalesService {
           'Không thể tạo hóa đơn đã thanh toán khi vẫn còn số tiền nợ',
         );
       }
+
+      await this.assertInvoiceProductMixingAllowed(
+        createSalesInvoiceDto.items,
+        queryRunner.manager,
+      );
 
       // Tự động sinh mã hóa đơn nếu không có
       const invoiceCode = createSalesInvoiceDto.invoice_code || CodeGeneratorHelper.generateUniqueCode('HD');
@@ -734,6 +792,10 @@ export class SalesService {
           savedInvoice.id,
         );
         await this.handleInventoryDeduction(savedInvoice.id, userId, queryRunner);
+        await this.inventoryService.syncSupplierSettlementForPostedInvoice(
+          savedInvoice.id,
+          queryRunner,
+        );
         await this.syncPostedInvoiceCostSnapshot(savedInvoice.id, queryRunner);
       }
 
@@ -1157,6 +1219,14 @@ export class SalesService {
         );
       }
 
+      const invoiceItems = await queryRunner.manager.find(SalesInvoiceItem, {
+        where: { invoice_id: id },
+      });
+      await this.assertInvoiceProductMixingAllowed(
+        invoiceItems.map((item) => ({ product_id: item.product_id })),
+        queryRunner.manager,
+      );
+
       invoice.status = SalesInvoiceStatus.CONFIRMED;
       invoice.updated_at = new Date();
       const savedInvoice = await queryRunner.manager.save(invoice);
@@ -1172,6 +1242,10 @@ export class SalesService {
           savedInvoice.id,
         );
         await this.handleInventoryDeduction(savedInvoice.id, userId, queryRunner);
+        await this.inventoryService.syncSupplierSettlementForPostedInvoice(
+          savedInvoice.id,
+          queryRunner,
+        );
         await this.syncPostedInvoiceCostSnapshot(savedInvoice.id, queryRunner);
       }
 
@@ -1291,6 +1365,10 @@ export class SalesService {
           savedInvoice.id,
         );
         await this.handleInventoryDeduction(savedInvoice.id, userId, queryRunner);
+        await this.inventoryService.syncSupplierSettlementForPostedInvoice(
+          savedInvoice.id,
+          queryRunner,
+        );
         await this.syncPostedInvoiceCostSnapshot(savedInvoice.id, queryRunner);
       }
 
@@ -2546,6 +2624,9 @@ export class SalesService {
       }
 
       await this.handleInventoryDeduction(invoice.id, userId);
+      await this.inventoryService.syncSupplierSettlementForPostedInvoice(
+        invoice.id,
+      );
       success++;
     }
 
@@ -2564,6 +2645,10 @@ export class SalesService {
   async handleInventoryRestoration(invoiceId: number, userId: number, queryRunner?: QueryRunner): Promise<void> {
     try {
       const transRepo = queryRunner ? queryRunner.manager.getRepository(InventoryTransaction) : this.dataSource.getRepository(InventoryTransaction);
+      await this.inventoryService.removeSupplierSettlementForInvoice(
+        invoiceId,
+        queryRunner,
+      );
       
       // 1. Kiểm tra xem hóa đơn đã được trừ tồn kho chưa
       const outTransactions = await transRepo.find({

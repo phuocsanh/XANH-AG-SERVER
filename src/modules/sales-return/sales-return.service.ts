@@ -605,6 +605,17 @@ export class SalesReturnService {
       );
 
       // 7. Cập nhật tồn kho (Tăng lại số lượng cho sản phẩm trả)
+      const supplierSettlementReturnEntries: Array<{
+        receipt_item_id?: number;
+        supplier_id?: number;
+        product_id: number;
+        invoice_id?: number;
+        sales_invoice_item_id?: number;
+        price_type?: string;
+        quantity: number;
+        unit_cost: number;
+        notes?: string;
+      }> = [];
       for (const item of returnItems) {
         // Lấy thông tin invoice item để biết hàng trả có tính thuế không
         const invoiceItem = this.findInvoiceItemForReturn(
@@ -684,6 +695,28 @@ export class SalesReturnService {
             plan.supplierId,
           );
 
+          const settlementEntry: any = {
+            product_id: item.product_id,
+            invoice_id: invoice.id,
+            quantity: plan.quantity,
+            unit_cost: this.getInvoiceItemUnitCost(invoiceItem),
+            notes: `Đảo quyết toán NCC do trả hàng #${returnCode}`,
+          };
+          if (plan.receiptItemId) {
+            settlementEntry.receipt_item_id = plan.receiptItemId;
+          }
+          if (plan.supplierId) {
+            settlementEntry.supplier_id = plan.supplierId;
+          }
+          if (invoiceItem?.id || item.sales_invoice_item_id) {
+            settlementEntry.sales_invoice_item_id =
+              invoiceItem?.id || item.sales_invoice_item_id;
+          }
+          if (invoiceItem?.price_type) {
+            settlementEntry.price_type = invoiceItem.price_type;
+          }
+          supplierSettlementReturnEntries.push(settlementEntry);
+
           remainingTaxableToRestock = this.roundBaseQuantity(
             remainingTaxableToRestock - boundedTaxableQty,
           );
@@ -694,6 +727,12 @@ export class SalesReturnService {
             `+${item.base_quantity} (Base Qty), +${returnTaxableQty} (Taxable Qty), ${restockPlans.length} lô hoàn kho`,
         );
       }
+
+      await this.inventoryService.createSupplierSettlementReturnEntries(
+        savedReturn.id,
+        supplierSettlementReturnEntries,
+        queryRunner,
+      );
 
       await queryRunner.commitTransaction();
 
@@ -1027,6 +1066,10 @@ export class SalesReturnService {
       }
 
       // 4. Đảo ngược tác động kho (Trừ lại tồn kho)
+      await this.inventoryService.removeSupplierSettlementForSalesReturn(
+        salesReturn.id,
+        queryRunner,
+      );
       for (const item of salesReturn.items || []) {
         // Thực hiện xuất kho ngược lại (OUT)
         await this.inventoryService.processStockOut(

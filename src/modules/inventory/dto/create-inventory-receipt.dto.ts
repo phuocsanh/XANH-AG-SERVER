@@ -9,6 +9,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ReceiptStatus } from '../enums/receipt-status.enum';
+import { SupplierSettlementMode } from '../../../entities/inventory-receipts.entity';
 
 /**
  * DTO (Data Transfer Object) dùng để tạo chi tiết phiếu nhập kho
@@ -140,5 +141,12 @@ export class CreateInventoryReceiptDto {
   @IsOptional()
   @IsString()
   payment_due_date?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(Object.values(SupplierSettlementMode), {
+    message: 'Chế độ quyết toán NCC không hợp lệ',
+  })
+  supplier_settlement_mode?: SupplierSettlementMode;
 
 }

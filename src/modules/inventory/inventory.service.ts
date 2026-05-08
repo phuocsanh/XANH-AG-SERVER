@@ -7,13 +7,17 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan, In, QueryRunner } from 'typeorm';
+import { Repository, MoreThan, In, QueryRunner, EntityManager } from 'typeorm';
 
 import { InventoryBatch } from '../../entities/inventories.entity';
 import { InventoryTransaction } from '../../entities/inventory-transactions.entity';
-import { InventoryReceipt } from '../../entities/inventory-receipts.entity';
+import {
+  InventoryReceipt,
+  SupplierSettlementMode,
+} from '../../entities/inventory-receipts.entity';
 import { InventoryReceiptItem } from '../../entities/inventory-receipt-items.entity';
 import { InventoryReceiptPayment } from '../../entities/inventory-receipt-payments.entity';
+import { InventoryReceiptSupplierSettlement } from '../../entities/inventory-receipt-supplier-settlements.entity';
 import { InventoryReturn } from '../../entities/inventory-returns.entity';
 import { InventoryReturnItem } from '../../entities/inventory-return-items.entity';
 import { InventoryReturnRefund } from '../../entities/inventory-return-refunds.entity';
@@ -21,7 +25,10 @@ import { InventoryAdjustment } from '../../entities/inventory-adjustments.entity
 import { InventoryAdjustmentItem } from '../../entities/inventory-adjustment-items.entity';
 import { InventoryReceiptLog } from '../../entities/inventory-receipt-logs.entity';
 import { Product } from '../../entities/products.entity';
+import { ProductCostingMethod } from '../../entities/products.entity';
+import { SalesInvoice } from '../../entities/sales-invoices.entity';
 import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
+import { SalesInvoiceItemStockAllocation } from '../../entities/sales-invoice-item-stock-allocations.entity';
 import { SalesReturnItem } from '../../entities/sales-return-items.entity';
 import { CreateInventoryBatchDto } from './dto/create-inventory-batch.dto';
 import { QueryHelper } from '../../common/helpers/query-helper';
@@ -90,6 +97,400 @@ export class InventoryService {
     private productService: ProductService,
     private fileTrackingService: FileTrackingService,
   ) {}
+
+  private getManager(queryRunner?: QueryRunner): EntityManager {
+    return queryRunner
+      ? queryRunner.manager
+      : this.inventoryReceiptRepository.manager;
+  }
+
+  private roundMoney(value: number): number {
+    return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+  }
+
+  private resolveReceiptPaymentStatus(
+    supplierAmount: number,
+    paidAmount: number,
+    settlementMode: SupplierSettlementMode,
+  ): string {
+    if (supplierAmount <= 0) {
+      if (
+        settlementMode === SupplierSettlementMode.BY_SALE_TYPE &&
+        paidAmount > 0
+      ) {
+        return 'advance';
+      }
+      return 'unpaid';
+    }
+
+    if (paidAmount >= supplierAmount) {
+      return 'paid';
+    }
+
+    if (paidAmount > 0) {
+      return 'partial';
+    }
+
+    return 'unpaid';
+  }
+
+  private isProductBySaleType(product?: Product | null): boolean {
+    return product?.costing_method === ProductCostingMethod.BY_PRICE_TYPE;
+  }
+
+  private async loadReceiptProducts(
+    productIds: number[],
+    queryRunner?: QueryRunner,
+  ): Promise<Product[]> {
+    const ids = Array.from(
+      new Set(productIds.map((id) => Number(id)).filter((id) => id > 0)),
+    );
+    if (!ids.length) {
+      return [];
+    }
+
+    return this.getManager(queryRunner).find(Product, {
+      where: { id: In(ids) },
+    });
+  }
+
+  private async validateReceiptSettlementMode(
+    items: Array<{ product_id: number }>,
+    requestedMode: SupplierSettlementMode | undefined,
+    queryRunner?: QueryRunner,
+  ): Promise<SupplierSettlementMode> {
+    const productIds = items.map((item) => Number(item.product_id));
+    const products = await this.loadReceiptProducts(productIds, queryRunner);
+    const productMap = new Map(products.map((product) => [Number(product.id), product]));
+
+    for (const productId of productIds) {
+      if (!productMap.has(productId)) {
+        throw new BadRequestException(`Sản phẩm ID ${productId} không tồn tại`);
+      }
+    }
+
+    const hasBySaleType = products.some((product) =>
+      this.isProductBySaleType(product),
+    );
+    const hasStandard = products.some(
+      (product) => !this.isProductBySaleType(product),
+    );
+
+    if (hasBySaleType && hasStandard) {
+      throw new BadRequestException(
+        'Không được trộn lúa giống quyết toán theo loại bán với sản phẩm thường trong cùng một phiếu nhập.',
+      );
+    }
+
+    if (!hasBySaleType) {
+      if (
+        requestedMode &&
+        requestedMode !== SupplierSettlementMode.STANDARD
+      ) {
+        throw new BadRequestException(
+          'Chế độ "quyết toán theo loại bán" chỉ áp dụng cho sản phẩm lúa giống.',
+        );
+      }
+      return SupplierSettlementMode.STANDARD;
+    }
+
+    return requestedMode || SupplierSettlementMode.BY_SALE_TYPE;
+  }
+
+  private async deleteSupplierSettlementEntries(
+    where:
+      | Partial<InventoryReceiptSupplierSettlement>
+      | Array<Partial<InventoryReceiptSupplierSettlement>>,
+    queryRunner?: QueryRunner,
+  ): Promise<number[]> {
+    const repo = this.getManager(queryRunner).getRepository(
+      InventoryReceiptSupplierSettlement,
+    );
+    const existingEntries = await repo.find({
+      where: where as any,
+      select: ['id', 'receipt_id'],
+    });
+    const affectedReceiptIds = Array.from(
+      new Set(existingEntries.map((entry) => Number(entry.receipt_id))),
+    );
+
+    if (existingEntries.length > 0) {
+      await repo.delete(existingEntries.map((entry) => entry.id));
+    }
+
+    return affectedReceiptIds;
+  }
+
+  private async recalculateBySaleTypeReceiptFinance(
+    receiptId: number,
+    queryRunner?: QueryRunner,
+  ): Promise<void> {
+    const manager = this.getManager(queryRunner);
+    const receipt = await manager.findOne(InventoryReceipt, {
+      where: { id: receiptId },
+      relations: ['items'],
+    });
+
+    if (!receipt) {
+      return;
+    }
+
+    const settlements = await manager.find(InventoryReceiptSupplierSettlement, {
+      where: { receipt_id: receiptId },
+    });
+
+    const goodsTotal = (receipt.items || []).reduce(
+      (sum, item) => sum + Number(item.total_price || 0),
+      0,
+    );
+    const sharedShipping = Number(receipt.shared_shipping_cost || 0);
+    const itemShipping = (receipt.items || []).reduce(
+      (sum, item) => sum + Number(item.individual_shipping_cost || 0),
+      0,
+    );
+    const supplierAmount = this.roundMoney(
+      settlements.reduce((sum, entry) => sum + Number(entry.amount || 0), 0),
+    );
+    const paidAmount = Number(receipt.paid_amount || 0);
+    const totalAmount = this.roundMoney(goodsTotal + sharedShipping + itemShipping);
+    const debtAmount = this.roundMoney(Math.max(0, supplierAmount - paidAmount));
+    const paymentStatus = this.resolveReceiptPaymentStatus(
+      supplierAmount,
+      paidAmount,
+      SupplierSettlementMode.BY_SALE_TYPE,
+    );
+
+    await manager.update(InventoryReceipt, receiptId, {
+      total_amount: totalAmount,
+      final_amount: supplierAmount,
+      supplier_amount: supplierAmount,
+      debt_amount: debtAmount,
+      payment_status: paymentStatus,
+    });
+  }
+
+  async syncSupplierSettlementForPostedInvoice(
+    invoiceId: number,
+    queryRunner?: QueryRunner,
+  ): Promise<void> {
+    const manager = this.getManager(queryRunner);
+    const affectedReceiptIds = new Set<number>(
+      await this.deleteSupplierSettlementEntries(
+        { invoice_id: invoiceId, entry_type: 'sale' as any },
+        queryRunner,
+      ),
+    );
+
+    const allocations = await manager.find(SalesInvoiceItemStockAllocation, {
+      where: { invoice_id: invoiceId },
+      relations: ['receipt_item', 'receipt_item.receipt'],
+      order: { id: 'ASC' },
+    });
+    if (!allocations.length) {
+      for (const receiptId of affectedReceiptIds) {
+        await this.recalculateBySaleTypeReceiptFinance(receiptId, queryRunner);
+      }
+      return;
+    }
+
+    const invoice = await manager.findOne(SalesInvoice, {
+      where: { id: invoiceId },
+      relations: ['items'],
+    });
+    const invoiceItems = invoice?.items || [];
+    const invoiceItemMap = new Map(
+      invoiceItems.map((item) => [Number(item.id), item]),
+    );
+    const entries: InventoryReceiptSupplierSettlement[] = [];
+
+    for (const allocation of allocations) {
+      const receipt = allocation.receipt_item?.receipt;
+      if (
+        !receipt ||
+        receipt.supplier_settlement_mode !== SupplierSettlementMode.BY_SALE_TYPE
+      ) {
+        continue;
+      }
+
+      const invoiceItem = invoiceItemMap.get(
+        Number(allocation.sales_invoice_item_id),
+      );
+      if (!invoiceItem) {
+        continue;
+      }
+
+      const quantity = Number(allocation.quantity || 0);
+      const unitCost = Number(invoiceItem.cost_price || 0);
+      if (quantity <= 0) {
+        continue;
+      }
+
+      affectedReceiptIds.add(Number(receipt.id));
+      const settlementData: any = {
+        receipt_id: receipt.id,
+        product_id: allocation.product_id,
+        invoice_id: invoiceId,
+        entry_type: 'sale',
+        quantity,
+        unit_cost: unitCost,
+        amount: this.roundMoney(quantity * unitCost),
+        notes: `Quyết toán NCC theo hóa đơn #${invoice?.code || invoiceId}`,
+      };
+      if (allocation.receipt_item_id) {
+        settlementData.receipt_item_id = allocation.receipt_item_id;
+      }
+      if (allocation.supplier_id || receipt.supplier_id) {
+        settlementData.supplier_id =
+          allocation.supplier_id || receipt.supplier_id;
+      }
+      if (allocation.sales_invoice_item_id) {
+        settlementData.sales_invoice_item_id =
+          allocation.sales_invoice_item_id;
+      }
+      if (invoiceItem.price_type) {
+        settlementData.price_type = invoiceItem.price_type;
+      }
+      entries.push(
+        manager.create(InventoryReceiptSupplierSettlement, settlementData),
+      );
+    }
+
+    if (entries.length > 0) {
+      await manager.save(InventoryReceiptSupplierSettlement, entries);
+    }
+
+    for (const receiptId of affectedReceiptIds) {
+      await this.recalculateBySaleTypeReceiptFinance(receiptId, queryRunner);
+    }
+  }
+
+  async removeSupplierSettlementForInvoice(
+    invoiceId: number,
+    queryRunner?: QueryRunner,
+  ): Promise<void> {
+    const affectedReceiptIds = await this.deleteSupplierSettlementEntries(
+      { invoice_id: invoiceId, entry_type: 'sale' as any },
+      queryRunner,
+    );
+    for (const receiptId of affectedReceiptIds) {
+      await this.recalculateBySaleTypeReceiptFinance(receiptId, queryRunner);
+    }
+  }
+
+  async createSupplierSettlementReturnEntries(
+    salesReturnId: number,
+    entries: Array<{
+      receipt_item_id?: number;
+      supplier_id?: number;
+      product_id: number;
+      invoice_id?: number;
+      sales_invoice_item_id?: number;
+      price_type?: string;
+      quantity: number;
+      unit_cost: number;
+      notes?: string;
+    }>,
+    queryRunner?: QueryRunner,
+  ): Promise<void> {
+    const manager = this.getManager(queryRunner);
+    const affectedReceiptIds = new Set<number>(
+      await this.deleteSupplierSettlementEntries(
+        { sales_return_id: salesReturnId, entry_type: 'return' as any },
+        queryRunner,
+      ),
+    );
+
+    const receiptItemIds = Array.from(
+      new Set(
+        entries
+          .map((entry) => Number(entry.receipt_item_id))
+          .filter((id) => id > 0),
+      ),
+    );
+    const receiptItems = receiptItemIds.length
+      ? await manager.find(InventoryReceiptItem, {
+          where: { id: In(receiptItemIds) },
+          relations: ['receipt'],
+        })
+      : [];
+    const receiptItemMap = new Map(
+      receiptItems.map((item) => [Number(item.id), item]),
+    );
+    const settlementRows: InventoryReceiptSupplierSettlement[] = [];
+
+    for (const entry of entries) {
+      const receiptItemId = Number(entry.receipt_item_id || 0);
+      if (!receiptItemId) {
+        continue;
+      }
+      const receiptItem = receiptItemMap.get(receiptItemId);
+      const receipt = receiptItem?.receipt;
+      if (
+        !receipt ||
+        receipt.supplier_settlement_mode !== SupplierSettlementMode.BY_SALE_TYPE
+      ) {
+        continue;
+      }
+
+      const quantity = Number(entry.quantity || 0);
+      if (quantity <= 0) {
+        continue;
+      }
+
+      affectedReceiptIds.add(Number(receipt.id));
+      const settlementData: any = {
+        receipt_id: receipt.id,
+        receipt_item_id: receiptItemId,
+        product_id: entry.product_id,
+        sales_return_id: salesReturnId,
+        entry_type: 'return',
+        quantity: -Math.abs(quantity),
+        unit_cost: Number(entry.unit_cost || 0),
+        amount: this.roundMoney(
+          -Math.abs(quantity) * Number(entry.unit_cost || 0),
+        ),
+      };
+      if (entry.supplier_id || receipt.supplier_id) {
+        settlementData.supplier_id = entry.supplier_id || receipt.supplier_id;
+      }
+      if (entry.invoice_id) {
+        settlementData.invoice_id = entry.invoice_id;
+      }
+      if (entry.sales_invoice_item_id) {
+        settlementData.sales_invoice_item_id = entry.sales_invoice_item_id;
+      }
+      if (entry.price_type) {
+        settlementData.price_type = entry.price_type;
+      }
+      if (entry.notes) {
+        settlementData.notes = entry.notes;
+      }
+      settlementRows.push(
+        manager.create(InventoryReceiptSupplierSettlement, settlementData),
+      );
+    }
+
+    if (settlementRows.length > 0) {
+      await manager.save(InventoryReceiptSupplierSettlement, settlementRows);
+    }
+
+    for (const receiptId of affectedReceiptIds) {
+      await this.recalculateBySaleTypeReceiptFinance(receiptId, queryRunner);
+    }
+  }
+
+  async removeSupplierSettlementForSalesReturn(
+    salesReturnId: number,
+    queryRunner?: QueryRunner,
+  ): Promise<void> {
+    const affectedReceiptIds = await this.deleteSupplierSettlementEntries(
+      { sales_return_id: salesReturnId, entry_type: 'return' as any },
+      queryRunner,
+    );
+    for (const receiptId of affectedReceiptIds) {
+      await this.recalculateBySaleTypeReceiptFinance(receiptId, queryRunner);
+    }
+  }
 
   /**
    * Tạo lô hàng tồn kho mới
@@ -1380,12 +1781,19 @@ export class InventoryService {
         this.logger.log(`Tự sinh mã phiếu nhập kho: ${receiptCode}`);
       }
 
+      const settlementMode = await this.validateReceiptSettlementMode(
+        createInventoryReceiptDto.items || [],
+        createInventoryReceiptDto.supplier_settlement_mode,
+        queryRunner,
+      );
+
       // Tạo phiếu nhập kho
       const receiptData: any = {
         code: receiptCode,
         supplier_id: createInventoryReceiptDto.supplier_id,
         total_amount: createInventoryReceiptDto.total_amount,
         status: createInventoryReceiptDto.status,
+        supplier_settlement_mode: settlementMode,
 
         created_by: userId, // Lấy từ JWT token
         updated_by: userId, // Người tạo cũng là người cập nhật đầu tiên
@@ -1480,31 +1888,45 @@ export class InventoryService {
         supplierAmount + excludedShipping,
       );
 
-      // VALIDATION: Nếu còn nợ NCC, phải có hạn thanh toán
-      if (
-        paidAmount < supplierAmount &&
-        !createInventoryReceiptDto.payment_due_date &&
-        createInventoryReceiptDto.status !== ReceiptStatus.DRAFT
-      ) {
-        throw new BadRequestException('Khi còn nợ, phải có hạn thanh toán');
+      if (settlementMode === SupplierSettlementMode.STANDARD) {
+        // VALIDATION: Nếu còn nợ NCC, phải có hạn thanh toán
+        if (
+          paidAmount < supplierAmount &&
+          !createInventoryReceiptDto.payment_due_date &&
+          createInventoryReceiptDto.status !== ReceiptStatus.DRAFT
+        ) {
+          throw new BadRequestException('Khi còn nợ, phải có hạn thanh toán');
+        }
+
+        const debtAmount = Math.max(
+          0,
+          Math.round(supplierAmount - paidAmount),
+        );
+        const paymentStatus = this.resolveReceiptPaymentStatus(
+          supplierAmount,
+          paidAmount,
+          settlementMode,
+        );
+
+        // Thêm các trường thanh toán vào receiptData
+        receiptData.paid_amount = paidAmount;
+        receiptData.payment_status = paymentStatus;
+        receiptData.final_amount = supplierAmount; // supplier_amount là giá trị thực tế của hàng hóa
+        receiptData.total_amount = calculatedTotalAmount; // Tổng giá trị bao gồm phí vận chuyển
+        receiptData.supplier_amount = supplierAmount;
+        receiptData.debt_amount = debtAmount;
+      } else {
+        receiptData.paid_amount = paidAmount;
+        receiptData.payment_status = this.resolveReceiptPaymentStatus(
+          0,
+          paidAmount,
+          settlementMode,
+        );
+        receiptData.final_amount = 0;
+        receiptData.total_amount = calculatedTotalAmount;
+        receiptData.supplier_amount = 0;
+        receiptData.debt_amount = 0;
       }
-
-      const debtAmount = Math.max(0, Math.round(supplierAmount - paidAmount));
-
-      let paymentStatus = 'unpaid';
-      if (paidAmount >= supplierAmount && supplierAmount > 0) {
-        paymentStatus = 'paid';
-      } else if (paidAmount > 0) {
-        paymentStatus = 'partial';
-      }
-
-      // Thêm các trường thanh toán vào receiptData
-      receiptData.paid_amount = paidAmount;
-      receiptData.payment_status = paymentStatus;
-      receiptData.final_amount = supplierAmount; // supplier_amount là giá trị thực tế của hàng hóa
-      receiptData.total_amount = calculatedTotalAmount; // Tổng giá trị bao gồm phí vận chuyển
-      receiptData.supplier_amount = supplierAmount;
-      receiptData.debt_amount = debtAmount;
 
       if (createInventoryReceiptDto.status === ReceiptStatus.APPROVED) {
         receiptData.approved_at = new Date();
@@ -2497,21 +2919,33 @@ export class InventoryService {
     // Phí vận chuyển do người dùng tự chịu
     const totalShipping = Number(sharedShipping) + Number(itemShipping);
 
-    // Phải trả NCC = Tiền hàng (trước đây dùng final_amount nhưng đúng nhất là goodsTotal trừ trả hàng)
-    // Giả định đơn giản: không cập nhật returned_amount ở đây (nó được cập nhật khi có phiếu trả hàng)
-    const returnedAmount = Number(receipt.returned_amount || 0);
-    const supplierAmount = Math.round(goodsTotal - returnedAmount);
+    if (
+      receipt.supplier_settlement_mode === SupplierSettlementMode.BY_SALE_TYPE
+    ) {
+      entityUpdateData.total_amount = Math.round(goodsTotal + totalShipping);
+      entityUpdateData.paid_amount = paidAmount;
+    } else {
+      // Phải trả NCC = Tiền hàng (trước đây dùng final_amount nhưng đúng nhất là goodsTotal trừ trả hàng)
+      // Giả định đơn giản: không cập nhật returned_amount ở đây (nó được cập nhật khi có phiếu trả hàng)
+      const returnedAmount = Number(receipt.returned_amount || 0);
+      const supplierAmount = Math.round(goodsTotal - returnedAmount);
 
-    // Tổng giá trị phiếu nhập = Phải trả NCC + Phí vận chuyển
-    const totalAmount = Math.round(supplierAmount + totalShipping);
+      // Tổng giá trị phiếu nhập = Phải trả NCC + Phí vận chuyển
+      const totalAmount = Math.round(supplierAmount + totalShipping);
 
-    const debtAmount = Math.max(0, Math.round(supplierAmount - paidAmount));
+      const debtAmount = Math.max(0, Math.round(supplierAmount - paidAmount));
 
-    entityUpdateData.total_amount = totalAmount;
-    entityUpdateData.final_amount = supplierAmount; // final_amount là giá trị hàng hóa thực tế
-    entityUpdateData.supplier_amount = supplierAmount;
-    entityUpdateData.debt_amount = debtAmount;
-    entityUpdateData.paid_amount = paidAmount;
+      entityUpdateData.total_amount = totalAmount;
+      entityUpdateData.final_amount = supplierAmount; // final_amount là giá trị hàng hóa thực tế
+      entityUpdateData.supplier_amount = supplierAmount;
+      entityUpdateData.debt_amount = debtAmount;
+      entityUpdateData.paid_amount = paidAmount;
+      entityUpdateData.payment_status = this.resolveReceiptPaymentStatus(
+        supplierAmount,
+        paidAmount,
+        SupplierSettlementMode.STANDARD,
+      );
+    }
 
     if (updateData.payment_method !== undefined)
       entityUpdateData.payment_method = updateData.payment_method;
@@ -2519,6 +2953,9 @@ export class InventoryService {
       entityUpdateData.payment_due_date = updateData.payment_due_date;
 
     await this.inventoryReceiptRepository.update(id, entityUpdateData);
+    if (receipt.supplier_settlement_mode === SupplierSettlementMode.BY_SALE_TYPE) {
+      await this.recalculateBySaleTypeReceiptFinance(id);
+    }
     const updatedReceipt = await this.findReceiptById(id);
 
     // ✅ Cập nhật theo dõi ảnh (increment/decrement refs)
@@ -2779,6 +3216,12 @@ export class InventoryService {
       const items = await queryRunner.manager.find(InventoryReceiptItem, {
         where: { receipt_id: id },
       });
+
+      receipt.supplier_settlement_mode = await this.validateReceiptSettlementMode(
+        items.map((item) => ({ product_id: item.product_id })),
+        receipt.supplier_settlement_mode,
+        queryRunner,
+      );
 
       // Xử lý nhập kho cho từng sản phẩm ngay khi duyệt
       let itemIndex = 1;
@@ -3148,6 +3591,13 @@ export class InventoryService {
 
     if (!receipt) return;
 
+    if (
+      receipt.supplier_settlement_mode === SupplierSettlementMode.BY_SALE_TYPE
+    ) {
+      await this.recalculateBySaleTypeReceiptFinance(receiptId);
+      return;
+    }
+
     // Tính tổng tiền hàng gốc từ các item (Đây là số tiền thực sự nợ NCC cho hàng hóa)
     const goodsTotal = receipt.items.reduce(
       (sum, item) => sum + Number(item.total_price || 0),
@@ -3175,8 +3625,14 @@ export class InventoryService {
 
     await this.inventoryReceiptRepository.update(receiptId, {
       total_amount: totalAmount,
+      final_amount: supplierAmount,
       supplier_amount: supplierAmount,
       debt_amount: debtAmount,
+      payment_status: this.resolveReceiptPaymentStatus(
+        supplierAmount,
+        paidAmount,
+        SupplierSettlementMode.STANDARD,
+      ),
     });
 
     this.logger.log(
@@ -4545,7 +5001,10 @@ export class InventoryService {
       Number(receipt.total_amount);
     const newPaidAmount = currentPaidAmount + Number(paymentDto.amount);
 
-    if (newPaidAmount > supplierAmount) {
+    if (
+      receipt.supplier_settlement_mode !== SupplierSettlementMode.BY_SALE_TYPE &&
+      newPaidAmount > supplierAmount
+    ) {
       throw new BadRequestException(
         `Số tiền thanh toán vượt quá số tiền còn nợ NCC (${supplierAmount - currentPaidAmount}đ)`,
       );
@@ -4572,17 +5031,12 @@ export class InventoryService {
     const savedPayment = await repo.save(payment);
 
     // Cập nhật phiếu nhập
-    const newDebtAmount = Math.max(
-      0,
-      Math.round(supplierAmount - newPaidAmount),
+    const newDebtAmount = Math.max(0, Math.round(supplierAmount - newPaidAmount));
+    const newPaymentStatus = this.resolveReceiptPaymentStatus(
+      supplierAmount,
+      newPaidAmount,
+      receipt.supplier_settlement_mode || SupplierSettlementMode.STANDARD,
     );
-    let newPaymentStatus = 'partial';
-
-    if (newDebtAmount === 0) {
-      newPaymentStatus = 'paid';
-    } else if (newPaidAmount === 0) {
-      newPaymentStatus = 'unpaid';
-    }
 
     const receiptRepo = queryRunner
       ? queryRunner.manager.getRepository(InventoryReceipt)
@@ -4670,12 +5124,11 @@ export class InventoryService {
       Math.round(supplierAmount - newPaidAmount),
     );
 
-    let newPaymentStatus = 'partial';
-    if (newDebtAmount === finalAmount) {
-      newPaymentStatus = 'unpaid';
-    } else if (newDebtAmount === 0) {
-      newPaymentStatus = 'paid';
-    }
+    const newPaymentStatus = this.resolveReceiptPaymentStatus(
+      supplierAmount,
+      newPaidAmount,
+      receipt.supplier_settlement_mode || SupplierSettlementMode.STANDARD,
+    );
 
     await this.inventoryReceiptRepository.update(receiptId, {
       paid_amount: newPaidAmount,

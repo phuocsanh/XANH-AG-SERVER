@@ -14,6 +14,11 @@ import type { InventoryReceiptPayment } from './inventory-receipt-payments.entit
 import type { Supplier } from './suppliers.entity';
 import type { User } from './users.entity';
 
+export enum SupplierSettlementMode {
+  STANDARD = 'standard',
+  BY_SALE_TYPE = 'by_sale_type',
+}
+
 /**
  * Entity biểu diễn thông tin phiếu nhập kho
  * Ánh xạ với bảng 'inventory_receipts' trong cơ sở dữ liệu
@@ -133,6 +138,15 @@ export class InventoryReceipt {
   /** Hạn thanh toán */
   @Column({ name: 'payment_due_date', type: 'timestamp', nullable: true })
   payment_due_date?: Date;
+
+  /** Chế độ quyết toán với NCC */
+  @Column({
+    name: 'supplier_settlement_mode',
+    type: 'varchar',
+    length: 30,
+    default: SupplierSettlementMode.STANDARD,
+  })
+  supplier_settlement_mode!: SupplierSettlementMode;
 
   // ===== ĐIỀU CHỈNH =====
   /** Tổng giá trị đã điều chỉnh (+ hoặc -) */
