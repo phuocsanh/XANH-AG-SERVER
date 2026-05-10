@@ -1,10 +1,14 @@
-import { Controller, Get, Param, ParseIntPipe, UseGuards, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Put, UseGuards, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { StoreProfitReportService } from './store-profit-report.service';
 import { InvoiceProfitDto } from './dto/invoice-profit.dto';
 import { SeasonStoreProfitDto } from './dto/season-store-profit.dto';
 import { CustomerProfitReportDto } from './dto/customer-profit-report.dto';
 import { PeriodReportDto } from './dto/period-report.dto';
+import {
+  TaxRevenueCutoverDateDto,
+  UpdateTaxRevenueCutoverDateDto,
+} from './dto/tax-revenue-cutover-date.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -18,6 +22,36 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class StoreProfitReportController {
   constructor(private readonly service: StoreProfitReportService) {}
+
+  @Get('tax-revenue/cutover-date')
+  @RequirePermissions('store_profit_report:read')
+  @ApiOperation({
+    summary: 'Lấy ngày cutover cho report khai thuế',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Ngày cutover hiện tại',
+    type: TaxRevenueCutoverDateDto,
+  })
+  async getTaxRevenueCutoverDate(): Promise<TaxRevenueCutoverDateDto> {
+    return this.service.getTaxRevenueCutoverDate();
+  }
+
+  @Put('tax-revenue/cutover-date')
+  @RequirePermissions('inventory:manage')
+  @ApiOperation({
+    summary: 'Cập nhật ngày cutover cho report khai thuế',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Ngày cutover sau khi cập nhật',
+    type: TaxRevenueCutoverDateDto,
+  })
+  async updateTaxRevenueCutoverDate(
+    @Body() body: UpdateTaxRevenueCutoverDateDto,
+  ): Promise<TaxRevenueCutoverDateDto> {
+    return this.service.updateTaxRevenueCutoverDate(body.cutover_date);
+  }
 
   @Get('invoice/code/:code')
   @RequirePermissions('store_profit_report:read')

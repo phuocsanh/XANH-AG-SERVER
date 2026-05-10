@@ -9,6 +9,7 @@ import { RiceCrop } from '../../entities/rice-crop.entity';
 import { Customer } from '../../entities/customer.entity';
 import { FarmServiceCost } from '../../entities/farm-service-cost.entity';
 import { FarmGiftCost } from '../../entities/farm-gift-cost.entity';
+import { SystemSetting } from '../../entities/system-setting.entity';
 import { SalesReturnItem } from '../../entities/sales-return-items.entity';
 import { SalesReturnStatus } from '../../entities/sales-return.entity';
 import { QueryHelper } from '../../common/helpers/query-helper';
@@ -39,6 +40,10 @@ import { PeriodReportDto, PeriodSummaryDto, PeriodInvoiceDto, PeriodInvoiceItemD
 @Injectable()
 export class StoreProfitReportService {
   private readonly logger = new Logger(StoreProfitReportService.name);
+  private readonly DEFAULT_TAX_REVENUE_CUTOVER_DATE = '2026-01-01';
+  private readonly TAX_REVENUE_CUTOVER_DATE_KEY = 'tax_revenue_cutover_date';
+  private readonly LEGACY_TAX_REVENUE_CUTOVER_DATE_KEY =
+    'tax_revenue_2026_cutover_date';
 
   constructor(
     @InjectRepository(SalesInvoice)
@@ -57,8 +62,58 @@ export class StoreProfitReportService {
     private farmServiceCostRepository: Repository<FarmServiceCost>,
     @InjectRepository(FarmGiftCost)
     private farmGiftCostRepository: Repository<FarmGiftCost>,
+    @InjectRepository(SystemSetting)
+    private systemSettingRepository: Repository<SystemSetting>,
 
   ) {}
+
+  async getTaxRevenueCutoverDate(): Promise<{ cutover_date: string }> {
+    const setting =
+      (await this.systemSettingRepository.findOne({
+        where: { key: this.TAX_REVENUE_CUTOVER_DATE_KEY },
+      })) ||
+      (await this.systemSettingRepository.findOne({
+        where: { key: this.LEGACY_TAX_REVENUE_CUTOVER_DATE_KEY },
+      }));
+
+    return {
+      cutover_date:
+        setting?.value?.trim() || this.DEFAULT_TAX_REVENUE_CUTOVER_DATE,
+    };
+  }
+
+  async updateTaxRevenueCutoverDate(
+    cutoverDate: string,
+  ): Promise<{ cutover_date: string }> {
+    const normalizedDate = cutoverDate.trim();
+    let setting = await this.systemSettingRepository.findOne({
+      where: { key: this.TAX_REVENUE_CUTOVER_DATE_KEY },
+    });
+
+    const legacySetting = await this.systemSettingRepository.findOne({
+      where: { key: this.LEGACY_TAX_REVENUE_CUTOVER_DATE_KEY },
+    });
+
+    if (!setting) {
+      setting = this.systemSettingRepository.create({
+        key: this.TAX_REVENUE_CUTOVER_DATE_KEY,
+        description: 'Ngay cutover cho report tax-revenue',
+        value: normalizedDate,
+      });
+    } else {
+      setting.value = normalizedDate;
+      setting.description =
+        setting.description || 'Ngay cutover cho report tax-revenue';
+    }
+
+    await this.systemSettingRepository.save(setting);
+
+    if (legacySetting) {
+      await this.systemSettingRepository.remove(legacySetting);
+    }
+
+    return { cutover_date: normalizedDate };
+  }
 
   private getInvoiceItemCostPrice(item: any): number {
     if (item?.cost_price === null || item?.cost_price === undefined) {
