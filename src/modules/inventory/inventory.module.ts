@@ -12,6 +12,7 @@ import { InventoryAdjustment } from '../../entities/inventory-adjustments.entity
 import { InventoryAdjustmentItem } from '../../entities/inventory-adjustment-items.entity';
 import { InventoryReceiptLog } from '../../entities/inventory-receipt-logs.entity';
 import { InventoryReceiptSupplierSettlement } from '../../entities/inventory-receipt-supplier-settlements.entity';
+import { SystemSetting } from '../../entities/system-setting.entity';
 import { InventoryService } from './inventory.service';
 import { InventoryController } from './inventory.controller';
 import { ProductModule } from '../product/product.module';
@@ -44,6 +45,7 @@ import { ProductUnitConversionModule } from '../product-unit-conversion/product-
       InventoryAdjustmentItem, // Entity quản lý chi tiết phiếu điều chỉnh kho
       InventoryReceiptLog, // Entity quản lý lịch sử chỉnh sửa phiếu nhập kho
       InventoryReceiptSupplierSettlement,
+      SystemSetting,
     ]),
     // Import ProductModule với forwardRef để tránh circular dependency
     forwardRef(() => ProductModule),

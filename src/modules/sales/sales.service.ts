@@ -92,6 +92,27 @@ export class SalesService {
     );
   }
 
+  private async syncTaxableDataForInvoice(invoiceId: number): Promise<void> {
+    try {
+      const rows = await this.salesInvoiceItemRepository
+        .createQueryBuilder('item')
+        .select('DISTINCT item.product_id', 'product_id')
+        .where('item.invoice_id = :invoiceId', { invoiceId })
+        .getRawMany();
+
+      const productIds = rows.map((row) => Number(row.product_id || 0));
+      await this.inventoryService.syncTaxableDataForProductsUsingConfiguredCutover(
+        productIds,
+      );
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `❌ Lỗi đồng bộ dữ liệu thuế cho hóa đơn #${invoiceId}: ${errorMessage}`,
+      );
+    }
+  }
+
   private async assertInvoiceProductMixingAllowed(
     items: Array<{ product_id: number }>,
     manager: any,
@@ -801,6 +822,9 @@ export class SalesService {
 
       await queryRunner.commitTransaction();
       this.logger.log(`Đã commit transaction cho hóa đơn ${savedInvoice.id}`);
+      if (this.isPostedInvoiceStatus(savedInvoice.status)) {
+        await this.syncTaxableDataForInvoice(savedInvoice.id);
+      }
 
       return savedInvoice;
     } catch (error) {
@@ -1250,6 +1274,7 @@ export class SalesService {
       }
 
       await queryRunner.commitTransaction();
+      await this.syncTaxableDataForInvoice(savedInvoice.id);
       return savedInvoice;
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -1373,6 +1398,7 @@ export class SalesService {
       }
 
       await queryRunner.commitTransaction();
+      await this.syncTaxableDataForInvoice(savedInvoice.id);
       return savedInvoice;
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -1478,6 +1504,7 @@ export class SalesService {
       }
 
       await queryRunner.commitTransaction();
+      await this.syncTaxableDataForInvoice(savedInvoice.id);
       return savedInvoice;
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -1580,6 +1607,7 @@ export class SalesService {
       }
 
       await queryRunner.commitTransaction();
+      await this.syncTaxableDataForInvoice(savedInvoice.id);
       return savedInvoice;
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -2627,6 +2655,7 @@ export class SalesService {
       await this.inventoryService.syncSupplierSettlementForPostedInvoice(
         invoice.id,
       );
+      await this.syncTaxableDataForInvoice(invoice.id);
       success++;
     }
 

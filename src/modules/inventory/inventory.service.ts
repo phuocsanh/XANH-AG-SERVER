@@ -30,6 +30,7 @@ import { SalesInvoice } from '../../entities/sales-invoices.entity';
 import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
 import { SalesInvoiceItemStockAllocation } from '../../entities/sales-invoice-item-stock-allocations.entity';
 import { SalesReturnItem } from '../../entities/sales-return-items.entity';
+import { SystemSetting } from '../../entities/system-setting.entity';
 import { CreateInventoryBatchDto } from './dto/create-inventory-batch.dto';
 import { QueryHelper } from '../../common/helpers/query-helper';
 import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
@@ -93,6 +94,8 @@ export class InventoryService {
     private inventoryAdjustmentItemRepository: Repository<InventoryAdjustmentItem>,
     @InjectRepository(InventoryReceiptLog)
     private inventoryReceiptLogRepository: Repository<InventoryReceiptLog>,
+    @InjectRepository(SystemSetting)
+    private systemSettingRepository: Repository<SystemSetting>,
     @Inject(forwardRef(() => ProductService))
     private productService: ProductService,
     private fileTrackingService: FileTrackingService,
@@ -2038,6 +2041,7 @@ export class InventoryService {
           quantity: item.quantity,
           unit_cost: item.unit_cost,
           vat_unit_cost: item.vat_unit_cost ?? item.unit_cost,
+          tax_selling_price: item.tax_selling_price ?? null,
           total_price: item.total_price,
           individual_shipping_cost: item.individual_shipping_cost || 0,
           allocated_shipping_cost: item.allocated_shipping_cost,
@@ -2068,6 +2072,7 @@ export class InventoryService {
 
         // Xử lý taxable_quantity: Dùng giá trị từ FE (cột SL Thuế)
         itemData.taxable_quantity = item.taxable_quantity || 0;
+        this.validateReceiptItemTaxData(itemData);
 
         const itemEntity = queryRunner.manager.create(
           InventoryReceiptItem,
@@ -2188,9 +2193,10 @@ export class InventoryService {
         const affectedProductIds = Array.from(
           new Set(savedItems.map((i) => Number(i.product_id))),
         );
+        const cutoverDate = await this.getTaxRevenueCutoverDateValue();
         for (const productId of affectedProductIds) {
           try {
-            await this.syncTaxableDataForProduct(productId);
+            await this.syncTaxableDataForProduct(productId, cutoverDate);
           } catch (error) {
             this.logger.error(
               `Lỗi đồng bộ tồn thuế cho sản phẩm #${productId} sau khi tạo phiếu ${receiptEntity.code}:`,
@@ -3226,6 +3232,8 @@ export class InventoryService {
       // Xử lý nhập kho cho từng sản phẩm ngay khi duyệt
       let itemIndex = 1;
       for (const item of items) {
+        this.validateReceiptItemTaxData(item);
+
         // Sử dụng đơn giá mua gốc (unit_cost) để tính giá nhập kho trung bình
         // Không cộng phí bốc vác vào giá vốn theo yêu cầu người dùng
         // const costPrice = Number(item.unit_cost);
@@ -3286,9 +3294,10 @@ export class InventoryService {
       const savedReceipt = await queryRunner.manager.save(receipt);
       await queryRunner.commitTransaction();
 
+      const cutoverDate = await this.getTaxRevenueCutoverDateValue();
       for (const productId of affectedProductIds) {
         try {
-          await this.syncTaxableDataForProduct(productId);
+          await this.syncTaxableDataForProduct(productId, cutoverDate);
         } catch (error) {
           this.logger.error(
             `Lỗi đồng bộ tồn thuế cho sản phẩm #${productId} sau khi duyệt phiếu #${id}:`,
@@ -3375,9 +3384,10 @@ export class InventoryService {
       await queryRunner.commitTransaction();
 
       if (wasApproved) {
+        const cutoverDate = await this.getTaxRevenueCutoverDateValue();
         for (const productId of affectedProductIds) {
           try {
-            await this.syncTaxableDataForProduct(productId);
+            await this.syncTaxableDataForProduct(productId, cutoverDate);
           } catch (error) {
             this.logger.error(
               `Lỗi đồng bộ tồn thuế cho sản phẩm #${productId} sau khi hủy phiếu #${id}:`,
@@ -3500,6 +3510,7 @@ export class InventoryService {
       const allowedFields = [
         'taxable_quantity',
         'vat_unit_cost',
+        'tax_selling_price',
         'unit_cost',
         'notes',
       ];
@@ -3511,7 +3522,7 @@ export class InventoryService {
 
       if (invalidFields.length > 0) {
         throw new BadRequestException(
-          `Phiếu đã duyệt chỉ được phép sửa "Đơn giá", "Số lượng thuế", "Đơn giá VAT" và "Ghi chú". Không được sửa: ${invalidFields.join(', ')}`,
+          `Phiếu đã duyệt chỉ được phép sửa "Đơn giá", "Số lượng thuế", "Đơn giá VAT", "Giá bán khai thuế" và "Ghi chú". Không được sửa: ${invalidFields.join(', ')}`,
         );
       }
 
@@ -3529,6 +3540,18 @@ export class InventoryService {
         Number(item.quantity) * Number(updateData.unit_cost);
     }
 
+    this.validateReceiptItemTaxData({
+      quantity: Number(item.quantity),
+      taxable_quantity:
+        updateData.taxable_quantity !== undefined
+          ? Number(updateData.taxable_quantity)
+          : Number(item.taxable_quantity || 0),
+      tax_selling_price:
+        updateData.tax_selling_price !== undefined
+          ? Number(updateData.tax_selling_price)
+          : Number(item.tax_selling_price || 0),
+    });
+
     // Thực hiện update
     await this.inventoryReceiptItemRepository.update(id, updateData);
 
@@ -3539,8 +3562,15 @@ export class InventoryService {
 
     if (updatedItem) {
       // 1. Đồng bộ tồn kho thuế (như cũ)
-      if (updateData.taxable_quantity !== undefined) {
-        await this.syncTaxableDataForProduct(updatedItem.product_id);
+      if (
+        updateData.taxable_quantity !== undefined ||
+        updateData.tax_selling_price !== undefined
+      ) {
+        const cutoverDate = await this.getTaxRevenueCutoverDateValue();
+        await this.syncTaxableDataForProduct(
+          updatedItem.product_id,
+          cutoverDate,
+        );
       }
 
       if (
@@ -3649,7 +3679,12 @@ export class InventoryService {
     userId?: number,
   ) {
     const changes: any[] = [];
-    const fieldsToTrack = ['unit_cost', 'taxable_quantity', 'vat_unit_cost'];
+    const fieldsToTrack = [
+      'unit_cost',
+      'taxable_quantity',
+      'vat_unit_cost',
+      'tax_selling_price',
+    ];
 
     for (const field of fieldsToTrack) {
       if (
@@ -3673,6 +3708,46 @@ export class InventoryService {
         userId,
       );
     }
+  }
+
+  private validateReceiptItemTaxData(item: {
+    quantity?: number;
+    taxable_quantity?: number;
+    tax_selling_price?: number | null;
+  }) {
+    const quantity = Number(item.quantity || 0);
+    const taxableQuantity = Number(item.taxable_quantity || 0);
+    const taxSellingPrice = Number(item.tax_selling_price || 0);
+
+    if (taxableQuantity < 0) {
+      throw new BadRequestException('Số lượng thuế không được nhỏ hơn 0.');
+    }
+
+    if (quantity > 0 && taxableQuantity > quantity) {
+      throw new BadRequestException(
+        'Số lượng thuế không được lớn hơn số lượng nhập.',
+      );
+    }
+
+    if (taxableQuantity > 0 && taxSellingPrice <= 0) {
+      throw new BadRequestException(
+        'Dòng hàng có số lượng thuế phải nhập giá bán khai thuế lớn hơn 0.',
+      );
+    }
+  }
+
+  private async getTaxRevenueCutoverDateValue(): Promise<string> {
+    const currentSetting = await this.systemSettingRepository.findOne({
+      where: { key: 'tax_revenue_cutover_date' },
+    });
+    if (currentSetting?.value) {
+      return currentSetting.value;
+    }
+
+    const legacySetting = await this.systemSettingRepository.findOne({
+      where: { key: 'tax_revenue_2026_cutover_date' },
+    });
+    return legacySetting?.value || '2026-01-01';
   }
 
   /**
@@ -5286,9 +5361,7 @@ export class InventoryService {
     let salesItemsUpdated = 0;
 
     for (const productId of ids) {
-      const result = await this.syncTaxableDataForProduct(
-        productId,
-      );
+      const result = await this.syncTaxableDataForProduct(productId, filterDate);
       if (result.productUpdated) productsUpdated++;
       salesItemsUpdated += result.salesItemsUpdated;
     }
@@ -5299,12 +5372,27 @@ export class InventoryService {
     return { productsUpdated, salesItemsUpdated };
   }
 
+  async syncTaxableDataForProductsUsingConfiguredCutover(
+    productIds: number[],
+  ): Promise<void> {
+    const ids = Array.from(
+      new Set(productIds.map((id) => Number(id)).filter((id) => id > 0)),
+    );
+    if (!ids.length) return;
+
+    const cutoverDate = await this.getTaxRevenueCutoverDateValue();
+    for (const productId of ids) {
+      await this.syncTaxableDataForProduct(productId, cutoverDate);
+    }
+  }
+
   /**
    * Đồng bộ dữ liệu tồn kho thuế cho một sản phẩm cụ thể
    * @param productId - ID sản phẩm
    */
   async syncTaxableDataForProduct(
     productId: number,
+    cutoverDate?: string,
   ): Promise<{ productUpdated: boolean; salesItemsUpdated: number }> {
     const receiptItemRepo =
       this.inventoryReceiptRepository.manager.getRepository(
@@ -5339,7 +5427,7 @@ export class InventoryService {
     // 2. Lấy lịch sử bán hàng hợp lệ (chỉ lấy hóa đơn confirmed và paid, bỏ cancelled và draft, sắp xếp ASC để FIFO đúng thứ tự)
     const salesItems = await salesInvoiceItemRepo
       .createQueryBuilder('sii')
-      .innerJoin('sii.invoice', 'si')
+      .innerJoinAndSelect('sii.invoice', 'si')
       .where('sii.product_id = :productId', { productId: product.id })
       .andWhere('si.status IN (:...statuses)', {
         statuses: ['confirmed', 'paid'],
@@ -5412,7 +5500,7 @@ export class InventoryService {
       taxable: number;
       nonTaxable: number;
       total: number;
-      taxSellingPrice: number;
+      taxSellingPriceBaseUnit: number;
     }[] = receiptItems.map((r) => {
       // ✅ Đảm bảo qtyBase luôn chuẩn xác (Ưu tiên tính toán từ quantity * factor)
       const factor = Number(
@@ -5449,7 +5537,10 @@ export class InventoryService {
         taxable: Math.min(adjustedTaxableBase, netQtyBase),
         nonTaxable: Math.max(0, netQtyBase - adjustedTaxableBase),
         total: netQtyBase,
-        taxSellingPrice: Number(product.tax_selling_price || 0),
+        taxSellingPriceBaseUnit:
+          Number(r.tax_selling_price || 0) > 0
+            ? Number(r.tax_selling_price || 0) / factor
+            : Number(product.tax_selling_price || 0),
       };
     });
 
@@ -5474,12 +5565,21 @@ export class InventoryService {
 
     // 5. Mô phỏng quá trình bán hàng theo FIFO từng lô
     for (const item of salesItems) {
-      // ✅ FIX: Ép kiểu số để tránh lỗi chữ "0" (string) vẫn được coi là có giá trị
+      const invoiceDateValue =
+        item.invoice?.sale_date instanceof Date
+          ? item.invoice.sale_date.toISOString().slice(0, 10)
+          : item.invoice?.created_at instanceof Date
+            ? item.invoice.created_at.toISOString().slice(0, 10)
+            : item.created_at instanceof Date
+              ? item.created_at.toISOString().slice(0, 10)
+              : undefined;
+      const shouldUpdateItem =
+        !cutoverDate ||
+        !invoiceDateValue ||
+        invoiceDateValue >= cutoverDate;
+
       const itemTaxPrice = Number(item.tax_selling_price || 0);
-      const hasExistingSnapshot = itemTaxPrice > 0;
-      let currentTaxPrice = hasExistingSnapshot
-        ? itemTaxPrice
-        : Number(item.product?.tax_selling_price || 0);
+      let currentTaxPrice = itemTaxPrice > 0 ? itemTaxPrice : 0;
 
       // ✅ FIX: Đảm bảo saleQtyBase luôn chuẩn xác (Ưu tiên tính toán từ quantity * factor)
       const factor = Number(
@@ -5489,6 +5589,17 @@ export class InventoryService {
         item.base_quantity ? Number(item.base_quantity) : 0,
         Number(item.quantity) * factor,
       );
+
+      const legacyFrozenTaxPrice =
+        itemTaxPrice > 0
+          ? itemTaxPrice
+          : Number(product.tax_selling_price || 0) * factor;
+      if (!shouldUpdateItem && itemTaxPrice <= 0 && legacyFrozenTaxPrice > 0) {
+        await salesInvoiceItemRepo.update(item.id, {
+          tax_selling_price: legacyFrozenTaxPrice.toString(),
+        });
+        salesItemsUpdatedCount++;
+      }
 
       // Khấu trừ số lượng đã trả
       const itemReturnKey = `item:${Number(item.id)}`;
@@ -5516,11 +5627,12 @@ export class InventoryService {
       }
 
       let calculatedTaxableBase = 0;
+      let allocatedTaxValueBase = 0;
       let remainingToDeduct = saleQtyBase;
 
       if (remainingToDeduct <= 0) {
         // Nếu trả hết rồi thì item này không có tồn thuế
-        if (Number(item.taxable_quantity) !== 0) {
+        if (shouldUpdateItem && Number(item.taxable_quantity) !== 0) {
           await salesInvoiceItemRepo.update(item.id, { taxable_quantity: 0 });
           salesItemsUpdatedCount++;
         }
@@ -5531,11 +5643,6 @@ export class InventoryService {
       for (let b of batches) {
         if (!b || remainingToDeduct <= 0) continue;
 
-        // Cập nhật giá bán thuế từ lô hàng (nếu có) - CHỈ khi hóa đơn chưa có snapshot
-        if (!hasExistingSnapshot) {
-          currentTaxPrice = b.taxSellingPrice || currentTaxPrice;
-        }
-
         const batchTotal = b.taxable + b.nonTaxable;
         if (batchTotal <= 0) continue;
 
@@ -5543,6 +5650,7 @@ export class InventoryService {
         const takeTaxable = Math.min(takeFromThisBatch, b.taxable);
 
         calculatedTaxableBase += takeTaxable;
+        allocatedTaxValueBase += takeTaxable * Number(b.taxSellingPriceBaseUnit || 0);
         b.taxable -= takeTaxable;
         // ✅ FIX 4: Clamp nonTaxable về 0 nếu bị âm (tránh tính toán sai)
         b.nonTaxable = Math.max(
@@ -5557,13 +5665,20 @@ export class InventoryService {
         item.conversion_factor || productConversionFactor || 1,
       );
       const finalTaxableQty = calculatedTaxableBase / itemFactor;
+      if (calculatedTaxableBase > 0) {
+        currentTaxPrice =
+          (allocatedTaxValueBase / calculatedTaxableBase) * itemFactor;
+      } else if (itemTaxPrice <= 0) {
+        currentTaxPrice = Number(product.tax_selling_price || 0) * itemFactor;
+      }
 
       const priceDiff = Math.abs(
         Number(item.tax_selling_price || 0) - currentTaxPrice,
       );
       if (
-        Math.abs(Number(item.taxable_quantity) - finalTaxableQty) > 0.001 ||
-        priceDiff > 0.1
+        shouldUpdateItem &&
+        (Math.abs(Number(item.taxable_quantity) - finalTaxableQty) > 0.001 ||
+          priceDiff > 0.1)
       ) {
         await salesInvoiceItemRepo.update(item.id, {
           taxable_quantity: finalTaxableQty,

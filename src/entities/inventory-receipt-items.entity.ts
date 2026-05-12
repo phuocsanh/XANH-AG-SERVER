@@ -53,6 +53,16 @@ export class InventoryReceiptItem {
   })
   vat_unit_cost?: number;
 
+  /** Giá bán khai thuế snapshot theo từng lô nhập */
+  @Column({
+    name: 'tax_selling_price',
+    type: 'decimal',
+    precision: 15,
+    scale: 2,
+    nullable: true,
+  })
+  tax_selling_price?: number;
+
   /** Tổng giá tiền của sản phẩm */
   @Column({
     name: 'total_price',

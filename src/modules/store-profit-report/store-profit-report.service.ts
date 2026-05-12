@@ -10,6 +10,7 @@ import { Customer } from '../../entities/customer.entity';
 import { FarmServiceCost } from '../../entities/farm-service-cost.entity';
 import { FarmGiftCost } from '../../entities/farm-gift-cost.entity';
 import { SystemSetting } from '../../entities/system-setting.entity';
+import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
 import { SalesReturnItem } from '../../entities/sales-return-items.entity';
 import { SalesReturnStatus } from '../../entities/sales-return.entity';
 import { QueryHelper } from '../../common/helpers/query-helper';
@@ -1387,6 +1388,8 @@ export class StoreProfitReportService {
   ): Promise<PeriodReportDto> {
     try {
       this.logger.log(`📊 Báo cáo lợi nhuận từ ${startDate.toISOString()} đến ${endDate.toISOString()}`);
+      const { cutover_date: cutoverDate } =
+        await this.getTaxRevenueCutoverDate();
 
       let allowedProductIds: Set<number> | null = null;
       if (filterByReceiptDate) {
@@ -1513,18 +1516,33 @@ export class StoreProfitReportService {
           const itemTaxPrice = Number(item.tax_selling_price || 0);
           const productTaxPrice = Number(item.product?.tax_selling_price || 0);
           const conversionFactor = Number(item.conversion_factor || 1);
+          const invoiceDateValue = (
+            invoice.sale_date || invoice.created_at
+          )
+            ?.toISOString?.()
+            ?.slice(0, 10);
+          const isLegacyInvoice =
+            !!invoiceDateValue && invoiceDateValue < cutoverDate;
+          const legacyFrozenTaxPrice =
+            productTaxPrice > 0 ? productTaxPrice * conversionFactor : 0;
+
+          if (isLegacyInvoice && itemTaxPrice <= 0 && legacyFrozenTaxPrice > 0) {
+            await this.salesInvoiceRepository.manager
+              .getRepository(SalesInvoiceItem)
+              .update(item.id, {
+                tax_selling_price: legacyFrozenTaxPrice.toString(),
+              });
+          }
+
           const shouldNormalizeLegacyTaxPrice =
             conversionFactor !== 1 &&
             itemTaxPrice > 0 &&
             productTaxPrice > 0 &&
             Math.abs(itemTaxPrice - productTaxPrice) < 0.000001;
-          // ✅ FIX: Luôn ưu tiên giá từ danh mục sản phẩm nếu giá trong đơn bán đang là 0
-          // Lý do: sales_invoice_items.tax_selling_price hay bị lưu "0" với dữ liệu cũ
           const effectiveTaxPrice = (() => {
             if (shouldNormalizeLegacyTaxPrice) return itemTaxPrice * conversionFactor;
-            // ✅ Ưu tiên 1: Giá snapshot trong đơn bán (đã được đồng bộ hoặc lưu lúc bán)
             if (itemTaxPrice > 0) return itemTaxPrice;
-            // ⚠️ Ưu tiên 2: Fallback giá từ danh mục sản phẩm (cho dữ liệu cũ)
+            if (isLegacyInvoice) return legacyFrozenTaxPrice;
             if (productTaxPrice > 0) return productTaxPrice;
             return 0;
           })();
