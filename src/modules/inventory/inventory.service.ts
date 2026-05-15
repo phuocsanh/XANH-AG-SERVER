@@ -1270,6 +1270,7 @@ export class InventoryService {
   ): Promise<{
     transaction: InventoryTransaction;
     taxableQuantity: number;
+    taxSellingPrice: number;
     affectedBatches: any[];
     totalCostValue: number;
     averageCostUsed: number;
@@ -1329,6 +1330,7 @@ export class InventoryService {
     let remainingToDeduct = quantity;
     let totalCostValue = 0;
     let totalTaxableDeducted = 0;
+    let totalTaxableValue = 0;
     const affectedBatches: any[] = [];
 
     // 3. Trừ số lượng từ các lô theo FIFO
@@ -1342,6 +1344,7 @@ export class InventoryService {
 
       // --- LOGIC TÍNH TOÁN THUẾ THEO TỪNG LÔ ---
       let batchTaxableRemaining = 0;
+      let batchTaxSellingPriceBaseUnit = 0;
       const receiptItem = batch.receipt_item_id
         ? receiptItemsMap.get(batch.receipt_item_id)
         : null;
@@ -1368,6 +1371,11 @@ export class InventoryService {
         );
         batchTaxableRemaining =
           Number(batch.remaining_quantity) - nonTaxableRemaining;
+        batchTaxSellingPriceBaseUnit =
+          Number(receiptItem.tax_selling_price || 0) > 0
+            ? Number(receiptItem.tax_selling_price || 0) /
+              (receiptConversionFactor > 0 ? receiptConversionFactor : 1)
+            : 0;
       } else {
         // Nếu lô hàng không có phiếu nhập (ví dụ hàng tồn cũ),
         // tạm thời coi tỷ lệ thuế dựa trên bể thuế hiện tại của sản phẩm so với tồn kho (logic fallback)
@@ -1376,6 +1384,8 @@ export class InventoryService {
             ? currentTaxableStock / currentInventory.totalQuantity
             : 0;
         batchTaxableRemaining = Number(batch.remaining_quantity) * taxableRatio;
+        batchTaxSellingPriceBaseUnit =
+          currentTaxableStock > 0 ? Number(product?.tax_selling_price || 0) : 0;
       }
 
       // Trong số lượng trừ từ lô này, bao nhiêu là hàng thuế? (Vẫn ưu tiên trừ không hóa đơn trước trong nội bộ lô)
@@ -1392,6 +1402,7 @@ export class InventoryService {
       // ✅ Làm tròn để tránh số lẻ thập phân do sai số JavaScript (ví dụ: 50.0000000001 -> 50)
       const roundedDeductTaxable = Math.round(deductTaxable * 100) / 100;
       totalTaxableDeducted += roundedDeductTaxable;
+      totalTaxableValue += roundedDeductTaxable * batchTaxSellingPriceBaseUnit;
       // ---------------------------------------
 
       batch.remaining_quantity -= deductFromBatch;
@@ -1420,6 +1431,10 @@ export class InventoryService {
     // Tính số lượng tồn kho mới
     const newTotalQuantity = currentInventory.totalQuantity - quantity;
     const taxableQuantityToDeduct = totalTaxableDeducted; // Sử dụng kết quả tính toán chi tiết
+    const effectiveTaxSellingPrice =
+      taxableQuantityToDeduct > 0
+        ? Math.round((totalTaxableValue / taxableQuantityToDeduct) * 100) / 100
+        : 0;
     const newTaxableQuantityStock = Math.max(
       0,
       currentTaxableStock - taxableQuantityToDeduct,
@@ -1469,6 +1484,7 @@ export class InventoryService {
       averageCostUsed: currentAverageCost,
       remainingQuantity: newTotalQuantity,
       taxableQuantity: taxableQuantityToDeduct,
+      taxSellingPrice: effectiveTaxSellingPrice,
     };
   }
 

@@ -2601,12 +2601,17 @@ export class SalesService {
             );
           }
 
-          // Cập nhật số lượng tính thuế vào item
+          // Cập nhật snapshot thuế của item từ các lô thực tế đã xuất
           await manager.update(SalesInvoiceItem, item.id, {
-            taxable_quantity: result.taxableQuantity
+            taxable_quantity: result.taxableQuantity,
+            ...(result.taxableQuantity > 0 && result.taxSellingPrice > 0
+              ? { tax_selling_price: result.taxSellingPrice.toString() }
+              : {}),
           });
 
-          this.logger.log(`✅ Đã trừ kho sản phẩm ID ${item.product_id}, SL: ${item.quantity}, SL Thuế: ${result.taxableQuantity}`);
+          this.logger.log(
+            `✅ Đã trừ kho sản phẩm ID ${item.product_id}, SL: ${item.quantity}, SL Thuế: ${result.taxableQuantity}, GBKT: ${result.taxSellingPrice}`,
+          );
         } catch (error) {
           this.logger.error(`❌ Lỗi khi trừ kho sản phẩm ID ${item.product_id}: ${(error as any).message}`);
           throw error;
