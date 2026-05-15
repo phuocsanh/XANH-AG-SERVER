@@ -261,6 +261,20 @@ export class InventoryController {
     );
   }
 
+  @Post('stock-out-preview')
+  @RequirePermissions('inventory:read')
+  previewStockOut(
+    @Body()
+    previewData: {
+      items: Array<{
+        productId: number;
+        quantity: number;
+      }>;
+    },
+  ) {
+    return this.inventoryService.previewStockOutItems(previewData.items || []);
+  }
+
   /**
    * Tính lại giá vốn trung bình gia quyền cho sản phẩm
    * @param productId - ID của sản phẩm

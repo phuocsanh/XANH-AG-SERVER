@@ -111,6 +111,263 @@ export class InventoryService {
     return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
   }
 
+  private calculateBatchTaxableRemaining(
+    batch: Pick<
+      InventoryBatch,
+      'original_quantity' | 'remaining_quantity' | 'receipt_item_id'
+    >,
+    receiptItemsMap: Map<number, InventoryReceiptItem>,
+  ): number {
+    if (!batch.receipt_item_id) {
+      return 0;
+    }
+
+    const receiptItem = receiptItemsMap.get(batch.receipt_item_id);
+    if (!receiptItem) {
+      return 0;
+    }
+
+    const originalQuantity = Number(batch.original_quantity || 0);
+    const remainingQuantity = Number(batch.remaining_quantity || 0);
+    const receiptConversionFactor = Number(receiptItem.conversion_factor || 1);
+    const initialTaxable = Math.min(
+      Number(receiptItem.taxable_quantity || 0) *
+        (receiptConversionFactor > 0 ? receiptConversionFactor : 1),
+      originalQuantity,
+    );
+    const initialNonTaxable = Math.max(0, originalQuantity - initialTaxable);
+    const alreadySoldFromBatch = Math.max(
+      0,
+      originalQuantity - remainingQuantity,
+    );
+    const nonTaxableRemaining = Math.max(
+      0,
+      initialNonTaxable - alreadySoldFromBatch,
+    );
+
+    return Math.max(
+      0,
+      Math.min(remainingQuantity, remainingQuantity - nonTaxableRemaining),
+    );
+  }
+
+  private async calculateProductTaxableStockFromRemainingBatches(
+    productId: number,
+    queryRunner?: QueryRunner,
+  ): Promise<number> {
+    const batchRepo = queryRunner
+      ? queryRunner.manager.getRepository(InventoryBatch)
+      : this.inventoryBatchRepository;
+    const receiptItemRepo = queryRunner
+      ? queryRunner.manager.getRepository(InventoryReceiptItem)
+      : this.inventoryReceiptItemRepository;
+
+    const remainingBatches = await batchRepo.find({
+      where: {
+        product_id: productId,
+        remaining_quantity: MoreThan(0),
+      },
+      order: { created_at: 'ASC' },
+    });
+
+    const receiptItemIds = remainingBatches
+      .map((batch) => Number(batch.receipt_item_id || 0))
+      .filter((id) => id > 0);
+    const receiptItemsMap = new Map<number, InventoryReceiptItem>();
+
+    if (receiptItemIds.length > 0) {
+      const receiptItems = await receiptItemRepo.find({
+        where: { id: In(receiptItemIds) },
+      });
+      receiptItems.forEach((item) => receiptItemsMap.set(item.id, item));
+    }
+
+    const remainingTaxable = remainingBatches.reduce((sum, batch) => {
+      return sum + this.calculateBatchTaxableRemaining(batch, receiptItemsMap);
+    }, 0);
+
+    return Math.round(remainingTaxable * 100) / 100;
+  }
+
+  private async planStockOut(
+    productId: number,
+    quantity: number,
+    queryRunner?: QueryRunner,
+  ): Promise<{
+    product: Product | null;
+    currentAverageCost: number;
+    currentInventoryTotal: number;
+    currentTaxableStock: number;
+    newTotalQuantity: number;
+    newTaxableQuantityStock: number;
+    taxableQuantityToDeduct: number;
+    effectiveTaxSellingPrice: number;
+    totalCostValue: number;
+    affectedBatches: Array<{
+      batchId: number;
+      deductedQuantity: number;
+      taxableQuantity: number;
+      remainingQuantity: number;
+      cost: number;
+      taxSellingPriceBaseUnit: number;
+    }>;
+    batchesToPersist: InventoryBatch[];
+  }> {
+    const currentInventory = await this.getInventorySummary(
+      productId,
+      queryRunner,
+    );
+    if (currentInventory.totalQuantity < quantity) {
+      throw new Error(
+        `Không đủ tồn kho. Hiện có: ${currentInventory.totalQuantity}, yêu cầu: ${quantity}`,
+      );
+    }
+
+    const productRepo = queryRunner
+      ? queryRunner.manager.getRepository(Product)
+      : this.productService['productRepository'];
+    const product = await productRepo.findOne({ where: { id: productId } });
+    const currentTaxableStock = Number(product?.taxable_quantity_stock || 0);
+
+    const batchRepo = queryRunner
+      ? queryRunner.manager.getRepository(InventoryBatch)
+      : this.inventoryBatchRepository;
+    const batches = await batchRepo.find({
+      where: {
+        product_id: productId,
+        remaining_quantity: MoreThan(0),
+      },
+      order: { created_at: 'ASC' },
+    });
+
+    const receiptItemRepo = queryRunner
+      ? queryRunner.manager.getRepository(InventoryReceiptItem)
+      : this.inventoryReceiptItemRepository;
+    const receiptItemIds = batches
+      .map((b) => b.receipt_item_id)
+      .filter((id) => id != null) as number[];
+    const receiptItemsMap = new Map<number, InventoryReceiptItem>();
+
+    if (receiptItemIds.length > 0) {
+      const items = await receiptItemRepo.find({
+        where: { id: In(receiptItemIds) },
+      });
+      items.forEach((item) => receiptItemsMap.set(item.id, item));
+    }
+
+    const currentAverageCost = await this.getWeightedAverageCost(
+      productId,
+      queryRunner,
+    );
+
+    let remainingToDeduct = quantity;
+    let totalCostValue = 0;
+    let totalTaxableDeducted = 0;
+    let totalTaxableValue = 0;
+    const affectedBatches: Array<{
+      batchId: number;
+      deductedQuantity: number;
+      taxableQuantity: number;
+      remainingQuantity: number;
+      cost: number;
+      taxSellingPriceBaseUnit: number;
+    }> = [];
+
+    for (const batch of batches) {
+      if (remainingToDeduct <= 0) break;
+
+      const deductFromBatch = Math.min(
+        Number(batch.remaining_quantity),
+        remainingToDeduct,
+      );
+
+      let batchTaxableRemaining = 0;
+      let batchTaxSellingPriceBaseUnit = 0;
+      const receiptItem = batch.receipt_item_id
+        ? receiptItemsMap.get(batch.receipt_item_id)
+        : null;
+
+      if (receiptItem) {
+        batchTaxableRemaining = this.calculateBatchTaxableRemaining(
+          batch,
+          receiptItemsMap,
+        );
+        const receiptConversionFactor = Number(
+          receiptItem.conversion_factor || 1,
+        );
+        batchTaxSellingPriceBaseUnit =
+          Number(receiptItem.tax_selling_price || 0) > 0
+            ? Number(receiptItem.tax_selling_price || 0) /
+              (receiptConversionFactor > 0 ? receiptConversionFactor : 1)
+            : 0;
+      } else {
+        const taxableRatio =
+          currentInventory.totalQuantity > 0
+            ? currentTaxableStock / currentInventory.totalQuantity
+            : 0;
+        batchTaxableRemaining = Number(batch.remaining_quantity) * taxableRatio;
+        batchTaxSellingPriceBaseUnit =
+          currentTaxableStock > 0 ? Number(product?.tax_selling_price || 0) : 0;
+      }
+
+      const batchNonTaxableRemaining = Math.max(
+        0,
+        Number(batch.remaining_quantity) - batchTaxableRemaining,
+      );
+      const deductNonTaxable = Math.min(
+        deductFromBatch,
+        batchNonTaxableRemaining,
+      );
+      const deductTaxable = Math.max(0, deductFromBatch - deductNonTaxable);
+      const roundedDeductTaxable = Math.round(deductTaxable * 100) / 100;
+
+      totalTaxableDeducted += roundedDeductTaxable;
+      totalTaxableValue +=
+        roundedDeductTaxable * Number(batchTaxSellingPriceBaseUnit || 0);
+
+      batch.remaining_quantity =
+        Number(batch.remaining_quantity) - deductFromBatch;
+      remainingToDeduct -= deductFromBatch;
+
+      const batchCost = parseFloat(batch.unit_cost_price);
+      totalCostValue += deductFromBatch * batchCost;
+
+      affectedBatches.push({
+        batchId: batch.id,
+        deductedQuantity: deductFromBatch,
+        taxableQuantity: roundedDeductTaxable,
+        remainingQuantity: Number(batch.remaining_quantity),
+        cost: batchCost,
+        taxSellingPriceBaseUnit: Number(batchTaxSellingPriceBaseUnit || 0),
+      });
+    }
+
+    const newTotalQuantity = currentInventory.totalQuantity - quantity;
+    const taxableQuantityToDeduct = totalTaxableDeducted;
+    const effectiveTaxSellingPrice =
+      taxableQuantityToDeduct > 0
+        ? Math.round((totalTaxableValue / taxableQuantityToDeduct) * 100) / 100
+        : 0;
+    const newTaxableQuantityStock = Math.max(
+      0,
+      currentTaxableStock - taxableQuantityToDeduct,
+    );
+
+    return {
+      product,
+      currentAverageCost,
+      currentInventoryTotal: currentInventory.totalQuantity,
+      currentTaxableStock,
+      newTotalQuantity,
+      newTaxableQuantityStock,
+      taxableQuantityToDeduct,
+      effectiveTaxSellingPrice,
+      totalCostValue,
+      affectedBatches,
+      batchesToPersist: batches,
+    };
+  }
+
   private resolveReceiptPaymentStatus(
     supplierAmount: number,
     paidAmount: number,
@@ -1485,6 +1742,72 @@ export class InventoryService {
       remainingQuantity: newTotalQuantity,
       taxableQuantity: taxableQuantityToDeduct,
       taxSellingPrice: effectiveTaxSellingPrice,
+    };
+  }
+
+  async previewStockOutItems(
+    items: Array<{ productId: number; quantity: number }>,
+  ): Promise<{
+    items: Array<{
+      productId: number;
+      quantity: number;
+      totalCostValue: number;
+      averageCostUsed: number;
+      taxableQuantity: number;
+      taxSellingPrice: number;
+      remainingQuantity: number;
+      affectedBatches: Array<{
+        batchId: number;
+        deductedQuantity: number;
+        taxableQuantity: number;
+        remainingQuantity: number;
+        cost: number;
+        taxSellingPriceBaseUnit: number;
+      }>;
+    }>;
+    totalCostValue: number;
+  }> {
+    const previews: Array<{
+      productId: number;
+      quantity: number;
+      totalCostValue: number;
+      averageCostUsed: number;
+      taxableQuantity: number;
+      taxSellingPrice: number;
+      remainingQuantity: number;
+      affectedBatches: Array<{
+        batchId: number;
+        deductedQuantity: number;
+        taxableQuantity: number;
+        remainingQuantity: number;
+        cost: number;
+        taxSellingPriceBaseUnit: number;
+      }>;
+    }> = [];
+    let totalCostValue = 0;
+
+    for (const item of items) {
+      const productId = Number(item.productId || 0);
+      const quantity = Number(item.quantity || 0);
+      if (productId <= 0 || quantity <= 0) continue;
+
+      const plan = await this.planStockOut(productId, quantity);
+      totalCostValue += plan.totalCostValue;
+      previews.push({
+        productId,
+        quantity,
+        totalCostValue: Math.round(plan.totalCostValue * 100) / 100,
+        averageCostUsed: Math.round(plan.currentAverageCost * 100) / 100,
+        taxableQuantity: plan.taxableQuantityToDeduct,
+        taxSellingPrice: plan.effectiveTaxSellingPrice,
+        remainingQuantity: plan.newTotalQuantity,
+        affectedBatches: plan.affectedBatches,
+      });
+    }
+
+    return {
+      items: previews,
+      totalCostValue: Math.round(totalCostValue * 100) / 100,
     };
   }
 
@@ -5708,10 +6031,8 @@ export class InventoryService {
     const hasTaxInfo =
       product.has_input_invoice ||
       receiptItems.some((item) => Number(item.taxable_quantity || 0) > 0);
-    const remainingTaxInBatches = batches.reduce(
-      (sum, b) => sum + b.taxable,
-      0,
-    );
+    const remainingTaxInBatches =
+      await this.calculateProductTaxableStockFromRemainingBatches(product.id);
 
     // ✅ FIX: Tồn thuế không được vượt quá tồn kho thực tế
     // Nếu remainingTaxInBatches > product.quantity thì có nghĩa là logic FIFO tính sai
