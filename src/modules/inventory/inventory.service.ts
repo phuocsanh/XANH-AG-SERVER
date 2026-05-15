@@ -111,6 +111,41 @@ export class InventoryService {
     return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
   }
 
+  private parseMoney(value: unknown): number {
+    if (value === null || value === undefined || value === '') {
+      return 0;
+    }
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : 0;
+    }
+    const normalized = String(value).replace(/[^0-9.-]/g, '');
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  private resolvePreviewUnitCost(
+    product: Product | null,
+    fallbackCost: number,
+    priceType?: 'cash' | 'credit',
+  ): number {
+    if (!product) {
+      return this.roundMoney(fallbackCost);
+    }
+
+    if (this.isProductBySaleType(product)) {
+      const configuredCost =
+        priceType === 'credit'
+          ? this.parseMoney(product.credit_cost_price)
+          : this.parseMoney(product.cash_cost_price);
+
+      if (configuredCost > 0) {
+        return this.roundMoney(configuredCost);
+      }
+    }
+
+    return this.roundMoney(fallbackCost);
+  }
+
   private calculateBatchTaxableRemaining(
     batch: Pick<
       InventoryBatch,
@@ -1746,7 +1781,11 @@ export class InventoryService {
   }
 
   async previewStockOutItems(
-    items: Array<{ productId: number; quantity: number }>,
+    items: Array<{
+      productId: number;
+      quantity: number;
+      priceType?: 'cash' | 'credit';
+    }>,
   ): Promise<{
     items: Array<{
       productId: number;
@@ -1792,12 +1831,18 @@ export class InventoryService {
       if (productId <= 0 || quantity <= 0) continue;
 
       const plan = await this.planStockOut(productId, quantity);
-      totalCostValue += plan.totalCostValue;
+      const unitCostForPreview = this.resolvePreviewUnitCost(
+        plan.product,
+        quantity > 0 ? plan.totalCostValue / quantity : plan.currentAverageCost,
+        item.priceType,
+      );
+      const totalCostForPreview = this.roundMoney(quantity * unitCostForPreview);
+      totalCostValue += totalCostForPreview;
       previews.push({
         productId,
         quantity,
-        totalCostValue: Math.round(plan.totalCostValue * 100) / 100,
-        averageCostUsed: Math.round(plan.currentAverageCost * 100) / 100,
+        totalCostValue: totalCostForPreview,
+        averageCostUsed: unitCostForPreview,
         taxableQuantity: plan.taxableQuantityToDeduct,
         taxSellingPrice: plan.effectiveTaxSellingPrice,
         remainingQuantity: plan.newTotalQuantity,

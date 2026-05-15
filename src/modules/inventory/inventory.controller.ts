@@ -265,13 +265,14 @@ export class InventoryController {
   @RequirePermissions('inventory:read')
   previewStockOut(
     @Body()
-    previewData: {
-      items: Array<{
-        productId: number;
-        quantity: number;
-      }>;
-    },
-  ) {
+	  previewData: {
+	    items: Array<{
+	      productId: number;
+	      quantity: number;
+	      priceType?: 'cash' | 'credit';
+	    }>;
+	  },
+	) {
     return this.inventoryService.previewStockOutItems(previewData.items || []);
   }
 
