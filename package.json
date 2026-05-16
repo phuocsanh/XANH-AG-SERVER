@@ -36,6 +36,7 @@
     "seed:rbac": "ts-node src/database/run-seed.ts",
     "seed:rbac:prod": "node dist/database/run-seed.js",
     "backfill:average-cost-price": "ts-node src/scripts/backfill-average-cost-price.ts",
+    "repair:approved-receipt-shipping-costs": "ts-node src/scripts/repair-approved-receipt-shipping-costs.ts",
     "backfill:sales-cost-snapshot": "ts-node src/scripts/backfill-sales-cost-snapshot.ts",
     "db:sync": "./scripts/sync-db.sh",
     "deploy:render": "echo '📖 Xem hướng dẫn deploy tại RENDER_DEPLOYMENT.md'"

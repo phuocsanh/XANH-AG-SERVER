@@ -1312,38 +1312,66 @@ export class InventoryService {
       ? queryRunner.manager.getRepository(Product)
       : this.productService['productRepository'];
 
-    const receiptSummary = await receiptItemRepo
+    const approvedReceiptItems = await receiptItemRepo
       .createQueryBuilder('item')
       .innerJoin('item.receipt', 'receipt')
-      .select('COALESCE(SUM(item.total_price), 0)', 'totalValue')
-      .addSelect(
-        'COALESCE(SUM(COALESCE(item.base_quantity, item.quantity * COALESCE(item.conversion_factor, 1))), 0)',
-        'totalQuantity',
-      )
       .where('item.product_id = :productId', { productId })
       .andWhere('receipt.status IN (:...validStatuses)', {
         validStatuses: [ReceiptStatus.APPROVED, 'completed'],
       })
-      .getRawOne<{ totalValue?: string; totalQuantity?: string }>();
+      .andWhere('receipt.deleted_at IS NULL')
+      .andWhere('item.deleted_at IS NULL')
+      .getMany();
 
-    const returnSummary = await returnItemRepo
+    const approvedReturnItems = await returnItemRepo
       .createQueryBuilder('item')
       .innerJoin('item.return', 'inventoryReturn')
-      .select('COALESCE(SUM(item.total_price), 0)', 'totalValue')
-      .addSelect(
-        'COALESCE(SUM(COALESCE(item.base_quantity, item.quantity * COALESCE(item.conversion_factor, 1))), 0)',
-        'totalQuantity',
-      )
       .where('item.product_id = :productId', { productId })
       .andWhere('inventoryReturn.status = :approvedStatus', {
         approvedStatus: ReturnStatus.APPROVED,
       })
-      .getRawOne<{ totalValue?: string; totalQuantity?: string }>();
+      .andWhere('inventoryReturn.deleted_at IS NULL')
+      .andWhere('item.deleted_at IS NULL')
+      .getMany();
 
-    const receiptTotalValue = Number(receiptSummary?.totalValue || 0);
-    const receiptTotalQuantity = Number(receiptSummary?.totalQuantity || 0);
-    const returnTotalValue = Number(returnSummary?.totalValue || 0);
-    const returnTotalQuantity = Number(returnSummary?.totalQuantity || 0);
+    const receiptSummary = approvedReceiptItems.reduce(
+      (sum, item) => {
+        const conversionFactor = Number(item.conversion_factor || 1);
+        const baseQuantity = Number(
+          item.base_quantity || Number(item.quantity || 0) * conversionFactor,
+        );
+        const unitCostInBaseUnit =
+          Number(item.final_unit_cost ?? item.unit_cost ?? 0) /
+          (conversionFactor > 0 ? conversionFactor : 1);
+
+        sum.totalQuantity += baseQuantity;
+        sum.totalValue += baseQuantity * unitCostInBaseUnit;
+        return sum;
+      },
+      { totalValue: 0, totalQuantity: 0 },
+    );
+
+    const returnSummary = approvedReturnItems.reduce(
+      (sum, item) => {
+        const conversionFactor = Number(item.conversion_factor || 1);
+        const baseQuantity = Number(
+          item.base_quantity || Number(item.quantity || 0) * conversionFactor,
+        );
+        const unitCostInBaseUnit =
+          Number(item.unit_cost || 0) /
+          (conversionFactor > 0 ? conversionFactor : 1);
+
+        sum.totalQuantity += baseQuantity;
+        sum.totalValue += baseQuantity * unitCostInBaseUnit;
+        return sum;
+      },
+      { totalValue: 0, totalQuantity: 0 },
+    );
+
+    const receiptTotalValue = Number(receiptSummary.totalValue || 0);
+    const receiptTotalQuantity = Number(receiptSummary.totalQuantity || 0);
+    const returnTotalValue = Number(returnSummary.totalValue || 0);
+    const returnTotalQuantity = Number(returnSummary.totalQuantity || 0);
 
     const netQuantity = receiptTotalQuantity - returnTotalQuantity;
     const netValue = receiptTotalValue - returnTotalValue;
@@ -3618,10 +3646,6 @@ export class InventoryService {
       for (const item of items) {
         this.validateReceiptItemTaxData(item);
 
-        // Sử dụng đơn giá mua gốc (unit_cost) để tính giá nhập kho trung bình
-        // Không cộng phí bốc vác vào giá vốn theo yêu cầu người dùng
-        // const costPrice = Number(item.unit_cost);
-
         // Lấy số lượng khai thuế từ item (nếu không có thì mặc định = 0)
         const taxableQty = Number(item.taxable_quantity || 0);
         const taxableBaseQty =
@@ -3632,12 +3656,14 @@ export class InventoryService {
           ? Number(item.base_quantity)
           : Number(item.quantity);
 
-        // ✅ Tính đơn giá chuẩn theo đơn vị cơ sở (Kg)
-        // Đảm bảo latest_purchase_price lưu theo Kg để đồng bộ
+        // ✅ Nhập kho theo giá vốn cuối cùng đã gồm phí vận chuyển/bốc vác phân bổ.
+        // final_unit_cost đang lưu theo đơn vị nhập, nên phải quy đổi về đơn vị cơ sở.
+        const itemUnitCost = Number(item.final_unit_cost ?? item.unit_cost ?? 0);
+        const conversionFactor = Number(item.conversion_factor || 1);
         const normalizedCostPrice =
-          stockInQuantity > 0
-            ? Number(item.total_price || 0) / stockInQuantity
-            : Number(item.unit_cost);
+          conversionFactor > 0
+            ? itemUnitCost / conversionFactor
+            : itemUnitCost;
 
         const batch = await this.processStockIn(
           item.product_id,
