@@ -3478,14 +3478,183 @@ export class InventoryService {
         { unit_cost_price: roundedFinalUnitCost.toString() },
       );
 
+      item.allocated_shipping_cost = roundedAllocatedShipping;
+      item.final_unit_cost = roundedFinalUnitCost;
       affectedProductIds.add(Number(item.product_id));
     }
+
+    await this.syncSoldInvoicesForReceiptItems(receipt.items);
 
     if (affectedProductIds.size > 0) {
       this.logger.log(
         `ℹ️ Đã cập nhật lại batch/transaction cho phiếu #${receiptId}. average_cost_price không đổi theo phí bốc vác vì field này được chốt theo trung bình của tất cả phiếu nhập hợp lệ.`,
       );
     }
+  }
+
+  private async syncSoldInvoicesForReceiptItems(
+    receiptItems: InventoryReceiptItem[],
+    queryRunner?: QueryRunner,
+  ): Promise<void> {
+    const manager = this.getManager(queryRunner);
+    const receiptItemIds = Array.from(
+      new Set(
+        receiptItems.map((item) => Number(item.id || 0)).filter((id) => id > 0),
+      ),
+    );
+
+    if (receiptItemIds.length === 0) {
+      return;
+    }
+
+    const receiptItemMap = new Map(
+      receiptItems.map((item) => [Number(item.id), item]),
+    );
+    const allocations = await manager.find(SalesInvoiceItemStockAllocation, {
+      where: { receipt_item_id: In(receiptItemIds) },
+      order: { id: 'ASC' },
+    });
+
+    if (allocations.length === 0) {
+      return;
+    }
+
+    const affectedInvoiceIds = new Set<number>();
+
+    for (const allocation of allocations) {
+      const receiptItem = allocation.receipt_item_id
+        ? receiptItemMap.get(Number(allocation.receipt_item_id))
+        : null;
+
+      if (!receiptItem) {
+        continue;
+      }
+
+      const conversionFactor = Number(receiptItem.conversion_factor || 1);
+      const normalizedConversionFactor =
+        conversionFactor > 0 ? conversionFactor : 1;
+      const baseUnitCost = this.roundMoney(
+        Number(receiptItem.final_unit_cost ?? receiptItem.unit_cost ?? 0) /
+          normalizedConversionFactor,
+      );
+      const totalCost = this.roundMoney(
+        Number(allocation.quantity || 0) * baseUnitCost,
+      );
+
+      await manager.update(SalesInvoiceItemStockAllocation, allocation.id, {
+        unit_cost: baseUnitCost,
+        total_cost: totalCost,
+      });
+
+      if (allocation.invoice_id) {
+        affectedInvoiceIds.add(Number(allocation.invoice_id));
+      }
+    }
+
+    for (const invoiceId of affectedInvoiceIds) {
+      await this.syncInvoiceCostSnapshotFromAllocations(invoiceId, queryRunner);
+      await this.syncSupplierSettlementForPostedInvoice(invoiceId, queryRunner);
+    }
+
+    this.logger.log(
+      `✅ Đã đồng bộ lại giá vốn cho ${affectedInvoiceIds.size} hóa đơn bán liên quan tới ${receiptItemIds.length} dòng phiếu nhập.`,
+    );
+  }
+
+  private async syncInvoiceCostSnapshotFromAllocations(
+    invoiceId: number,
+    queryRunner?: QueryRunner,
+  ): Promise<void> {
+    const manager = this.getManager(queryRunner);
+    const invoice = await manager.findOne(SalesInvoice, {
+      where: { id: invoiceId },
+      relations: ['items'],
+    });
+
+    if (!invoice || !invoice.items || invoice.items.length === 0) {
+      return;
+    }
+
+    let totalCOGS = 0;
+
+    for (const item of invoice.items) {
+      const baseQty = Number(item.base_quantity || item.quantity || 0);
+      const isByPriceType =
+        item.costing_method_snapshot === ProductCostingMethod.BY_PRICE_TYPE;
+
+      if (isByPriceType) {
+        const snapshotCostPrice = Number(item.cost_price || 0);
+
+        if (!Number.isFinite(snapshotCostPrice) || snapshotCostPrice <= 0) {
+          throw new BadRequestException(
+            `Item #${item.id} của hóa đơn #${invoice.code} chưa có giá vốn snapshot theo price_type`,
+          );
+        }
+
+        totalCOGS += this.roundMoney(baseQty * snapshotCostPrice);
+        continue;
+      }
+
+      const allocations = await manager.find(SalesInvoiceItemStockAllocation, {
+        where: { sales_invoice_item_id: item.id },
+      });
+
+      let itemTotalCost = 0;
+      let itemCostPrice = 0;
+
+      if (allocations.length > 0) {
+        const allocatedQty = allocations.reduce(
+          (sum, allocation) => sum + Number(allocation.quantity || 0),
+          0,
+        );
+        itemTotalCost = allocations.reduce(
+          (sum, allocation) => sum + Number(allocation.total_cost || 0),
+          0,
+        );
+        itemCostPrice = allocatedQty > 0 ? itemTotalCost / allocatedQty : 0;
+      } else {
+        const tx = await manager.findOne(InventoryTransaction, {
+          where: {
+            type: 'OUT',
+            reference_type: 'SALE',
+            reference_id: invoiceId,
+            product_id: item.product_id,
+          },
+          order: { created_at: 'ASC' },
+        });
+
+        if (!tx) {
+          throw new BadRequestException(
+            `Không tìm thấy giao dịch kho để chốt giá vốn cho item #${item.id} của hóa đơn #${invoice.code}`,
+          );
+        }
+
+        itemTotalCost = Math.abs(Number(tx.total_value || 0));
+        itemCostPrice = baseQty > 0 ? itemTotalCost / baseQty : 0;
+      }
+
+      totalCOGS += itemTotalCost;
+
+      await manager.update(SalesInvoiceItem, item.id, {
+        cost_price: this.roundMoney(itemCostPrice),
+      });
+    }
+
+    const roundedCOGS = this.roundMoney(totalCOGS);
+    const grossProfit = this.roundMoney(
+      Number(invoice.final_amount || 0) - roundedCOGS,
+    );
+    const grossProfitMargin =
+      Number(invoice.final_amount || 0) > 0
+        ? Math.round((grossProfit / Number(invoice.final_amount || 0)) * 10000) /
+          100
+        : 0;
+
+    await manager.update(SalesInvoice, invoiceId, {
+      cost_of_goods_sold: roundedCOGS,
+      gross_profit: grossProfit,
+      gross_profit_margin: grossProfitMargin,
+    });
   }
 
   /**
