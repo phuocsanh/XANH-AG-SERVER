@@ -564,6 +564,49 @@ export class InventoryService {
     });
   }
 
+  private async buildReceiptSettlementSummary(
+    receiptId: number,
+    queryRunner?: QueryRunner,
+  ): Promise<{
+    cash_amount: number;
+    credit_amount: number;
+    total_amount: number;
+  }> {
+    const rows = await this.getManager(queryRunner)
+      .getRepository(InventoryReceiptSupplierSettlement)
+      .createQueryBuilder('settlement')
+      .select('settlement.price_type', 'price_type')
+      .addSelect(
+        'COALESCE(SUM(CAST(settlement.amount AS DECIMAL)), 0)',
+        'total_amount',
+      )
+      .where('settlement.receipt_id = :receiptId', { receiptId })
+      .groupBy('settlement.price_type')
+      .getRawMany();
+
+    const summary = {
+      cash_amount: 0,
+      credit_amount: 0,
+      total_amount: 0,
+    };
+
+    for (const row of rows) {
+      const amount = this.roundMoney(Number(row.total_amount || 0));
+      if (row.price_type === 'credit') {
+        summary.credit_amount += amount;
+      } else {
+        summary.cash_amount += amount;
+      }
+      summary.total_amount += amount;
+    }
+
+    summary.cash_amount = this.roundMoney(summary.cash_amount);
+    summary.credit_amount = this.roundMoney(summary.credit_amount);
+    summary.total_amount = this.roundMoney(summary.total_amount);
+
+    return summary;
+  }
+
   async syncSupplierSettlementForPostedInvoice(
     invoiceId: number,
     queryRunner?: QueryRunner,
@@ -2691,6 +2734,13 @@ export class InventoryService {
       if (receipt.approver) {
         (receipt.approver as any).full_name =
           receipt.approver.user_profile?.nickname || receipt.approver.account;
+      }
+
+      if (
+        receipt.supplier_settlement_mode === SupplierSettlementMode.BY_SALE_TYPE
+      ) {
+        (receipt as any).supplier_settlement_summary =
+          await this.buildReceiptSettlementSummary(id);
       }
     }
 
