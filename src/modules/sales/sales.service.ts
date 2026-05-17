@@ -113,6 +113,52 @@ export class SalesService {
     }
   }
 
+  private async syncPostedInvoiceArtifacts(
+    invoiceId: number,
+    userId?: number,
+    forceInventoryDeduction = false,
+  ): Promise<{
+    inventoryDeducted: boolean;
+    settlementSynced: boolean;
+    taxableSynced: boolean;
+  }> {
+    let inventoryDeducted = false;
+
+    if (forceInventoryDeduction || userId !== undefined) {
+      const existing = await this.dataSource
+        .getRepository(InventoryTransaction)
+        .findOne({
+          where: {
+            reference_type: 'SALE',
+            reference_id: invoiceId,
+          },
+        });
+
+      if (!existing) {
+        if (userId === undefined) {
+          throw new BadRequestException(
+            `Hóa đơn #${invoiceId} chưa có giao dịch xuất kho và thiếu userId để tự đồng bộ.`,
+          );
+        }
+
+        await this.handleInventoryDeduction(invoiceId, userId);
+        inventoryDeducted = true;
+      }
+    }
+
+    await this.inventoryService.syncSupplierSettlementForPostedInvoice(
+      invoiceId,
+    );
+    await this.syncPostedInvoiceCostSnapshot(invoiceId);
+    await this.syncTaxableDataForInvoice(invoiceId);
+
+    return {
+      inventoryDeducted,
+      settlementSynced: true,
+      taxableSynced: true,
+    };
+  }
+
   private async assertInvoiceProductMixingAllowed(
     items: Array<{ product_id: number }>,
     manager: any,
@@ -2629,7 +2675,14 @@ export class SalesService {
    * Đồng bộ tồn kho cho tất cả các hóa đơn đã xác nhận hoặc đã thanh toán
    * Dùng để sửa dữ liệu cũ
    */
-  async syncAllInventory(userId: number): Promise<{ processed: number; success: number; skipped: number }> {
+  async syncAllInventory(userId: number): Promise<{
+    processed: number;
+    success: number;
+    skipped: number;
+    inventoryDeducted: number;
+    settlementSynced: number;
+    taxableSynced: number;
+  }> {
     const invoices = await this.salesInvoiceRepository.find({
       where: [
         { status: SalesInvoiceStatus.CONFIRMED, deleted_at: IsNull() },
@@ -2641,26 +2694,28 @@ export class SalesService {
 
     let success = 0;
     let skipped = 0;
+    let inventoryDeducted = 0;
+    let settlementSynced = 0;
+    let taxableSynced = 0;
 
     for (const invoice of invoices) {
-      // Kiểm tra xem đã có transaction chưa
-      const existing = await this.dataSource.getRepository(InventoryTransaction).findOne({
-        where: {
-          reference_type: 'SALE',
-          reference_id: invoice.id,
-        },
-      });
-
-      if (existing) {
-        skipped++;
-        continue;
-      }
-
-      await this.handleInventoryDeduction(invoice.id, userId);
-      await this.inventoryService.syncSupplierSettlementForPostedInvoice(
+      const result = await this.syncPostedInvoiceArtifacts(
         invoice.id,
+        userId,
+        true,
       );
-      await this.syncTaxableDataForInvoice(invoice.id);
+
+      if (result.inventoryDeducted) {
+        inventoryDeducted++;
+      } else {
+        skipped++;
+      }
+      if (result.settlementSynced) {
+        settlementSynced++;
+      }
+      if (result.taxableSynced) {
+        taxableSynced++;
+      }
       success++;
     }
 
@@ -2668,6 +2723,9 @@ export class SalesService {
       processed: invoices.length,
       success,
       skipped,
+      inventoryDeducted,
+      settlementSynced,
+      taxableSynced,
     };
   }
   /**
