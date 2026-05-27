@@ -6,7 +6,7 @@ import { IsNumber, IsString, IsOptional, IsDateString, IsIn, Min } from 'class-v
 export class CreateRefundDto {
   /** Số tiền hoàn */
   @IsNumber()
-  @Min(0, { message: 'Số tiền hoàn phải lớn hơn 0' })
+  @Min(1, { message: 'Số tiền hoàn phải lớn hơn 0' })
   amount!: number;
 
   /** Phương thức hoàn tiền */

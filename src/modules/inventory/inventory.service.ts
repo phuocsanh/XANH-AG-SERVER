@@ -429,6 +429,19 @@ export class InventoryService {
     return 'unpaid';
   }
 
+  private getReceiptSupplierAmount(receipt: Partial<InventoryReceipt> | null | undefined): number {
+    if (!receipt) {
+      return 0;
+    }
+
+    return (
+      Number(receipt.supplier_amount) ||
+      Number(receipt.final_amount) ||
+      Number(receipt.total_amount) ||
+      0
+    );
+  }
+
   private isProductBySaleType(product?: Product | null): boolean {
     return product?.costing_method === ProductCostingMethod.BY_PRICE_TYPE;
   }
@@ -1630,6 +1643,9 @@ export class InventoryService {
     referenceId?: number,
     notes?: string,
     queryRunner?: QueryRunner,
+    stockOutOptions?: {
+      receiptItemId?: number;
+    },
   ): Promise<{
     transaction: InventoryTransaction;
     taxableQuantity: number;
@@ -1656,6 +1672,9 @@ export class InventoryService {
       : this.productService['productRepository'];
     const product = await productRepo.findOne({ where: { id: productId } });
     const currentTaxableStock = Number(product?.taxable_quantity_stock || 0);
+    const scopedReceiptItemId = stockOutOptions?.receiptItemId
+      ? Number(stockOutOptions.receiptItemId)
+      : undefined;
 
     // 2. Chuẩn bị dữ liệu thuế của từng đợt nhập kho để tính toán FIFO chính xác
     const batchRepo = queryRunner
@@ -1665,9 +1684,25 @@ export class InventoryService {
       where: {
         product_id: productId,
         remaining_quantity: MoreThan(0),
+        ...(scopedReceiptItemId
+          ? { receipt_item_id: scopedReceiptItemId }
+          : {}),
       },
       order: { created_at: 'ASC' }, // FIFO: lô cũ nhất trước
     });
+
+    if (scopedReceiptItemId) {
+      const scopedAvailableQuantity = batches.reduce(
+        (sum, batch) => sum + Number(batch.remaining_quantity || 0),
+        0,
+      );
+
+      if (scopedAvailableQuantity < quantity) {
+        throw new BadRequestException(
+          `Không đủ tồn kho trong đúng lô nhập gốc. Dòng nhập #${scopedReceiptItemId} còn ${scopedAvailableQuantity}, yêu cầu trả ${quantity}.`,
+        );
+      }
+    }
 
     const receiptItemRepo = queryRunner
       ? queryRunner.manager.getRepository(InventoryReceiptItem)
@@ -1816,6 +1851,7 @@ export class InventoryService {
       notes: notes || `Xuất kho ${quantity} sản phẩm theo FIFO`,
       created_by_user_id: userId, // Lấy từ JWT token
       ...(referenceId && { reference_id: referenceId }),
+      ...(scopedReceiptItemId && { receipt_item_id: scopedReceiptItemId }),
     };
 
     const transaction = await this.createTransaction(
@@ -4531,6 +4567,12 @@ export class InventoryService {
     await queryRunner.startTransaction();
 
     try {
+      const sourceReceipt = createInventoryReturnDto.receipt_id
+        ? await queryRunner.manager.findOne(InventoryReceipt, {
+            where: { id: createInventoryReturnDto.receipt_id },
+          })
+        : null;
+
       // Tự sinh mã nếu không được cung cấp
       let returnCode = createInventoryReturnDto.return_code;
       if (!returnCode) {
@@ -4548,6 +4590,7 @@ export class InventoryService {
         status: createInventoryReturnDto.status || ReturnStatus.DRAFT,
         created_by: userId,
         updated_by: userId,
+        refund_status: 'not_required',
       };
 
       if (createInventoryReturnDto.notes !== undefined) {
@@ -4624,6 +4667,9 @@ export class InventoryService {
         );
 
         for (const item of savedItems) {
+          const stockOutOptions = item.receipt_item_id
+            ? { receiptItemId: Number(item.receipt_item_id) }
+            : undefined;
           await this.processStockOut(
             item.product_id,
             Number(item.base_quantity || item.quantity),
@@ -4632,6 +4678,7 @@ export class InventoryService {
             returnEntity.id,
             `Trả hàng cho nhà cung cấp - Phiếu ${returnEntity.code}`,
             queryRunner,
+            stockOutOptions,
           );
         }
 
@@ -4647,9 +4694,7 @@ export class InventoryService {
 
       // ===== CẬP NHẬT PHIẾU NHẬP GỐC NẾU CÓ =====
       if (createInventoryReturnDto.receipt_id) {
-        const receipt = await queryRunner.manager.findOne(InventoryReceipt, {
-          where: { id: createInventoryReturnDto.receipt_id },
-        });
+        const receipt = sourceReceipt;
 
         if (receipt) {
           const newReturnedAmount =
@@ -4662,9 +4707,7 @@ export class InventoryService {
 
           // Cập nhật supplier_amount (giảm trừ theo giá trị hàng trả)
           const currentSupplierAmount =
-            Number(receipt.supplier_amount) ||
-            Number(receipt.final_amount) ||
-            totalAmount;
+            this.getReceiptSupplierAmount(receipt) || totalAmount;
           const newSupplierAmount =
             currentSupplierAmount -
             Number(createInventoryReturnDto.total_amount);
@@ -4674,6 +4717,12 @@ export class InventoryService {
             0,
             Math.round(newSupplierAmount - paidAmount),
           );
+          const newPaymentStatus = this.resolveReceiptPaymentStatus(
+            newSupplierAmount,
+            paidAmount,
+            receipt.supplier_settlement_mode || SupplierSettlementMode.STANDARD,
+          );
+          const requiresSupplierRefund = paidAmount > newSupplierAmount;
 
           await queryRunner.manager.update(
             InventoryReceipt,
@@ -4683,12 +4732,17 @@ export class InventoryService {
               final_amount: newFinalAmount,
               supplier_amount: newSupplierAmount,
               debt_amount: newDebtAmount,
+              payment_status: newPaymentStatus,
               has_returns: true,
             },
           );
 
+          await queryRunner.manager.update(InventoryReturn, returnEntity.id, {
+            refund_status: requiresSupplierRefund ? 'pending' : 'not_required',
+          });
+
           this.logger.log(
-            `Đã cập nhật phiếu nhập #${createInventoryReturnDto.receipt_id}: returned_amount=${newReturnedAmount}, final_amount=${newFinalAmount}, debt_amount=${newDebtAmount}`,
+            `Đã cập nhật phiếu nhập #${createInventoryReturnDto.receipt_id}: returned_amount=${newReturnedAmount}, final_amount=${newFinalAmount}, debt_amount=${newDebtAmount}, payment_status=${newPaymentStatus}`,
           );
         }
       }
@@ -4708,7 +4762,7 @@ export class InventoryService {
       // Trả về kết quả với relations
       const result = await this.inventoryReturnRepository.findOne({
         where: { id: returnEntity.id },
-        relations: ['supplier', 'items'],
+        relations: ['supplier', 'items', 'receipt'],
       });
 
       // ✅ Đánh dấu ảnh là đã sử dụng
@@ -4878,7 +4932,7 @@ export class InventoryService {
       : this.inventoryReturnRepository;
     const returnDoc = await repo.findOne({
       where: { id },
-      relations: ['items', 'items.product', 'supplier'],
+      relations: ['items', 'items.product', 'supplier', 'receipt'],
     });
 
     if (!returnDoc) {
@@ -4986,6 +5040,9 @@ export class InventoryService {
 
       // Xử lý xuất kho cho từng sản phẩm
       for (const item of items) {
+        const stockOutOptions = item.receipt_item_id
+          ? { receiptItemId: Number(item.receipt_item_id) }
+          : undefined;
         await this.processStockOut(
           item.product_id,
           Number(item.base_quantity || item.quantity),
@@ -4994,6 +5051,7 @@ export class InventoryService {
           id,
           `Trả hàng cho nhà cung cấp - Phiếu ${returnDoc.code}`,
           queryRunner,
+          stockOutOptions,
         );
       }
 
@@ -5069,7 +5127,7 @@ export class InventoryService {
             Number(item.base_quantity || item.quantity),
             unitCostBase,
             userId,
-            undefined,
+            item.receipt_item_id,
             `Hủy phiếu trả hàng - ${returnDoc.code}`,
             undefined,
             queryRunner,
@@ -5863,8 +5921,59 @@ export class InventoryService {
       throw new NotFoundException('Không tìm thấy phiếu trả hàng');
     }
 
+    if (!returnDoc.receipt_id || !returnDoc.receipt) {
+      throw new BadRequestException(
+        'Phiếu trả hàng này không gắn với phiếu nhập để xử lý hoàn tiền',
+      );
+    }
+
+    const receiptSupplierAmount = this.getReceiptSupplierAmount(returnDoc.receipt);
+    const paidAmount = Number(returnDoc.receipt.paid_amount || 0);
+    const refundableAmount = Math.max(0, paidAmount - receiptSupplierAmount);
+
+    if (refundableAmount <= 0) {
+      throw new BadRequestException(
+        'Phiếu trả hàng này chỉ giảm công nợ, không phát sinh hoàn tiền từ nhà cung cấp',
+      );
+    }
+
     const currentRefundAmount = Number(returnDoc.refund_amount) || 0;
     const totalAmount = Number(returnDoc.total_amount);
+    const receiptRefundSummary = await this.inventoryReturnRepository
+      .createQueryBuilder('inventoryReturn')
+      .select(
+        'COALESCE(SUM(CAST(inventoryReturn.refund_amount AS DECIMAL(15,2))), 0)',
+        'total',
+      )
+      .where('inventoryReturn.receipt_id = :receiptId', {
+        receiptId: returnDoc.receipt_id,
+      })
+      .andWhere('inventoryReturn.deleted_at IS NULL')
+      .getRawOne<{ total: string }>();
+
+    const refundedAmountForReceipt = Number(receiptRefundSummary?.total || 0);
+    const remainingRefundForReceipt = Math.max(
+      0,
+      refundableAmount - refundedAmountForReceipt,
+    );
+    const remainingRefundForReturn = Math.max(0, totalAmount - currentRefundAmount);
+    const allowedRefundAmount = Math.min(
+      remainingRefundForReceipt,
+      remainingRefundForReturn,
+    );
+
+    if (allowedRefundAmount <= 0) {
+      throw new BadRequestException(
+        'Khoản hoàn tiền cho phiếu trả hàng này đã được xử lý hết',
+      );
+    }
+
+    if (Number(refundDto.amount) > allowedRefundAmount) {
+      throw new BadRequestException(
+        `Số tiền hoàn vượt quá mức còn được phép xử lý (${allowedRefundAmount}đ)`,
+      );
+    }
+
     const newRefundAmount = currentRefundAmount + Number(refundDto.amount);
 
     if (newRefundAmount > totalAmount) {
@@ -5892,7 +6001,10 @@ export class InventoryService {
 
     // Cập nhật phiếu trả
     let newRefundStatus = 'partial';
-    if (newRefundAmount >= totalAmount) {
+    const refundTargetAmount = Math.min(totalAmount, refundableAmount);
+    if (refundTargetAmount <= 0) {
+      newRefundStatus = 'not_required';
+    } else if (newRefundAmount >= refundTargetAmount) {
       newRefundStatus = 'refunded';
     } else if (newRefundAmount === 0) {
       newRefundStatus = 'pending';
