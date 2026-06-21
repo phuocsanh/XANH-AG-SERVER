@@ -32,7 +32,7 @@ export class FarmGiftCost {
   amount!: number;
 
   /** ID sản phẩm được dùng làm quà tặng (nếu lấy từ kho cửa hàng) */
-  @Column({ name: 'product_id', nullable: true })
+  @Column({ name: 'product_id', type: 'int', nullable: true })
   product_id?: number | null;
 
   /** Quan hệ Sản phẩm */
@@ -120,7 +120,7 @@ export class FarmGiftCost {
   reward_history_id?: number;
 
   /** ID giao dịch kho đã xuất sản phẩm quà */
-  @Column({ name: 'inventory_transaction_id', nullable: true })
+  @Column({ name: 'inventory_transaction_id', type: 'int', nullable: true })
   inventory_transaction_id?: number | null;
 
   /** Quan hệ giao dịch kho */

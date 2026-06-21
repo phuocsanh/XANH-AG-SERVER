@@ -131,7 +131,7 @@ export class CustomerRewardHistory {
   gift_value?: number;
 
   /** ID sản phẩm được dùng làm quà tặng (nếu quà lấy từ kho cửa hàng) */
-  @Column({ name: 'gift_product_id', nullable: true })
+  @Column({ name: 'gift_product_id', type: 'int', nullable: true })
   gift_product_id?: number | null;
 
   /** Sản phẩm quà tặng */
@@ -177,7 +177,7 @@ export class CustomerRewardHistory {
   gift_unit_price?: number | null;
 
   /** ID giao dịch xuất kho khi tặng sản phẩm */
-  @Column({ name: 'gift_inventory_transaction_id', nullable: true })
+  @Column({ name: 'gift_inventory_transaction_id', type: 'int', nullable: true })
   gift_inventory_transaction_id?: number | null;
 
   /** Trạng thái quà tặng */
@@ -200,7 +200,7 @@ export class CustomerRewardHistory {
   reward_type?: string;
 
   /** ID Ruộng lúa liên quan */
-  @Column({ name: 'rice_crop_id', nullable: true })
+  @Column({ name: 'rice_crop_id', type: 'int', nullable: true })
   rice_crop_id?: number | null;
 
   /** Thông tin Ruộng lúa */
