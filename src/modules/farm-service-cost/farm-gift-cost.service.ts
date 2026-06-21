@@ -20,6 +20,10 @@ export class FarmGiftCostService {
       const giftData = {
         name: createDto.name,
         amount: createDto.amount,
+        product_id: createDto.product_id,
+        product_name: createDto.product_name,
+        quantity: createDto.quantity,
+        unit_price: createDto.unit_price,
         season_id: createDto.season_id,
         customer_id: createDto.customer_id,
         rice_crop_id: createDto.rice_crop_id,
@@ -27,6 +31,8 @@ export class FarmGiftCostService {
         gift_date: createDto.expense_date || createDto.gift_date || new Date(),
         source: createDto.source || 'manually_awarded',
         invoice_id: createDto.invoice_id,
+        reward_history_id: createDto.reward_history_id,
+        inventory_transaction_id: createDto.inventory_transaction_id,
       };
 
       const gift = repo.create(giftData);

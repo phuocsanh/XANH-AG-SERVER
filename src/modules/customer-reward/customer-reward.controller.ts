@@ -86,7 +86,7 @@ export class CustomerRewardController {
 
   @Delete('history/:id')
   @RequirePermissions('sales:manage')
-  deleteHistory(@Param('id') id: string) {
-    return this.customerRewardService.deleteHistory(+id);
+  deleteHistory(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.customerRewardService.deleteHistory(+id, user.id);
   }
 }

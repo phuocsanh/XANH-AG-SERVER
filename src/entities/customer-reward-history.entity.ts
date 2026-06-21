@@ -11,6 +11,7 @@ import {
 import { Customer } from './customer.entity';
 import { User } from './users.entity';
 import { RiceCrop } from './rice-crop.entity';
+import { Product } from './products.entity';
 
 /**
  * Entity lưu lịch sử tặng quà cho khách hàng
@@ -128,6 +129,56 @@ export class CustomerRewardHistory {
     comment: 'Giá trị quà tặng quy đổi ra tiền'
   })
   gift_value?: number;
+
+  /** ID sản phẩm được dùng làm quà tặng (nếu quà lấy từ kho cửa hàng) */
+  @Column({ name: 'gift_product_id', nullable: true })
+  gift_product_id?: number | null;
+
+  /** Sản phẩm quà tặng */
+  @ManyToOne(() => Product, { nullable: true })
+  @JoinColumn({ name: 'gift_product_id' })
+  gift_product?: Product;
+
+  /** Tên sản phẩm quà tại thời điểm tặng */
+  @Column({
+    name: 'gift_product_name',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
+  gift_product_name?: string | null;
+
+  /** Số lượng sản phẩm quà đã xuất kho */
+  @Column({
+    name: 'gift_quantity',
+    type: 'decimal',
+    precision: 15,
+    scale: 4,
+    nullable: true,
+    transformer: {
+      to: (value: number | null | undefined) => value,
+      from: (value: string | null) => (value ? parseFloat(value) : null),
+    },
+  })
+  gift_quantity?: number | null;
+
+  /** Đơn giá hạch toán cho sản phẩm quà */
+  @Column({
+    name: 'gift_unit_price',
+    type: 'decimal',
+    precision: 15,
+    scale: 2,
+    nullable: true,
+    transformer: {
+      to: (value: number | null | undefined) => value,
+      from: (value: string | null) => (value ? parseFloat(value) : null),
+    },
+  })
+  gift_unit_price?: number | null;
+
+  /** ID giao dịch xuất kho khi tặng sản phẩm */
+  @Column({ name: 'gift_inventory_transaction_id', nullable: true })
+  gift_inventory_transaction_id?: number | null;
 
   /** Trạng thái quà tặng */
   @Column({

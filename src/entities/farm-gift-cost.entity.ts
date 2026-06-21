@@ -10,6 +10,8 @@ import {
 import { Season } from './season.entity';
 import { RiceCrop } from './rice-crop.entity';
 import { Customer } from './customer.entity';
+import { Product } from './products.entity';
+import { InventoryTransaction } from './inventory-transactions.entity';
 
 /**
  * Entity biểu diễn quà tặng của cửa hàng dành cho nông dân
@@ -28,6 +30,47 @@ export class FarmGiftCost {
   /** Giá trị quà tặng (bắt buộc) */
   @Column({ type: 'decimal', precision: 15, scale: 2, nullable: false })
   amount!: number;
+
+  /** ID sản phẩm được dùng làm quà tặng (nếu lấy từ kho cửa hàng) */
+  @Column({ name: 'product_id', nullable: true })
+  product_id?: number | null;
+
+  /** Quan hệ Sản phẩm */
+  @ManyToOne(() => Product, { nullable: true })
+  @JoinColumn({ name: 'product_id' })
+  product?: Product;
+
+  /** Tên sản phẩm tại thời điểm tặng */
+  @Column({ name: 'product_name', type: 'varchar', length: 255, nullable: true })
+  product_name?: string | null;
+
+  /** Số lượng sản phẩm quà */
+  @Column({
+    name: 'quantity',
+    type: 'decimal',
+    precision: 15,
+    scale: 4,
+    nullable: true,
+    transformer: {
+      to: (value: number | null | undefined) => value,
+      from: (value: string | null) => (value ? parseFloat(value) : null),
+    },
+  })
+  quantity?: number | null;
+
+  /** Đơn giá hạch toán sản phẩm quà */
+  @Column({
+    name: 'unit_price',
+    type: 'decimal',
+    precision: 15,
+    scale: 2,
+    nullable: true,
+    transformer: {
+      to: (value: number | null | undefined) => value,
+      from: (value: string | null) => (value ? parseFloat(value) : null),
+    },
+  })
+  unit_price?: number | null;
 
   /** ID Mùa vụ (bắt buộc) */
   @Column({ name: 'season_id', nullable: false })
@@ -75,6 +118,15 @@ export class FarmGiftCost {
   /** ID lịch sử tặng quà (nếu là quà tặng hệ thống chăm sóc KH) */
   @Column({ name: 'reward_history_id', nullable: true })
   reward_history_id?: number;
+
+  /** ID giao dịch kho đã xuất sản phẩm quà */
+  @Column({ name: 'inventory_transaction_id', nullable: true })
+  inventory_transaction_id?: number | null;
+
+  /** Quan hệ giao dịch kho */
+  @ManyToOne(() => InventoryTransaction, { nullable: true })
+  @JoinColumn({ name: 'inventory_transaction_id' })
+  inventory_transaction?: InventoryTransaction;
 
   /** Thời gian tạo bản ghi */
   @CreateDateColumn({ name: 'created_at' })

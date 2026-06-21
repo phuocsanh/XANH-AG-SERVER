@@ -9,6 +9,7 @@ import { DebtNote } from '../../entities/debt-note.entity';
 import { SystemSetting } from '../../entities/system-setting.entity';
 import { FarmServiceCostModule } from '../farm-service-cost/farm-service-cost.module';
 import { FarmGiftCost } from '../../entities/farm-gift-cost.entity';
+import { InventoryModule } from '../inventory/inventory.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { FarmGiftCost } from '../../entities/farm-gift-cost.entity';
       FarmGiftCost
     ]),
     FarmServiceCostModule,
+    InventoryModule,
   ],
   controllers: [CustomerRewardController],
   providers: [CustomerRewardService],

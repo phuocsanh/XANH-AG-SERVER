@@ -27,6 +27,21 @@ export class CreateManualRewardDto {
   @IsNumber()
   rice_crop_id?: number;
 
+  /** ID sản phẩm quà lấy từ kho cửa hàng */
+  @IsOptional()
+  @IsNumber()
+  gift_product_id?: number;
+
+  /** Số lượng sản phẩm quà */
+  @IsOptional()
+  @IsNumber()
+  gift_quantity?: number;
+
+  /** Đơn giá hạch toán sản phẩm quà */
+  @IsOptional()
+  @IsNumber()
+  gift_unit_price?: number;
+
   /** Loại phần quà (ACCUMULATION_REWARD hoặc APPRECIATION_GIFT) */
   @IsString()
   @IsOptional()

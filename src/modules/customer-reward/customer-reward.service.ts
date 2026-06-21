@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Brackets } from 'typeorm';
 import { CustomerRewardTracking } from '../../entities/customer-reward-tracking.entity';
@@ -9,7 +9,9 @@ import { Customer } from '../../entities/customer.entity';
 import { Season } from '../../entities/season.entity';
 import { RiceCrop } from '../../entities/rice-crop.entity';
 import { FarmGiftCost } from '../../entities/farm-gift-cost.entity';
+import { Product } from '../../entities/products.entity';
 import { FarmGiftCostService } from '../farm-service-cost/farm-gift-cost.service';
+import { InventoryService } from '../inventory/inventory.service';
 import { QueryHelper } from '../../common/helpers/query-helper';
 import { SearchRewardDto } from './dto/search-reward.dto';
 import { CreateManualRewardDto } from './dto/create-manual-reward.dto';
@@ -25,13 +27,24 @@ export class CustomerRewardService {
     private debtNoteRepository: Repository<DebtNote>,
     @InjectRepository(SystemSetting)
     private systemSettingRepository: Repository<SystemSetting>,
-    @InjectRepository(FarmGiftCost)
-    private farmGiftCostRepository: Repository<FarmGiftCost>,
     private readonly farmGiftCostService: FarmGiftCostService,
+    private readonly inventoryService: InventoryService,
   ) {}
 
   private readonly DEFAULT_REWARD_THRESHOLD = 70000000; // 🔥 Đã sửa mốc thành 70 triệu theo yêu cầu
  // 60 Triệu
+
+  private toNumber(value: unknown): number {
+    if (value === null || value === undefined || value === '') {
+      return 0;
+    }
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  private getTransactionalQueryRunner(manager: any) {
+    return { manager } as any;
+  }
 
   /**
    * Lấy mốc tích lũy từ database
@@ -185,6 +198,11 @@ export class CustomerRewardService {
     manager: any;
     reward_history_id?: number | null | undefined;
     rice_crop_id?: number | null | undefined;
+    gift_product_id?: number | null | undefined;
+    gift_product_name?: string | null | undefined;
+    gift_quantity?: number | null | undefined;
+    gift_unit_price?: number | null | undefined;
+    inventory_transaction_id?: number | null | undefined;
   }): Promise<void> {
     try {
       const costName = `Quà tặng tri ân - ${params.customerName}`;
@@ -199,6 +217,10 @@ export class CustomerRewardService {
       await this.farmGiftCostService.create({
         name: costName,
         amount: params.giftValue * params.rewardCount,
+        product_id: params.gift_product_id || undefined,
+        product_name: params.gift_product_name || undefined,
+        quantity: params.gift_quantity || undefined,
+        unit_price: params.gift_unit_price || undefined,
         season_id: params.season_id,
         customer_id: params.customer_id,
         rice_crop_id: params.rice_crop_id || undefined,
@@ -206,6 +228,7 @@ export class CustomerRewardService {
         gift_date: new Date().toISOString(),
         source: 'reward_from_debt_note',
         reward_history_id: params.reward_history_id || undefined,
+        inventory_transaction_id: params.inventory_transaction_id || undefined,
       }, params.manager);
     } catch (error) {
       // Log error but don't stop process
@@ -568,11 +591,15 @@ export class CustomerRewardService {
     const { 
         customer_id, 
         gift_description, 
-        gift_value, 
         notes, 
         season_id,
         rice_crop_id
     } = dto;
+    let resolvedGiftValue = this.toNumber(dto.gift_value);
+    const giftProductId = this.toNumber(dto.gift_product_id);
+    const giftQuantity = this.toNumber(dto.gift_quantity);
+    const giftUnitPrice = this.toNumber(dto.gift_unit_price);
+    let giftProductName: string | null = null;
 
     const customer = await this.debtNoteRepository.manager.findOne(Customer, {
       where: { id: customer_id }
@@ -580,6 +607,30 @@ export class CustomerRewardService {
 
     if (!customer) {
       throw new NotFoundException('Không tìm thấy khách hàng');
+    }
+
+    if (giftProductId > 0) {
+      if (giftQuantity <= 0) {
+        throw new BadRequestException('Số lượng sản phẩm quà phải lớn hơn 0');
+      }
+      if (giftUnitPrice < 0) {
+        throw new BadRequestException('Đơn giá sản phẩm quà không được âm');
+      }
+
+      const product = await this.debtNoteRepository.manager.findOne(Product, {
+        where: { id: giftProductId },
+      });
+      if (!product) {
+        throw new NotFoundException('Không tìm thấy sản phẩm quà tặng');
+      }
+      if (Number(product.quantity || 0) < giftQuantity) {
+        throw new BadRequestException(
+          `Không đủ tồn kho sản phẩm quà. Hiện có: ${Number(product.quantity || 0)}, yêu cầu: ${giftQuantity}`,
+        );
+      }
+
+      giftProductName = product.trade_name || product.name || `Sản phẩm #${giftProductId}`;
+      resolvedGiftValue = Math.round(giftQuantity * giftUnitPrice);
     }
 
     // Lấy thông tin mùa vụ và ruộng lúa nếu có
@@ -606,8 +657,12 @@ export class CustomerRewardService {
         reward_threshold: dto.reward_type === 'APPRECIATION_GIFT' ? 0 : threshold,
         accumulated_amount: 0,
         reward_date: new Date(),
-        gift_description,
-        gift_value: gift_value || 0,
+        gift_description: giftProductName && !gift_description ? giftProductName : gift_description,
+        gift_value: resolvedGiftValue || 0,
+        gift_product_id: giftProductId > 0 ? giftProductId : null,
+        gift_product_name: giftProductName,
+        gift_quantity: giftProductId > 0 ? giftQuantity : null,
+        gift_unit_price: giftProductId > 0 ? giftUnitPrice : null,
         gift_status: dto.gift_status || 'delivered',
         delivered_date: dto.gift_status === 'delivered' || !dto.gift_status ? new Date() : undefined,
         reward_type: dto.reward_type || 'ACCUMULATION_REWARD',
@@ -636,7 +691,7 @@ export class CustomerRewardService {
       // 🔥 CHỈ TRỪ TÍCH LŨY NẾU LÀ QUÀ TÍCH LŨY
       if (history.reward_type === 'ACCUMULATION_REWARD') {
         const REWARD_VALUE_FOR_THRESHOLD = 1000000;
-        const validGiftValue = Number(gift_value || 0);
+        const validGiftValue = Number(resolvedGiftValue || 0);
         const amountToDeduct = (validGiftValue / REWARD_VALUE_FOR_THRESHOLD) * threshold;
         
         // 🔄 Cập nhật lại lịch sử với mốc tích lũy THỰC TẾ lúc đó và ghi chú tự động
@@ -659,8 +714,24 @@ export class CustomerRewardService {
       await manager.save(tracking);
       const savedHistory = await manager.save(history);
 
+      let inventoryTransactionId: number | undefined;
+      if (giftProductId > 0) {
+        const stockOutResult = await this.inventoryService.processStockOut(
+          giftProductId,
+          giftQuantity,
+          'CUSTOMER_REWARD_GIFT',
+          userId,
+          savedHistory.id,
+          `Xuất kho quà tặng khách hàng ${customer.name || customer_id}: ${giftProductName}`,
+          this.getTransactionalQueryRunner(manager),
+        );
+        inventoryTransactionId = stockOutResult.transaction.id;
+        savedHistory.gift_inventory_transaction_id = inventoryTransactionId;
+        await manager.save(savedHistory);
+      }
+
       // 3. Tạo phiếu chi phí nếu có giá trị quà và có mùa vụ
-      if (gift_value && gift_value > 0 && season_id) {
+      if (resolvedGiftValue && resolvedGiftValue > 0 && season_id) {
         await this.createGiftFarmServiceCost({
             customer_id,
             debtNoteCode: 'MANUAL_REWARD',
@@ -668,12 +739,17 @@ export class CustomerRewardService {
             season_id,
             seasonName,
             rewardCount: 1,
-            giftValue: gift_value,
-            giftDescription: gift_description,
+            giftValue: resolvedGiftValue,
+            giftDescription: giftProductName && !gift_description ? giftProductName : gift_description,
             totalAccumulated: 0,
             manager,
             reward_history_id: savedHistory.id,
-            rice_crop_id: rice_crop_id || null
+            rice_crop_id: rice_crop_id || null,
+            gift_product_id: giftProductId > 0 ? giftProductId : null,
+            gift_product_name: giftProductName,
+            gift_quantity: giftProductId > 0 ? giftQuantity : null,
+            gift_unit_price: giftProductId > 0 ? giftUnitPrice : null,
+            inventory_transaction_id: inventoryTransactionId || null,
         });
       }
 
@@ -687,53 +763,136 @@ export class CustomerRewardService {
   async updateHistory(id: number, dto: CreateManualRewardDto, _userId: number) {
     const history = await this.rewardHistoryRepository.findOne({ where: { id } });
     if (!history) throw new NotFoundException('Không tìm thấy lịch sử quà tặng');
+    const oldProductId = this.toNumber(history.gift_product_id);
+    const oldQuantity = this.toNumber(history.gift_quantity);
+    const oldUnitPrice = this.toNumber(history.gift_unit_price);
+    const nextProductId =
+      dto.gift_product_id !== undefined
+        ? this.toNumber(dto.gift_product_id)
+        : oldProductId;
+    const nextQuantity =
+      dto.gift_quantity !== undefined
+        ? this.toNumber(dto.gift_quantity)
+        : oldQuantity;
+    const nextUnitPrice =
+      dto.gift_unit_price !== undefined
+        ? this.toNumber(dto.gift_unit_price)
+        : oldUnitPrice;
 
-    // Cập nhật thông tin mùa vụ và ruộng lúa nếu có
-    if (dto.season_id) {
-      const season = await this.debtNoteRepository.manager.findOne(Season, { where: { id: dto.season_id } });
-      if (season) {
-        history.season_ids = [dto.season_id];
-        history.season_names = [season.name];
+    let nextProductName: string | null = history.gift_product_name || null;
+    let resolvedGiftValue = this.toNumber(dto.gift_value ?? history.gift_value);
+
+    if (nextProductId > 0) {
+      if (nextQuantity <= 0) {
+        throw new BadRequestException('Số lượng sản phẩm quà phải lớn hơn 0');
       }
-    }
-
-    if (dto.rice_crop_id) {
-      const riceCrop = await this.debtNoteRepository.manager.findOne(RiceCrop, { where: { id: dto.rice_crop_id } });
-      if (riceCrop) {
-        history.rice_crop_id = dto.rice_crop_id;
-        history.rice_crop_name = riceCrop.field_name;
+      if (nextUnitPrice < 0) {
+        throw new BadRequestException('Đơn giá sản phẩm quà không được âm');
       }
+
+      const product = await this.debtNoteRepository.manager.findOne(Product, {
+        where: { id: nextProductId },
+      });
+      if (!product) {
+        throw new NotFoundException('Không tìm thấy sản phẩm quà tặng');
+      }
+      nextProductName = product.trade_name || product.name || `Sản phẩm #${nextProductId}`;
+      resolvedGiftValue = Math.round(nextQuantity * nextUnitPrice);
+    } else {
+      nextProductName = null;
     }
 
-    Object.assign(history, {
-      gift_description: dto.gift_description,
-      gift_value: dto.gift_value,
-      notes: dto.notes,
-      gift_status: dto.gift_status || history.gift_status,
-      delivered_date: dto.gift_status === 'delivered' ? new Date() : history.delivered_date,
+    return await this.rewardHistoryRepository.manager.transaction(async (manager) => {
+      const queryRunner = this.getTransactionalQueryRunner(manager);
+      const stockChanged =
+        oldProductId !== nextProductId ||
+        oldQuantity !== nextQuantity;
+      let inventoryTransactionId = history.gift_inventory_transaction_id || null;
+
+      if (oldProductId > 0 && oldQuantity > 0 && stockChanged) {
+        await this.inventoryService.processStockIn(
+          oldProductId,
+          oldQuantity,
+          oldUnitPrice || 0,
+          _userId,
+          undefined,
+          `GIFT_RETURN_${id}_${Date.now()}`,
+          undefined,
+          queryRunner,
+        );
+        inventoryTransactionId = null;
+      }
+
+      if (nextProductId > 0 && stockChanged) {
+        const stockOutResult = await this.inventoryService.processStockOut(
+          nextProductId,
+          nextQuantity,
+          'CUSTOMER_REWARD_GIFT',
+          _userId,
+          id,
+          `Xuất kho quà tặng khách hàng ${history.customer_name || history.customer_id}: ${nextProductName}`,
+          queryRunner,
+        );
+        inventoryTransactionId = stockOutResult.transaction.id;
+      }
+
+      // Cập nhật thông tin mùa vụ và ruộng lúa nếu có
+      if (dto.season_id) {
+        const season = await manager.findOne(Season, { where: { id: dto.season_id } });
+        if (season) {
+          history.season_ids = [dto.season_id];
+          history.season_names = [season.name];
+        }
+      }
+
+      if (dto.rice_crop_id) {
+        const riceCrop = await manager.findOne(RiceCrop, { where: { id: dto.rice_crop_id } });
+        if (riceCrop) {
+          history.rice_crop_id = dto.rice_crop_id;
+          history.rice_crop_name = riceCrop.field_name;
+        }
+      }
+
+      Object.assign(history, {
+        gift_description: nextProductName && !dto.gift_description ? nextProductName : dto.gift_description,
+        gift_value: resolvedGiftValue,
+        gift_product_id: nextProductId > 0 ? nextProductId : null,
+        gift_product_name: nextProductName,
+        gift_quantity: nextProductId > 0 ? nextQuantity : null,
+        gift_unit_price: nextProductId > 0 ? nextUnitPrice : null,
+        gift_inventory_transaction_id: inventoryTransactionId,
+        notes: dto.notes,
+        gift_status: dto.gift_status || history.gift_status,
+        delivered_date: dto.gift_status === 'delivered' ? new Date() : history.delivered_date,
+      });
+
+      const saved = await manager.save(history);
+
+      // Cập nhật chi phí tương ứng nếu có
+      const giftCost = await manager.findOne(FarmGiftCost, {
+        where: { reward_history_id: id }
+      });
+
+      if (giftCost) {
+        giftCost.name = `Quà tặng tri ân - ${history.customer_name}`;
+        giftCost.amount = resolvedGiftValue || 0;
+        giftCost.notes = dto.gift_description;
+        giftCost.product_id = nextProductId > 0 ? nextProductId : null;
+        giftCost.product_name = nextProductName;
+        giftCost.quantity = nextProductId > 0 ? nextQuantity : null;
+        giftCost.unit_price = nextProductId > 0 ? nextUnitPrice : null;
+        giftCost.inventory_transaction_id = inventoryTransactionId;
+        await manager.save(giftCost);
+      }
+
+      return saved;
     });
-
-    const saved = await this.rewardHistoryRepository.save(history);
-
-    // Cập nhật chi phí tương ứng nếu có
-    const giftCost = await this.farmGiftCostRepository.findOne({
-      where: { reward_history_id: id }
-    });
-
-    if (giftCost) {
-      giftCost.name = `Quà tặng tri ân - ${history.customer_name}`;
-      giftCost.amount = dto.gift_value || 0;
-      giftCost.notes = dto.gift_description;
-      await this.farmGiftCostRepository.save(giftCost);
-    }
-
-    return saved;
   }
 
   /**
    * Xóa lịch sử quà tặng
    */
-  async deleteHistory(id: number) {
+  async deleteHistory(id: number, userId: number) {
     const history = await this.rewardHistoryRepository.findOne({ where: { id } });
     if (!history) throw new NotFoundException('Không tìm thấy lịch sử quà tặng');
 
@@ -743,7 +902,7 @@ export class CustomerRewardService {
         where: { customer_id: history.customer_id }
       });
 
-      if (tracking) {
+      if (tracking && history.reward_type === 'ACCUMULATION_REWARD') {
         tracking.reward_count = Math.max(0, tracking.reward_count - 1);
         
         // 🔄 QUAN TRỌNG: Trả lại tích lũy khi xóa quà tặng (Tính theo tỷ lệ gift_value thực tế)
@@ -754,6 +913,21 @@ export class CustomerRewardService {
         tracking.pending_amount = Number(tracking.pending_amount || 0) + amountToRestore;
         
         await manager.save(tracking);
+      }
+
+      const giftProductId = this.toNumber(history.gift_product_id);
+      const giftQuantity = this.toNumber(history.gift_quantity);
+      if (giftProductId > 0 && giftQuantity > 0) {
+        await this.inventoryService.processStockIn(
+          giftProductId,
+          giftQuantity,
+          this.toNumber(history.gift_unit_price),
+          userId,
+          undefined,
+          `GIFT_DELETE_RETURN_${id}_${Date.now()}`,
+          undefined,
+          this.getTransactionalQueryRunner(manager),
+        );
       }
 
       // 2. Xóa chi phí tương ứng

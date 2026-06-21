@@ -179,7 +179,7 @@ export class SalesInvoice {
   @Column({ 
     name: 'gross_profit_margin', 
     type: 'decimal', 
-    precision: 5, 
+    precision: 10, 
     scale: 2, 
     default: 0 
   })
