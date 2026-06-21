@@ -68,6 +68,56 @@ export class StoreProfitReportService {
 
   ) {}
 
+  private async getFarmGiftCostsBasic(filters: {
+    seasonId?: number;
+    customerId?: number;
+    riceCropId?: number;
+    startDate?: Date;
+    endDate?: Date;
+  } = {}): Promise<FarmGiftCost[]> {
+    const query = this.farmGiftCostRepository
+      .createQueryBuilder('gift')
+      .select([
+        'gift.id',
+        'gift.name',
+        'gift.amount',
+        'gift.season_id',
+        'gift.customer_id',
+        'gift.rice_crop_id',
+        'gift.notes',
+        'gift.gift_date',
+        'gift.source',
+        'gift.invoice_id',
+        'gift.reward_history_id',
+        'gift.created_at',
+        'gift.updated_at',
+      ]);
+
+    if (filters.seasonId) {
+      query.andWhere('gift.season_id = :seasonId', {
+        seasonId: filters.seasonId,
+      });
+    }
+    if (filters.customerId) {
+      query.andWhere('gift.customer_id = :customerId', {
+        customerId: filters.customerId,
+      });
+    }
+    if (filters.riceCropId) {
+      query.andWhere('gift.rice_crop_id = :riceCropId', {
+        riceCropId: filters.riceCropId,
+      });
+    }
+    if (filters.startDate && filters.endDate) {
+      query.andWhere('gift.gift_date BETWEEN :startDate AND :endDate', {
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+      });
+    }
+
+    return query.getMany();
+  }
+
   async getTaxRevenueCutoverDate(): Promise<{ cutover_date: string }> {
     const setting =
       (await this.systemSettingRepository.findOne({
@@ -365,13 +415,15 @@ export class StoreProfitReportService {
 
       this.logger.log(`📊 [DEBUG_REPORT] Found ${invoices.length} invoices for seasonId ${seasonId}`);
       
-      // Log chi tiết từng hóa đơn
-      invoices.forEach(inv => {
+      invoices.slice(0, 5).forEach(inv => {
         this.logger.log(
           `  📄 ${inv.code}: final_amount=${inv.final_amount}, ` +
           `cost_of_goods_sold=${inv.cost_of_goods_sold}, status=${inv.status}`
         );
       });
+      if (invoices.length > 5) {
+        this.logger.log(`  ... ${invoices.length - 5} hóa đơn còn lại`);
+      }
 
       // Tính tổng doanh thu, giá vốn, lợi nhuận
       let totalRevenue = 0;
@@ -503,9 +555,7 @@ export class StoreProfitReportService {
       });
       
       // Lấy chi phí quà tặng
-      const giftCostsResult = await this.farmGiftCostRepository.find({
-        where: { season_id: seasonId },
-      });
+      const giftCostsResult = await this.getFarmGiftCostsBasic({ seasonId });
 
       const serviceBreakdown = serviceCostsResult.map(item => ({
         type: 'service',
@@ -981,9 +1031,7 @@ export class StoreProfitReportService {
       const farmServiceCosts = await this.farmServiceCostRepository.find({
         where: { customer_id: customerId }
       });
-      const farmGiftCosts = await this.farmGiftCostRepository.find({
-        where: { customer_id: customerId }
-      });
+      const farmGiftCosts = await this.getFarmGiftCostsBasic({ customerId });
       
       const lifetimeServiceCost = farmServiceCosts.reduce((sum, c) => sum + Number(c.amount), 0);
       const lifetimeGiftCost = farmGiftCosts.reduce((sum, c) => sum + Number(c.amount), 0);
@@ -1195,7 +1243,7 @@ export class StoreProfitReportService {
               notes: c.notes,
               source: c.source,
             })),
-            ...(await this.farmGiftCostRepository.find({ where: { rice_crop_id: riceCropId } })).map(c => ({
+            ...(await this.getFarmGiftCostsBasic({ riceCropId })).map(c => ({
               type: c.source || 'gift',
               name: c.name,
               amount: Number(c.amount),
@@ -1279,9 +1327,7 @@ export class StoreProfitReportService {
       const serviceCosts = await this.farmServiceCostRepository.find({
         where: { rice_crop_id: riceCropId }
       });
-      const giftCosts = await this.farmGiftCostRepository.find({
-        where: { rice_crop_id: riceCropId }
-      });
+      const giftCosts = await this.getFarmGiftCostsBasic({ riceCropId });
 
       const totalServiceCosts = serviceCosts.reduce((sum, cost) => sum + Number(cost.amount), 0);
       const totalGiftCosts = giftCosts.reduce((sum, cost) => sum + Number(cost.amount), 0);
@@ -1613,10 +1659,9 @@ export class StoreProfitReportService {
           expense_date: Between(startDate, endDate),
         },
       });
-      const giftCostsPeriod = await this.farmGiftCostRepository.find({
-        where: {
-          gift_date: Between(startDate, endDate),
-        },
+      const giftCostsPeriod = await this.getFarmGiftCostsBasic({
+        startDate,
+        endDate,
       });
       
       const totalServiceCostsPeriod = serviceCostsPeriod.reduce((sum, cost) => sum + Number(cost.amount), 0);
