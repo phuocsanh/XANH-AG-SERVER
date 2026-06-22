@@ -179,6 +179,21 @@ export class CreateSalesInvoiceDto {
   @IsOptional()
   gift_value?: number;
 
+  /** ID sản phẩm quà tặng lấy từ kho cửa hàng */
+  @IsNumber()
+  @IsOptional()
+  gift_product_id?: number;
+
+  /** Số lượng sản phẩm quà tặng */
+  @IsNumber()
+  @IsOptional()
+  gift_quantity?: number;
+
+  /** Đơn giá hạch toán sản phẩm quà tặng */
+  @IsNumber()
+  @IsOptional()
+  gift_unit_price?: number;
+
   /** Trạng thái quà tặng (tùy chọn) */
   @IsString()
   @IsOptional()

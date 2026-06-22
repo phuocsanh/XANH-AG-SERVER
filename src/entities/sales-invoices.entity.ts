@@ -16,6 +16,8 @@ import { RiceCrop } from './rice-crop.entity';
 import { User } from './users.entity';
 import { DeliveryLog } from './delivery-log.entity';
 import { SalesReturn } from './sales-return.entity';
+import { Product } from './products.entity';
+import { InventoryTransaction } from './inventory-transactions.entity';
 
 /**
  * Enum định nghĩa các trạng thái của hóa đơn bán hàng
@@ -204,6 +206,56 @@ export class SalesInvoice {
     comment: 'Giá trị quà tặng quy đổi ra tiền, trừ vào lợi nhuận'
   })
   gift_value!: number;
+
+  /** ID sản phẩm quà tặng kèm hóa đơn (nếu lấy từ kho) */
+  @Column({ name: 'gift_product_id', type: 'int', nullable: true })
+  gift_product_id?: number | null;
+
+  /** Sản phẩm quà tặng */
+  @ManyToOne(() => Product, { nullable: true })
+  @JoinColumn({ name: 'gift_product_id' })
+  gift_product?: Product;
+
+  /** Tên sản phẩm quà tại thời điểm tạo hóa đơn */
+  @Column({ name: 'gift_product_name', type: 'varchar', length: 255, nullable: true })
+  gift_product_name?: string | null;
+
+  /** Số lượng sản phẩm quà tặng */
+  @Column({
+    name: 'gift_quantity',
+    type: 'decimal',
+    precision: 15,
+    scale: 4,
+    nullable: true,
+    transformer: {
+      to: (value: number | null | undefined) => value,
+      from: (value: string | null) => (value ? parseFloat(value) : null),
+    },
+  })
+  gift_quantity?: number | null;
+
+  /** Đơn giá hạch toán sản phẩm quà */
+  @Column({
+    name: 'gift_unit_price',
+    type: 'decimal',
+    precision: 15,
+    scale: 2,
+    nullable: true,
+    transformer: {
+      to: (value: number | null | undefined) => value,
+      from: (value: string | null) => (value ? parseFloat(value) : null),
+    },
+  })
+  gift_unit_price?: number | null;
+
+  /** Giao dịch kho xuất quà tặng kèm hóa đơn */
+  @Column({ name: 'gift_inventory_transaction_id', type: 'int', nullable: true })
+  gift_inventory_transaction_id?: number | null;
+
+  /** Quan hệ giao dịch kho quà tặng */
+  @ManyToOne(() => InventoryTransaction, { nullable: true })
+  @JoinColumn({ name: 'gift_inventory_transaction_id' })
+  gift_inventory_transaction?: InventoryTransaction;
 
   /** Ngày bán hàng (có thể khác ngày tạo) */
   @Column({ name: 'sale_date', type: 'timestamptz', nullable: true })

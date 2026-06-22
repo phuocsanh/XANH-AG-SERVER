@@ -85,6 +85,178 @@ export class SalesService {
     return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
   }
 
+  private toNumber(value: unknown): number {
+    if (value === null || value === undefined || value === '') {
+      return 0;
+    }
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  private async resolveInvoiceGiftPayload(
+    dto: {
+      gift_product_id?: number | null | undefined;
+      gift_quantity?: number | null | undefined;
+      gift_unit_price?: number | null | undefined;
+      gift_value?: number | null | undefined;
+      gift_description?: string | null | undefined;
+    },
+    manager: any,
+  ): Promise<{
+    giftValue: number;
+    giftProductId?: number;
+    giftProductName?: string;
+    giftQuantity?: number;
+    giftUnitPrice?: number;
+    giftDescription?: string;
+  }> {
+    const giftProductId = this.toNumber(dto.gift_product_id);
+    const giftQuantity = this.toNumber(dto.gift_quantity);
+    const giftUnitPrice = this.toNumber(dto.gift_unit_price);
+
+    if (giftProductId <= 0) {
+      const result: {
+        giftValue: number;
+        giftDescription?: string;
+      } = {
+        giftValue: this.roundMoney(this.toNumber(dto.gift_value)),
+      };
+      if (dto.gift_description) {
+        result.giftDescription = dto.gift_description;
+      }
+      return result;
+    }
+
+    if (giftQuantity <= 0) {
+      throw new BadRequestException('Số lượng sản phẩm quà phải lớn hơn 0');
+    }
+    if (giftUnitPrice < 0) {
+      throw new BadRequestException('Đơn giá sản phẩm quà không được âm');
+    }
+
+    const product = await manager.findOne(Product, {
+      where: { id: giftProductId },
+    });
+    if (!product) {
+      throw new BadRequestException('Không tìm thấy sản phẩm quà tặng');
+    }
+
+    return {
+      giftValue: this.roundMoney(giftQuantity * giftUnitPrice),
+      giftProductId,
+      giftProductName: product.trade_name || product.name || `Sản phẩm #${giftProductId}`,
+      giftQuantity,
+      giftUnitPrice,
+      giftDescription:
+        dto.gift_description ||
+        product.trade_name ||
+        product.name ||
+        `Sản phẩm #${giftProductId}`,
+    };
+  }
+
+  private async handleInvoiceGiftStockOut(
+    invoice: SalesInvoice,
+    userId: number,
+    queryRunner?: QueryRunner,
+  ): Promise<void> {
+    const giftProductId = this.toNumber(invoice.gift_product_id);
+    const giftQuantity = this.toNumber(invoice.gift_quantity);
+    if (giftProductId <= 0 || giftQuantity <= 0) {
+      return;
+    }
+
+    const repo = queryRunner
+      ? queryRunner.manager.getRepository(InventoryTransaction)
+      : this.dataSource.getRepository(InventoryTransaction);
+    const existingTransaction = await repo.findOne({
+      where: {
+        reference_type: 'INVOICE_GIFT',
+        reference_id: invoice.id,
+      },
+    });
+    if (existingTransaction) {
+      return;
+    }
+
+    const result = await this.inventoryService.processStockOut(
+      giftProductId,
+      giftQuantity,
+      'INVOICE_GIFT',
+      userId,
+      invoice.id,
+      `Xuất kho quà tặng kèm hóa đơn #${invoice.code}`,
+      queryRunner,
+    );
+
+    const manager = queryRunner ? queryRunner.manager : this.dataSource.manager;
+    await manager.update(SalesInvoice, invoice.id, {
+      gift_inventory_transaction_id: result.transaction.id,
+    });
+  }
+
+  private async handleInvoiceGiftStockRestoration(
+    invoice: SalesInvoice,
+    userId: number,
+    queryRunner?: QueryRunner,
+  ): Promise<void> {
+    const giftProductId = this.toNumber(invoice.gift_product_id);
+    const giftQuantity = this.toNumber(invoice.gift_quantity);
+    if (giftProductId <= 0 || giftQuantity <= 0) {
+      return;
+    }
+
+    const transRepo = queryRunner
+      ? queryRunner.manager.getRepository(InventoryTransaction)
+      : this.dataSource.getRepository(InventoryTransaction);
+
+    const outTransaction = await transRepo.findOne({
+      where: {
+        reference_type: 'INVOICE_GIFT',
+        reference_id: invoice.id,
+        type: 'OUT',
+      },
+      order: { created_at: 'DESC' },
+    });
+    if (!outTransaction) {
+      return;
+    }
+
+    const restoredTransaction = await transRepo.findOne({
+      where: {
+        reference_type: 'INVOICE_GIFT_CANCEL',
+        reference_id: invoice.id,
+        type: 'IN',
+      },
+    });
+    if (restoredTransaction) {
+      return;
+    }
+
+    await this.inventoryService.processStockIn(
+      giftProductId,
+      giftQuantity,
+      Number(outTransaction.unit_cost_price || 0),
+      userId || invoice.created_by,
+      undefined,
+      `CANCEL_GIFT_${invoice.code}_${giftProductId}`,
+      undefined,
+      queryRunner,
+    );
+
+    const latestTrans = await transRepo.findOne({
+      where: { product_id: giftProductId },
+      order: { created_at: 'DESC' },
+    });
+
+    if (latestTrans && latestTrans.reference_type === 'STOCK_IN') {
+      latestTrans.reference_type = 'INVOICE_GIFT_CANCEL';
+      latestTrans.reference_id = invoice.id;
+      latestTrans.notes = `Hoàn kho quà tặng từ hóa đơn hủy #${invoice.code}`;
+      await transRepo.save(latestTrans);
+    }
+  }
+
   private isPostedInvoiceStatus(status: SalesInvoiceStatus): boolean {
     return (
       status === SalesInvoiceStatus.CONFIRMED ||
@@ -143,6 +315,13 @@ export class SalesService {
 
         await this.handleInventoryDeduction(invoiceId, userId);
         inventoryDeducted = true;
+      }
+
+      const invoice = await this.salesInvoiceRepository.findOne({
+        where: { id: invoiceId },
+      });
+      if (invoice && userId !== undefined) {
+        await this.handleInvoiceGiftStockOut(invoice, userId);
       }
     }
 
@@ -630,6 +809,11 @@ export class SalesService {
         queryRunner.manager,
       );
 
+      const invoiceGift = await this.resolveInvoiceGiftPayload(
+        createSalesInvoiceDto,
+        queryRunner.manager,
+      );
+
       // Tự động sinh mã hóa đơn nếu không có
       const invoiceCode = createSalesInvoiceDto.invoice_code || CodeGeneratorHelper.generateUniqueCode('HD');
 
@@ -654,8 +838,12 @@ export class SalesService {
         payment_status: remainingAmount <= 0 ? SalesPaymentStatus.PAID : (partialPayment > 0 ? SalesPaymentStatus.PARTIAL : SalesPaymentStatus.PENDING),
         rice_crop_id: createSalesInvoiceDto.rice_crop_id,
         season_id: createSalesInvoiceDto.season_id,
-        gift_description: createSalesInvoiceDto.gift_description,
-        gift_value: createSalesInvoiceDto.gift_value || 0,
+        gift_description: invoiceGift.giftDescription,
+        gift_value: invoiceGift.giftValue,
+        gift_product_id: invoiceGift.giftProductId || null,
+        gift_product_name: invoiceGift.giftProductName || null,
+        gift_quantity: invoiceGift.giftQuantity || null,
+        gift_unit_price: invoiceGift.giftUnitPrice || null,
         sale_date: createSalesInvoiceDto.sale_date ? new Date(createSalesInvoiceDto.sale_date) : new Date(),
       };
       
@@ -859,6 +1047,7 @@ export class SalesService {
           savedInvoice.id,
         );
         await this.handleInventoryDeduction(savedInvoice.id, userId, queryRunner);
+        await this.handleInvoiceGiftStockOut(savedInvoice, userId, queryRunner);
         await this.inventoryService.syncSupplierSettlementForPostedInvoice(
           savedInvoice.id,
           queryRunner,
@@ -1122,6 +1311,11 @@ export class SalesService {
         'discount_amount',
         'final_amount',
         'partial_payment_amount',
+        'gift_description',
+        'gift_value',
+        'gift_product_id',
+        'gift_quantity',
+        'gift_unit_price',
       ];
       const hasFinancialChanges = financialFields.some(
         (field) => (updateSalesInvoiceDto as any)[field] !== undefined,
@@ -1154,6 +1348,44 @@ export class SalesService {
 
       const { items, delivery_log, ...invoiceUpdateData } =
         updateSalesInvoiceDto as any;
+
+      if (
+        updateSalesInvoiceDto.gift_description !== undefined ||
+        updateSalesInvoiceDto.gift_value !== undefined ||
+        updateSalesInvoiceDto.gift_product_id !== undefined ||
+        updateSalesInvoiceDto.gift_quantity !== undefined ||
+        updateSalesInvoiceDto.gift_unit_price !== undefined
+      ) {
+        const invoiceGift = await this.resolveInvoiceGiftPayload(
+          {
+            gift_description:
+              updateSalesInvoiceDto.gift_description ??
+              currentInvoice.gift_description,
+            gift_value:
+              updateSalesInvoiceDto.gift_value ?? currentInvoice.gift_value,
+            gift_product_id:
+              updateSalesInvoiceDto.gift_product_id ??
+              currentInvoice.gift_product_id ??
+              undefined,
+            gift_quantity:
+              updateSalesInvoiceDto.gift_quantity ??
+              currentInvoice.gift_quantity ??
+              undefined,
+            gift_unit_price:
+              updateSalesInvoiceDto.gift_unit_price ??
+              currentInvoice.gift_unit_price ??
+              undefined,
+          },
+          queryRunner.manager,
+        );
+
+        invoiceUpdateData.gift_description = invoiceGift.giftDescription;
+        invoiceUpdateData.gift_value = invoiceGift.giftValue;
+        invoiceUpdateData.gift_product_id = invoiceGift.giftProductId || null;
+        invoiceUpdateData.gift_product_name = invoiceGift.giftProductName || null;
+        invoiceUpdateData.gift_quantity = invoiceGift.giftQuantity || null;
+        invoiceUpdateData.gift_unit_price = invoiceGift.giftUnitPrice || null;
+      }
 
       if (hasFinancialChanges) {
         const computedTotalAmount = this.roundMoney(
@@ -1312,6 +1544,7 @@ export class SalesService {
           savedInvoice.id,
         );
         await this.handleInventoryDeduction(savedInvoice.id, userId, queryRunner);
+        await this.handleInvoiceGiftStockOut(savedInvoice, userId, queryRunner);
         await this.inventoryService.syncSupplierSettlementForPostedInvoice(
           savedInvoice.id,
           queryRunner,
@@ -1436,6 +1669,7 @@ export class SalesService {
           savedInvoice.id,
         );
         await this.handleInventoryDeduction(savedInvoice.id, userId, queryRunner);
+        await this.handleInvoiceGiftStockOut(savedInvoice, userId, queryRunner);
         await this.inventoryService.syncSupplierSettlementForPostedInvoice(
           savedInvoice.id,
           queryRunner,
@@ -1515,6 +1749,7 @@ export class SalesService {
           `Thu hoi tich luy do huy hoa don ${savedInvoice.code}`,
         );
         await this.handleInventoryRestoration(savedInvoice.id, userId, queryRunner);
+        await this.handleInvoiceGiftStockRestoration(savedInvoice, userId, queryRunner);
       }
 
       // 🆕 Trừ nợ trong công nợ (loại bỏ hóa đơn khỏi tích lũy mùa vụ)
