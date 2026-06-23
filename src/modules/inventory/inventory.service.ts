@@ -415,7 +415,9 @@ export class InventoryService {
       ) {
         return 'advance';
       }
-      return 'unpaid';
+      return settlementMode === SupplierSettlementMode.BY_SALE_TYPE
+        ? 'unpaid'
+        : 'paid';
     }
 
     if (paidAmount >= supplierAmount) {
