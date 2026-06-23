@@ -431,7 +431,9 @@ export class InventoryService {
     return 'unpaid';
   }
 
-  private getReceiptSupplierAmount(receipt: Partial<InventoryReceipt> | null | undefined): number {
+  private getReceiptSupplierAmount(
+    receipt: Partial<InventoryReceipt> | null | undefined,
+  ): number {
     if (!receipt) {
       return 0;
     }
@@ -471,7 +473,9 @@ export class InventoryService {
   ): Promise<SupplierSettlementMode> {
     const productIds = items.map((item) => Number(item.product_id));
     const products = await this.loadReceiptProducts(productIds, queryRunner);
-    const productMap = new Map(products.map((product) => [Number(product.id), product]));
+    const productMap = new Map(
+      products.map((product) => [Number(product.id), product]),
+    );
 
     for (const productId of productIds) {
       if (!productMap.has(productId)) {
@@ -493,10 +497,7 @@ export class InventoryService {
     }
 
     if (!hasBySaleType) {
-      if (
-        requestedMode &&
-        requestedMode !== SupplierSettlementMode.STANDARD
-      ) {
+      if (requestedMode && requestedMode !== SupplierSettlementMode.STANDARD) {
         throw new BadRequestException(
           'Chế độ "quyết toán theo loại bán" chỉ áp dụng cho sản phẩm lúa giống.',
         );
@@ -562,8 +563,12 @@ export class InventoryService {
       settlements.reduce((sum, entry) => sum + Number(entry.amount || 0), 0),
     );
     const paidAmount = Number(receipt.paid_amount || 0);
-    const totalAmount = this.roundMoney(goodsTotal + sharedShipping + itemShipping);
-    const debtAmount = this.roundMoney(Math.max(0, supplierAmount - paidAmount));
+    const totalAmount = this.roundMoney(
+      goodsTotal + sharedShipping + itemShipping,
+    );
+    const debtAmount = this.roundMoney(
+      Math.max(0, supplierAmount - paidAmount),
+    );
     const paymentStatus = this.resolveReceiptPaymentStatus(
       supplierAmount,
       paidAmount,
@@ -697,8 +702,7 @@ export class InventoryService {
           allocation.supplier_id || receipt.supplier_id;
       }
       if (allocation.sales_invoice_item_id) {
-        settlementData.sales_invoice_item_id =
-          allocation.sales_invoice_item_id;
+        settlementData.sales_invoice_item_id = allocation.sales_invoice_item_id;
       }
       if (invoiceItem.price_type) {
         settlementData.price_type = invoiceItem.price_type;
@@ -1395,15 +1399,16 @@ export class InventoryService {
     const receiptSummary = approvedReceiptItems.reduce(
       (sum, item) => {
         const conversionFactor = Number(item.conversion_factor || 1);
-        const baseQuantity = Number(
-          item.base_quantity || Number(item.quantity || 0) * conversionFactor,
-        );
-        const unitCostInBaseUnit =
-          Number(item.final_unit_cost ?? item.unit_cost ?? 0) /
+        const computedBaseQuantity =
+          Number(item.quantity || 0) *
           (conversionFactor > 0 ? conversionFactor : 1);
+        const baseQuantity =
+          computedBaseQuantity > 0
+            ? computedBaseQuantity
+            : Number(item.base_quantity || 0);
 
         sum.totalQuantity += baseQuantity;
-        sum.totalValue += baseQuantity * unitCostInBaseUnit;
+        sum.totalValue += Number(item.total_price || 0);
         return sum;
       },
       { totalValue: 0, totalQuantity: 0 },
@@ -1412,15 +1417,16 @@ export class InventoryService {
     const returnSummary = approvedReturnItems.reduce(
       (sum, item) => {
         const conversionFactor = Number(item.conversion_factor || 1);
-        const baseQuantity = Number(
-          item.base_quantity || Number(item.quantity || 0) * conversionFactor,
-        );
-        const unitCostInBaseUnit =
-          Number(item.unit_cost || 0) /
+        const computedBaseQuantity =
+          Number(item.quantity || 0) *
           (conversionFactor > 0 ? conversionFactor : 1);
+        const baseQuantity =
+          computedBaseQuantity > 0
+            ? computedBaseQuantity
+            : Number(item.base_quantity || 0);
 
         sum.totalQuantity += baseQuantity;
-        sum.totalValue += baseQuantity * unitCostInBaseUnit;
+        sum.totalValue += Number(item.total_price || 0);
         return sum;
       },
       { totalValue: 0, totalQuantity: 0 },
@@ -1945,7 +1951,9 @@ export class InventoryService {
         quantity > 0 ? plan.totalCostValue / quantity : plan.currentAverageCost,
         item.priceType,
       );
-      const totalCostForPreview = this.roundMoney(quantity * unitCostForPreview);
+      const totalCostForPreview = this.roundMoney(
+        quantity * unitCostForPreview,
+      );
       totalCostValue += totalCostForPreview;
       previews.push({
         productId,
@@ -2394,10 +2402,7 @@ export class InventoryService {
           throw new BadRequestException('Khi còn nợ, phải có hạn thanh toán');
         }
 
-        const debtAmount = Math.max(
-          0,
-          Math.round(supplierAmount - paidAmount),
-        );
+        const debtAmount = Math.max(0, Math.round(supplierAmount - paidAmount));
         const paymentStatus = this.resolveReceiptPaymentStatus(
           supplierAmount,
           paidAmount,
@@ -2906,7 +2911,9 @@ export class InventoryService {
     };
   }
 
-  async exportReceipts(searchDto: SearchInventoryDto): Promise<InventoryReceipt[]> {
+  async exportReceipts(
+    searchDto: SearchInventoryDto,
+  ): Promise<InventoryReceipt[]> {
     const queryBuilder =
       this.inventoryReceiptRepository.createQueryBuilder('receipt');
 
@@ -2925,12 +2932,11 @@ export class InventoryService {
     const { start_date, end_date, page, limit, status, ...baseSearchDto } =
       searchDto;
 
-    QueryHelper.applyBaseSearch(
-      queryBuilder,
-      baseSearchDto,
-      'receipt',
-      ['code', 'supplier.name', 'notes'],
-    );
+    QueryHelper.applyBaseSearch(queryBuilder, baseSearchDto, 'receipt', [
+      'code',
+      'supplier.name',
+      'notes',
+    ]);
     queryBuilder.skip(undefined);
     queryBuilder.take(undefined);
     queryBuilder.offset(undefined);
@@ -2989,8 +2995,7 @@ export class InventoryService {
         receipt.payments.forEach((payment) => {
           if (payment.creator) {
             (payment.creator as any).full_name =
-              payment.creator.user_profile?.nickname ||
-              payment.creator.account;
+              payment.creator.user_profile?.nickname || payment.creator.account;
           }
         });
       }
@@ -3158,7 +3163,8 @@ export class InventoryService {
     baseQuantity: number;
   } {
     const submittedReceiptItemId = Number((item as any).receipt_item_id || 0);
-    const hasSubmittedUnit = item.unit_id !== undefined && item.unit_id !== null;
+    const hasSubmittedUnit =
+      item.unit_id !== undefined && item.unit_id !== null;
     const baseCandidates = submittedReceiptItemId
       ? receiptItems.filter(
           (ri) =>
@@ -3238,7 +3244,9 @@ export class InventoryService {
 
   private async validateInventoryReturnItemsAgainstReceipt(
     receiptId: number,
-    items: Array<CreateInventoryReturnDto['items'][number] | InventoryReturnItem>,
+    items: Array<
+      CreateInventoryReturnDto['items'][number] | InventoryReturnItem
+    >,
     excludeReturnId?: number,
     queryRunner?: QueryRunner,
   ): Promise<void> {
@@ -3459,7 +3467,9 @@ export class InventoryService {
       entityUpdateData.payment_due_date = updateData.payment_due_date;
 
     await this.inventoryReceiptRepository.update(id, entityUpdateData);
-    if (receipt.supplier_settlement_mode === SupplierSettlementMode.BY_SALE_TYPE) {
+    if (
+      receipt.supplier_settlement_mode === SupplierSettlementMode.BY_SALE_TYPE
+    ) {
       await this.recalculateBySaleTypeReceiptFinance(id);
     }
     const updatedReceipt = await this.findReceiptById(id);
@@ -3734,8 +3744,9 @@ export class InventoryService {
     );
     const grossProfitMargin =
       Number(invoice.final_amount || 0) > 0
-        ? Math.round((grossProfit / Number(invoice.final_amount || 0)) * 10000) /
-          100
+        ? Math.round(
+            (grossProfit / Number(invoice.final_amount || 0)) * 10000,
+          ) / 100
         : 0;
 
     await manager.update(SalesInvoice, invoiceId, {
@@ -3892,11 +3903,12 @@ export class InventoryService {
         where: { receipt_id: id },
       });
 
-      receipt.supplier_settlement_mode = await this.validateReceiptSettlementMode(
-        items.map((item) => ({ product_id: item.product_id })),
-        receipt.supplier_settlement_mode,
-        queryRunner,
-      );
+      receipt.supplier_settlement_mode =
+        await this.validateReceiptSettlementMode(
+          items.map((item) => ({ product_id: item.product_id })),
+          receipt.supplier_settlement_mode,
+          queryRunner,
+        );
 
       // Xử lý nhập kho cho từng sản phẩm ngay khi duyệt
       let itemIndex = 1;
@@ -3905,8 +3917,7 @@ export class InventoryService {
 
         // Lấy số lượng khai thuế từ item (nếu không có thì mặc định = 0)
         const taxableQty = Number(item.taxable_quantity || 0);
-        const taxableBaseQty =
-          taxableQty * Number(item.conversion_factor || 1);
+        const taxableBaseQty = taxableQty * Number(item.conversion_factor || 1);
 
         // ✅ Tính số lượng thực tế nhập kho theo đơn vị cơ sở (base_quantity)
         const stockInQuantity = item.base_quantity
@@ -3915,12 +3926,12 @@ export class InventoryService {
 
         // ✅ Nhập kho theo giá vốn cuối cùng đã gồm phí vận chuyển/bốc vác phân bổ.
         // final_unit_cost đang lưu theo đơn vị nhập, nên phải quy đổi về đơn vị cơ sở.
-        const itemUnitCost = Number(item.final_unit_cost ?? item.unit_cost ?? 0);
+        const itemUnitCost = Number(
+          item.final_unit_cost ?? item.unit_cost ?? 0,
+        );
         const conversionFactor = Number(item.conversion_factor || 1);
         const normalizedCostPrice =
-          conversionFactor > 0
-            ? itemUnitCost / conversionFactor
-            : itemUnitCost;
+          conversionFactor > 0 ? itemUnitCost / conversionFactor : itemUnitCost;
 
         const batch = await this.processStockIn(
           item.product_id,
@@ -4815,10 +4826,7 @@ export class InventoryService {
       throw new BadRequestException('Chỉ có thể sửa phiếu ở trạng thái nháp');
     }
 
-    if (
-      updateDto.status &&
-      updateDto.status !== ReturnStatus.DRAFT
-    ) {
+    if (updateDto.status && updateDto.status !== ReturnStatus.DRAFT) {
       throw new BadRequestException(
         'Không được đổi trạng thái phiếu trả qua API cập nhật. Hãy dùng chức năng duyệt/hủy để hệ thống ghi kho đúng.',
       );
@@ -4848,7 +4856,8 @@ export class InventoryService {
 
       // Cập nhật danh sách items nếu có
       if (updateDto.items) {
-        const receiptIdForSnapshot = updateDto.receipt_id || returnDoc.receipt_id;
+        const receiptIdForSnapshot =
+          updateDto.receipt_id || returnDoc.receipt_id;
         const receiptItemsForSnapshot = receiptIdForSnapshot
           ? await queryRunner.manager.find(InventoryReceiptItem, {
               where: { receipt_id: receiptIdForSnapshot },
@@ -5766,7 +5775,8 @@ export class InventoryService {
     const newPaidAmount = currentPaidAmount + Number(paymentDto.amount);
 
     if (
-      receipt.supplier_settlement_mode !== SupplierSettlementMode.BY_SALE_TYPE &&
+      receipt.supplier_settlement_mode !==
+        SupplierSettlementMode.BY_SALE_TYPE &&
       newPaidAmount > supplierAmount
     ) {
       throw new BadRequestException(
@@ -5795,7 +5805,10 @@ export class InventoryService {
     const savedPayment = await repo.save(payment);
 
     // Cập nhật phiếu nhập
-    const newDebtAmount = Math.max(0, Math.round(supplierAmount - newPaidAmount));
+    const newDebtAmount = Math.max(
+      0,
+      Math.round(supplierAmount - newPaidAmount),
+    );
     const newPaymentStatus = this.resolveReceiptPaymentStatus(
       supplierAmount,
       newPaidAmount,
@@ -5929,7 +5942,9 @@ export class InventoryService {
       );
     }
 
-    const receiptSupplierAmount = this.getReceiptSupplierAmount(returnDoc.receipt);
+    const receiptSupplierAmount = this.getReceiptSupplierAmount(
+      returnDoc.receipt,
+    );
     const paidAmount = Number(returnDoc.receipt.paid_amount || 0);
     const refundableAmount = Math.max(0, paidAmount - receiptSupplierAmount);
 
@@ -5958,7 +5973,10 @@ export class InventoryService {
       0,
       refundableAmount - refundedAmountForReceipt,
     );
-    const remainingRefundForReturn = Math.max(0, totalAmount - currentRefundAmount);
+    const remainingRefundForReturn = Math.max(
+      0,
+      totalAmount - currentRefundAmount,
+    );
     const allowedRefundAmount = Math.min(
       remainingRefundForReceipt,
       remainingRefundForReturn,
@@ -6104,7 +6122,10 @@ export class InventoryService {
     let salesItemsUpdated = 0;
 
     for (const productId of ids) {
-      const result = await this.syncTaxableDataForProduct(productId, filterDate);
+      const result = await this.syncTaxableDataForProduct(
+        productId,
+        filterDate,
+      );
       if (result.productUpdated) productsUpdated++;
       salesItemsUpdated += result.salesItemsUpdated;
     }
@@ -6317,9 +6338,7 @@ export class InventoryService {
               ? item.created_at.toISOString().slice(0, 10)
               : undefined;
       const shouldUpdateItem =
-        !cutoverDate ||
-        !invoiceDateValue ||
-        invoiceDateValue >= cutoverDate;
+        !cutoverDate || !invoiceDateValue || invoiceDateValue >= cutoverDate;
 
       const itemTaxPrice = Number(item.tax_selling_price || 0);
       let currentTaxPrice = itemTaxPrice > 0 ? itemTaxPrice : 0;
@@ -6393,7 +6412,8 @@ export class InventoryService {
         const takeTaxable = Math.min(takeFromThisBatch, b.taxable);
 
         calculatedTaxableBase += takeTaxable;
-        allocatedTaxValueBase += takeTaxable * Number(b.taxSellingPriceBaseUnit || 0);
+        allocatedTaxValueBase +=
+          takeTaxable * Number(b.taxSellingPriceBaseUnit || 0);
         b.taxable -= takeTaxable;
         // ✅ FIX 4: Clamp nonTaxable về 0 nếu bị âm (tránh tính toán sai)
         b.nonTaxable = Math.max(

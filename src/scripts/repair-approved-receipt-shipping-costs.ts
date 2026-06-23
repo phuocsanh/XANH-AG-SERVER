@@ -42,15 +42,15 @@ async function recalculateAverageCostPrice(productId: number) {
   const receiptTotals = receiptItems.reduce(
     (sum, item) => {
       const factor = Number(item.conversion_factor || 1);
-      const baseQuantity = Number(
-        item.base_quantity || Number(item.quantity || 0) * factor,
-      );
-      const unitCostInBaseUnit =
-        Number(item.final_unit_cost ?? item.unit_cost ?? 0) /
-        (factor > 0 ? factor : 1);
+      const computedBaseQuantity =
+        Number(item.quantity || 0) * (factor > 0 ? factor : 1);
+      const baseQuantity =
+        computedBaseQuantity > 0
+          ? computedBaseQuantity
+          : Number(item.base_quantity || 0);
 
       sum.quantity += baseQuantity;
-      sum.value += baseQuantity * unitCostInBaseUnit;
+      sum.value += Number(item.total_price || 0);
       return sum;
     },
     { quantity: 0, value: 0 },
@@ -59,14 +59,15 @@ async function recalculateAverageCostPrice(productId: number) {
   const returnTotals = returnItems.reduce(
     (sum, item) => {
       const factor = Number(item.conversion_factor || 1);
-      const baseQuantity = Number(
-        item.base_quantity || Number(item.quantity || 0) * factor,
-      );
-      const unitCostInBaseUnit =
-        Number(item.unit_cost || 0) / (factor > 0 ? factor : 1);
+      const computedBaseQuantity =
+        Number(item.quantity || 0) * (factor > 0 ? factor : 1);
+      const baseQuantity =
+        computedBaseQuantity > 0
+          ? computedBaseQuantity
+          : Number(item.base_quantity || 0);
 
       sum.quantity += baseQuantity;
-      sum.value += baseQuantity * unitCostInBaseUnit;
+      sum.value += Number(item.total_price || 0);
       return sum;
     },
     { quantity: 0, value: 0 },

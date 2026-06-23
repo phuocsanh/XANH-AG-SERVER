@@ -24,7 +24,11 @@ async function main() {
   await AppDataSource.initialize();
 
   try {
-    const params: Array<number | string> = ['approved', 'completed', 'approved'];
+    const params: Array<number | string> = [
+      'approved',
+      'completed',
+      'approved',
+    ];
     let typeFilterSql = '';
 
     if (productType !== undefined && Number.isFinite(productType)) {
@@ -38,7 +42,13 @@ async function main() {
           SELECT
             iri.product_id,
             SUM(iri.total_price) AS total_value,
-            SUM(COALESCE(iri.base_quantity, iri.quantity * COALESCE(iri.conversion_factor, 1))) AS total_quantity
+            SUM(
+              CASE
+                WHEN COALESCE(iri.quantity, 0) > 0
+                  THEN iri.quantity * COALESCE(NULLIF(iri.conversion_factor, 0), 1)
+                ELSE COALESCE(iri.base_quantity, 0)
+              END
+            ) AS total_quantity
           FROM inventory_receipt_items iri
           INNER JOIN inventory_receipts ir ON ir.id = iri.receipt_id
           WHERE iri.deleted_at IS NULL
@@ -50,7 +60,13 @@ async function main() {
           SELECT
             iri.product_id,
             SUM(iri.total_price) AS total_value,
-            SUM(COALESCE(iri.base_quantity, iri.quantity * COALESCE(iri.conversion_factor, 1))) AS total_quantity
+            SUM(
+              CASE
+                WHEN COALESCE(iri.quantity, 0) > 0
+                  THEN iri.quantity * COALESCE(NULLIF(iri.conversion_factor, 0), 1)
+                ELSE COALESCE(iri.base_quantity, 0)
+              END
+            ) AS total_quantity
           FROM inventory_return_items iri
           INNER JOIN inventory_returns ir ON ir.id = iri.return_id
           WHERE iri.deleted_at IS NULL
