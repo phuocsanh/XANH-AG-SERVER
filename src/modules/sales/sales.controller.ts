@@ -271,6 +271,36 @@ export class SalesController {
     return this.salesService.updateInvoiceItem(+id, updateData);
   }
 
+  @Patch('invoice/item/:id/delivery-status')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('sales:manage')
+  updateInvoiceItemDeliveryStatus(
+    @Param('id') id: string,
+    @Body('is_delivered') isDelivered: boolean,
+    @CurrentUser('id') userId: number,
+  ) {
+    return this.salesService.updateInvoiceItemDeliveryStatus(
+      +id,
+      isDelivered === true,
+      userId,
+    );
+  }
+
+  @Patch('invoice/:id/delivery-status')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('sales:manage')
+  updateInvoiceDeliveryStatus(
+    @Param('id') id: string,
+    @Body('is_delivered') isDelivered: boolean,
+    @CurrentUser('id') userId: number,
+  ) {
+    return this.salesService.markInvoiceItemsDeliveryStatus(
+      +id,
+      isDelivered !== false,
+      userId,
+    );
+  }
+
   /**
    * Xóa chi tiết hóa đơn bán hàng theo ID
    * @param id - ID của chi tiết hóa đơn bán hàng cần xóa
@@ -300,6 +330,20 @@ export class SalesController {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  @Post('invoices/undelivered/search')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('sales:read')
+  searchUndeliveredItems(@Body() searchDto: any) {
+    return this.salesService.searchUndeliveredSalesInvoiceItems(searchDto);
+  }
+
+  @Post('invoices/undelivered/remind')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('sales:manage')
+  remindUndeliveredItems() {
+    return this.salesService.sendUndeliveredSalesItemsReminderToAdmins();
   }
   /**
    * Lấy lịch sử mua hàng tổng hợp của một khách hàng theo mùa vụ

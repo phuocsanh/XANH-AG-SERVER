@@ -1,4 +1,4 @@
-import { IsNumber, IsString, IsOptional, IsArray, ValidateNested, IsEnum, IsIn } from 'class-validator';
+import { IsNumber, IsString, IsOptional, IsArray, ValidateNested, IsEnum, IsIn, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 import { SalesInvoiceStatus } from '../../../entities/sales-invoices.entity';
 import { SalesInvoiceItemPriceType } from '../../../entities/sales-invoice-items.entity';
@@ -75,6 +75,11 @@ export class CreateSalesInvoiceItemDto {
   @IsNumber()
   @IsOptional()
   base_quantity?: number;
+
+  /** Đã giao sản phẩm này hay chưa */
+  @IsBoolean()
+  @IsOptional()
+  is_delivered?: boolean;
 }
 
 /**

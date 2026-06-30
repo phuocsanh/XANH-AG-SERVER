@@ -103,6 +103,18 @@ export class SalesInvoiceItem {
   @Column({ name: 'taxable_quantity', type: 'decimal', precision: 15, scale: 2, default: 0 })
   taxable_quantity!: number;
 
+  /** Đã giao sản phẩm này cho khách hàng hay chưa */
+  @Column({ name: 'is_delivered', type: 'boolean', default: false })
+  is_delivered!: boolean;
+
+  /** Thời điểm đánh dấu đã giao */
+  @Column({ name: 'delivered_at', type: 'timestamp', nullable: true })
+  delivered_at?: Date | null;
+
+  /** ID người đánh dấu trạng thái giao hàng */
+  @Column({ name: 'delivered_by', type: 'int', nullable: true })
+  delivered_by?: number | null;
+
   // ===== QUY ĐỔI ĐƠN VỊ TÍNH =====
 
   /** ID đơn vị bán hàng (ví dụ: BAO, KG - để in hóa đơn đúng đơn vị) */

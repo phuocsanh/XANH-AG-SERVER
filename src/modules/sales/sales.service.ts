@@ -13,6 +13,9 @@ import {
 import { Product, ProductCostingMethod } from '../../entities/products.entity';
 import { DeliveryLog } from '../../entities/delivery-log.entity';
 import { DeliveryLogItem } from '../../entities/delivery-log-item.entity';
+import { User } from '../../entities/users.entity';
+import { UserDevice } from '../../entities/user-devices.entity';
+import { UserProfile } from '../../entities/user-profiles.entity';
 import { CreateSalesInvoiceDto } from './dto/create-sales-invoice.dto';
 import { UpdateSalesInvoiceDto } from './dto/update-sales-invoice.dto';
 import { SearchSalesDto } from './dto/search-sales.dto';
@@ -33,6 +36,9 @@ import { PromotionCampaignService } from '../promotion-campaign/promotion-campai
 import { InventoryBatch } from '../../entities/inventories.entity';
 import { InventoryReceiptItem } from '../../entities/inventory-receipt-items.entity';
 import { SalesInvoiceItemStockAllocation } from '../../entities/sales-invoice-item-stock-allocations.entity';
+import { FirebaseService } from '../firebase/firebase.service';
+import { RoleCode } from '../../common/enums/role-code.enum';
+import { BaseStatus } from '../../entities/base-status.enum';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến quản lý bán hàng
@@ -60,9 +66,16 @@ export class SalesService {
     private deliveryLogRepository: Repository<DeliveryLog>,
     @InjectRepository(DeliveryLogItem)
     private deliveryLogItemRepository: Repository<DeliveryLogItem>,
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
+    @InjectRepository(UserDevice)
+    private userDeviceRepository: Repository<UserDevice>,
+    @InjectRepository(UserProfile)
+    private userProfileRepository: Repository<UserProfile>,
     private debtNoteService: DebtNoteService,
     private dataSource: DataSource,
     private deliveryNotificationService: DeliveryNotificationService,
+    private firebaseService: FirebaseService,
     private inventoryService: InventoryService,
     private customerRewardService: CustomerRewardService,
     private promotionCampaignService: PromotionCampaignService,
@@ -958,7 +971,7 @@ export class SalesService {
               }
             }
 
-            return queryRunner.manager.create(SalesInvoiceItem, {
+            const invoiceItemData: Partial<SalesInvoiceItem> = {
               ...item,
               invoice_id: savedInvoice.id,
               total_price: totalPrice,
@@ -969,10 +982,15 @@ export class SalesService {
               base_quantity: baseQty,
               other_unit_name: otherUnitName,
               other_unit_factor: otherUnitFactor,
+              is_delivered: item.is_delivered === true,
+              delivered_at: item.is_delivered === true ? new Date() : null,
+              delivered_by: item.is_delivered === true ? userId : null,
               ...(productName && { product_name: productName }),
               ...(unitName && { unit_name: unitName }),
               ...(taxSellingPrice && { tax_selling_price: taxSellingPrice }),
-            });
+            };
+
+            return queryRunner.manager.create(SalesInvoiceItem, invoiceItemData);
           })
         );
 
@@ -2162,6 +2180,284 @@ export class SalesService {
     throw new BadRequestException(
       'Không được xóa trực tiếp dòng hóa đơn vì sẽ làm lệch tổng tiền, kho và lợi nhuận. Hãy hủy hóa đơn hoặc dùng phiếu trả hàng.',
     );
+  }
+
+  async searchUndeliveredSalesInvoiceItems(searchDto: any = {}): Promise<{
+    data: SalesInvoice[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const page = Math.max(Number(searchDto.page || 1), 1);
+    const limit = Math.min(Math.max(Number(searchDto.limit || 10), 1), 100);
+    const excludedStatuses = [
+      SalesInvoiceStatus.CANCELLED,
+      SalesInvoiceStatus.REFUNDED,
+    ];
+
+    const baseQb = this.salesInvoiceRepository
+      .createQueryBuilder('invoice')
+      .innerJoin(
+        'invoice.items',
+        'undelivered_item',
+        'undelivered_item.is_delivered = false AND undelivered_item.deleted_at IS NULL',
+      )
+      .leftJoin('invoice.season', 'season')
+      .where('invoice.deleted_at IS NULL')
+      .andWhere('invoice.status NOT IN (:...excludedStatuses)', {
+        excludedStatuses,
+      });
+
+    if (searchDto.keyword || searchDto.search) {
+      const keyword = `%${String(searchDto.keyword || searchDto.search).trim()}%`;
+      baseQb.andWhere(
+        `(
+          invoice.code ILIKE :keyword OR
+          invoice.customer_name ILIKE :keyword OR
+          invoice.customer_phone ILIKE :keyword OR
+          undelivered_item.product_name ILIKE :keyword
+        )`,
+        { keyword },
+      );
+    }
+
+    if (searchDto.code) {
+      baseQb.andWhere('invoice.code ILIKE :code', {
+        code: `%${String(searchDto.code).trim()}%`,
+      });
+    }
+    if (searchDto.customer_name) {
+      baseQb.andWhere('invoice.customer_name ILIKE :customerName', {
+        customerName: `%${String(searchDto.customer_name).trim()}%`,
+      });
+    }
+    if (searchDto.customer_phone) {
+      baseQb.andWhere('invoice.customer_phone ILIKE :customerPhone', {
+        customerPhone: `%${String(searchDto.customer_phone).trim()}%`,
+      });
+    }
+    if (searchDto.season_id) {
+      baseQb.andWhere('invoice.season_id = :seasonId', {
+        seasonId: Number(searchDto.season_id),
+      });
+    }
+    if (searchDto.sale_date_start || searchDto.start_date) {
+      baseQb.andWhere('invoice.sale_date >= :saleStartDate', {
+        saleStartDate: searchDto.sale_date_start || searchDto.start_date,
+      });
+    }
+    if (searchDto.sale_date_end || searchDto.end_date) {
+      baseQb.andWhere('invoice.sale_date <= :saleEndDate', {
+        saleEndDate: searchDto.sale_date_end || searchDto.end_date,
+      });
+    }
+
+    const countRaw = await baseQb
+      .clone()
+      .select('COUNT(DISTINCT invoice.id)', 'total')
+      .getRawOne();
+    const total = Number(countRaw?.total || 0);
+
+    const invoiceIdRows = await baseQb
+      .clone()
+      .select('invoice.id', 'id')
+      .addSelect('MAX(invoice.sale_date)', 'sale_date')
+      .addSelect('MAX(invoice.created_at)', 'created_at')
+      .groupBy('invoice.id')
+      .orderBy('MAX(invoice.sale_date)', 'DESC')
+      .addOrderBy('MAX(invoice.created_at)', 'DESC')
+      .offset((page - 1) * limit)
+      .limit(limit)
+      .getRawMany();
+
+    const invoiceIds = invoiceIdRows.map((row) => Number(row.id));
+    if (invoiceIds.length === 0) {
+      return { data: [], total, page, limit };
+    }
+
+    const invoices = await this.salesInvoiceRepository
+      .createQueryBuilder('invoice')
+      .leftJoinAndSelect(
+        'invoice.items',
+        'items',
+        'items.is_delivered = false AND items.deleted_at IS NULL',
+      )
+      .leftJoinAndSelect('items.product', 'product')
+      .leftJoinAndSelect('invoice.customer', 'customer')
+      .leftJoinAndSelect('invoice.season', 'season')
+      .leftJoinAndSelect('invoice.rice_crop', 'rice_crop')
+      .where('invoice.id IN (:...invoiceIds)', { invoiceIds })
+      .addOrderBy('items.id', 'ASC')
+      .getMany();
+
+    const orderMap = new Map(invoiceIds.map((id, index) => [id, index]));
+    invoices.sort(
+      (a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0),
+    );
+
+    return { data: invoices, total, page, limit };
+  }
+
+  async updateInvoiceItemDeliveryStatus(
+    itemId: number,
+    isDelivered: boolean,
+    userId?: number,
+  ): Promise<SalesInvoiceItem> {
+    const item = await this.salesInvoiceItemRepository.findOne({
+      where: { id: itemId, deleted_at: IsNull() },
+      relations: ['invoice'],
+    });
+
+    if (!item) {
+      throw new BadRequestException('Không tìm thấy dòng sản phẩm trong hóa đơn');
+    }
+
+    if (
+      item.invoice?.status === SalesInvoiceStatus.CANCELLED ||
+      item.invoice?.status === SalesInvoiceStatus.REFUNDED
+    ) {
+      throw new BadRequestException(
+        'Không thể cập nhật giao hàng cho hóa đơn đã hủy hoặc đã hoàn tiền',
+      );
+    }
+
+    item.is_delivered = isDelivered;
+    item.delivered_at = isDelivered ? new Date() : null;
+    item.delivered_by = isDelivered ? userId ?? null : null;
+
+    return this.salesInvoiceItemRepository.save(item);
+  }
+
+  async markInvoiceItemsDeliveryStatus(
+    invoiceId: number,
+    isDelivered: boolean,
+    userId?: number,
+  ) {
+    const invoice = await this.salesInvoiceRepository.findOne({
+      where: { id: invoiceId, deleted_at: IsNull() },
+    });
+
+    if (!invoice) {
+      throw new BadRequestException('Không tìm thấy hóa đơn');
+    }
+
+    if (
+      invoice.status === SalesInvoiceStatus.CANCELLED ||
+      invoice.status === SalesInvoiceStatus.REFUNDED
+    ) {
+      throw new BadRequestException(
+        'Không thể cập nhật giao hàng cho hóa đơn đã hủy hoặc đã hoàn tiền',
+      );
+    }
+
+    const updateData: Partial<SalesInvoiceItem> = {
+      is_delivered: isDelivered,
+      delivered_at: isDelivered ? new Date() : null,
+      delivered_by: isDelivered ? userId ?? null : null,
+    };
+
+    await this.salesInvoiceItemRepository.update(
+      { invoice_id: invoiceId, deleted_at: IsNull() },
+      updateData,
+    );
+
+    return this.findOne(invoiceId);
+  }
+
+  async sendUndeliveredSalesItemsReminderToAdmins() {
+    const summary = await this.getUndeliveredSalesItemsSummary();
+
+    if (summary.invoiceCount === 0 || summary.itemCount === 0) {
+      this.logger.log('Không có sản phẩm bán hàng chưa giao để nhắc admin');
+      return { ...summary, sent: 0, skipped: true };
+    }
+
+    const adminUsers = await this.userRepository
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.role', 'role')
+      .where('user.deleted_at IS NULL')
+      .andWhere('user.status = :status', { status: BaseStatus.ACTIVE })
+      .andWhere('role.code IN (:...roleCodes)', {
+        roleCodes: [RoleCode.SUPER_ADMIN, RoleCode.ADMIN],
+      })
+      .getMany();
+
+    const adminUserIds = adminUsers.map((user) => user.id);
+    if (adminUserIds.length === 0) {
+      this.logger.warn('Không tìm thấy tài khoản admin active để gửi nhắc giao hàng');
+      return { ...summary, sent: 0, skipped: true };
+    }
+
+    const devices = await this.userDeviceRepository.find({
+      where: { user_id: In(adminUserIds), is_active: true },
+    });
+    const profiles = await this.userProfileRepository.find({
+      where: { user_id: In(adminUserIds) },
+    });
+
+    const tokenMap = new Map<string, { device?: UserDevice }>();
+    for (const device of devices) {
+      tokenMap.set(device.fcm_token, { device });
+    }
+    for (const profile of profiles) {
+      if (profile.fcm_token && !tokenMap.has(profile.fcm_token)) {
+        tokenMap.set(profile.fcm_token, {});
+      }
+    }
+
+    const title = 'Nhắc giao hàng';
+    const body = `Có ${summary.invoiceCount} hóa đơn còn ${summary.itemCount} sản phẩm chưa giao`;
+    const data = {
+      type: 'undelivered_sales_items',
+      url: '/sales-invoices/undelivered',
+      invoice_count: String(summary.invoiceCount),
+      item_count: String(summary.itemCount),
+    };
+
+    let sent = 0;
+    for (const [token, meta] of tokenMap.entries()) {
+      try {
+        await this.firebaseService.sendPushNotification(token, title, body, data);
+        sent += 1;
+      } catch (error: any) {
+        this.logger.error(`Không gửi được nhắc giao hàng tới token: ${error.message}`);
+        if (
+          meta.device &&
+          error?.code === 'messaging/registration-token-not-registered'
+        ) {
+          meta.device.is_active = false;
+          await this.userDeviceRepository.save(meta.device);
+        }
+      }
+    }
+
+    return { ...summary, sent, skipped: false };
+  }
+
+  private async getUndeliveredSalesItemsSummary(): Promise<{
+    invoiceCount: number;
+    itemCount: number;
+  }> {
+    const raw = await this.salesInvoiceItemRepository
+      .createQueryBuilder('item')
+      .innerJoin('item.invoice', 'invoice')
+      .select('COUNT(DISTINCT invoice.id)', 'invoice_count')
+      .addSelect('COUNT(item.id)', 'item_count')
+      .where('item.deleted_at IS NULL')
+      .andWhere('item.is_delivered = false')
+      .andWhere('invoice.deleted_at IS NULL')
+      .andWhere('invoice.status NOT IN (:...excludedStatuses)', {
+        excludedStatuses: [
+          SalesInvoiceStatus.CANCELLED,
+          SalesInvoiceStatus.REFUNDED,
+        ],
+      })
+      .getRawOne();
+
+    return {
+      invoiceCount: Number(raw?.invoice_count || 0),
+      itemCount: Number(raw?.item_count || 0),
+    };
   }
 
   /**

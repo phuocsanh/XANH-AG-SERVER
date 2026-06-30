@@ -18,7 +18,9 @@ import { OperatingCostModule } from '../operating-cost/operating-cost.module';
 import { OperatingCostCategoryModule } from '../operating-cost-category/operating-cost-category.module';
 import { User } from '../../entities/users.entity';
 import { UserProfile } from '../../entities/user-profiles.entity';
+import { UserDevice } from '../../entities/user-devices.entity';
 import { DeliveryNotificationService } from './delivery-notification.service';
+import { UndeliveredSalesReminderCron } from './undelivered-sales-reminder.cron';
 import { FarmServiceCostModule } from '../farm-service-cost/farm-service-cost.module';
 import { InventoryModule } from '../inventory/inventory.module';
 import { CustomerRewardModule } from '../customer-reward/customer-reward.module';
@@ -49,6 +51,7 @@ import { PromotionCampaignModule } from '../promotion-campaign/promotion-campaig
       OperatingCost, // Entity chi phí vận hành (cho quà tặng khách hàng)
       User, // Entity người dùng (tài xế)
       UserProfile, // Entity profile người dùng (fcm_token)
+      UserDevice, // Entity thiết bị người dùng (FCM token đa thiết bị)
       Payment,
       PaymentAllocation,
     ]),
@@ -62,7 +65,7 @@ import { PromotionCampaignModule } from '../promotion-campaign/promotion-campaig
     PromotionCampaignModule,
   ],
   controllers: [SalesController, DeliveryController], // Controllers xử lý các request
-  providers: [SalesService, DeliveryNotificationService], // Service xử lý logic nghiệp vụ bán hàng và thông báo
+  providers: [SalesService, DeliveryNotificationService, UndeliveredSalesReminderCron], // Service xử lý logic nghiệp vụ bán hàng và thông báo
   exports: [SalesService], // Xuất SalesService để các module khác có thể sử dụng
 })
 export class SalesModule {}
