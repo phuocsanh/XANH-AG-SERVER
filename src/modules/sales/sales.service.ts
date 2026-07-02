@@ -2377,14 +2377,14 @@ export class SalesService {
       .leftJoinAndSelect('user.role', 'role')
       .where('user.deleted_at IS NULL')
       .andWhere('user.status = :status', { status: BaseStatus.ACTIVE })
-      .andWhere('role.code IN (:...roleCodes)', {
-        roleCodes: [RoleCode.SUPER_ADMIN, RoleCode.ADMIN],
+      .andWhere('role.code = :roleCode', {
+        roleCode: RoleCode.SUPER_ADMIN,
       })
       .getMany();
 
     const adminUserIds = adminUsers.map((user) => user.id);
     if (adminUserIds.length === 0) {
-      this.logger.warn('Không tìm thấy tài khoản admin active để gửi nhắc giao hàng');
+      this.logger.warn('Không tìm thấy tài khoản SUPER_ADMIN active để gửi nhắc giao hàng');
       return { ...summary, sent: 0, skipped: true };
     }
 

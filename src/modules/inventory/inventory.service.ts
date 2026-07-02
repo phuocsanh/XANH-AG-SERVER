@@ -2849,6 +2849,7 @@ export class InventoryService {
   }> {
     const queryBuilder =
       this.inventoryReceiptRepository.createQueryBuilder('receipt');
+    const { payment_status, start_date, end_date, ...baseSearchDto } = searchDto;
 
     queryBuilder.leftJoinAndSelect('receipt.supplier', 'supplier');
     queryBuilder.leftJoinAndSelect('receipt.creator', 'creator');
@@ -2856,7 +2857,6 @@ export class InventoryService {
     queryBuilder.leftJoinAndSelect('items.product', 'product');
 
     // 1. Base Search (Bỏ qua start_date, end_date để xử lý riêng theo bill_date)
-    const { start_date, end_date, ...baseSearchDto } = searchDto;
     const { page, limit } = QueryHelper.applyBaseSearch(
       queryBuilder,
       baseSearchDto,
@@ -2887,15 +2887,33 @@ export class InventoryService {
 
     QueryHelper.applyFilters(
       queryBuilder,
-      searchDto,
+      baseSearchDto,
       'receipt',
-      ['filters', 'nested_filters', 'operator'],
+      ['filters', 'nested_filters', 'operator', 'payment_status'],
       {
         supplier_name: 'supplier.name',
         supplier_id: 'receipt.supplier_id',
         creator_account: 'creator.account',
       },
     );
+
+    if (payment_status) {
+      const payableAmountExpr =
+        'COALESCE(receipt.supplier_amount, receipt.final_amount, receipt.total_amount, 0)';
+      const effectivePaymentStatusExpr = `
+        CASE
+          WHEN receipt.supplier_settlement_mode = 'by_sale_type' THEN COALESCE(receipt.payment_status, 'unpaid')
+          WHEN COALESCE(receipt.debt_amount, 0) <= 0
+            AND COALESCE(receipt.paid_amount, 0) >= ${payableAmountExpr}
+            THEN 'paid'
+          ELSE COALESCE(receipt.payment_status, 'unpaid')
+        END
+      `;
+
+      queryBuilder.andWhere(`${effectivePaymentStatusExpr} = :payment_status`, {
+        payment_status,
+      });
+    }
 
     // 3. Sắp xếp theo ngày nhập (bill_date) mới nhất, sau đó đến ngày tạo (created_at)
     queryBuilder.orderBy('receipt.bill_date', 'DESC', 'NULLS LAST');
@@ -2929,8 +2947,15 @@ export class InventoryService {
       'payment_creator_profile',
     );
 
-    const { start_date, end_date, page, limit, status, ...baseSearchDto } =
-      searchDto;
+    const {
+      payment_status,
+      start_date,
+      end_date,
+      page,
+      limit,
+      status,
+      ...baseSearchDto
+    } = searchDto;
 
     QueryHelper.applyBaseSearch(queryBuilder, baseSearchDto, 'receipt', [
       'code',
@@ -2966,13 +2991,39 @@ export class InventoryService {
       queryBuilder,
       { ...baseSearchDto, start_date, end_date },
       'receipt',
-      ['filters', 'nested_filters', 'operator', 'page', 'limit', 'sort'],
+      [
+        'filters',
+        'nested_filters',
+        'operator',
+        'page',
+        'limit',
+        'sort',
+        'payment_status',
+      ],
       {
         supplier_name: 'supplier.name',
         supplier_id: 'receipt.supplier_id',
         creator_account: 'creator.account',
       },
     );
+
+    if (payment_status) {
+      const payableAmountExpr =
+        'COALESCE(receipt.supplier_amount, receipt.final_amount, receipt.total_amount, 0)';
+      const effectivePaymentStatusExpr = `
+        CASE
+          WHEN receipt.supplier_settlement_mode = 'by_sale_type' THEN COALESCE(receipt.payment_status, 'unpaid')
+          WHEN COALESCE(receipt.debt_amount, 0) <= 0
+            AND COALESCE(receipt.paid_amount, 0) >= ${payableAmountExpr}
+            THEN 'paid'
+          ELSE COALESCE(receipt.payment_status, 'unpaid')
+        END
+      `;
+
+      queryBuilder.andWhere(`${effectivePaymentStatusExpr} = :payment_status`, {
+        payment_status,
+      });
+    }
 
     queryBuilder.andWhere('receipt.status = :approvedStatus', {
       approvedStatus: ReceiptStatus.APPROVED,

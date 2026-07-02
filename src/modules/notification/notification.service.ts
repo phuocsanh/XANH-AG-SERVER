@@ -4,6 +4,9 @@ import { Repository } from 'typeorm';
 import { UserDevice } from '../../entities/user-devices.entity';
 import { FirebaseService } from '../firebase/firebase.service';
 
+/** Role code của Super Admin - chỉ những user này mới nhận cảnh báo hệ thống */
+const SUPER_ADMIN_ROLE_CODE = 'SUPER_ADMIN';
+
 @Injectable()
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
@@ -89,18 +92,22 @@ export class NotificationService {
   }
 
   /**
-   * Gửi thông báo đến tất cả Admin
+   * Gửi thông báo đến tất cả thiết bị của các tài khoản có role SUPER_ADMIN.
+   * Chỉ SUPER_ADMIN mới nhận các cảnh báo hệ thống quan trọng (hết hạn, tồn kho...).
    */
   async notifyAdmins(title: string, body: string, data?: any) {
-    // Trong dự án này, chúng ta có thể lấy users có role admin
-    // Giả sử có cách lấy admin ids, hoặc đơn giản là gửi cho tất cả devices đang active (cho quy mô nhỏ)
-    const activeDevices = await this.deviceRepository.find({
-      where: { is_active: true },
-    });
+    // Lấy tất cả thiết bị active thuộc user có role SUPER_ADMIN
+    const superAdminDevices = await this.deviceRepository
+      .createQueryBuilder('device')
+      .innerJoin('device.user', 'user')
+      .innerJoin('user.role', 'role')
+      .where('role.code = :roleCode', { roleCode: SUPER_ADMIN_ROLE_CODE })
+      .andWhere('device.is_active = true')
+      .getMany();
 
-    this.logger.log(`📢 Gửi thông báo tới ${activeDevices.length} thiết bị đang hoạt động...`);
-    
-    for (const device of activeDevices) {
+    this.logger.log(`📢 Gửi thông báo tới ${superAdminDevices.length} thiết bị SUPER_ADMIN...`);
+
+    for (const device of superAdminDevices) {
       try {
         await this.firebaseService.sendPushNotification(
           device.fcm_token,
@@ -109,7 +116,13 @@ export class NotificationService {
           data,
         );
       } catch (error: any) {
-        this.logger.error(`❌ Failed to notify device ${device.id}: ${error.message}`);
+        this.logger.error(`❌ Failed to notify SUPER_ADMIN device ${device.id}: ${error.message}`);
+
+        // Nếu token không còn hiệu lực, đánh dấu inactive
+        if (error.code === 'messaging/registration-token-not-registered') {
+          device.is_active = false;
+          await this.deviceRepository.save(device);
+        }
       }
     }
   }
