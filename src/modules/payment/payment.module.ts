@@ -5,6 +5,7 @@ import { PaymentController } from './payment.controller';
 import { Payment } from '../../entities/payment.entity';
 import { PaymentAllocation } from '../../entities/payment-allocation.entity';
 import { DebtNote } from '../../entities/debt-note.entity';
+import { Loan } from '../../entities/loan.entity';
 import { SalesInvoice } from '../../entities/sales-invoices.entity';
 import { OperatingCostModule } from '../operating-cost/operating-cost.module';
 import { OperatingCostCategoryModule } from '../operating-cost-category/operating-cost-category.module';
@@ -25,6 +26,7 @@ import { CustomerRewardModule } from '../customer-reward/customer-reward.module'
       Payment,
       PaymentAllocation,
       DebtNote,
+      Loan,
       SalesInvoice,
     ]),
     OperatingCostModule,

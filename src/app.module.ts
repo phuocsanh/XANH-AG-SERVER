@@ -28,6 +28,7 @@ import { CustomerModule } from './modules/customer/customer.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { PaymentAllocationModule } from './modules/payment-allocation/payment-allocation.module';
 import { DebtNoteModule } from './modules/debt-note/debt-note.module';
+import { LoanModule } from './modules/loan/loan.module';
 import { SalesReturnModule } from './modules/sales-return/sales-return.module';
 import { AiRiceBlastModule } from './modules/ai-rice-blast/ai-rice-blast.module';
 import { LocationModule } from './modules/location/location.module';
@@ -125,6 +126,7 @@ import { PromotionCampaignModule } from './modules/promotion-campaign/promotion-
     PaymentModule,
     PaymentAllocationModule,
     DebtNoteModule,
+    LoanModule,
     SalesReturnModule,
     FirebaseModule, // Module kết nối Firebase Remote Config
     LocationModule, // Module quản lý vị trí ruộng lúa (shared)

@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Brackets } from 'typeorm';
 import { Payment } from '../../entities/payment.entity';
 import { PaymentAllocation } from '../../entities/payment-allocation.entity';
+import { Loan, LoanStatus } from '../../entities/loan.entity';
 import { DebtNote, DebtNoteStatus } from '../../entities/debt-note.entity';
 import {
   SalesInvoice,
@@ -419,6 +420,37 @@ export class PaymentService {
       if (!payment) {
         await queryRunner.release();
         throw new Error(`Payment #${paymentId} không tồn tại`);
+      }
+
+      const loanPayment = await queryRunner.manager.findOne(Loan, {
+        where: { payment_id: paymentId },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (loanPayment) {
+        loanPayment.loan_days = 0;
+        loanPayment.interest_amount = 0;
+        loanPayment.total_amount = Number(loanPayment.principal_amount) || 0;
+        loanPayment.paid_amount = 0;
+        loanPayment.remaining_amount = Number(loanPayment.principal_amount) || 0;
+        loanPayment.status = LoanStatus.ACTIVE;
+        loanPayment.repayment_date = null;
+        loanPayment.settled_by = null;
+        loanPayment.payment_id = null;
+
+        await queryRunner.manager.save(loanPayment);
+        await queryRunner.manager.delete(PaymentAllocation, { payment_id: paymentId });
+        await queryRunner.manager.delete(Payment, paymentId);
+        await queryRunner.commitTransaction();
+        this.logger.log(`✅ Rollback thành công payment trả vay #${payment.code}`);
+
+        return {
+          success: true,
+          message: `Đã rollback phiếu thu trả vay #${payment.code}. Khoản vay #${loanPayment.code} đã chuyển về đang vay.`,
+          payment,
+          affected_invoices: 0,
+          affected_debt_note: null,
+        };
       }
 
       // 2. Lấy allocations và khóa invoices
