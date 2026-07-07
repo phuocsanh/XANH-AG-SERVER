@@ -66,14 +66,16 @@ export class LoanService {
 
     const code = CodeGeneratorHelper.generateUniqueCode('LN');
     const loanDays = 0;
-    const { interest, total } = this.buildLoanTotals(dto.principal_amount, dto.monthly_interest_rate, loanDays);
+    // Lấy lãi suất hàng tháng từ DTO nếu được truyền lên, mặc định là 0
+    const monthlyInterestRate = dto.monthly_interest_rate !== undefined ? roundMoney(dto.monthly_interest_rate) : 0;
+    const { interest, total } = this.buildLoanTotals(dto.principal_amount, monthlyInterestRate, loanDays);
 
     const loan = this.loanRepository.create({
       code,
       customer_id: dto.customer_id,
       loan_date: toDateOnlyString(dto.loan_date) as any,
       principal_amount: roundMoney(dto.principal_amount),
-      monthly_interest_rate: roundMoney(dto.monthly_interest_rate),
+      monthly_interest_rate: monthlyInterestRate,
       loan_days: loanDays,
       interest_amount: interest,
       total_amount: total,
@@ -107,16 +109,17 @@ export class LoanService {
     const nextPrincipal = dto.principal_amount !== undefined
       ? roundMoney(dto.principal_amount)
       : Number(existing.principal_amount);
-    const nextRate = dto.monthly_interest_rate !== undefined
+    // Lấy lãi suất mới từ DTO hoặc giữ nguyên lãi suất cũ của khoản vay
+    const nextInterestRate = dto.monthly_interest_rate !== undefined
       ? roundMoney(dto.monthly_interest_rate)
-      : Number(existing.monthly_interest_rate);
-    const { interest, total } = this.buildLoanTotals(nextPrincipal, nextRate, 0);
+      : Number(existing.monthly_interest_rate || 0);
+    const { interest, total } = this.buildLoanTotals(nextPrincipal, nextInterestRate, 0);
 
     await this.loanRepository.update(id, {
       ...dto,
       ...(dto.loan_date ? { loan_date: toDateOnlyString(dto.loan_date) as any } : {}),
       principal_amount: nextPrincipal,
-      monthly_interest_rate: nextRate,
+      monthly_interest_rate: nextInterestRate,
       loan_days: 0,
       interest_amount: interest,
       total_amount: total,
@@ -234,7 +237,8 @@ export class LoanService {
       if (loanDays < 0) {
         throw new BadRequestException('Ngày thanh toán không được trước ngày vay');
       }
-      const { interest, total } = this.buildLoanTotals(Number(loan.principal_amount), Number(loan.monthly_interest_rate), loanDays);
+      const monthlyInterestRate = roundMoney(dto.monthly_interest_rate);
+      const { interest, total } = this.buildLoanTotals(Number(loan.principal_amount), monthlyInterestRate, loanDays);
       const paymentMethod = dto.payment_method || 'cash';
       const paymentCode = CodeGeneratorHelper.generateUniqueCode('PAY');
       const payment = queryRunner.manager.create(Payment, {
@@ -251,6 +255,7 @@ export class LoanService {
       const savedPayment = await queryRunner.manager.save(payment);
 
       loan.loan_days = loanDays;
+      loan.monthly_interest_rate = monthlyInterestRate;
       loan.interest_amount = interest;
       loan.total_amount = total;
       loan.paid_amount = total;

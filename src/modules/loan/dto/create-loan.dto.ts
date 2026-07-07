@@ -15,9 +15,10 @@ export class CreateLoanDto {
   principal_amount!: number;
 
   @IsNumber()
-  @Type(() => Number)
   @Min(0)
-  monthly_interest_rate!: number;
+  @IsOptional()
+  @Type(() => Number)
+  monthly_interest_rate?: number; // Lãi suất hàng tháng (tùy chọn)
 
   @IsString()
   @IsOptional()
