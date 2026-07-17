@@ -299,6 +299,7 @@ export class PromotionCampaignService {
         const qualifiedAmount = Number(progress.qualified_amount || 0);
         const rewards = (rewardMap.get(campaign.id) || []).map((pool) => ({
           rewardName: pool.reward_name,
+          rewardImageUrl: pool.reward_image_url || null,
           rewardValue: Number(pool.reward_value || 0),
           totalQuantity: Number(pool.total_quantity || 0),
         }));
@@ -1343,6 +1344,7 @@ export class PromotionCampaignService {
       reward_pools: (campaign.reward_pools || []).map((pool: PromotionRewardPool) => ({
         id: pool.id,
         reward_name: pool.reward_name,
+        reward_image_url: pool.reward_image_url || null,
         reward_value: Number(pool.reward_value || 0),
         total_quantity: Number(pool.total_quantity || 0),
         remaining_quantity: Number(pool.remaining_quantity || 0),
@@ -1436,6 +1438,7 @@ export class PromotionCampaignService {
       if (existingPool) {
         // Pool đã tồn tại → UPDATE tại chỗ để tránh vi phạm FK từ reservations/spin_logs
         existingPool.reward_value = reward.reward_value;
+        existingPool.reward_image_url = reward.reward_image_url || null;
         existingPool.total_quantity = reward.total_quantity;
         existingPool.sort_order = reward.sort_order ?? 0;
         // Tính lại remaining_quantity dựa trên issued + reserved hiện tại
@@ -1465,6 +1468,7 @@ export class PromotionCampaignService {
           this.rewardPoolRepository.create({
             promotion_id: campaignId,
             reward_name: reward.reward_name,
+            reward_image_url: reward.reward_image_url || null,
             reward_value: reward.reward_value,
             total_quantity: reward.total_quantity,
             remaining_quantity: reward.total_quantity,

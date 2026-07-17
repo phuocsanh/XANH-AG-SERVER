@@ -29,6 +29,10 @@ class RewardConfigDto {
   @IsNotEmpty()
   reward_name!: string;
 
+  @IsOptional()
+  @IsString()
+  reward_image_url?: string;
+
   @IsNumber()
   @Min(0.01)
   reward_value!: number;

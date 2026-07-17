@@ -27,6 +27,9 @@ export class PromotionRewardPool {
   @Column({ name: 'reward_name' })
   reward_name!: string;
 
+  @Column({ name: 'reward_image_url', type: 'text', nullable: true })
+  reward_image_url?: string | null;
+
   @Column({
     name: 'reward_value',
     type: 'decimal',
