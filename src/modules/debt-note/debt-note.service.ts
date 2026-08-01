@@ -2,14 +2,21 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, Brackets } from 'typeorm';
 import { DebtNote, DebtNoteStatus } from '../../entities/debt-note.entity';
+import { DebtNoteClosure, DebtNoteClosureStatus } from '../../entities/debt-note-closure.entity';
+import { CustomerRewardTracking } from '../../entities/customer-reward-tracking.entity';
+import { CustomerRewardHistory } from '../../entities/customer-reward-history.entity';
+import { FarmGiftCost } from '../../entities/farm-gift-cost.entity';
+import { InventoryTransaction } from '../../entities/inventory-transactions.entity';
 import { CreateDebtNoteDto } from './dto/create-debt-note.dto';
 import { UpdateDebtNoteDto } from './dto/update-debt-note.dto';
 import { SearchDebtNoteDto } from './dto/search-debt-note.dto';
 import { CloseSeasonDebtNoteDto } from './dto/close-season-debt-note.dto';
+import { ReverseCloseDebtNoteDto } from './dto/reverse-close-debt-note.dto';
 import { QueryHelper } from '../../common/helpers/query-helper';
 import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 import { CustomerRewardService } from '../customer-reward/customer-reward.service';
+import { InventoryService } from '../inventory/inventory.service';
 
 @Injectable()
 export class DebtNoteService {
@@ -20,7 +27,80 @@ export class DebtNoteService {
     private debtNoteRepository: Repository<DebtNote>,
     private dataSource: DataSource,
     private readonly customerRewardService: CustomerRewardService,
+    private readonly inventoryService: InventoryService,
   ) {}
+
+  private toNumber(value: unknown): number {
+    if (value === null || value === undefined || value === '') return 0;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  private toIso(value: unknown): string | null {
+    if (!value) return null;
+    const date = value instanceof Date ? value : new Date(String(value));
+    return Number.isNaN(date.getTime()) ? null : date.toISOString();
+  }
+
+  private snapshotDebtNote(debtNote: DebtNote) {
+    return {
+      id: debtNote.id,
+      code: debtNote.code,
+      customer_id: debtNote.customer_id,
+      season_id: debtNote.season_id ?? null,
+      amount: this.toNumber(debtNote.amount),
+      paid_amount: this.toNumber(debtNote.paid_amount),
+      remaining_amount: this.toNumber(debtNote.remaining_amount),
+      status: debtNote.status,
+      due_date: this.toIso(debtNote.due_date),
+      notes: debtNote.notes ?? null,
+      source_invoices: debtNote.source_invoices || [],
+      created_by: debtNote.created_by ?? null,
+      rolled_over_from_id: debtNote.rolled_over_from_id ?? null,
+      rolled_over_to_id: debtNote.rolled_over_to_id ?? null,
+      gift_description: debtNote.gift_description ?? null,
+      gift_value: this.toNumber(debtNote.gift_value),
+      reward_given: Boolean(debtNote.reward_given),
+      reward_count: this.toNumber(debtNote.reward_count),
+      closed_at: this.toIso(debtNote.closed_at),
+    };
+  }
+
+  private snapshotRewardTracking(tracking?: CustomerRewardTracking | null) {
+    if (!tracking) return null;
+    return {
+      id: tracking.id,
+      customer_id: tracking.customer_id,
+      pending_amount: this.toNumber(tracking.pending_amount),
+      total_accumulated: this.toNumber(tracking.total_accumulated),
+      reward_count: this.toNumber(tracking.reward_count),
+      last_reward_date: this.toIso(tracking.last_reward_date),
+      status: tracking.status,
+    };
+  }
+
+  private snapshotsMatch(current: Record<string, any>, expected: Record<string, any>) {
+    return JSON.stringify(current) === JSON.stringify(expected);
+  }
+
+  private applyDebtNoteSnapshot(debtNote: DebtNote, snapshot: Record<string, any>) {
+    Object.assign(debtNote, {
+      amount: snapshot.amount,
+      paid_amount: snapshot.paid_amount,
+      remaining_amount: snapshot.remaining_amount,
+      status: snapshot.status,
+      due_date: snapshot.due_date ? new Date(snapshot.due_date) : null,
+      notes: snapshot.notes,
+      source_invoices: snapshot.source_invoices || [],
+      rolled_over_from_id: snapshot.rolled_over_from_id,
+      rolled_over_to_id: snapshot.rolled_over_to_id,
+      gift_description: snapshot.gift_description,
+      gift_value: snapshot.gift_value || 0,
+      reward_given: Boolean(snapshot.reward_given),
+      reward_count: snapshot.reward_count || 0,
+      closed_at: snapshot.closed_at ? new Date(snapshot.closed_at) : null,
+    });
+  }
 
   async create(createDto: CreateDebtNoteDto, userId: number): Promise<DebtNote> {
     try {
@@ -103,13 +183,27 @@ export class DebtNoteService {
     // 3. Phân trang (Lưu ý: skip/take áp dụng sau khi filter)
     const total = await queryBuilder.getCount();
     const entities = await queryBuilder.skip(skip).take(limit).getMany();
+    const debtNoteIds = entities.map((dn) => dn.id);
+    const reversibleClosures = debtNoteIds.length > 0
+      ? await this.dataSource
+          .getRepository(DebtNoteClosure)
+          .createQueryBuilder('closure')
+          .select('closure.debt_note_id', 'debt_note_id')
+          .where('closure.debt_note_id IN (:...debtNoteIds)', { debtNoteIds })
+          .andWhere('closure.status = :status', { status: DebtNoteClosureStatus.CLOSED })
+          .getRawMany<{ debt_note_id: number }>()
+      : [];
+    const reversibleDebtNoteIds = new Set(
+      reversibleClosures.map((closure) => Number(closure.debt_note_id)),
+    );
 
     // 4. Map thêm thông tin tích lũy từ CustomerRewardService
     const data = await Promise.all(entities.map(async (dn) => {
         const reward = await this.customerRewardService.getMyRewardTracking(dn.customer_id);
         return {
             ...dn,
-            pending_accumulation: Number(reward?.pending_amount || 0)
+            pending_accumulation: Number(reward?.pending_amount || 0),
+            can_reverse_close: reversibleDebtNoteIds.has(dn.id),
         } as any;
     }));
 
@@ -295,6 +389,12 @@ export class DebtNoteService {
         throw new BadRequestException('Vui lòng nhập mô tả quà tặng khi có giá trị quà tặng');
       }
 
+      const rewardTrackingBefore = await manager.findOne(CustomerRewardTracking, {
+        where: { customer_id: debtNote.customer_id },
+      });
+      const beforeSnapshot = this.snapshotDebtNote(debtNote);
+      const trackingBeforeSnapshot = this.snapshotRewardTracking(rewardTrackingBefore);
+
       // 🆕 NEW: Nếu có thanh toán đồng thời khi chốt sổ, cập nhật lại tiền trên phiếu nợ
       const extraPayment = Number(closeData.payment_amount || 0);
       if (extraPayment > 0) {
@@ -312,8 +412,9 @@ export class DebtNoteService {
       );
 
       // 3. Cập nhật phiếu công nợ (phần thuộc về DebtNote)
+      const closedAt = new Date();
       debtNote.status = DebtNoteStatus.PAID;
-      debtNote.closed_at = new Date();
+      debtNote.closed_at = closedAt;
       debtNote.reward_given = rewardSummary?.reward_given || false;
       debtNote.reward_count = rewardSummary?.reward_count || 0;
       if (closeData.gift_description) {
@@ -323,6 +424,28 @@ export class DebtNoteService {
       
       await manager.save(debtNote);
 
+      const rewardTrackingAfter = await manager.findOne(CustomerRewardTracking, {
+        where: { customer_id: debtNote.customer_id },
+      });
+      const afterSnapshot = this.snapshotDebtNote(debtNote);
+      const trackingAfterSnapshot = this.snapshotRewardTracking(rewardTrackingAfter);
+      const closure = manager.create(DebtNoteClosure, {
+        debt_note_id: debtNote.id,
+        customer_id: debtNote.customer_id,
+        season_id: debtNote.season_id ?? null,
+        closed_by: userId,
+        closed_at: closedAt,
+        status: DebtNoteClosureStatus.CLOSED,
+        before_snapshot: beforeSnapshot,
+        after_snapshot: afterSnapshot,
+        reward_tracking_before: trackingBeforeSnapshot,
+        reward_tracking_after: trackingAfterSnapshot,
+        reward_history_ids: rewardSummary?.reward_history_ids || [],
+        inventory_transaction_ids: rewardSummary?.inventory_transaction_ids || [],
+        gift_cost_ids: rewardSummary?.gift_cost_ids || [],
+      });
+      await manager.save(closure);
+
       // 4. Trả về kết quả tóm tắt cho FE
       return {
         success: true,
@@ -330,6 +453,168 @@ export class DebtNoteService {
         customer_name: debtNote.customer?.name,
         season_name: debtNote.season?.name,
         ...(rewardSummary || {}), // Trộn các thông tin quà tặng từ summary vào response (nếu có)
+      };
+    });
+  }
+
+  async reverseCloseSeasonDebtNote(
+    debtNoteId: number,
+    dto: ReverseCloseDebtNoteDto,
+    userId: number,
+  ) {
+    const reason = dto.reason?.trim();
+    if (!reason || reason.length < 3) {
+      throw new BadRequestException('Vui lòng nhập lý do hoàn tác chốt sổ');
+    }
+
+    return await this.dataSource.transaction(async (manager) => {
+      const debtNote = await manager.findOne(DebtNote, {
+        where: { id: debtNoteId },
+        relations: ['customer', 'season'],
+      });
+
+      if (!debtNote) {
+        throw new NotFoundException('Không tìm thấy phiếu công nợ');
+      }
+
+      const closure = await manager.findOne(DebtNoteClosure, {
+        where: {
+          debt_note_id: debtNoteId,
+          status: DebtNoteClosureStatus.CLOSED,
+        },
+        order: { id: 'DESC' },
+      });
+
+      if (!closure) {
+        throw new BadRequestException(
+          'Phiếu này không có hồ sơ chốt sổ để hoàn tác an toàn. Chỉ hoàn tác được các lần chốt có snapshot.',
+        );
+      }
+
+      const currentDebtSnapshot = this.snapshotDebtNote(debtNote);
+      if (!this.snapshotsMatch(currentDebtSnapshot, closure.after_snapshot?.debt_note || closure.after_snapshot)) {
+        throw new BadRequestException(
+          'Phiếu công nợ đã thay đổi sau khi chốt. Vui lòng kiểm tra phát sinh trước khi hoàn tác.',
+        );
+      }
+
+      const currentTracking = await manager.findOne(CustomerRewardTracking, {
+        where: { customer_id: debtNote.customer_id },
+      });
+      const currentTrackingSnapshot = this.snapshotRewardTracking(currentTracking);
+      const expectedTrackingSnapshot = closure.reward_tracking_after || null;
+
+      if (!this.snapshotsMatch(currentTrackingSnapshot || {}, expectedTrackingSnapshot || {})) {
+        throw new BadRequestException(
+          'Tích lũy khách hàng đã thay đổi sau khi chốt. Không thể hoàn tác tự động.',
+        );
+      }
+
+      const rewardHistoryIds = Array.isArray(closure.reward_history_ids)
+        ? closure.reward_history_ids
+        : [];
+      const giftCostIds = Array.isArray(closure.gift_cost_ids)
+        ? closure.gift_cost_ids
+        : [];
+      const reversedInventoryTransactionIds: number[] = [];
+
+      for (const historyId of rewardHistoryIds) {
+        const history = await manager.findOne(CustomerRewardHistory, {
+          where: { id: Number(historyId) },
+        });
+
+        if (!history) {
+          throw new BadRequestException(
+            `Không tìm thấy lịch sử quà #${historyId} để hoàn tác chốt sổ`,
+          );
+        }
+
+        const giftProductId = this.toNumber(history.gift_product_id);
+        const giftQuantity = this.toNumber(history.gift_quantity);
+        if (giftProductId > 0 && giftQuantity > 0) {
+          if (history.gift_inventory_transaction_id) {
+            const originalTransaction = await manager.findOne(InventoryTransaction, {
+              where: { id: history.gift_inventory_transaction_id },
+            });
+            if (!originalTransaction) {
+              throw new BadRequestException(
+                `Không tìm thấy giao dịch xuất kho quà #${history.gift_inventory_transaction_id}`,
+              );
+            }
+          }
+
+          const stockInResult = await this.inventoryService.processStockIn(
+            giftProductId,
+            giftQuantity,
+            this.toNumber(history.gift_unit_price),
+            userId,
+            undefined,
+            `GIFT_REVERSE_CLOSE_${history.id}_${Date.now()}`,
+            undefined,
+            { manager } as any,
+          );
+          reversedInventoryTransactionIds.push(stockInResult.transaction.id);
+        }
+
+        history.gift_status = 'cancelled';
+        history.notes = [
+          history.notes,
+          `Hoàn tác chốt sổ phiếu ${debtNote.code}: ${reason}`,
+        ].filter(Boolean).join(' | ');
+        await manager.save(history);
+      }
+
+      for (const giftCostId of giftCostIds) {
+        const giftCost = await manager.findOne(FarmGiftCost, {
+          where: { id: Number(giftCostId) },
+        });
+        if (giftCost) {
+          await manager.remove(giftCost);
+        }
+      }
+
+      if (closure.reward_tracking_before) {
+        const trackingSnapshot = closure.reward_tracking_before;
+        let tracking = currentTracking;
+        if (!tracking) {
+          tracking = manager.create(CustomerRewardTracking, {
+            customer_id: debtNote.customer_id,
+          });
+        }
+
+        Object.assign(tracking, {
+          pending_amount: trackingSnapshot.pending_amount,
+          total_accumulated: trackingSnapshot.total_accumulated,
+          reward_count: trackingSnapshot.reward_count,
+          last_reward_date: trackingSnapshot.last_reward_date
+            ? new Date(trackingSnapshot.last_reward_date)
+            : null,
+          status: trackingSnapshot.status || 'active',
+        });
+        await manager.save(tracking);
+      } else if (currentTracking) {
+        await manager.remove(currentTracking);
+      }
+
+      this.applyDebtNoteSnapshot(debtNote, closure.before_snapshot?.debt_note || closure.before_snapshot);
+      await manager.save(debtNote);
+
+      closure.status = DebtNoteClosureStatus.REVERSED;
+      closure.reversed_by = userId;
+      closure.reversed_at = new Date();
+      closure.reverse_reason = reason;
+      const savedClosure = await manager.save(closure);
+
+      return {
+        success: true,
+        debt_note_id: debtNote.id,
+        closure_id: savedClosure.id,
+        customer_name: debtNote.customer?.name,
+        season_name: debtNote.season?.name,
+        reward_history_cancelled: rewardHistoryIds.length,
+        gift_cost_removed: giftCostIds.length,
+        inventory_reversal_transaction_ids: reversedInventoryTransactionIds,
+        message: 'Hoàn tác chốt sổ công nợ thành công',
       };
     });
   }

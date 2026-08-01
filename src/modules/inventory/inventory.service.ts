@@ -123,7 +123,7 @@ export class InventoryService {
     return Number.isFinite(parsed) ? parsed : 0;
   }
 
-  private resolvePreviewUnitCost(
+  private resolveStockOutUnitCost(
     product: Product | null,
     fallbackCost: number,
     priceType?: 'cash' | 'credit',
@@ -141,6 +141,11 @@ export class InventoryService {
       if (configuredCost > 0) {
         return this.roundMoney(configuredCost);
       }
+    }
+
+    const averageCost = this.parseMoney(product.average_cost_price);
+    if (averageCost > 0) {
+      return this.roundMoney(averageCost);
     }
 
     return this.roundMoney(fallbackCost);
@@ -364,7 +369,10 @@ export class InventoryService {
         Number(batch.remaining_quantity) - deductFromBatch;
       remainingToDeduct -= deductFromBatch;
 
-      const batchCost = parseFloat(batch.unit_cost_price);
+      const batchCost = this.resolveStockOutUnitCost(
+        product,
+        parseFloat(batch.unit_cost_price),
+      );
       totalCostValue += deductFromBatch * batchCost;
 
       affectedBatches.push({
@@ -1815,7 +1823,10 @@ export class InventoryService {
       remainingToDeduct -= deductFromBatch;
 
       // Tính giá trị xuất kho dựa trên giá vốn của lô
-      const batchCost = parseFloat(batch.unit_cost_price);
+      const batchCost = this.resolveStockOutUnitCost(
+        product,
+        parseFloat(batch.unit_cost_price),
+      );
       totalCostValue += deductFromBatch * batchCost;
 
       // Cập nhật batch
@@ -1847,11 +1858,16 @@ export class InventoryService {
     );
 
     // Tạo giao dịch xuất kho
+    const transactionUnitCost =
+      quantity > 0
+        ? this.roundMoney(totalCostValue / quantity)
+        : currentAverageCost;
+
     const transactionData: CreateInventoryTransactionDto = {
       product_id: productId,
       transaction_type: 'OUT',
       quantity: -quantity, // Số âm để thể hiện xuất kho
-      unit_cost_price: currentAverageCost.toString(), // Sử dụng giá vốn trung bình
+      unit_cost_price: transactionUnitCost.toString(),
       total_cost_value: (-totalCostValue).toString(), // Giá trị âm
       remaining_quantity: newTotalQuantity,
       new_average_cost: currentAverageCost.toString(), // Giá vốn trung bình không thay đổi khi xuất kho
@@ -1946,7 +1962,7 @@ export class InventoryService {
       if (productId <= 0 || quantity <= 0) continue;
 
       const plan = await this.planStockOut(productId, quantity);
-      const unitCostForPreview = this.resolvePreviewUnitCost(
+      const unitCostForPreview = this.resolveStockOutUnitCost(
         plan.product,
         quantity > 0 ? plan.totalCostValue / quantity : plan.currentAverageCost,
         item.priceType,

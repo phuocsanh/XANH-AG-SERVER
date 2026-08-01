@@ -145,9 +145,14 @@ export class SalesReturnService {
 
         remainingQty = this.roundBaseQuantity(remainingQty - quantity);
 
+        const restoredUnitCost =
+          fallbackUnitCost > 0
+            ? fallbackUnitCost
+            : Number(allocation.unit_cost || 0);
+
         const plan: ReturnRestockPlan = {
           quantity,
-          unitCost: Number(allocation.unit_cost || fallbackUnitCost),
+          unitCost: restoredUnitCost,
         };
         if (allocation.receipt_item_id) {
           plan.receiptItemId = allocation.receipt_item_id;

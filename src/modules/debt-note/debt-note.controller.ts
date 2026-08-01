@@ -6,6 +6,7 @@ import { DebtNoteService } from './debt-note.service';
 import { CreateDebtNoteDto } from './dto/create-debt-note.dto';
 import { UpdateDebtNoteDto } from './dto/update-debt-note.dto';
 import { SearchDebtNoteDto } from './dto/search-debt-note.dto';
+import { ReverseCloseDebtNoteDto } from './dto/reverse-close-debt-note.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @Controller('debt-notes')
@@ -55,6 +56,16 @@ export class DebtNoteController {
     @CurrentUser('id') userId: number,
   ) {
     return this.debtNoteService.closeSeasonDebtNote(+id, closeData, userId);
+  }
+
+  @Post(':id/reverse-close')
+  @RequirePermissions('sales:manage')
+  reverseCloseSeasonDebtNote(
+    @Param('id') id: string,
+    @Body() dto: ReverseCloseDebtNoteDto,
+    @CurrentUser('id') userId: number,
+  ) {
+    return this.debtNoteService.reverseCloseSeasonDebtNote(+id, dto, userId);
   }
 
 }

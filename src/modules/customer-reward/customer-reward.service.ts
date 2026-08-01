@@ -203,7 +203,7 @@ export class CustomerRewardService {
     gift_quantity?: number | null | undefined;
     gift_unit_price?: number | null | undefined;
     inventory_transaction_id?: number | null | undefined;
-  }): Promise<void> {
+  }): Promise<FarmGiftCost | null> {
     try {
       const costName = `Quà tặng tri ân - ${params.customerName}`;
       const descriptionParts = [
@@ -214,7 +214,7 @@ export class CustomerRewardService {
         `Mã phiếu: ${params.debtNoteCode}`,
       ].filter(Boolean).join(' | ');
 
-      await this.farmGiftCostService.create({
+      return await this.farmGiftCostService.create({
         name: costName,
         amount: params.giftValue * params.rewardCount,
         product_id: params.gift_product_id || undefined,
@@ -233,6 +233,7 @@ export class CustomerRewardService {
     } catch (error) {
       // Log error but don't stop process
       console.error('❌ Lỗi khi tạo phiếu chi phí quà tặng:', error);
+      return null;
     }
   }
 
@@ -307,6 +308,8 @@ export class CustomerRewardService {
     // 4. Lưu lịch sử tặng quà (chỉ nếu có quà mới được tặng trong lần này)
     // 5. Lưu lịch sử tặng quà
     const historyIds: number[] = [];
+    const giftCostIds: number[] = [];
+    const inventoryTransactionIds: number[] = [];
     
     // Lấy thông tin ruộng lúa nếu có truyền lên
     let riceCropInfo: { id?: number, name?: string } = {};
@@ -401,7 +404,7 @@ export class CustomerRewardService {
       const count = hasManualGift ? 1 : autoRewardCount;
 
       for (let i = 0; i < count; i++) {
-        await this.createGiftFarmServiceCost({
+        const giftCost = await this.createGiftFarmServiceCost({
           debtNoteCode: debtNote.code,
           customer_id: debtNote.customer_id,
           customerName: debtNote.customer?.name || 'Khách hàng',
@@ -414,6 +417,12 @@ export class CustomerRewardService {
           manager,
           reward_history_id: historyIds[i]
         });
+        if (giftCost?.id) {
+          giftCostIds.push(giftCost.id);
+        }
+        if (giftCost?.inventory_transaction_id) {
+          inventoryTransactionIds.push(giftCost.inventory_transaction_id);
+        }
       }
     }
 
@@ -425,6 +434,9 @@ export class CustomerRewardService {
       reward_given: shouldCreateHistory,
       reward_count: hasManualGift ? 1 : autoRewardCount, 
       remaining_accumulated: remainingAccumulated,
+      reward_history_ids: historyIds,
+      gift_cost_ids: giftCostIds,
+      inventory_transaction_ids: inventoryTransactionIds,
       message: this.generateCloseMessage(amountToDeductFromAccumulation, remainingAccumulated, threshold),
     };
   }

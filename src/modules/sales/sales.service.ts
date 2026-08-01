@@ -651,20 +651,12 @@ export class SalesService {
 
     for (const item of invoice.items) {
       const baseQty = Number(item.base_quantity || item.quantity || 0);
-      const isByPriceType =
-        item.costing_method_snapshot === ProductCostingMethod.BY_PRICE_TYPE;
+      const snapshotCostPrice = Number(item.cost_price || 0);
 
-      // Với lúa giống / sản phẩm chốt giá vốn theo loại giá bán,
-      // giữ nguyên snapshot đã chốt lúc tạo hóa đơn.
-      if (isByPriceType) {
-        const snapshotCostPrice = Number(item.cost_price || 0);
-
-        if (!Number.isFinite(snapshotCostPrice) || snapshotCostPrice <= 0) {
-          throw new BadRequestException(
-            `Item #${item.id} của hóa đơn #${invoice.code} chưa có giá vốn snapshot theo price_type`,
-          );
-        }
-
+      // Giữ giá vốn snapshot đã chốt lúc tạo hóa đơn. Với sản phẩm thường
+      // snapshot là average_cost_price; với lúa giống là giá vốn theo loại bán.
+      // Allocation/FIFO chỉ dùng để biết lô nào bị trừ tồn.
+      if (Number.isFinite(snapshotCostPrice) && snapshotCostPrice > 0) {
         totalCOGS += this.roundMoney(baseQty * snapshotCostPrice);
         continue;
       }
@@ -1166,7 +1158,9 @@ export class SalesService {
       .leftJoinAndSelect('invoice.season', 'season')
       .leftJoinAndSelect('invoice.rice_crop', 'rice_crop')
       .leftJoinAndSelect('invoice.delivery_logs', 'delivery_logs')
-      .leftJoinAndSelect('invoice.returns', 'returns')
+      .leftJoinAndSelect('invoice.returns', 'returns', 'returns.status = :approvedReturnStatus', {
+        approvedReturnStatus: 'approved',
+      })
       .leftJoin('invoice.creator', 'creator')
       .addSelect(['creator.id', 'creator.account'])
       .where('invoice.id = :id', { id })
