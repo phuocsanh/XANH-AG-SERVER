@@ -184,15 +184,24 @@ export class DebtNoteService {
     const total = await queryBuilder.getCount();
     const entities = await queryBuilder.skip(skip).take(limit).getMany();
     const debtNoteIds = entities.map((dn) => dn.id);
-    const reversibleClosures = debtNoteIds.length > 0
-      ? await this.dataSource
+    let reversibleClosures: { debt_note_id: number }[] = [];
+
+    if (debtNoteIds.length > 0) {
+      try {
+        reversibleClosures = await this.dataSource
           .getRepository(DebtNoteClosure)
           .createQueryBuilder('closure')
           .select('closure.debt_note_id', 'debt_note_id')
           .where('closure.debt_note_id IN (:...debtNoteIds)', { debtNoteIds })
           .andWhere('closure.status = :status', { status: DebtNoteClosureStatus.CLOSED })
-          .getRawMany<{ debt_note_id: number }>()
-      : [];
+          .getRawMany<{ debt_note_id: number }>();
+      } catch (error) {
+        this.logger.warn(
+          `Không thể kiểm tra trạng thái hoàn tác chốt sổ: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
     const reversibleDebtNoteIds = new Set(
       reversibleClosures.map((closure) => Number(closure.debt_note_id)),
     );
