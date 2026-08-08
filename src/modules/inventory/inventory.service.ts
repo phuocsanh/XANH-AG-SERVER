@@ -6604,7 +6604,7 @@ export class InventoryService {
     userId: number,
   ): Promise<InventoryBorrow> {
     if (!dto.borrower_name?.trim()) {
-      throw new BadRequestException('Vui lòng chọn hoặc nhập tên công ty mượn');
+      throw new BadRequestException('Vui lòng chọn hoặc nhập tên nhà cung cấp mượn hàng');
     }
     if (!dto.items?.length) {
       throw new BadRequestException('Phiếu mượn phải có ít nhất 1 sản phẩm');

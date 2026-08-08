@@ -9,7 +9,7 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { Customer } from './customer.entity';
+import { Supplier } from './suppliers.entity';
 import { User } from './users.entity';
 import { InventoryBorrowItem } from './inventory-borrow-items.entity';
 
@@ -33,9 +33,9 @@ export class InventoryBorrow {
   @Column({ name: 'borrower_customer_id', nullable: true })
   borrower_customer_id?: number | null;
 
-  @ManyToOne(() => Customer, { nullable: true })
+  @ManyToOne(() => Supplier, { nullable: true })
   @JoinColumn({ name: 'borrower_customer_id' })
-  borrower_customer?: Customer | null;
+  borrower_customer?: Supplier | null;
 
   @Column({ name: 'borrower_name' })
   borrower_name!: string;

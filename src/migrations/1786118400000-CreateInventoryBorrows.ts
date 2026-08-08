@@ -80,7 +80,7 @@ export class CreateInventoryBorrows1786118400000
     await queryRunner.createForeignKeys('inventory_borrows', [
       new TableForeignKey({
         columnNames: ['borrower_customer_id'],
-        referencedTableName: 'customers',
+        referencedTableName: 'suppliers',
         referencedColumnNames: ['id'],
         onDelete: 'SET NULL',
       }),
