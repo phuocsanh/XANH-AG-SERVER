@@ -10,6 +10,8 @@ import { InventoryReturnItem } from '../../entities/inventory-return-items.entit
 import { InventoryReturnRefund } from '../../entities/inventory-return-refunds.entity';
 import { InventoryAdjustment } from '../../entities/inventory-adjustments.entity';
 import { InventoryAdjustmentItem } from '../../entities/inventory-adjustment-items.entity';
+import { InventoryBorrow } from '../../entities/inventory-borrows.entity';
+import { InventoryBorrowItem } from '../../entities/inventory-borrow-items.entity';
 import { InventoryReceiptLog } from '../../entities/inventory-receipt-logs.entity';
 import { InventoryReceiptSupplierSettlement } from '../../entities/inventory-receipt-supplier-settlements.entity';
 import { SystemSetting } from '../../entities/system-setting.entity';
@@ -43,6 +45,8 @@ import { ProductUnitConversionModule } from '../product-unit-conversion/product-
       InventoryReturnRefund, // Entity quản lý hoàn tiền phiếu trả hàng
       InventoryAdjustment, // Entity quản lý phiếu điều chỉnh kho
       InventoryAdjustmentItem, // Entity quản lý chi tiết phiếu điều chỉnh kho
+      InventoryBorrow, // Entity quản lý phiếu cho mượn hàng
+      InventoryBorrowItem, // Entity quản lý chi tiết phiếu cho mượn hàng
       InventoryReceiptLog, // Entity quản lý lịch sử chỉnh sửa phiếu nhập kho
       InventoryReceiptSupplierSettlement,
       SystemSetting,

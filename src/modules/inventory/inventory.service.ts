@@ -23,6 +23,11 @@ import { InventoryReturnItem } from '../../entities/inventory-return-items.entit
 import { InventoryReturnRefund } from '../../entities/inventory-return-refunds.entity';
 import { InventoryAdjustment } from '../../entities/inventory-adjustments.entity';
 import { InventoryAdjustmentItem } from '../../entities/inventory-adjustment-items.entity';
+import {
+  InventoryBorrow,
+  InventoryBorrowStatus,
+} from '../../entities/inventory-borrows.entity';
+import { InventoryBorrowItem } from '../../entities/inventory-borrow-items.entity';
 import { InventoryReceiptLog } from '../../entities/inventory-receipt-logs.entity';
 import { Product } from '../../entities/products.entity';
 import { ProductCostingMethod } from '../../entities/products.entity';
@@ -42,6 +47,10 @@ import {
 import { CreateRefundDto } from './dto/create-refund.dto';
 import { CreateInventoryReturnDto } from './dto/create-inventory-return.dto';
 import { CreateInventoryAdjustmentDto } from './dto/create-inventory-adjustment.dto';
+import {
+  CreateInventoryBorrowDto,
+  SearchInventoryBorrowDto,
+} from './dto/create-inventory-borrow.dto';
 import { ProductService } from '../product/product.service';
 import { FileTrackingService } from '../file-tracking/file-tracking.service';
 import {
@@ -92,6 +101,8 @@ export class InventoryService {
     private inventoryAdjustmentRepository: Repository<InventoryAdjustment>,
     @InjectRepository(InventoryAdjustmentItem)
     private inventoryAdjustmentItemRepository: Repository<InventoryAdjustmentItem>,
+    @InjectRepository(InventoryBorrow)
+    private inventoryBorrowRepository: Repository<InventoryBorrow>,
     @InjectRepository(InventoryReceiptLog)
     private inventoryReceiptLogRepository: Repository<InventoryReceiptLog>,
     @InjectRepository(SystemSetting)
@@ -893,7 +904,8 @@ export class InventoryService {
   async findBatchesByProduct(productId: number) {
     return this.inventoryBatchRepository.find({
       where: { product_id: productId },
-      relations: ['product', 'supplier'],
+      relations: ['product', 'supplier', 'receipt_item', 'receipt_item.receipt'],
+      order: { created_at: 'ASC' },
     });
   }
 
@@ -1661,6 +1673,7 @@ export class InventoryService {
     queryRunner?: QueryRunner,
     stockOutOptions?: {
       receiptItemId?: number;
+      batchId?: number;
     },
   ): Promise<{
     transaction: InventoryTransaction;
@@ -1691,6 +1704,9 @@ export class InventoryService {
     const scopedReceiptItemId = stockOutOptions?.receiptItemId
       ? Number(stockOutOptions.receiptItemId)
       : undefined;
+    const scopedBatchId = stockOutOptions?.batchId
+      ? Number(stockOutOptions.batchId)
+      : undefined;
 
     // 2. Chuẩn bị dữ liệu thuế của từng đợt nhập kho để tính toán FIFO chính xác
     const batchRepo = queryRunner
@@ -1703,6 +1719,7 @@ export class InventoryService {
         ...(scopedReceiptItemId
           ? { receipt_item_id: scopedReceiptItemId }
           : {}),
+        ...(scopedBatchId ? { id: scopedBatchId } : {}),
       },
       order: { created_at: 'ASC' }, // FIFO: lô cũ nhất trước
     });
@@ -1716,6 +1733,19 @@ export class InventoryService {
       if (scopedAvailableQuantity < quantity) {
         throw new BadRequestException(
           `Không đủ tồn kho trong đúng lô nhập gốc. Dòng nhập #${scopedReceiptItemId} còn ${scopedAvailableQuantity}, yêu cầu trả ${quantity}.`,
+        );
+      }
+    }
+
+    if (scopedBatchId) {
+      const scopedAvailableQuantity = batches.reduce(
+        (sum, batch) => sum + Number(batch.remaining_quantity || 0),
+        0,
+      );
+
+      if (scopedAvailableQuantity < quantity) {
+        throw new BadRequestException(
+          `Không đủ tồn kho trong lô đã chọn. Lô #${scopedBatchId} còn ${scopedAvailableQuantity}, yêu cầu xuất ${quantity}.`,
         );
       }
     }
@@ -6567,6 +6597,201 @@ export class InventoryService {
       productUpdated: productWasUpdated,
       salesItemsUpdated: salesItemsUpdatedCount,
     };
+  }
+
+  async createBorrow(
+    dto: CreateInventoryBorrowDto,
+    userId: number,
+  ): Promise<InventoryBorrow> {
+    if (!dto.borrower_name?.trim()) {
+      throw new BadRequestException('Vui lòng chọn hoặc nhập tên công ty mượn');
+    }
+    if (!dto.items?.length) {
+      throw new BadRequestException('Phiếu mượn phải có ít nhất 1 sản phẩm');
+    }
+
+    const queryRunner =
+      this.inventoryBorrowRepository.manager.connection.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const borrowData: Partial<InventoryBorrow> = {
+        code: CodeGeneratorHelper.generateUniqueCode('BRW'),
+        borrower_customer_id: dto.borrower_customer_id || null,
+        borrower_name: dto.borrower_name.trim(),
+        borrow_date: dto.borrow_date as any,
+        expected_return_date: (dto.expected_return_date || null) as any,
+        status: InventoryBorrowStatus.DRAFT,
+        created_by: userId,
+      };
+      if (dto.notes !== undefined) {
+        borrowData.notes = dto.notes;
+      }
+
+      const borrow = queryRunner.manager.create(InventoryBorrow, borrowData);
+
+      const savedBorrow = await queryRunner.manager.save(borrow);
+
+      const items: InventoryBorrowItem[] = [];
+      for (const item of dto.items) {
+        const batch = await queryRunner.manager.findOne(InventoryBatch, {
+          where: { id: Number(item.batch_id) },
+          relations: ['product'],
+          lock: { mode: 'pessimistic_write' },
+        });
+
+        if (!batch) {
+          throw new NotFoundException(`Không tìm thấy lô hàng #${item.batch_id}`);
+        }
+        if (Number(batch.product_id) !== Number(item.product_id)) {
+          throw new BadRequestException(
+            `Lô ${batch.code || `#${batch.id}`} không thuộc sản phẩm đã chọn`,
+          );
+        }
+        if (Number(batch.remaining_quantity || 0) < Number(item.quantity)) {
+          throw new BadRequestException(
+            `Lô ${batch.code || `#${batch.id}`} chỉ còn ${batch.remaining_quantity}, không đủ cho mượn ${item.quantity}`,
+          );
+        }
+
+        const itemData: Partial<InventoryBorrowItem> = {
+          borrow_id: savedBorrow.id,
+          product_id: Number(item.product_id),
+          batch_id: Number(item.batch_id),
+          receipt_item_id: batch.receipt_item_id || null,
+          quantity: Number(item.quantity),
+          returned_quantity: 0,
+          converted_to_sale_quantity: 0,
+        };
+        if (item.notes !== undefined) {
+          itemData.notes = item.notes;
+        }
+
+        items.push(queryRunner.manager.create(InventoryBorrowItem, itemData));
+      }
+
+      await queryRunner.manager.save(InventoryBorrowItem, items);
+      await queryRunner.commitTransaction();
+
+      if (dto.status === InventoryBorrowStatus.APPROVED) {
+        return this.approveBorrow(savedBorrow.id, userId);
+      }
+
+      return this.findBorrowById(savedBorrow.id) as Promise<InventoryBorrow>;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async searchBorrows(searchDto: SearchInventoryBorrowDto): Promise<{
+    data: InventoryBorrow[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const page = Number(searchDto.page || 1);
+    const limit = Number(searchDto.limit || 20);
+    const queryBuilder = this.inventoryBorrowRepository
+      .createQueryBuilder('borrow')
+      .leftJoinAndSelect('borrow.borrower_customer', 'borrower_customer')
+      .leftJoinAndSelect('borrow.items', 'items')
+      .leftJoinAndSelect('items.product', 'product')
+      .leftJoinAndSelect('items.batch', 'batch')
+      .where('borrow.deleted_at IS NULL');
+
+    if (searchDto.status) {
+      queryBuilder.andWhere('borrow.status = :status', {
+        status: searchDto.status,
+      });
+    }
+    if (searchDto.keyword?.trim()) {
+      queryBuilder.andWhere(
+        '(borrow.code ILIKE :keyword OR borrow.borrower_name ILIKE :keyword)',
+        { keyword: `%${QueryHelper.sanitizeKeyword(searchDto.keyword)}%` },
+      );
+    }
+
+    const [data, total] = await queryBuilder
+      .orderBy('borrow.created_at', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    return { data, total, page, limit };
+  }
+
+  async findBorrowById(id: number): Promise<InventoryBorrow | null> {
+    return this.inventoryBorrowRepository.findOne({
+      where: { id },
+      relations: [
+        'borrower_customer',
+        'items',
+        'items.product',
+        'items.batch',
+        'items.batch.supplier',
+        'creator',
+        'approver',
+      ],
+    });
+  }
+
+  async approveBorrow(id: number, userId: number): Promise<InventoryBorrow> {
+    const queryRunner =
+      this.inventoryBorrowRepository.manager.connection.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const borrow = await queryRunner.manager.findOne(InventoryBorrow, {
+        where: { id },
+        relations: ['items', 'items.batch'],
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!borrow) {
+        throw new NotFoundException('Không tìm thấy phiếu cho mượn');
+      }
+      if (borrow.status !== InventoryBorrowStatus.DRAFT) {
+        throw new BadRequestException('Chỉ duyệt được phiếu mượn đang nháp');
+      }
+
+      for (const item of borrow.items || []) {
+        const stockOutOptions: { batchId?: number; receiptItemId?: number } = {
+          batchId: Number(item.batch_id),
+        };
+        if (item.receipt_item_id) {
+          stockOutOptions.receiptItemId = Number(item.receipt_item_id);
+        }
+
+        await this.processStockOut(
+          Number(item.product_id),
+          Number(item.quantity),
+          'BORROW_OUT',
+          userId,
+          borrow.id,
+          `Cho ${borrow.borrower_name} mượn hàng - phiếu ${borrow.code}`,
+          queryRunner,
+          stockOutOptions,
+        );
+      }
+
+      borrow.status = InventoryBorrowStatus.APPROVED;
+      borrow.approved_by = userId;
+      borrow.approved_at = new Date();
+      await queryRunner.manager.save(borrow);
+
+      await queryRunner.commitTransaction();
+      return (await this.findBorrowById(id)) as InventoryBorrow;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   /**

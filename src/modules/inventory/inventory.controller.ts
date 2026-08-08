@@ -26,6 +26,10 @@ import {
   StockData,
 } from './interfaces/inventory-report.interface';
 import { SearchInventoryDto } from './dto/search-inventory.dto';
+import {
+  CreateInventoryBorrowDto,
+  SearchInventoryBorrowDto,
+} from './dto/create-inventory-borrow.dto';
 
 /**
  * Controller xử lý các request liên quan đến quản lý kho hàng
@@ -97,6 +101,33 @@ export class InventoryController {
   @RequirePermissions('inventory:read')
   findBatchById(@Param('id') id: string) {
     return this.inventoryService.findBatchById(+id);
+  }
+
+  @Post('borrows')
+  @RequirePermissions('inventory:manage')
+  createBorrow(
+    @Body() dto: CreateInventoryBorrowDto,
+    @CurrentUser('id') userId: number,
+  ) {
+    return this.inventoryService.createBorrow(dto, userId);
+  }
+
+  @Post('borrows/search')
+  @RequirePermissions('inventory:read')
+  searchBorrows(@Body() dto: SearchInventoryBorrowDto) {
+    return this.inventoryService.searchBorrows(dto);
+  }
+
+  @Get('borrows/:id')
+  @RequirePermissions('inventory:read')
+  findBorrowById(@Param('id') id: string) {
+    return this.inventoryService.findBorrowById(+id);
+  }
+
+  @Post('borrows/:id/approve')
+  @RequirePermissions('inventory:manage')
+  approveBorrow(@Param('id') id: string, @CurrentUser('id') userId: number) {
+    return this.inventoryService.approveBorrow(+id, userId);
   }
 
   /**

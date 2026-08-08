@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { Product } from './products.entity';
 import { Supplier } from './suppliers.entity';
+import { InventoryReceiptItem } from './inventory-receipt-items.entity';
 
 /**
  * Entity biểu diễn thông tin lô hàng tồn kho
@@ -90,6 +91,11 @@ export class InventoryBatch {
   /** ID của item phiếu nhập kho tương ứng (có thể null) */
   @Column({ name: 'receipt_item_id', nullable: true })
   receipt_item_id?: number;
+
+  /** Dòng phiếu nhập tạo ra lô hàng này */
+  @ManyToOne(() => InventoryReceiptItem, { nullable: true })
+  @JoinColumn({ name: 'receipt_item_id' })
+  receipt_item?: InventoryReceiptItem;
 
   /** Thời gian tạo lô hàng tồn kho */
   @CreateDateColumn({ name: 'created_at' })
