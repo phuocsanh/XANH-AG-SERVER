@@ -46,10 +46,7 @@ export class CustomerRewardService {
     return { manager } as any;
   }
 
-  /**
-   * Lấy mốc tích lũy từ database
-   */
-  async getRewardThreshold(manager?: any): Promise<number> {
+  private async getDefaultRewardThreshold(manager?: any): Promise<number> {
     const repo = manager ? manager.getRepository(SystemSetting) : this.systemSettingRepository;
     const setting = await repo.findOne({ where: { key: 'reward_threshold' } });
     
@@ -58,6 +55,77 @@ export class CustomerRewardService {
     }
     
     return this.DEFAULT_REWARD_THRESHOLD;
+  }
+
+  /**
+   * Lấy mốc tích lũy. Ưu tiên mốc riêng của khách, nếu không có thì dùng mặc định.
+   */
+  async getRewardThreshold(manager?: any, customerId?: number): Promise<number> {
+    if (customerId) {
+      const trackingRepo = manager
+        ? manager.getRepository(CustomerRewardTracking)
+        : this.rewardTrackingRepository;
+      const tracking = await trackingRepo.findOne({
+        where: { customer_id: customerId },
+      });
+      const customerThreshold = Number(tracking?.reward_threshold || 0);
+
+      if (customerThreshold > 0) {
+        return customerThreshold;
+      }
+    }
+
+    return this.getDefaultRewardThreshold(manager);
+  }
+
+  async updateCustomerRewardThreshold(
+    customerId: number,
+    rewardThreshold?: number | null,
+  ) {
+    const customer = await this.debtNoteRepository.manager.findOne(Customer, {
+      where: { id: customerId },
+    });
+    if (!customer) {
+      throw new NotFoundException('Không tìm thấy khách hàng');
+    }
+
+    const normalizedThreshold =
+      rewardThreshold === null || rewardThreshold === undefined
+        ? null
+        : Number(rewardThreshold);
+
+    if (
+      normalizedThreshold !== null &&
+      (!Number.isFinite(normalizedThreshold) || normalizedThreshold <= 0)
+    ) {
+      throw new BadRequestException('Mốc tặng quà phải lớn hơn 0');
+    }
+
+    let tracking = await this.rewardTrackingRepository.findOne({
+      where: { customer_id: customerId },
+    });
+
+    if (!tracking) {
+      tracking = this.rewardTrackingRepository.create({
+        customer_id: customerId,
+        pending_amount: 0,
+        total_accumulated: 0,
+        reward_count: 0,
+      });
+    }
+
+    tracking.reward_threshold = normalizedThreshold;
+    const saved = await this.rewardTrackingRepository.save(tracking);
+    const defaultThreshold = await this.getDefaultRewardThreshold();
+
+    return {
+      ...saved,
+      effective_reward_threshold:
+        Number(saved.reward_threshold || 0) > 0
+          ? Number(saved.reward_threshold)
+          : defaultThreshold,
+      default_reward_threshold: defaultThreshold,
+    };
   }
 
   async getRewardPreviewById(debtNoteId: number, additionalAmount: number = 0) {
@@ -106,8 +174,8 @@ export class CustomerRewardService {
 
     const previousPending = Number(rewardTracking?.pending_amount || 0);
     
-    // 🔥 Lấy mốc từ DB
-    const threshold = await this.getRewardThreshold();
+    // Lấy mốc riêng của khách nếu có, nếu không dùng mốc mặc định hệ thống.
+    const threshold = await this.getRewardThreshold(undefined, debtNote.customer_id);
     
     const seasonPaidContribution = Number(debtNote.paid_amount || 0) + Number(additionalAmount || 0);
     const totalAfterClose = previousPending + seasonPaidContribution;
@@ -252,7 +320,7 @@ export class CustomerRewardService {
     manager: any, // EntityManager từ transaction
     debtNote: DebtNote,
     closeData: any, // CloseSeasonDebtNoteDto (sử dụng any để tránh import vòng)
-    userId: number,
+    _userId: number,
     isFinal: boolean = true
   ) {
     // 0. Bỏ qua nếu không có khách hàng (khách vãng lai)
@@ -282,169 +350,51 @@ export class CustomerRewardService {
     const previousPending = Number(rewardTracking.pending_amount);
     const totalAccumulated = previousPending + totalNewContribution;
 
-    // 🔥 MỐC TÍCH LŨY MỚI THEO YÊU CẦU: 70.000.000 đ = 1.000.000 đ tiền quà
-    const threshold = await this.getRewardThreshold(manager);
-    const REWARD_VALUE_FOR_THRESHOLD = 1000000; // 1 triệu tiền quà cho 70 triệu doanh số
+    const threshold = await this.getRewardThreshold(manager, debtNote.customer_id);
 
-    // 3. Kiểm tra xem có quà nào được tặng trong lần này không
-    // Trường hợp 1: Đạt mốc tự động (70tr)
+    // 3. Chỉ tính số mốc đã đủ điều kiện để thông báo.
+    // Việc tạo lịch sử/chi phí quà tặng phải do admin bấm "Tặng quà"
+    // ở trang customer-rewards, không tự động khi chốt công nợ.
     const autoRewardCount = Math.floor(totalAccumulated / threshold);
-    
-    // Trường hợp 2: Quà tặng thủ công từ frontend (kể cả khi chưa đạt mốc 70tr)
-    const manualGiftValue = Number(closeData.gift_value || 0);
-    const hasManualGift = manualGiftValue > 0;
-
-    // Xác định số lượng quà tặng thực tế để lưu lịch sử
-    // Nếu đạt mốc tự động và không có giá trị quà thủ công -> coi như tặng 1 phần quà mốc
-    // Nếu có quà thủ công -> lưu 1 bản ghi với giá trị đó
-    const shouldCreateHistory = autoRewardCount > 0 || hasManualGift;
-    
-    // 4. Quà tặng tại thanh toán là "Quà tri ân" - KHÔNG TRỪ TÍCH LŨY
-    // Chỉ trừ tích lũy khi đạt mốc tự động (70tr)
-    const amountToDeductFromAccumulation = autoRewardCount * threshold;
-    
-    const remainingAccumulated = totalAccumulated - amountToDeductFromAccumulation;
-
-    // 4. Lưu lịch sử tặng quà (chỉ nếu có quà mới được tặng trong lần này)
-    // 5. Lưu lịch sử tặng quà
+    const remainingAccumulated = totalAccumulated;
     const historyIds: number[] = [];
     const giftCostIds: number[] = [];
     const inventoryTransactionIds: number[] = [];
-    
-    // Lấy thông tin ruộng lúa nếu có truyền lên
-    let riceCropInfo: { id?: number, name?: string } = {};
-    if (closeData.rice_crop_id) {
-      const riceCrop = await manager.findOne(RiceCrop, { where: { id: closeData.rice_crop_id } });
-      if (riceCrop) {
-        riceCropInfo = { id: riceCrop.id, name: riceCrop.field_name };
-      }
-    }
 
-    if (shouldCreateHistory) {
-      // ✅ A. Xử lý quà Tích lũy (mốc 70tr) - Có khấu trừ
-      if (autoRewardCount > 0) {
-        for (let i = 0; i < autoRewardCount; i++) {
-          const rewardSequence = Number(rewardTracking.reward_count) + i + 1;
-          const autoNote = `Tặng tại mốc tích lũy: ${this.formatCurrency(totalAccumulated)}. Đã trừ ${this.formatCurrency(threshold)} tích lũy.`;
-
-          const rewardHistory = manager.create(CustomerRewardHistory, {
-            customer_id: debtNote.customer_id,
-            customer_name: debtNote.customer?.name || '',
-            reward_threshold: threshold,
-            accumulated_amount: totalAccumulated,
-            season_ids: debtNote.season_id ? [debtNote.season_id] : [],
-            season_names: debtNote.season?.name ? [debtNote.season.name] : [],
-            reward_date: new Date(),
-            reward_sequence: rewardSequence,
-            gift_description: `Quà tích lũy mốc ${this.formatCurrency(threshold)}`,
-            notes: closeData.notes ? `${closeData.notes} | ${autoNote}` : autoNote,
-            created_by: userId,
-            gift_value: REWARD_VALUE_FOR_THRESHOLD,
-            reward_type: 'ACCUMULATION_REWARD',
-            rice_crop_id: riceCropInfo.id,
-            rice_crop_name: riceCropInfo.name,
-            gift_status: closeData.gift_status || 'pending', // Cho phép truyền trạng thái từ modal
-          });
-          const savedHistory = await manager.save(rewardHistory);
-          historyIds.push(savedHistory.id);
-        }
-        
-        // Chỉ tăng reward_count cho quà TÍCH LŨY
-        rewardTracking.reward_count = Number(rewardTracking.reward_count) + autoRewardCount;
-        rewardTracking.last_reward_date = new Date();
-      }
-
-      // ✅ B. Xử lý quà Tri ân (lẻ) - KHÔNG khấu trừ, không tăng reward_count
-      if (hasManualGift) {
-        const rewardHistory = manager.create(CustomerRewardHistory, {
-          customer_id: debtNote.customer_id,
-          customer_name: debtNote.customer?.name || '',
-          reward_threshold: 0,
-          accumulated_amount: totalAccumulated,
-          season_ids: debtNote.season_id ? [debtNote.season_id] : [],
-          season_names: debtNote.season?.name ? [debtNote.season.name] : [],
-          reward_date: new Date(),
-          reward_sequence: 1,
-          gift_description: closeData.gift_description || 'Quà tri ân',
-          notes: closeData.notes,
-          created_by: userId,
-          gift_value: manualGiftValue,
-          reward_type: 'APPRECIATION_GIFT',
-          rice_crop_id: riceCropInfo.id,
-          rice_crop_name: riceCropInfo.name,
-          gift_status: closeData.gift_status || 'delivered', // Mặc định quà tri ân là đã trao nếu tặng lẻ
-        });
-        const savedHistory = await manager.save(rewardHistory);
-        historyIds.push(savedHistory.id);
-      }
-    }
-
-    // 6. Cập nhật bản ghi tích lũy tổng quát (Đã xử lý ở trên)
-
-    // NẾU CÓ THANH TOÁN: Cập nhật pending_amount và total_accumulated
+    // 4. Cập nhật bản ghi tích lũy. Không khấu trừ ở bước chốt nợ.
     if (paymentAmount !== 0 || isFinal) {
-      const finalRemainingAmount = remainingAccumulated; // ✅ Tự động tính, không cho nhập đè thủ công nữa để đảm bảo tỷ lệ quy đổi chính xác
-
-      rewardTracking.pending_amount = finalRemainingAmount;
+      rewardTracking.pending_amount = remainingAccumulated;
       rewardTracking.total_accumulated = Number(rewardTracking.total_accumulated) + totalNewContribution;
     }
     
     await manager.save(rewardTracking);
-
-    // 7. Cập nhật reward_count trên chính phiếu nợ để theo dõi
-    if (shouldCreateHistory) {
-      debtNote.reward_count = Number(debtNote.reward_count || 0) + (hasManualGift ? 1 : autoRewardCount);
-      debtNote.reward_given = true;
-    }
     await manager.save(debtNote);
-
-    // 8. Tạo phiếu chi phí nếu có tặng quà
-    if (shouldCreateHistory) {
-      const giftValue = hasManualGift ? manualGiftValue : REWARD_VALUE_FOR_THRESHOLD;
-      const count = hasManualGift ? 1 : autoRewardCount;
-
-      for (let i = 0; i < count; i++) {
-        const giftCost = await this.createGiftFarmServiceCost({
-          debtNoteCode: debtNote.code,
-          customer_id: debtNote.customer_id,
-          customerName: debtNote.customer?.name || 'Khách hàng',
-          season_id: debtNote.season_id!,
-          seasonName: debtNote.season?.name,
-          rewardCount: 1,
-          giftValue: giftValue,
-          giftDescription: closeData.gift_description,
-          totalAccumulated: totalAccumulated,
-          manager,
-          reward_history_id: historyIds[i]
-        });
-        if (giftCost?.id) {
-          giftCostIds.push(giftCost.id);
-        }
-        if (giftCost?.inventory_transaction_id) {
-          inventoryTransactionIds.push(giftCost.inventory_transaction_id);
-        }
-      }
-    }
 
     // Trả về thông tin tóm tắt để các Service khác phản hồi cho Frontend
     return {
       previous_pending: previousPending,
       payment_received: totalNewContribution,
       total_accumulated_after: totalAccumulated,
-      reward_given: shouldCreateHistory,
-      reward_count: hasManualGift ? 1 : autoRewardCount, 
+      reward_given: false,
+      reward_count: 0,
+      eligible_reward_count: autoRewardCount,
       remaining_accumulated: remainingAccumulated,
       reward_history_ids: historyIds,
       gift_cost_ids: giftCostIds,
       inventory_transaction_ids: inventoryTransactionIds,
-      message: this.generateCloseMessage(amountToDeductFromAccumulation, remainingAccumulated, threshold),
+      message: this.generateCloseMessage(0, remainingAccumulated, threshold),
     };
   }
 
   private generateCloseMessage(deducted: number, remaining: number, threshold: number): string {
     if (deducted === 0) {
+      if (remaining >= threshold) {
+        const eligibleCount = Math.floor(remaining / threshold);
+        return `Thanh toán thành công. Khách đã đủ ${eligibleCount} mốc tặng quà; vui lòng tạo quà tại trang Chăm sóc khách hàng & Quà tặng.`;
+      }
+
       const shortage = threshold - remaining;
-      return `Thanh toán thành công. Còn ${this.formatCurrency(shortage)} nữa để đạt mốc tặng quà (70tr).`;
+      return `Thanh toán thành công. Còn ${this.formatCurrency(shortage)} nữa để đạt mốc tặng quà (${this.formatCurrency(threshold)}).`;
     } else {
       return `🎉 Thanh toán thành công và đã tặng quà. Đã trừ ${this.formatCurrency(deducted)} tích lũy. Số dư: ${this.formatCurrency(remaining)}`;
     }
@@ -481,10 +431,23 @@ export class CustomerRewardService {
       .take(limit)
       .getManyAndCount();
 
-    const threshold = await this.getRewardThreshold();
+    const threshold = await this.getDefaultRewardThreshold();
+    const itemsWithThreshold = items.map((item) => {
+      const itemThreshold = Number(item.reward_threshold || 0);
+      const effectiveThreshold = itemThreshold > 0 ? itemThreshold : threshold;
+
+      return {
+        ...item,
+        effective_reward_threshold: effectiveThreshold,
+        shortage_to_next: Math.max(
+          0,
+          effectiveThreshold - Number(item.pending_amount || 0),
+        ),
+      };
+    });
 
     return {
-      items,
+      items: itemsWithThreshold,
       total,
       page,
       limit,
@@ -549,7 +512,7 @@ export class CustomerRewardService {
       relations: ['customer'],
     });
 
-    const threshold = await this.getRewardThreshold();
+    const threshold = await this.getRewardThreshold(undefined, customerId);
 
     if (!tracking) {
       return {
@@ -557,6 +520,7 @@ export class CustomerRewardService {
         total_accumulated: 0,
         reward_count: 0,
         reward_threshold: threshold, 
+        effective_reward_threshold: threshold,
         shortage_to_next: threshold,
       };
     }
@@ -564,6 +528,7 @@ export class CustomerRewardService {
     return {
       ...tracking,
       reward_threshold: threshold,
+      effective_reward_threshold: threshold,
       shortage_to_next: Math.max(0, threshold - Number(tracking.pending_amount)),
     };
   }
@@ -659,7 +624,7 @@ export class CustomerRewardService {
         riceCropName = riceCrop?.field_name || '';
     }
 
-    const threshold = await this.getRewardThreshold();
+    const threshold = await this.getRewardThreshold(undefined, customer_id);
 
     return await this.debtNoteRepository.manager.transaction(async (manager) => {
       // 1. Tạo bản ghi lịch sử quà tặng ban đầu
@@ -918,7 +883,7 @@ export class CustomerRewardService {
         tracking.reward_count = Math.max(0, tracking.reward_count - 1);
         
         // 🔄 QUAN TRỌNG: Trả lại tích lũy khi xóa quà tặng (Tính theo tỷ lệ gift_value thực tế)
-        const threshold = await this.getRewardThreshold();
+        const threshold = await this.getRewardThreshold(manager, history.customer_id);
         const REWARD_VALUE_FOR_THRESHOLD = 1000000;
         const amountToRestore = (Number(history.gift_value || 0) / REWARD_VALUE_FOR_THRESHOLD) * threshold;
         

@@ -19,6 +19,18 @@ export class CustomerRewardController {
     return this.customerRewardService.searchRewardTracking(searchDto);
   }
 
+  @Patch('tracking/:customerId/threshold')
+  @RequirePermissions('sales:manage')
+  updateCustomerRewardThreshold(
+    @Param('customerId') customerId: string,
+    @Body('reward_threshold') rewardThreshold?: number | null,
+  ) {
+    return this.customerRewardService.updateCustomerRewardThreshold(
+      +customerId,
+      rewardThreshold,
+    );
+  }
+
   @Post('history')
   @RequirePermissions('sales:read')
   searchRewardHistory(@Body() searchDto: SearchRewardDto) {

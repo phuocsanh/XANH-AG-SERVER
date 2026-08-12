@@ -52,6 +52,17 @@ export class CustomerRewardTracking {
   })
   total_accumulated!: number;
 
+  /** Mốc tặng quà riêng cho khách hàng. Nếu trống thì dùng mốc mặc định hệ thống. */
+  @Column({
+    name: 'reward_threshold',
+    type: 'decimal',
+    precision: 15,
+    scale: 2,
+    nullable: true,
+    comment: 'Mốc tặng quà riêng cho khách hàng; null nghĩa là dùng mốc mặc định',
+  })
+  reward_threshold?: number | null;
+
   /** Số lần đã nhận quà */
   @Column({
     name: 'reward_count',
