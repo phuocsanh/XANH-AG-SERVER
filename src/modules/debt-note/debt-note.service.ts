@@ -219,7 +219,9 @@ export class DebtNoteService {
     // 5. Lấy tóm tắt thống kê (Dùng clone để giữ nguyên filter nhưng bỏ skip/take)
     const summaryQuery = queryBuilder.clone().skip(undefined).take(undefined).orderBy();
     const summary = await summaryQuery
-      .select('SUM(debt_note.remaining_amount)', 'total_debt')
+      .select('SUM(debt_note.amount)', 'total_amount')
+      .addSelect('SUM(debt_note.paid_amount)', 'total_paid')
+      .addSelect('SUM(debt_note.remaining_amount)', 'total_debt')
       .addSelect(`COUNT(CASE WHEN debt_note.status = '${DebtNoteStatus.OVERDUE}' THEN 1 END)`, 'overdue_count')
       .addSelect(`COUNT(CASE WHEN debt_note.status = '${DebtNoteStatus.ACTIVE}' THEN 1 END)`, 'active_count')
       .addSelect(`COUNT(CASE WHEN debt_note.status IN ('${DebtNoteStatus.PAID}', '${DebtNoteStatus.SETTLED}') THEN 1 END)`, 'paid_count')
@@ -231,6 +233,8 @@ export class DebtNoteService {
       page,
       limit,
       summary: {
+        total_amount: Number(summary.total_amount || 0),
+        total_paid: Number(summary.total_paid || 0),
         total_debt: Number(summary.total_debt || 0),
         overdue_count: Number(summary.overdue_count || 0),
         active_count: Number(summary.active_count || 0),
