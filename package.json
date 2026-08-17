@@ -29,7 +29,7 @@
     "docker:prod:build": "docker-compose up -d --build",
     "typeorm": "typeorm-ts-node-commonjs",
     "migration:run": "npm run typeorm migration:run -- -d src/config/data-source.ts",
-    "migration:run:prod": "node -r dotenv/config node_modules/.bin/typeorm migration:run -d dist/config/data-source.js",
+    "migration:run:prod": "NODE_ENV=production node -r dotenv/config node_modules/.bin/typeorm migration:run -d dist/config/data-source.js",
     "migration:generate": "npm run typeorm migration:generate -- -d src/config/data-source.ts",
     "migration:create": "npm run typeorm migration:create -- -d src/config/data-source.ts",
     "migration:revert": "npm run typeorm migration:revert -- -d src/config/data-source.ts",

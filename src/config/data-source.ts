@@ -1,5 +1,6 @@
 import { DataSource } from 'typeorm';
 import { config } from 'dotenv';
+import * as path from 'path';
 
 // Load environment variables
 config();
@@ -20,12 +21,13 @@ const getDatabaseUrl = () => {
 
 const databaseUrl = getDatabaseUrl();
 const hasSSL = !!process.env.DATABASE_URL || !!process.env.DATABASE_URL_DEV;
-const entityGlob = isProduction
-  ? 'dist/entities/*.entity.js'
-  : 'src/entities/*.entity.ts';
-const migrationGlob = isProduction
-  ? 'dist/migrations/*.js'
-  : 'src/migrations/*.ts';
+const isCompiled = __dirname.includes(`${path.sep}dist${path.sep}`);
+const entityGlob = isCompiled
+  ? path.join(__dirname, '../entities/*.entity.js')
+  : path.join(__dirname, '../entities/*.entity.ts');
+const migrationGlob = isCompiled
+  ? path.join(__dirname, '../migrations/*.js')
+  : path.join(__dirname, '../migrations/*.ts');
 
 /**
  * DataSource cho TypeORM CLI (migrations)
