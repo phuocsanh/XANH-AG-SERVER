@@ -35,6 +35,21 @@ export class CreateInventoryReceiptItemDto {
   @IsNumber()
   total_price!: number;
 
+  @IsOptional()
+  @IsNumber()
+  discount_amount?: number;
+
+  @IsOptional()
+  @IsNumber()
+  discount_value?: number;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['percentage', 'fixed_amount'], {
+    message: 'Loại chiết khấu mặt hàng không hợp lệ',
+  })
+  discount_type?: 'percentage' | 'fixed_amount';
+
   @IsString()
   @IsOptional()
   notes?: string;

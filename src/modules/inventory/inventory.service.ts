@@ -134,6 +134,61 @@ export class InventoryService {
     return Number.isFinite(parsed) ? parsed : 0;
   }
 
+  private calculateReceiptItemGrossTotal(item: {
+    quantity?: number;
+    unit_cost?: number;
+  }): number {
+    return this.roundMoney(Number(item.quantity || 0) * Number(item.unit_cost || 0));
+  }
+
+  private calculateReceiptItemDiscountAmount(item: {
+    quantity?: number;
+    unit_cost?: number;
+    discount_amount?: number;
+    discount_value?: number;
+    discount_type?: string;
+  }): number {
+    const grossTotal = this.calculateReceiptItemGrossTotal(item);
+    const discountValue = Number(item.discount_value ?? 0);
+    const explicitDiscount = Number(item.discount_amount ?? 0);
+    const rawDiscount =
+      item.discount_type === 'percentage'
+        ? (grossTotal * discountValue) / 100
+        : explicitDiscount || discountValue;
+
+    return this.roundMoney(Math.min(Math.max(rawDiscount, 0), grossTotal));
+  }
+
+  private calculateReceiptItemNetTotal(item: {
+    quantity?: number;
+    unit_cost?: number;
+    discount_amount?: number;
+    discount_value?: number;
+    discount_type?: string;
+    total_price?: number;
+  }): number {
+    const grossTotal = this.calculateReceiptItemGrossTotal(item);
+    if (item.discount_amount === undefined && item.discount_value === undefined) {
+      return this.roundMoney(Number(item.total_price ?? grossTotal));
+    }
+    return this.roundMoney(grossTotal - this.calculateReceiptItemDiscountAmount(item));
+  }
+
+  private calculateReceiptItemNetUnitCost(item: {
+    quantity?: number;
+    unit_cost?: number;
+    discount_amount?: number;
+    discount_value?: number;
+    discount_type?: string;
+    total_price?: number;
+  }): number {
+    const quantity = Number(item.quantity || 0);
+    if (quantity <= 0) {
+      return this.roundMoney(Number(item.unit_cost || 0));
+    }
+    return this.roundMoney(this.calculateReceiptItemNetTotal(item) / quantity);
+  }
+
   private resolveStockOutUnitCost(
     product: Product | null,
     fallbackCost: number,
@@ -2415,10 +2470,9 @@ export class InventoryService {
         }
       }
 
-      // Tính giá trị tiền hàng thực tế (Tổng quantity * unit_cost)
+      // Tính tiền hàng thực tế sau chiết khấu từng dòng
       const goodsTotal = createInventoryReceiptDto.items.reduce(
-        (sum, item) =>
-          sum + Math.round(Number(item.quantity) * Number(item.unit_cost)),
+        (sum, item) => sum + this.calculateReceiptItemNetTotal(item),
         0,
       );
 
@@ -2515,7 +2569,7 @@ export class InventoryService {
       let totalQuantity = 0;
 
       for (const item of createInventoryReceiptDto.items) {
-        totalValue += Number(item.quantity) * Number(item.unit_cost);
+        totalValue += this.calculateReceiptItemNetTotal(item);
         totalQuantity += Number(item.quantity);
       }
 
@@ -2526,7 +2580,7 @@ export class InventoryService {
         if (sharedShippingCost > 0) {
           if (allocationMethod === 'by_value') {
             // Chia theo tỷ lệ giá trị
-            const itemValue = item.quantity * item.unit_cost;
+            const itemValue = this.calculateReceiptItemNetTotal(item);
             allocatedShipping = (itemValue / totalValue) * sharedShippingCost;
           } else {
             // Chia đều theo số lượng
@@ -2539,10 +2593,10 @@ export class InventoryService {
         const individualShipping = item.individual_shipping_cost || 0;
         const totalShippingForItem = individualShipping + allocatedShipping;
 
-        // Tính giá vốn cuối cùng trên đơn vị
-        // unit_cost gửi từ FE đã là giá mua gốc
+        // Tính giá vốn cuối cùng trên đơn vị: giá sau CK + phí vận chuyển phân bổ
         const shippingPerUnit = totalShippingForItem / item.quantity;
-        const finalUnitCost = item.unit_cost + shippingPerUnit;
+        const netUnitCost = this.calculateReceiptItemNetUnitCost(item);
+        const finalUnitCost = netUnitCost + shippingPerUnit;
 
         // DEBUG: Log để kiểm tra
         this.logger.log('=== TÍNH PHÍ VẬN CHUYỂN ===');
@@ -2551,9 +2605,13 @@ export class InventoryService {
 
         return {
           ...item,
+          discount_amount: this.calculateReceiptItemDiscountAmount(item),
+          discount_value: Number(item.discount_value || 0),
+          discount_type: item.discount_type || 'fixed_amount',
+          total_price: this.calculateReceiptItemNetTotal(item),
           allocated_shipping_cost: Math.round(allocatedShipping),
           final_unit_cost: Math.round(finalUnitCost),
-          // Không thay đổi unit_cost ở đây, giữ nguyên giá gốc từ FE
+          // Không thay đổi unit_cost ở đây, giữ nguyên giá gốc từ FE để đối chiếu NCC
         };
       });
 
@@ -2587,6 +2645,9 @@ export class InventoryService {
           vat_unit_cost: item.vat_unit_cost ?? item.unit_cost,
           tax_selling_price: item.tax_selling_price ?? null,
           total_price: item.total_price,
+          discount_amount: item.discount_amount || 0,
+          discount_value: item.discount_value || 0,
+          discount_type: item.discount_type || 'fixed_amount',
           individual_shipping_cost: item.individual_shipping_cost || 0,
           allocated_shipping_cost: item.allocated_shipping_cost,
           final_unit_cost: item.final_unit_cost,
@@ -3497,14 +3558,13 @@ export class InventoryService {
         ? Math.round(updateData.shared_shipping_cost)
         : receipt.shared_shipping_cost || 0;
 
-    // Tính tổng tiền hàng (sum of items quantity * unit_cost)
+    // Tính tổng tiền hàng sau chiết khấu từng dòng
     let goodsTotal = 0;
     let itemShipping = 0;
 
     if (updateData.items && Array.isArray(updateData.items)) {
       goodsTotal = updateData.items.reduce(
-        (sum, item) =>
-          sum + Math.round(Number(item.quantity) * Number(item.unit_cost)),
+        (sum, item) => sum + this.calculateReceiptItemNetTotal(item),
         0,
       );
       itemShipping = updateData.items.reduce(
@@ -3517,8 +3577,7 @@ export class InventoryService {
         where: { receipt_id: id },
       });
       goodsTotal = currentItems.reduce(
-        (sum, item) =>
-          sum + Math.round(Number(item.quantity) * Number(item.unit_cost)),
+        (sum, item) => sum + this.calculateReceiptItemNetTotal(item),
         0,
       );
       itemShipping = currentItems.reduce(
@@ -3624,7 +3683,7 @@ export class InventoryService {
     let totalQuantity = 0;
 
     for (const item of receipt.items) {
-      totalValue += Number(item.quantity) * Number(item.unit_cost);
+      totalValue += this.calculateReceiptItemNetTotal(item);
       totalQuantity += Number(item.quantity);
     }
 
@@ -3634,7 +3693,7 @@ export class InventoryService {
       let allocatedShipping = 0;
       if (sharedShippingCost > 0) {
         if (allocationMethod === 'by_value' && totalValue > 0) {
-          const itemValue = Number(item.quantity) * Number(item.unit_cost);
+          const itemValue = this.calculateReceiptItemNetTotal(item);
           allocatedShipping = (itemValue / totalValue) * sharedShippingCost;
         } else if (allocationMethod === 'by_quantity' && totalQuantity > 0) {
           allocatedShipping =
@@ -3645,7 +3704,8 @@ export class InventoryService {
       const individualShipping = Number(item.individual_shipping_cost) || 0;
       const totalShippingForItem = individualShipping + allocatedShipping;
       const shippingPerUnit = totalShippingForItem / Number(item.quantity);
-      const finalUnitCost = Number(item.unit_cost) + shippingPerUnit;
+      const finalUnitCost =
+        this.calculateReceiptItemNetUnitCost(item) + shippingPerUnit;
 
       const roundedAllocatedShipping = Math.round(allocatedShipping);
       const roundedFinalUnitCost = Math.round(finalUnitCost);
@@ -4403,9 +4463,9 @@ export class InventoryService {
       return;
     }
 
-    // Tính tổng tiền hàng gốc từ các item (Đây là số tiền thực sự nợ NCC cho hàng hóa)
+    // Tính tổng tiền hàng thực nợ NCC sau chiết khấu từng dòng
     const goodsTotal = receipt.items.reduce(
-      (sum, item) => sum + Number(item.total_price || 0),
+      (sum, item) => sum + this.calculateReceiptItemNetTotal(item),
       0,
     );
 

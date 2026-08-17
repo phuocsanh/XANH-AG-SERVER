@@ -73,6 +73,30 @@ export class InventoryReceiptItem {
   })
   total_price!: number;
 
+  /** Số tiền chiết khấu thực tế của dòng hàng */
+  @Column({
+    name: 'discount_amount',
+    type: 'decimal',
+    precision: 15,
+    scale: 2,
+    default: 0,
+  })
+  discount_amount!: number;
+
+  /** Giá trị chiết khấu người dùng nhập (số tiền hoặc %) */
+  @Column({
+    name: 'discount_value',
+    type: 'decimal',
+    precision: 15,
+    scale: 2,
+    default: 0,
+  })
+  discount_value!: number;
+
+  /** Kiểu chiết khấu dòng hàng */
+  @Column({ name: 'discount_type', length: 20, default: 'fixed_amount' })
+  discount_type!: 'percentage' | 'fixed_amount';
+
   /** Ghi chú về chi tiết phiếu nhập kho */
   @Column({ name: 'notes', nullable: true })
   notes?: string;
