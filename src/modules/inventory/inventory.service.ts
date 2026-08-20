@@ -6807,7 +6807,6 @@ export class InventoryService {
     try {
       const borrow = await queryRunner.manager.findOne(InventoryBorrow, {
         where: { id },
-        relations: ['items', 'items.batch'],
         lock: { mode: 'pessimistic_write' },
       });
 
@@ -6818,7 +6817,11 @@ export class InventoryService {
         throw new BadRequestException('Chỉ duyệt được phiếu mượn đang nháp');
       }
 
-      for (const item of borrow.items || []) {
+      const items = await queryRunner.manager.find(InventoryBorrowItem, {
+        where: { borrow_id: borrow.id },
+      });
+
+      for (const item of items) {
         const stockOutOptions: { batchId?: number; receiptItemId?: number } = {
           batchId: Number(item.batch_id),
         };
