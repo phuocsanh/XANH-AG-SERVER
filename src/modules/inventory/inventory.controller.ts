@@ -130,6 +130,18 @@ export class InventoryController {
     return this.inventoryService.approveBorrow(+id, userId);
   }
 
+  @Post('borrows/:id/cancel')
+  @RequirePermissions('inventory:manage')
+  cancelBorrow(@Param('id') id: string, @CurrentUser('id') userId: number) {
+    return this.inventoryService.cancelBorrow(+id, userId);
+  }
+
+  @Delete('borrows/:id')
+  @RequirePermissions('inventory:manage')
+  deleteBorrow(@Param('id') id: string) {
+    return this.inventoryService.deleteBorrow(+id);
+  }
+
   /**
    * Cập nhật thông tin lô hàng tồn kho
    * @param id - ID của lô hàng tồn kho cần cập nhật
