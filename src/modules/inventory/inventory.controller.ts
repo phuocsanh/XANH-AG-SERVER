@@ -136,6 +136,19 @@ export class InventoryController {
     return this.inventoryService.cancelBorrow(+id, userId);
   }
 
+  @Post('borrows/:id/return')
+  @RequirePermissions('inventory:manage')
+  returnBorrow(
+    @Param('id') id: string,
+    @Body()
+    dto: {
+      items?: Array<{ item_id: number; quantity: number }>;
+    },
+    @CurrentUser('id') userId: number,
+  ) {
+    return this.inventoryService.returnBorrow(+id, userId, dto?.items);
+  }
+
   @Delete('borrows/:id')
   @RequirePermissions('inventory:manage')
   deleteBorrow(@Param('id') id: string) {

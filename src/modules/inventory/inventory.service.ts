@@ -6988,6 +6988,211 @@ export class InventoryService {
     }
   }
 
+  async returnBorrow(
+    id: number,
+    userId: number,
+    returnItems?: Array<{ item_id: number; quantity: number }>,
+  ): Promise<InventoryBorrow> {
+    const queryRunner =
+      this.inventoryBorrowRepository.manager.connection.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const borrow = await queryRunner.manager.findOne(InventoryBorrow, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!borrow) {
+        throw new NotFoundException('Không tìm thấy phiếu cho mượn');
+      }
+      if (
+        ![
+          InventoryBorrowStatus.APPROVED,
+          InventoryBorrowStatus.PARTIAL_RETURNED,
+        ].includes(borrow.status)
+      ) {
+        throw new BadRequestException('Chỉ trả được phiếu đang mượn');
+      }
+
+      const items = await queryRunner.manager.find(InventoryBorrowItem, {
+        where: { borrow_id: borrow.id },
+      });
+      const returnQuantityByItemId = new Map<number, number>();
+      for (const item of returnItems || []) {
+        returnQuantityByItemId.set(
+          Number(item.item_id),
+          Number(item.quantity || 0),
+        );
+      }
+
+      let hasReturnedQuantity = false;
+      for (const item of items) {
+        const borrowedQuantity = Number(item.quantity || 0);
+        const alreadyReturnedQuantity = Number(item.returned_quantity || 0);
+        const convertedQuantity = Number(item.converted_to_sale_quantity || 0);
+        const remainingBorrowedQuantity = Math.max(
+          0,
+          borrowedQuantity - alreadyReturnedQuantity - convertedQuantity,
+        );
+
+        const requestedReturnQuantity = returnQuantityByItemId.has(
+          Number(item.id),
+        )
+          ? Number(returnQuantityByItemId.get(Number(item.id)) || 0)
+          : remainingBorrowedQuantity;
+
+        if (requestedReturnQuantity <= 0) {
+          continue;
+        }
+        if (requestedReturnQuantity > remainingBorrowedQuantity) {
+          throw new BadRequestException(
+            `Dòng #${item.id} chỉ còn ${remainingBorrowedQuantity} có thể trả`,
+          );
+        }
+
+        await this.restoreBorrowItemStock(
+          borrow,
+          item,
+          requestedReturnQuantity,
+          userId,
+          'BORROW_RETURN',
+          `Trả hàng mượn - phiếu ${borrow.code}`,
+          queryRunner,
+        );
+
+        item.returned_quantity =
+          alreadyReturnedQuantity + requestedReturnQuantity;
+        await queryRunner.manager.save(item);
+        hasReturnedQuantity = true;
+      }
+
+      if (!hasReturnedQuantity) {
+        throw new BadRequestException('Phiếu không còn số lượng cần trả');
+      }
+
+      const refreshedItems = await queryRunner.manager.find(
+        InventoryBorrowItem,
+        {
+          where: { borrow_id: borrow.id },
+        },
+      );
+      const allSettled = refreshedItems.every((item) => {
+        const borrowedQuantity = Number(item.quantity || 0);
+        const returnedQuantity = Number(item.returned_quantity || 0);
+        const convertedQuantity = Number(item.converted_to_sale_quantity || 0);
+        return returnedQuantity + convertedQuantity >= borrowedQuantity;
+      });
+
+      borrow.status = allSettled
+        ? InventoryBorrowStatus.RETURNED
+        : InventoryBorrowStatus.PARTIAL_RETURNED;
+      await queryRunner.manager.save(borrow);
+
+      await queryRunner.commitTransaction();
+      return (await this.findBorrowById(id)) as InventoryBorrow;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  private async restoreBorrowItemStock(
+    borrow: InventoryBorrow,
+    item: InventoryBorrowItem,
+    quantity: number,
+    userId: number,
+    referenceType: string,
+    notes: string,
+    queryRunner: QueryRunner,
+  ): Promise<void> {
+    const batch = await queryRunner.manager.findOne(InventoryBatch, {
+      where: { id: Number(item.batch_id) },
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (!batch) {
+      throw new NotFoundException(`Không tìm thấy lô hàng #${item.batch_id}`);
+    }
+
+    const product = await queryRunner.manager.findOne(Product, {
+      where: { id: Number(item.product_id) },
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (!product) {
+      throw new NotFoundException(`Không tìm thấy sản phẩm #${item.product_id}`);
+    }
+
+    let taxableQuantityToRestore = 0;
+    if (batch.receipt_item_id) {
+      const receiptItem = await queryRunner.manager.findOne(
+        InventoryReceiptItem,
+        {
+          where: { id: Number(batch.receipt_item_id) },
+        },
+      );
+      if (receiptItem) {
+        const conversionFactor = Number(receiptItem.conversion_factor || 1);
+        const initialTaxableQuantity =
+          Number(receiptItem.taxable_quantity || 0) *
+          (conversionFactor > 0 ? conversionFactor : 1);
+        const initialNonTaxableQuantity = Math.max(
+          0,
+          Number(batch.original_quantity || 0) - initialTaxableQuantity,
+        );
+        const quantityOutFromBatch = Math.max(
+          0,
+          Number(batch.original_quantity || 0) -
+            Number(batch.remaining_quantity || 0),
+        );
+        const taxableOutFromBatch = Math.max(
+          0,
+          quantityOutFromBatch - initialNonTaxableQuantity,
+        );
+        taxableQuantityToRestore = Math.min(quantity, taxableOutFromBatch);
+      }
+    }
+
+    const newBatchRemaining = Number(batch.remaining_quantity || 0) + quantity;
+    batch.remaining_quantity = newBatchRemaining;
+    await queryRunner.manager.save(batch);
+
+    const newProductQuantity = Number(product.quantity || 0) + quantity;
+    const newTaxableQuantityStock =
+      Number(product.taxable_quantity_stock || 0) + taxableQuantityToRestore;
+    await queryRunner.manager.update(Product, product.id, {
+      quantity: newProductQuantity,
+      taxable_quantity_stock: Math.round(newTaxableQuantityStock * 100) / 100,
+    });
+
+    const currentAverageCost = await this.getWeightedAverageCost(
+      product.id,
+      queryRunner,
+    );
+    const unitCost = Number(batch.unit_cost_price || 0);
+    await this.createTransaction(
+      {
+        product_id: product.id,
+        transaction_type: 'IN',
+        quantity,
+        unit_cost_price: unitCost.toString(),
+        total_cost_value: (quantity * unitCost).toString(),
+        remaining_quantity: newProductQuantity,
+        new_average_cost: currentAverageCost.toString(),
+        reference_type: referenceType,
+        reference_id: borrow.id,
+        notes,
+        created_by_user_id: userId,
+        ...(batch.receipt_item_id && {
+          receipt_item_id: Number(batch.receipt_item_id),
+        }),
+      },
+      queryRunner,
+    );
+  }
+
   async deleteBorrow(id: number): Promise<{ success: boolean }> {
     const borrow = await this.inventoryBorrowRepository.findOne({
       where: { id },
