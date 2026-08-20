@@ -6697,7 +6697,6 @@ export class InventoryService {
       for (const item of dto.items) {
         const batch = await queryRunner.manager.findOne(InventoryBatch, {
           where: { id: Number(item.batch_id) },
-          relations: ['product'],
           lock: { mode: 'pessimistic_write' },
         });
 
