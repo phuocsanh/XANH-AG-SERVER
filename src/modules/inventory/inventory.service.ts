@@ -147,8 +147,9 @@ export class InventoryService {
     discount_amount?: number;
     discount_value?: number;
     discount_type?: string;
-  }): number {
+  }, options: { capAtGross?: boolean } = {}): number {
     const grossTotal = this.calculateReceiptItemGrossTotal(item);
+    const capAtGross = options.capAtGross !== false;
     const discountValue = Number(item.discount_value ?? 0);
     const explicitDiscount = Number(item.discount_amount ?? 0);
     const rawDiscount =
@@ -156,7 +157,12 @@ export class InventoryService {
         ? (grossTotal * discountValue) / 100
         : explicitDiscount || discountValue;
 
-    return this.roundMoney(Math.min(Math.max(rawDiscount, 0), grossTotal));
+    const nonNegativeDiscount = Math.max(rawDiscount, 0);
+    return this.roundMoney(
+      capAtGross
+        ? Math.min(nonNegativeDiscount, grossTotal)
+        : nonNegativeDiscount,
+    );
   }
 
   private calculateReceiptItemNetTotal(item: {
@@ -522,6 +528,126 @@ export class InventoryService {
 
   private isProductBySaleType(product?: Product | null): boolean {
     return product?.costing_method === ProductCostingMethod.BY_PRICE_TYPE;
+  }
+
+  private getReceiptItemBaseQuantity(item: {
+    quantity?: number;
+    conversion_factor?: number;
+    base_quantity?: number;
+  }): number {
+    const conversionFactor = Number(item.conversion_factor || 1);
+    const computedBaseQuantity =
+      Number(item.quantity || 0) *
+      (conversionFactor > 0 ? conversionFactor : 1);
+
+    return Number(item.base_quantity || 0) > 0
+      ? Number(item.base_quantity || 0)
+      : computedBaseQuantity;
+  }
+
+  private async applyBySaleTypeReceiptDiscountToProductCosts(
+    items: Array<{
+      product_id: number;
+      quantity?: number;
+      conversion_factor?: number;
+      base_quantity?: number;
+      unit_cost?: number;
+      discount_amount?: number;
+      discount_value?: number;
+      discount_type?: string;
+    }>,
+    queryRunner?: QueryRunner,
+  ): Promise<void> {
+    const discountByProduct = new Map<
+      number,
+      { discountAmount: number; baseQuantity: number }
+    >();
+
+    for (const item of items) {
+      const discountAmount = this.calculateReceiptItemDiscountAmount(item, {
+        capAtGross: false,
+      });
+      const baseQuantity = this.getReceiptItemBaseQuantity(item);
+
+      if (discountAmount <= 0 || baseQuantity <= 0) {
+        continue;
+      }
+
+      const productId = Number(item.product_id);
+      const current = discountByProduct.get(productId) || {
+        discountAmount: 0,
+        baseQuantity: 0,
+      };
+      current.discountAmount += discountAmount;
+      current.baseQuantity += baseQuantity;
+      discountByProduct.set(productId, current);
+    }
+
+    if (discountByProduct.size === 0) {
+      return;
+    }
+
+    const manager = this.getManager(queryRunner);
+    const products = await this.loadReceiptProducts(
+      Array.from(discountByProduct.keys()),
+      queryRunner,
+    );
+
+    for (const product of products) {
+      if (!this.isProductBySaleType(product)) {
+        continue;
+      }
+
+      const discountSummary = discountByProduct.get(Number(product.id));
+      if (!discountSummary || discountSummary.baseQuantity <= 0) {
+        continue;
+      }
+
+      const cashCost = this.parseMoney(product.cash_cost_price);
+      const creditCost = this.parseMoney(product.credit_cost_price);
+      if (cashCost <= 0 || creditCost <= 0) {
+        continue;
+      }
+
+      const discountPerBaseUnit =
+        discountSummary.discountAmount / discountSummary.baseQuantity;
+      const nextCashCost = this.roundMoney(
+        Math.max(0, cashCost - discountPerBaseUnit),
+      );
+      const nextCreditCost = this.roundMoney(
+        Math.max(0, creditCost - discountPerBaseUnit),
+      );
+
+      await manager.update(Product, product.id, {
+        cash_cost_price: nextCashCost.toFixed(2),
+        credit_cost_price: nextCreditCost.toFixed(2),
+      });
+
+      this.logger.log(
+        `✅ Áp chiết khấu lúa giống cho SP #${product.id}: -${discountPerBaseUnit.toFixed(2)}/đơn vị cơ sở, cash ${cashCost}→${nextCashCost}, credit ${creditCost}→${nextCreditCost}`,
+      );
+    }
+  }
+
+  private validateBySaleTypeDiscountsAreFixedAmount(
+    items: Array<{
+      discount_amount?: number;
+      discount_value?: number;
+      discount_type?: string;
+    }>,
+  ): void {
+    const hasPercentageDiscount = items.some(
+      (item) =>
+        item.discount_type === 'percentage' &&
+        (Number(item.discount_amount || 0) > 0 ||
+          Number(item.discount_value || 0) > 0),
+    );
+
+    if (hasPercentageDiscount) {
+      throw new BadRequestException(
+        'Phiếu lúa giống/quyết toán theo loại bán chỉ được nhập chiết khấu bằng số tiền cố định, không dùng phần trăm.',
+      );
+    }
   }
 
   private async loadReceiptProducts(
@@ -2470,11 +2596,23 @@ export class InventoryService {
         }
       }
 
-      // Tính tiền hàng thực tế sau chiết khấu từng dòng
-      const goodsTotal = createInventoryReceiptDto.items.reduce(
-        (sum, item) => sum + this.calculateReceiptItemNetTotal(item),
-        0,
-      );
+      const isBySaleTypeSettlement =
+        settlementMode === SupplierSettlementMode.BY_SALE_TYPE;
+
+      if (isBySaleTypeSettlement) {
+        this.validateBySaleTypeDiscountsAreFixedAmount(
+          createInventoryReceiptDto.items,
+        );
+      }
+
+      // Phiếu lúa giống quyết toán theo loại bán không phát sinh phải trả NCC
+      // ngay khi nhập; chiết khấu chỉ dùng để giảm giá vốn tiền mặt/nợ.
+      const goodsTotal = isBySaleTypeSettlement
+        ? 0
+        : createInventoryReceiptDto.items.reduce(
+            (sum, item) => sum + this.calculateReceiptItemNetTotal(item),
+            0,
+          );
 
       // Phí vận chuyển do người dùng tự chịu, loại trừ phí vận chuyển (cả chung và riêng) khỏi công nợ NCC
       const excludedShipping =
@@ -2569,7 +2707,9 @@ export class InventoryService {
       let totalQuantity = 0;
 
       for (const item of createInventoryReceiptDto.items) {
-        totalValue += this.calculateReceiptItemNetTotal(item);
+        totalValue += isBySaleTypeSettlement
+          ? this.calculateReceiptItemGrossTotal(item)
+          : this.calculateReceiptItemNetTotal(item);
         totalQuantity += Number(item.quantity);
       }
 
@@ -2578,11 +2718,13 @@ export class InventoryService {
         let allocatedShipping = 0;
         // Phân bổ phí chung nếu có
         if (sharedShippingCost > 0) {
-          if (allocationMethod === 'by_value') {
+          if (allocationMethod === 'by_value' && totalValue > 0) {
             // Chia theo tỷ lệ giá trị
-            const itemValue = this.calculateReceiptItemNetTotal(item);
+            const itemValue = isBySaleTypeSettlement
+              ? this.calculateReceiptItemGrossTotal(item)
+              : this.calculateReceiptItemNetTotal(item);
             allocatedShipping = (itemValue / totalValue) * sharedShippingCost;
-          } else {
+          } else if (totalQuantity > 0) {
             // Chia đều theo số lượng
             allocatedShipping =
               (item.quantity / totalQuantity) * sharedShippingCost;
@@ -2595,7 +2737,12 @@ export class InventoryService {
 
         // Tính giá vốn cuối cùng trên đơn vị: giá sau CK + phí vận chuyển phân bổ
         const shippingPerUnit = totalShippingForItem / item.quantity;
-        const netUnitCost = this.calculateReceiptItemNetUnitCost(item);
+        const discountAmount = this.calculateReceiptItemDiscountAmount(item, {
+          capAtGross: !isBySaleTypeSettlement,
+        });
+        const netUnitCost = isBySaleTypeSettlement
+          ? this.roundMoney(Number(item.unit_cost || 0))
+          : this.calculateReceiptItemNetUnitCost(item);
         const finalUnitCost = netUnitCost + shippingPerUnit;
 
         // DEBUG: Log để kiểm tra
@@ -2605,10 +2752,12 @@ export class InventoryService {
 
         return {
           ...item,
-          discount_amount: this.calculateReceiptItemDiscountAmount(item),
+          discount_amount: discountAmount,
           discount_value: Number(item.discount_value || 0),
           discount_type: item.discount_type || 'fixed_amount',
-          total_price: this.calculateReceiptItemNetTotal(item),
+          total_price: isBySaleTypeSettlement
+            ? this.calculateReceiptItemGrossTotal(item)
+            : this.calculateReceiptItemNetTotal(item),
           allocated_shipping_cost: Math.round(allocatedShipping),
           final_unit_cost: Math.round(finalUnitCost),
           // Không thay đổi unit_cost ở đây, giữ nguyên giá gốc từ FE để đối chiếu NCC
@@ -2692,6 +2841,11 @@ export class InventoryService {
         try {
           this.logger.log(
             `Phiếu ${receiptEntity.code} được tạo với trạng thái APPROVED, đang xử lý nhập kho...`,
+          );
+
+          await this.applyBySaleTypeReceiptDiscountToProductCosts(
+            savedItems,
+            queryRunner,
           );
 
           let itemIndex = 1;
@@ -4066,6 +4220,18 @@ export class InventoryService {
           receipt.supplier_settlement_mode,
           queryRunner,
         );
+
+      if (
+        receipt.supplier_settlement_mode ===
+        SupplierSettlementMode.BY_SALE_TYPE
+      ) {
+        this.validateBySaleTypeDiscountsAreFixedAmount(items);
+      }
+
+      await this.applyBySaleTypeReceiptDiscountToProductCosts(
+        items,
+        queryRunner,
+      );
 
       // Xử lý nhập kho cho từng sản phẩm ngay khi duyệt
       let itemIndex = 1;
