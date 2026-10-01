@@ -11,6 +11,7 @@ import { FarmGiftCost } from '../../entities/farm-gift-cost.entity';
 import { RiceCrop } from '../../entities/rice-crop.entity';
 import { Customer } from '../../entities/customer.entity';
 import { SystemSetting } from '../../entities/system-setting.entity';
+import { Product } from '../../entities/products.entity';
 
 /**
  * Module quản lý báo cáo lợi nhuận cửa hàng
@@ -27,6 +28,7 @@ import { SystemSetting } from '../../entities/system-setting.entity';
       RiceCrop,
       Customer,
       SystemSetting,
+      Product,
     ]),
   ],
   controllers: [StoreProfitReportController],

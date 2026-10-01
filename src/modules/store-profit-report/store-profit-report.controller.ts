@@ -1,10 +1,27 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Put, UseGuards, Query } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Param,
+  ParseIntPipe,
+  Put,
+  UseGuards,
+  Query,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { StoreProfitReportService } from './store-profit-report.service';
 import { InvoiceProfitDto } from './dto/invoice-profit.dto';
 import { SeasonStoreProfitDto } from './dto/season-store-profit.dto';
 import { CustomerProfitReportDto } from './dto/customer-profit-report.dto';
 import { PeriodReportDto } from './dto/period-report.dto';
+import { ProductSeasonSalesDto } from './dto/product-season-sales.dto';
 import {
   TaxRevenueCutoverDateDto,
   UpdateTaxRevenueCutoverDateDto,
@@ -12,6 +29,8 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { RoleCode } from '../../common/enums/role-code.enum';
 
 /**
  * Controller xử lý API cho báo cáo lợi nhuận cửa hàng
@@ -55,14 +74,15 @@ export class StoreProfitReportController {
 
   @Get('invoice/code/:code')
   @RequirePermissions('store_profit_report:read')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Xem lợi nhuận chi tiết của 1 đơn hàng qua mã (code)',
-    description: 'Trả về thông tin lợi nhuận gộp và chi tiết từng sản phẩm trong đơn hàng'
+    description:
+      'Trả về thông tin lợi nhuận gộp và chi tiết từng sản phẩm trong đơn hàng',
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Thông tin lợi nhuận đơn hàng',
-    type: InvoiceProfitDto 
+    type: InvoiceProfitDto,
   })
   async getInvoiceProfitByCode(
     @Param('code') code: string,
@@ -72,14 +92,15 @@ export class StoreProfitReportController {
 
   @Get('invoice/:id')
   @RequirePermissions('store_profit_report:read')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Xem lợi nhuận chi tiết của 1 đơn hàng',
-    description: 'Trả về thông tin lợi nhuận gộp và chi tiết từng sản phẩm trong đơn hàng'
+    description:
+      'Trả về thông tin lợi nhuận gộp và chi tiết từng sản phẩm trong đơn hàng',
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Thông tin lợi nhuận đơn hàng',
-    type: InvoiceProfitDto 
+    type: InvoiceProfitDto,
   })
   async getInvoiceProfit(
     @Param('id', ParseIntPipe) id: number,
@@ -91,7 +112,8 @@ export class StoreProfitReportController {
   @RequirePermissions('store_profit_report:read')
   @ApiOperation({
     summary: 'Báo cáo lợi nhuận tổng hợp theo mùa vụ',
-    description: 'Bao gồm: Doanh thu, Giá vốn, Chi phí vận hành, Lợi nhuận ròng, Top customers, Top products'
+    description:
+      'Bao gồm: Doanh thu, Giá vốn, Chi phí vận hành, Lợi nhuận ròng, Top customers, Top products',
   })
   @ApiResponse({
     status: 200,
@@ -104,15 +126,55 @@ export class StoreProfitReportController {
     return this.service.getSeasonStoreProfitReport(seasonId);
   }
 
+  @Get('season/:seasonId/product/:productId')
+  @RequirePermissions('store_profit_report:read')
+  @ApiOperation({
+    summary: 'Xem số lượng một sản phẩm đã bán trong mùa vụ',
+    description:
+      'Tính theo hóa đơn confirmed/paid và trừ các phiếu trả hàng đã duyệt',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Thống kê số lượng sản phẩm theo mùa vụ',
+    type: ProductSeasonSalesDto,
+  })
+  async getProductSeasonSales(
+    @Param('seasonId', ParseIntPipe) seasonId: number,
+    @Param('productId', ParseIntPipe) productId: number,
+    @CurrentUser() user: any,
+  ): Promise<ProductSeasonSalesDto> {
+    if (user?.role?.code !== RoleCode.SUPER_ADMIN) {
+      throw new ForbiddenException('Chỉ Super Admin được xem báo cáo này');
+    }
+
+    return this.service.getProductSeasonSales(productId, seasonId);
+  }
+
   @Get('customer/:customerId')
   @RequirePermissions('store_profit_report:read')
   @ApiOperation({
     summary: 'Báo cáo lợi nhuận theo khách hàng',
-    description: 'Xem lịch sử lợi nhuận từ các đơn hàng của một khách hàng cụ thể'
+    description:
+      'Xem lịch sử lợi nhuận từ các đơn hàng của một khách hàng cụ thể',
   })
-  @ApiQuery({ name: 'seasonId', required: false, type: Number, description: 'Lọc theo mùa vụ' })
-  @ApiQuery({ name: 'startDate', required: false, type: String, description: 'Lọc từ ngày (YYYY-MM-DD)' })
-  @ApiQuery({ name: 'endDate', required: false, type: String, description: 'Lọc đến ngày (YYYY-MM-DD)' })
+  @ApiQuery({
+    name: 'seasonId',
+    required: false,
+    type: Number,
+    description: 'Lọc theo mùa vụ',
+  })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    type: String,
+    description: 'Lọc từ ngày (YYYY-MM-DD)',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    type: String,
+    description: 'Lọc đến ngày (YYYY-MM-DD)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Báo cáo lợi nhuận khách hàng',
@@ -128,15 +190,22 @@ export class StoreProfitReportController {
     const start = startDate ? new Date(startDate) : undefined;
     const end = endDate ? new Date(endDate) : undefined;
     const season = seasonId ? Number(seasonId) : undefined;
-    
-    return this.service.getCustomerProfitReport(customerId, customerName, season, start, end);
+
+    return this.service.getCustomerProfitReport(
+      customerId,
+      customerName,
+      season,
+      start,
+      end,
+    );
   }
 
   @Get('rice-crop/:riceCropId')
   @RequirePermissions('store_profit_report:read')
   @ApiOperation({
     summary: 'Báo cáo lợi nhuận theo vụ lúa',
-    description: 'Xem lợi nhuận từ các đơn hàng liên quan đến một vụ lúa cụ thể'
+    description:
+      'Xem lợi nhuận từ các đơn hàng liên quan đến một vụ lúa cụ thể',
   })
   @ApiResponse({
     status: 200,
@@ -152,10 +221,21 @@ export class StoreProfitReportController {
   @RequirePermissions('store_profit_report:read')
   @ApiOperation({
     summary: 'Báo cáo doanh thu và lợi nhuận theo khoảng thời gian',
-    description: 'Thống kê doanh thu (tất cả, có hóa đơn, không hóa đơn) và lợi nhuận ròng'
+    description:
+      'Thống kê doanh thu (tất cả, có hóa đơn, không hóa đơn) và lợi nhuận ròng',
   })
-  @ApiQuery({ name: 'startDate', required: true, type: String, description: 'Từ ngày (YYYY-MM-DD)' })
-  @ApiQuery({ name: 'endDate', required: true, type: String, description: 'Đến ngày (YYYY-MM-DD)' })
+  @ApiQuery({
+    name: 'startDate',
+    required: true,
+    type: String,
+    description: 'Từ ngày (YYYY-MM-DD)',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: true,
+    type: String,
+    description: 'Đến ngày (YYYY-MM-DD)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Báo cáo doanh thu theo kỳ',
@@ -171,10 +251,17 @@ export class StoreProfitReportController {
   ): Promise<PeriodReportDto> {
     const start = new Date(startDate);
     const end = new Date(endDate);
-    
+
     // Đặt giờ cuối ngày cho endDate để bao gồm cả ngày đó
     end.setHours(23, 59, 59, 999);
-    
-    return this.service.getPeriodProfitReport(start, end, taxableFilter, filterByReceiptDate, sortBy, sortOrder);
+
+    return this.service.getPeriodProfitReport(
+      start,
+      end,
+      taxableFilter,
+      filterByReceiptDate,
+      sortBy,
+      sortOrder,
+    );
   }
 }
