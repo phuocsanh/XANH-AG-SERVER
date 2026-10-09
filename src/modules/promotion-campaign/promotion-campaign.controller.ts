@@ -57,14 +57,22 @@ export class PromotionCampaignController {
   }
 
   @Get('my-spin-history')
-  getMySpinHistory(@CurrentUser() user: User) {
+  getMySpinHistory(
+    @CurrentUser() user: User,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
     if (!user.customer_id) {
       throw new BadRequestException(
         'Tài khoản của bạn không liên kết với khách hàng nào',
       );
     }
 
-    return this.promotionCampaignService.getMySpinHistory(user.customer_id);
+    return this.promotionCampaignService.getMySpinHistory(
+      user.customer_id,
+      page ? +page : 1,
+      limit ? +limit : 10,
+    );
   }
 
   @Get('reward-reservations')

@@ -346,12 +346,15 @@ export class PromotionCampaignService {
     };
   }
 
-  async getMySpinHistory(customerId: number) {
-    const items = await this.spinLogRepository.find({
+  async getMySpinHistory(customerId: number, page: number = 1, limit: number = 10) {
+    const safePage = Math.max(Number(page) || 1, 1);
+    const safeLimit = Math.min(Math.max(Number(limit) || 10, 1), 100);
+    const [items, total] = await this.spinLogRepository.findAndCount({
       where: { customer_id: customerId },
       relations: ['promotion'],
       order: { spun_at: 'DESC' },
-      take: 100,
+      skip: (safePage - 1) * safeLimit,
+      take: safeLimit,
     });
 
     return {
@@ -365,6 +368,9 @@ export class PromotionCampaignService {
         spunAt: item.spun_at,
         note: item.note,
       })),
+      total,
+      page: safePage,
+      limit: safeLimit,
     };
   }
 
