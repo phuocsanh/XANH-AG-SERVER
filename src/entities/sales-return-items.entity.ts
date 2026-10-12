@@ -68,4 +68,14 @@ export class SalesReturnItem {
 
   @Column({ type: 'decimal', precision: 15, scale: 2 })
   total_price!: number;
+
+  /** Các batch được tạo khi khách trả, kèm số lượng thuế đã hoàn cho từng batch. */
+  @Column({ name: 'stock_allocations', nullable: true, type: 'json' })
+  stock_allocations?: Array<{
+    batchId: number;
+    quantity: number;
+    taxableQuantity: number;
+    sourceBatchId?: number;
+    sourceReceiptItemId?: number;
+  }>;
 }

@@ -63,6 +63,16 @@ export class SalesInvoiceItemStockAllocation {
   @Column({ name: 'quantity', type: 'decimal', precision: 15, scale: 4 })
   quantity!: number;
 
+  /** Số lượng thuế trong allocation, tính theo đơn vị gốc của kho. */
+  @Column({
+    name: 'taxable_quantity',
+    type: 'decimal',
+    precision: 15,
+    scale: 4,
+    nullable: true,
+  })
+  taxable_quantity?: number | null;
+
   @Column({ name: 'unit_cost', type: 'decimal', precision: 15, scale: 2 })
   unit_cost!: number;
 

@@ -1874,6 +1874,17 @@ export class StoreProfitReportService {
 
           const itemGrossPrice = Number(item.total_price);
           const avgCost = this.getInvoiceItemCostPrice(item);
+          const conversionFactor = Number(item.conversion_factor || 1);
+          const itemTaxPrice = Number(item.tax_selling_price || 0);
+          const productTaxPrice = Number(item.product?.tax_selling_price || 0);
+          // Trước khi lưu snapshot theo đơn vị bán, một số hóa đơn cũ đã lưu
+          // trực tiếp số thuế và giá thuế theo đơn vị gốc.
+          const legacyBaseTaxSnapshot =
+            conversionFactor !== 1 &&
+            (Number(item.taxable_quantity || 0) > Number(item.quantity || 0) + 0.0001 ||
+              (itemTaxPrice > 0 &&
+                productTaxPrice > 0 &&
+                Math.abs(itemTaxPrice - productTaxPrice) < 0.000001));
           const itemOriginalCOGS =
             Number(item.base_quantity || item.quantity) * avgCost;
           const returnStats = this.getReturnStatsForItem(
@@ -1904,9 +1915,11 @@ export class StoreProfitReportService {
           invoiceRevenue += itemNetRevenue;
           invoiceCOGS += itemActualCOGS;
 
-          const originalTaxableQty = Number(item.taxable_quantity || 0);
+          const originalTaxableQty = legacyBaseTaxSnapshot
+            ? Number(item.taxable_quantity || 0)
+            : Number(item.taxable_quantity || 0) * conversionFactor;
           const originalBaseQty = Number(
-            item.base_quantity || item.quantity || 0,
+            item.base_quantity ?? Number(item.quantity || 0) * conversionFactor,
           );
           const currentBaseQtySold = Math.max(
             0,
@@ -1925,9 +1938,6 @@ export class StoreProfitReportService {
               : 0;
 
           // Doanh thu khai thuế = số lượng khai thuế * giá khai thuế (ưu tiên lấy từ snapshot của item)
-          const itemTaxPrice = Number(item.tax_selling_price || 0);
-          const productTaxPrice = Number(item.product?.tax_selling_price || 0);
-          const conversionFactor = Number(item.conversion_factor || 1);
           const invoiceDateValue = (invoice.sale_date || invoice.created_at)
             ?.toISOString?.()
             ?.slice(0, 10);
@@ -1948,19 +1958,13 @@ export class StoreProfitReportService {
               });
           }
 
-          const shouldNormalizeLegacyTaxPrice =
-            conversionFactor !== 1 &&
-            itemTaxPrice > 0 &&
-            productTaxPrice > 0 &&
-            Math.abs(itemTaxPrice - productTaxPrice) < 0.000001;
-          const effectiveTaxPrice = (() => {
-            if (shouldNormalizeLegacyTaxPrice)
-              return itemTaxPrice * conversionFactor;
-            if (itemTaxPrice > 0) return itemTaxPrice;
-            if (isLegacyInvoice) return legacyFrozenTaxPrice;
-            if (productTaxPrice > 0) return productTaxPrice;
-            return 0;
-          })();
+          const effectiveTaxPrice = legacyBaseTaxSnapshot
+            ? itemTaxPrice || productTaxPrice
+            : itemTaxPrice > 0
+              ? itemTaxPrice / conversionFactor
+              : isLegacyInvoice
+                ? productTaxPrice
+                : productTaxPrice;
           const itemTaxableTotalAmount = taxableQty * effectiveTaxPrice;
 
           if (taxableQty > 0) {

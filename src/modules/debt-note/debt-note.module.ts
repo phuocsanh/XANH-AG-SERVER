@@ -10,6 +10,7 @@ import { CustomerRewardTracking } from '../../entities/customer-reward-tracking.
 import { CustomerRewardHistory } from '../../entities/customer-reward-history.entity';
 import { FarmGiftCost } from '../../entities/farm-gift-cost.entity';
 import { InventoryTransaction } from '../../entities/inventory-transactions.entity';
+import { SystemSetting } from '../../entities/system-setting.entity';
 import { OperatingCostModule } from '../operating-cost/operating-cost.module';
 import { OperatingCostCategoryModule } from '../operating-cost-category/operating-cost-category.module';
 import { CustomerRewardModule } from '../customer-reward/customer-reward.module';
@@ -36,6 +37,7 @@ import { InventoryModule } from '../inventory/inventory.module';
       CustomerRewardHistory,
       FarmGiftCost,
       InventoryTransaction,
+      SystemSetting,
     ]),
     OperatingCostModule,
     OperatingCostCategoryModule,

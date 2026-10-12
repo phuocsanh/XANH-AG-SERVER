@@ -31,6 +31,18 @@ export class DebtNoteController {
     return this.debtNoteService.search(searchDto);
   }
 
+  @Get('settings/overdue')
+  @RequirePermissions('sales:read')
+  getOverdueSetting() {
+    return this.debtNoteService.getOverdueSetting();
+  }
+
+  @Patch('settings/overdue')
+  @RequirePermissions('sales:manage')
+  updateOverdueSetting(@Body('months') months: number) {
+    return this.debtNoteService.updateOverdueSetting(months);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.debtNoteService.findOne(+id);

@@ -83,6 +83,14 @@ export class InventoryReturnItem {
   @Column({ name: 'notes', nullable: true, type: 'text' })
   notes?: string;
 
+  /** Các lô thực tế đã xuất khi duyệt phiếu, gồm cả phần taxable của từng lô. */
+  @Column({ name: 'stock_allocations', nullable: true, type: 'json' })
+  stock_allocations?: Array<{
+    batchId: number;
+    quantity: number;
+    taxableQuantity: number;
+  }>;
+
   /** Thời gian tạo chi tiết phiếu xuất trả hàng */
   @CreateDateColumn({ name: 'created_at' })
   created_at!: Date;

@@ -981,4 +981,13 @@ export class InventoryController {
   syncTaxableDataV2(@Body('startDate') startDate: string) {
     return this.inventoryService.syncTaxableDataV2(startDate);
   }
+
+  /**
+   * Đồng bộ lại tồn thuế cho các sản phẩm từng nằm trong hóa đơn đã hủy.
+   */
+  @Post('sync-taxable-data/cancelled-invoices')
+  @RequirePermissions('inventory:manage')
+  syncTaxableDataForCancelledInvoices() {
+    return this.inventoryService.syncTaxableDataForProductsWithCancelledInvoices();
+  }
 }

@@ -7,6 +7,7 @@ import { CustomerRewardTracking } from '../../entities/customer-reward-tracking.
 import { CustomerRewardHistory } from '../../entities/customer-reward-history.entity';
 import { FarmGiftCost } from '../../entities/farm-gift-cost.entity';
 import { InventoryTransaction } from '../../entities/inventory-transactions.entity';
+import { SystemSetting } from '../../entities/system-setting.entity';
 import { CreateDebtNoteDto } from './dto/create-debt-note.dto';
 import { UpdateDebtNoteDto } from './dto/update-debt-note.dto';
 import { SearchDebtNoteDto } from './dto/search-debt-note.dto';
@@ -21,10 +22,14 @@ import { InventoryService } from '../inventory/inventory.service';
 @Injectable()
 export class DebtNoteService {
   private readonly logger = new Logger(DebtNoteService.name);
+  private readonly DEFAULT_OVERDUE_AFTER_MONTHS = 4;
+  private readonly OVERDUE_AFTER_MONTHS_KEY = 'debt_overdue_after_months';
 
   constructor(
     @InjectRepository(DebtNote)
     private debtNoteRepository: Repository<DebtNote>,
+    @InjectRepository(SystemSetting)
+    private systemSettingRepository: Repository<SystemSetting>,
     private dataSource: DataSource,
     private readonly customerRewardService: CustomerRewardService,
     private readonly inventoryService: InventoryService,
@@ -40,6 +45,77 @@ export class DebtNoteService {
     if (!value) return null;
     const date = value instanceof Date ? value : new Date(String(value));
     return Number.isNaN(date.getTime()) ? null : date.toISOString();
+  }
+
+  private normalizeOverdueAfterMonths(value: unknown): number {
+    const months = Number(value);
+    if (!Number.isInteger(months) || months < 1 || months > 60) {
+      throw new BadRequestException('Số tháng quá hạn phải là số nguyên từ 1 đến 60');
+    }
+    return months;
+  }
+
+  async getOverdueSetting(): Promise<{ key: string; value: number; description: string }> {
+    const setting = await this.systemSettingRepository.findOne({
+      where: { key: this.OVERDUE_AFTER_MONTHS_KEY },
+    });
+    const months = Number(setting?.value);
+
+    return {
+      key: this.OVERDUE_AFTER_MONTHS_KEY,
+      value:
+        Number.isInteger(months) && months > 0
+          ? months
+          : this.DEFAULT_OVERDUE_AFTER_MONTHS,
+      description: setting?.description || 'Số tháng từ ngày tạo phiếu nợ để tính quá hạn',
+    };
+  }
+
+  async updateOverdueSetting(months: number): Promise<{ key: string; value: number; description: string }> {
+    const normalizedMonths = this.normalizeOverdueAfterMonths(months);
+    const description = 'Số tháng từ ngày tạo phiếu nợ để tính quá hạn';
+    let setting = await this.systemSettingRepository.findOne({
+      where: { key: this.OVERDUE_AFTER_MONTHS_KEY },
+    });
+
+    if (!setting) {
+      setting = this.systemSettingRepository.create({
+        key: this.OVERDUE_AFTER_MONTHS_KEY,
+        value: String(normalizedMonths),
+        description,
+      });
+    } else {
+      setting.value = String(normalizedMonths);
+      setting.description = description;
+    }
+
+    await this.systemSettingRepository.save(setting);
+    return {
+      key: setting.key,
+      value: normalizedMonths,
+      description: setting.description,
+    };
+  }
+
+  private getOverdueCutoffDate(months: number): Date {
+    const cutoff = new Date();
+    cutoff.setHours(0, 0, 0, 0);
+    cutoff.setMonth(cutoff.getMonth() - months);
+    return cutoff;
+  }
+
+  private getCalculatedDueDate(createdAt: Date | string, months: number): Date {
+    const dueDate = new Date(createdAt);
+    dueDate.setMonth(dueDate.getMonth() + months);
+    dueDate.setHours(0, 0, 0, 0);
+    return dueDate;
+  }
+
+  private isCalculatedOverdue(debtNote: DebtNote, months: number, today: Date): boolean {
+    return (
+      this.toNumber(debtNote.remaining_amount) > 0 &&
+      this.getCalculatedDueDate(debtNote.created_at, months).getTime() < today.getTime()
+    );
   }
 
   private snapshotDebtNote(debtNote: DebtNote) {
@@ -151,6 +227,8 @@ export class DebtNoteService {
     const page = Number(searchDto.page) || 1;
     const limit = Number(searchDto.limit) || 10;
     const skip = (page - 1) * limit;
+    const overdueSetting = await this.getOverdueSetting();
+    const overdueCutoffDate = this.getOverdueCutoffDate(overdueSetting.value);
 
     const queryBuilder = this.debtNoteRepository.createQueryBuilder('debt_note');
     queryBuilder.leftJoinAndSelect('debt_note.customer', 'customer');
@@ -160,9 +238,27 @@ export class DebtNoteService {
     // 1. Áp dụng filters và keyword từ QueryHelper
     QueryHelper.applyBaseSearch(queryBuilder, searchDto, 'debt_note', ['code', 'customer.name', 'customer.phone']);
     QueryHelper.applyFilters(queryBuilder, searchDto, 'debt_note', 
-      ['filters', 'nested_filters', 'operator', 'customer_name', 'customer_phone', 'page', 'limit'], 
+      ['filters', 'nested_filters', 'operator', 'customer_name', 'customer_phone', 'page', 'limit', 'status'],
       { season_name: 'season.name' }
     );
+
+    if (searchDto.status === DebtNoteStatus.OVERDUE) {
+      queryBuilder
+        .andWhere('debt_note.status IN (:...openStatuses)', {
+          openStatuses: [DebtNoteStatus.ACTIVE, DebtNoteStatus.OVERDUE],
+        })
+        .andWhere('debt_note.remaining_amount > 0')
+        .andWhere('debt_note.created_at < :overdueCutoffDate', { overdueCutoffDate });
+    } else if (searchDto.status === DebtNoteStatus.ACTIVE) {
+      queryBuilder
+        .andWhere('debt_note.status IN (:...openStatuses)', {
+          openStatuses: [DebtNoteStatus.ACTIVE, DebtNoteStatus.OVERDUE],
+        })
+        .andWhere('debt_note.remaining_amount > 0')
+        .andWhere('debt_note.created_at >= :overdueCutoffDate', { overdueCutoffDate });
+    } else if (searchDto.status) {
+      queryBuilder.andWhere('debt_note.status = :status', { status: searchDto.status });
+    }
 
     // 2. Logic tìm kiếm khách hàng đặc thù của Debt Note
     if (searchDto.customer_name || searchDto.customer_phone) {
@@ -207,12 +303,20 @@ export class DebtNoteService {
     );
 
     // 4. Map thêm thông tin tích lũy từ CustomerRewardService
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const data = await Promise.all(entities.map(async (dn) => {
         const reward = await this.customerRewardService.getMyRewardTracking(dn.customer_id);
+        const calculatedDueDate = this.getCalculatedDueDate(dn.created_at, overdueSetting.value);
+        const isCalculatedOverdue = this.isCalculatedOverdue(dn, overdueSetting.value, today);
         return {
             ...dn,
             pending_accumulation: Number(reward?.pending_amount || 0),
             can_reverse_close: reversibleDebtNoteIds.has(dn.id),
+            calculated_due_date: calculatedDueDate.toISOString(),
+            calculated_overdue: isCalculatedOverdue,
+            effective_status: isCalculatedOverdue ? DebtNoteStatus.OVERDUE : dn.status,
+            overdue_after_months: overdueSetting.value,
         } as any;
     }));
 
@@ -222,9 +326,19 @@ export class DebtNoteService {
       .select('SUM(debt_note.amount)', 'total_amount')
       .addSelect('SUM(debt_note.paid_amount)', 'total_paid')
       .addSelect('SUM(debt_note.remaining_amount)', 'total_debt')
-      .addSelect(`COUNT(CASE WHEN debt_note.status = '${DebtNoteStatus.OVERDUE}' THEN 1 END)`, 'overdue_count')
-      .addSelect(`COUNT(CASE WHEN debt_note.status = '${DebtNoteStatus.ACTIVE}' THEN 1 END)`, 'active_count')
+      .addSelect(
+        'COUNT(CASE WHEN debt_note.status IN (:...openStatuses) AND debt_note.remaining_amount > 0 AND debt_note.created_at < :summaryOverdueCutoffDate THEN 1 END)',
+        'overdue_count',
+      )
+      .addSelect(
+        'COUNT(CASE WHEN debt_note.status IN (:...openStatuses) AND debt_note.remaining_amount > 0 AND debt_note.created_at >= :summaryOverdueCutoffDate THEN 1 END)',
+        'active_count',
+      )
       .addSelect(`COUNT(CASE WHEN debt_note.status IN ('${DebtNoteStatus.PAID}', '${DebtNoteStatus.SETTLED}') THEN 1 END)`, 'paid_count')
+      .setParameters({
+        openStatuses: [DebtNoteStatus.ACTIVE, DebtNoteStatus.OVERDUE],
+        summaryOverdueCutoffDate: overdueCutoffDate,
+      })
       .getRawOne();
 
     return {
@@ -239,6 +353,7 @@ export class DebtNoteService {
         overdue_count: Number(summary.overdue_count || 0),
         active_count: Number(summary.active_count || 0),
         paid_count: Number(summary.paid_count || 0),
+        overdue_after_months: overdueSetting.value,
       },
     };
   }

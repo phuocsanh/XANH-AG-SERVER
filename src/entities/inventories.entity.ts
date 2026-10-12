@@ -67,6 +67,16 @@ export class InventoryBatch {
   })
   remaining_quantity!: number;
 
+  /** Số lượng thuế còn lại trong chính lô này, theo đơn vị gốc của kho. */
+  @Column({
+    name: 'taxable_remaining_quantity',
+    type: 'decimal',
+    precision: 15,
+    scale: 4,
+    nullable: true,
+  })
+  taxable_remaining_quantity?: number | null;
+
   /** Ngày hết hạn của lô hàng (có thể null) */
   @Column({ name: 'expiry_date', nullable: true })
   expiry_date?: Date;

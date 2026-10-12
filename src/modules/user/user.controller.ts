@@ -11,6 +11,7 @@ import {
   ParseIntPipe,
   Req,
   UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -21,6 +22,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { RoleCode } from '../../common/enums/role-code.enum';
 
 /**
  * Controller xử lý các request liên quan đến người dùng
@@ -102,7 +104,15 @@ export class UserController {
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateUserDto: UpdateUserDto,
+    @Req() req: any,
   ) {
+    if (
+      updateUserDto.role_id !== undefined &&
+      req.user?.role?.code !== RoleCode.SUPER_ADMIN
+    ) {
+      throw new ForbiddenException('Chỉ SUPER_ADMIN mới được đổi vai trò người dùng');
+    }
+
     return this.userService.update(id, updateUserDto);
   }
 

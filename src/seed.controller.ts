@@ -57,6 +57,15 @@ export class SeedController {
         });
       }
 
+      const existingDebtOverdueMonths = await repo.findOne({ where: { key: 'debt_overdue_after_months' } });
+      if (!existingDebtOverdueMonths) {
+        await repo.save({
+          key: 'debt_overdue_after_months',
+          value: '4',
+          description: 'Số tháng từ ngày tạo phiếu nợ để tính quá hạn',
+        });
+      }
+
       return {
         success: true,
         message: '✅ Đã seed cấu hình hệ thống thành công!',

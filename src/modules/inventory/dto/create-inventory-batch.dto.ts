@@ -27,6 +27,11 @@ export class CreateInventoryBatchDto {
   @IsNumber()
   remaining_quantity!: number;
 
+  /** Số lượng thuế còn lại trong lô, theo đơn vị gốc của kho. */
+  @IsOptional()
+  @IsNumber()
+  taxable_remaining_quantity?: number;
+
   /** Ngày hết hạn của lô hàng (tùy chọn) */
   @IsOptional()
   @Type(() => Date)
