@@ -223,6 +223,38 @@ describeDevPostgres('Loại tích lũy sản phẩm trên PostgreSQL DEV cô l�
     expect(await pending()).toBe(1000);
   });
 
+  it('đối soát hóa đơn cũ khi loại sản phẩm khỏi tích lũy, chỉ trừ phần hóa đơn đó và chạy lặp không đổi', async () => {
+    await runner.query('INSERT INTO products (id) VALUES (171)');
+    await runner.query(`INSERT INTO sales_invoice_items
+      (id,invoice_id,product_id,quantity,base_quantity,conversion_factor,unit_price,total_price)
+      VALUES (91,90,171,1,1,1,1000,1000)`);
+    await runner.query('UPDATE sales_invoices SET partial_payment_amount=1000,final_amount=1000 WHERE id=90');
+    await migration.up(runner);
+
+    const before = await runner.manager.findOneOrFail(CustomerRewardInvoiceTracking, { where: { invoice_id: 90 } });
+    expect(Number(before.accumulated_amount)).toBe(1000);
+    expect(await pending()).toBe(1000);
+
+    await runner.query('UPDATE products SET exclude_from_reward=true WHERE id=171');
+    await runner.query('UPDATE sales_invoices SET reward_policy_version=1 WHERE id=90');
+    const invoice = await runner.manager.findOneOrFail(SalesInvoice, { where: { id: 90 } });
+    await service.snapshotInvoiceRewardPolicy(runner.manager, invoice);
+    await service.syncInvoiceReward(runner.manager, 90);
+
+    const excludedItem = await runner.query('SELECT exclude_from_reward FROM sales_invoice_items WHERE id=91');
+    const adjustedMarker = await runner.manager.findOneOrFail(CustomerRewardInvoiceTracking, { where: { invoice_id: 90 } });
+    expect(excludedItem[0].exclude_from_reward).toBe(true);
+    expect(Number(adjustedMarker.accumulated_amount)).toBe(0);
+    expect(await pending()).toBe(0);
+    const adjustedCustomer = await runner.manager.findOneOrFail(CustomerRewardTracking, { where: { customer_id: 7 } });
+    expect(Number(adjustedCustomer.total_accumulated)).toBe(0);
+
+    await service.syncInvoiceReward(runner.manager, 90);
+    expect(Number((await runner.manager.findOneOrFail(CustomerRewardInvoiceTracking, { where: { invoice_id: 90 } })).accumulated_amount)).toBe(0);
+    expect(await pending()).toBe(0);
+    expect(Number((await runner.manager.findOneOrFail(CustomerRewardTracking, { where: { customer_id: 7 } })).total_accumulated)).toBe(0);
+  });
+
   it('service thật ghi 300, chống cộng lặp, giữ snapshot sau đổi cờ và thu hồi đúng dòng trả', async () => {
     await migration.up(runner);
     await seedMixedInvoice();
