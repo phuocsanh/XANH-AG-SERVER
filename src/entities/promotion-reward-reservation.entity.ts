@@ -12,6 +12,7 @@ import { CustomerPromotionSpinLog } from './customer-promotion-spin-log.entity';
 import { PromotionCampaign } from './promotion-campaign.entity';
 import { PromotionRewardPool } from './promotion-reward-pool.entity';
 import { User } from './users.entity';
+import { Product } from './products.entity';
 
 @Entity('promotion_reward_reservations')
 export class PromotionRewardReservation {
@@ -59,6 +60,32 @@ export class PromotionRewardReservation {
     scale: 2,
   })
   reward_value!: number;
+
+  @Column({ name: 'reward_product_id', type: 'int', nullable: true })
+  reward_product_id?: number | null;
+
+  @ManyToOne(() => Product, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'reward_product_id' })
+  reward_product?: Product | null;
+
+  @Column({
+    name: 'reward_product_quantity',
+    type: 'decimal',
+    precision: 15,
+    scale: 4,
+    nullable: true,
+  })
+  reward_product_quantity?: number | null;
+
+  @Column({ name: 'stock_allocations', type: 'jsonb', nullable: true })
+  stock_allocations?: Array<{
+    batchId: number;
+    quantity: number;
+    taxableQuantity: number;
+  }> | null;
+
+  @Column({ name: 'gift_inventory_transaction_id', type: 'int', nullable: true })
+  gift_inventory_transaction_id?: number | null;
 
   @Column({ default: 'reserved' })
   status!: string;

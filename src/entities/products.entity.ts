@@ -224,6 +224,10 @@ export class Product {
   @Column({ name: 'has_input_invoice', type: 'boolean', default: true })
   has_input_invoice!: boolean;
 
+  /** Loại tiền bán sản phẩm khỏi tích lũy quà của khách hàng. */
+  @Column({ name: 'exclude_from_reward', type: 'boolean', default: false })
+  exclude_from_reward!: boolean;
+
   /** Giá bán khai thuế */
   @Column({ name: 'tax_selling_price', default: '0' })
   tax_selling_price!: string;

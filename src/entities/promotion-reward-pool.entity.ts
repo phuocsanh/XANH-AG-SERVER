@@ -8,6 +8,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { PromotionCampaign } from './promotion-campaign.entity';
+import { Product } from './products.entity';
 
 @Entity('promotion_reward_pool')
 export class PromotionRewardPool {
@@ -29,6 +30,22 @@ export class PromotionRewardPool {
 
   @Column({ name: 'reward_image_url', type: 'text', nullable: true })
   reward_image_url?: string | null;
+
+  @Column({ name: 'reward_product_id', type: 'int', nullable: true })
+  reward_product_id?: number | null;
+
+  @ManyToOne(() => Product, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'reward_product_id' })
+  reward_product?: Product | null;
+
+  @Column({
+    name: 'reward_product_quantity',
+    type: 'decimal',
+    precision: 15,
+    scale: 4,
+    default: 1,
+  })
+  reward_product_quantity!: number;
 
   @Column({
     name: 'reward_value',

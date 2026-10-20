@@ -187,8 +187,10 @@ export class StoreProfitReportController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ): Promise<CustomerProfitReportDto> {
-    const start = startDate ? new Date(startDate) : undefined;
-    const end = endDate ? new Date(endDate) : undefined;
+    const start = startDate
+      ? new Date(`${startDate}T00:00:00+07:00`)
+      : undefined;
+    const end = endDate ? new Date(`${endDate}T23:59:59.999+07:00`) : undefined;
     const season = seasonId ? Number(seasonId) : undefined;
 
     return this.service.getCustomerProfitReport(
@@ -249,11 +251,8 @@ export class StoreProfitReportController {
     @Query('sortBy') sortBy: string = 'sale_date',
     @Query('sortOrder') sortOrder: 'ASC' | 'DESC' = 'DESC',
   ): Promise<PeriodReportDto> {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-
-    // Đặt giờ cuối ngày cho endDate để bao gồm cả ngày đó
-    end.setHours(23, 59, 59, 999);
+    const start = new Date(`${startDate}T00:00:00+07:00`);
+    const end = new Date(`${endDate}T23:59:59.999+07:00`);
 
     return this.service.getPeriodProfitReport(
       start,

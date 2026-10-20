@@ -163,8 +163,13 @@ export class PromotionCampaignController {
   cancelIssueReservation(
     @Param('id') id: string,
     @Param('reservationId') reservationId: string,
+    @CurrentUser() user: User,
   ) {
-    return this.promotionCampaignService.cancelIssueReservation(+id, +reservationId);
+    return this.promotionCampaignService.cancelIssueReservation(
+      +id,
+      +reservationId,
+      user.id,
+    );
   }
 
   @Patch(':id')

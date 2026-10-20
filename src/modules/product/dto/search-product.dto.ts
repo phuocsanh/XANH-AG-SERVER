@@ -1,5 +1,5 @@
-import { IsOptional, IsString, IsNumber, IsDateString, IsArray, IsInt } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsOptional, IsString, IsNumber, IsDateString, IsArray, IsInt, IsBoolean } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
 import { BaseSearchDto } from '../../../common/dto/base-search.dto';
 
 export class SearchProductDto extends BaseSearchDto {
@@ -23,6 +23,10 @@ export class SearchProductDto extends BaseSearchDto {
   @IsDateString() @IsOptional() updated_at?: string;
   @IsOptional() has_input_invoice?: boolean;
   @IsOptional() is_sold_on_web?: boolean;
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  in_stock_only?: boolean;
 
   // Relations
   @IsString() @IsOptional() unit_name?: string;

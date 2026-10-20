@@ -13,13 +13,15 @@ import { Customer } from '../../entities/customer.entity';
 import { FarmServiceCost } from '../../entities/farm-service-cost.entity';
 import { FarmGiftCost } from '../../entities/farm-gift-cost.entity';
 import { SystemSetting } from '../../entities/system-setting.entity';
-import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
+import { SalesInvoiceItemStockAllocation } from '../../entities/sales-invoice-item-stock-allocations.entity';
 import { Product } from '../../entities/products.entity';
 import { SalesReturnItem } from '../../entities/sales-return-items.entity';
 import { SalesReturnStatus } from '../../entities/sales-return.entity';
 import { QueryHelper } from '../../common/helpers/query-helper';
 
 import { InventoryReceiptItem } from '../../entities/inventory-receipt-items.entity';
+import { BusinessLogicException } from '../../common/exceptions/business-logic.exception';
+import { calculateTaxReportPricing, TaxPriceReturn } from './tax-report-pricing';
 import {
   InvoiceProfitDto,
   InvoiceItemProfitDto,
@@ -1766,9 +1768,6 @@ export class StoreProfitReportService {
       this.logger.log(
         `📊 Báo cáo lợi nhuận từ ${startDate.toISOString()} đến ${endDate.toISOString()}`,
       );
-      const { cutover_date: cutoverDate } =
-        await this.getTaxRevenueCutoverDate();
-
       let allowedProductIds: Set<number> | null = null;
       if (filterByReceiptDate) {
         this.logger.log(
@@ -1826,9 +1825,38 @@ export class StoreProfitReportService {
         } as any,
       });
 
-      const approvedReturnStats = await this.getApprovedReturnStats(
-        invoices.map((invoice) => invoice.id),
-      );
+      const itemIds = invoices.flatMap((invoice) => (invoice.items || []).map((item) => item.id));
+      const [stockAllocations, approvedReturns] = itemIds.length
+        ? await Promise.all([
+            this.salesInvoiceRepository.manager.getRepository(SalesInvoiceItemStockAllocation).find({
+              where: { sales_invoice_item_id: In(itemIds) },
+              relations: ['receipt_item', 'inventory_batch', 'inventory_batch.receipt_item'],
+              withDeleted: true,
+              order: { id: 'ASC' },
+            }),
+            this.salesInvoiceRepository.manager.getRepository(SalesReturnItem).find({
+              where: { sales_return: { invoice_id: In(invoices.map((invoice) => invoice.id)), status: SalesReturnStatus.APPROVED } },
+              relations: ['sales_return'],
+            }),
+          ])
+        : [[], []];
+      const allocationsByItem = new Map<number, SalesInvoiceItemStockAllocation[]>();
+      for (const allocation of stockAllocations) {
+        const rows = allocationsByItem.get(allocation.sales_invoice_item_id) || [];
+        rows.push(allocation);
+        allocationsByItem.set(allocation.sales_invoice_item_id, rows);
+      }
+      const returnsByItem = new Map<string, SalesReturnItem[]>();
+      for (const returned of approvedReturns) {
+        const key = this.getReturnStatsKey(
+          returned.sales_return!.invoice_id,
+          returned.sales_invoice_item_id ? { id: returned.sales_invoice_item_id } : undefined,
+          returned.product_id,
+        );
+        const rows = returnsByItem.get(key) || [];
+        rows.push(returned);
+        returnsByItem.set(key, rows);
+      }
 
       const invoiceDtoList: PeriodInvoiceDto[] = [];
       const invoiceReportRows: Array<{
@@ -1887,11 +1915,14 @@ export class StoreProfitReportService {
                 Math.abs(itemTaxPrice - productTaxPrice) < 0.000001));
           const itemOriginalCOGS =
             Number(item.base_quantity || item.quantity) * avgCost;
-          const returnStats = this.getReturnStatsForItem(
-            approvedReturnStats,
-            invoice.id,
-            item,
-          );
+          const itemReturns = [
+            ...(returnsByItem.get(this.getReturnStatsKey(invoice.id, item)) || []),
+            ...(returnsByItem.get(this.getReturnStatsKey(invoice.id, undefined, item.product_id)) || []),
+          ];
+          const returnStats = itemReturns.reduce((stats, returned) => ({
+            returnedBaseQuantity: stats.returnedBaseQuantity + Number(returned.base_quantity ?? Number(returned.quantity) * Number(returned.conversion_factor ?? 1)),
+            returnedAmount: stats.returnedAmount + Number(returned.total_price || 0),
+          }), { returnedBaseQuantity: 0, returnedAmount: 0 });
 
           // Phân bổ doanh thu thực tế (đã trừ trả hàng) cho item này
           const invoiceDiscountShare =
@@ -1925,10 +1956,60 @@ export class StoreProfitReportService {
             0,
             originalBaseQty - returnStats.returnedBaseQuantity,
           );
-          const taxableQty = Math.max(
-            0,
-            originalTaxableQty - returnStats.returnedBaseQuantity,
-          );
+          let taxPricing;
+          try {
+            if (itemReturns.some((returned) => !returned.sales_invoice_item_id) &&
+              (invoice.items || []).filter((row) => row.product_id === item.product_id).length > 1) {
+              throw new Error('Phiếu trả không xác định được dòng bán của sản phẩm xuất hiện nhiều lần.');
+            }
+            taxPricing = calculateTaxReportPricing({
+              baseQuantity: originalBaseQty,
+              legacyTaxableQuantity: originalTaxableQty,
+              productPrice: productTaxPrice,
+              allocations: (allocationsByItem.get(item.id) || []).map((allocation) => {
+                const receipt = allocation.receipt_item || allocation.inventory_batch?.receipt_item;
+                if (receipt && (receipt.product_id !== item.product_id ||
+                  (allocation.receipt_item_id && receipt.id !== allocation.receipt_item_id) ||
+                  (allocation.receipt_item_id && allocation.inventory_batch?.receipt_item_id &&
+                    allocation.receipt_item_id !== allocation.inventory_batch.receipt_item_id))) {
+                  throw new Error('Phiếu nhập gốc không khớp sản phẩm/lô đã bán.');
+                }
+                const receiptFactor = Number(receipt?.conversion_factor ?? 1);
+                const receiptQuantity = Number(receipt?.base_quantity ?? Number(receipt?.quantity ?? 0) * receiptFactor);
+                const receiptTax = Number(receipt?.taxable_quantity ?? 0) * receiptFactor;
+                const batch = allocation.inventory_batch;
+                // Lô LOT gốc nhập toàn bộ có/không thuế xác định được phần xuất.
+                // Không suy từ phiếu nhập cho các lô tạo lại bởi hủy/trả hàng.
+                const originalReceiptBatch = !!receipt && receipt.taxable_quantity != null &&
+                  Number.isFinite(receiptFactor) && receiptFactor > 0 && batch?.receipt_item_id === receipt.id &&
+                  !!batch.code?.startsWith('LOT-') && batch.code === receipt.batch_number && receiptQuantity > 0 &&
+                  Math.abs(Number(batch.original_quantity) - receiptQuantity) < 0.0001;
+                return {
+                  batchId: allocation.inventory_batch_id ?? null,
+                  receiptItemId: allocation.receipt_item_id ?? allocation.inventory_batch?.receipt_item_id ?? null,
+                  quantity: Number(allocation.quantity),
+                  taxableQuantity: allocation.taxable_quantity == null ? null : Number(allocation.taxable_quantity),
+                  receiptPrice: receipt?.tax_selling_price == null ? null : Number(receipt.tax_selling_price),
+                  receiptFactor,
+                  receiptTaxState: originalReceiptBatch && receiptTax === 0 ? 'none' as const
+                    : originalReceiptBatch && Math.abs(receiptTax - receiptQuantity) < 0.0001 ? 'all' as const : 'unknown' as const,
+                };
+              }),
+              returns: itemReturns.map((returned): TaxPriceReturn => ({
+                baseQuantity: Number(returned.base_quantity ?? Number(returned.quantity) * Number(returned.conversion_factor ?? 1)),
+                allocations: Array.isArray(returned.stock_allocations) ? returned.stock_allocations.map((allocation) => ({
+                  ...allocation, quantity: Number(allocation.quantity),
+                  taxableQuantity: allocation.taxableQuantity == null ? NaN : Number(allocation.taxableQuantity),
+                })) : null,
+              })),
+            });
+          } catch (error) {
+            throw new BusinessLogicException(
+              `Không tính được khai thuế hóa đơn ${invoice.code}, dòng #${item.id} (${item.product_name || item.product?.name || item.product_id}): ${error instanceof Error ? error.message : 'Thiếu dữ liệu nguồn lô.'}`,
+              'TAX_REPORT_SOURCE_INCOMPLETE',
+            );
+          }
+          const taxableQty = taxPricing.taxableQuantity;
 
           // Tỷ lệ khai thuế trên lượng hàng "thực tế còn lại" sau khi trả
           // Nếu bán 10 trả 5, còn lại 5. Nếu 5 bao đó đều có thuế thì tỷ lệ là 100% (1)
@@ -1937,35 +2018,9 @@ export class StoreProfitReportService {
               ? Math.min(1, taxableQty / currentBaseQtySold)
               : 0;
 
-          // Doanh thu khai thuế = số lượng khai thuế * giá khai thuế (ưu tiên lấy từ snapshot của item)
-          const invoiceDateValue = (invoice.sale_date || invoice.created_at)
-            ?.toISOString?.()
-            ?.slice(0, 10);
-          const isLegacyInvoice =
-            !!invoiceDateValue && invoiceDateValue < cutoverDate;
-          const legacyFrozenTaxPrice =
-            productTaxPrice > 0 ? productTaxPrice * conversionFactor : 0;
-
-          if (
-            isLegacyInvoice &&
-            itemTaxPrice <= 0 &&
-            legacyFrozenTaxPrice > 0
-          ) {
-            await this.salesInvoiceRepository.manager
-              .getRepository(SalesInvoiceItem)
-              .update(item.id, {
-                tax_selling_price: legacyFrozenTaxPrice.toString(),
-              });
-          }
-
-          const effectiveTaxPrice = legacyBaseTaxSnapshot
-            ? itemTaxPrice || productTaxPrice
-            : itemTaxPrice > 0
-              ? itemTaxPrice / conversionFactor
-              : isLegacyInvoice
-                ? productTaxPrice
-                : productTaxPrice;
-          const itemTaxableTotalAmount = taxableQty * effectiveTaxPrice;
+          // Cộng giá trị từng lô theo GBKT nhập, lô thiếu giá dùng GBKT sản phẩm.
+          const effectiveTaxPrice = taxPricing.taxSellingPrice;
+          const itemTaxableTotalAmount = taxPricing.taxableAmount;
 
           if (taxableQty > 0) {
             invoiceRevenueWithInvoice += itemNetRevenue * taxableRatio;

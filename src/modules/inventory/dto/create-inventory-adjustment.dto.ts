@@ -6,6 +6,8 @@ import {
   IsArray,
   ValidateNested,
   IsIn,
+  Min,
+  IsInt,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { AdjustmentStatus } from '../enums/adjustment-status.enum';
@@ -23,6 +25,19 @@ export class CreateInventoryAdjustmentItemDto {
   @IsNotEmpty({ message: 'Số lượng thay đổi không được để trống' })
   @IsNumber({}, { message: 'Số lượng thay đổi phải là số' })
   quantity_change!: number;
+
+  @IsOptional()
+  @IsInt({ message: 'Lô nhập nguồn không hợp lệ' })
+  @Min(1, { message: 'Lô nhập nguồn không hợp lệ' })
+  source_batch_id?: number;
+
+  @IsOptional()
+  @IsNumber(
+    { allowNaN: false, allowInfinity: false },
+    { message: 'Số lượng thuế phải là số hữu hạn' },
+  )
+  @Min(0, { message: 'Số lượng thuế không được âm' })
+  taxable_quantity?: number;
 
   /** Lý do điều chỉnh cho sản phẩm này */
   @IsOptional()

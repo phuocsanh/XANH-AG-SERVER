@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Brackets } from 'typeorm';
 import { Payment } from '../../entities/payment.entity';
@@ -17,6 +17,8 @@ import { ErrorHandler } from '../../common/helpers/error-handler.helper';
 import { CodeGeneratorHelper } from '../../common/helpers/code-generator.helper';
 import { QueryHelper } from '../../common/helpers/query-helper';
 import { CustomerRewardService } from '../customer-reward/customer-reward.service';
+import { DebtNoteClosure, DebtNoteClosureStatus } from '../../entities/debt-note-closure.entity';
+import { roundRewardMoney } from '../customer-reward/invoice-reward-accumulation';
 
 @Injectable()
 export class PaymentService {
@@ -222,6 +224,7 @@ export class PaymentService {
         .andWhere('si.status != :cancelledStatus', { cancelledStatus: 'cancelled' })
         .andWhere('si.remaining_amount > 0')
         .orderBy('si.created_at', 'ASC')
+        .addOrderBy('si.id', 'ASC')
         .setLock('pessimistic_write', undefined, ['si']) // Chỉ khóa bảng hóa đơn để tránh lỗi "nullable side of an outer join"
         .getMany();
 
@@ -230,10 +233,14 @@ export class PaymentService {
       }
 
       // 2. Tính tổng nợ
-      const totalDebt = unpaidInvoices.reduce(
+      const totalDebt = roundRewardMoney(unpaidInvoices.reduce(
         (sum, inv) => sum + Number(inv.remaining_amount),
         0,
-      );
+      ));
+      dto.amount = roundRewardMoney(Number(dto.amount));
+      if (!Number.isFinite(dto.amount) || dto.amount <= 0 || dto.amount > totalDebt) {
+        throw new BadRequestException('Số tiền thu phải lớn hơn 0 và không vượt tổng nợ hóa đơn');
+      }
 
       // 3. Tạo breakdown (giữ nguyên logic view)
       const riceCropMap = new Map<number | null, any>();
@@ -282,6 +289,7 @@ export class PaymentService {
         code: paymentCode,
         customer_id: dto.customer_id,
         amount: dto.amount,
+        allocated_amount: dto.amount,
         payment_date: dto.payment_date || new Date().toISOString(),
         payment_method: dto.payment_method,
         notes: dto.notes || `Chốt sổ công nợ mùa vụ #${dto.season_id}`,
@@ -304,13 +312,14 @@ export class PaymentService {
         await queryRunner.manager.save(PaymentAllocation, {
           payment_id: savedPayment.id,
           invoice_id: invoice.id,
+          debt_note_id: oldDebtNote.id,
           allocation_type: 'invoice',
           amount: amountToAllocate,
         });
 
         // Cập nhật hóa đơn
-        invoice.partial_payment_amount = Number(invoice.partial_payment_amount || 0) + amountToAllocate;
-        invoice.remaining_amount = invoiceDebt - amountToAllocate;
+        invoice.partial_payment_amount = roundRewardMoney(Number(invoice.partial_payment_amount || 0) + amountToAllocate);
+        invoice.remaining_amount = roundRewardMoney(invoiceDebt - amountToAllocate);
         if (invoice.remaining_amount <= 0) {
           invoice.payment_status = SalesPaymentStatus.PAID;
           invoice.status = SalesInvoiceStatus.PAID;
@@ -325,14 +334,14 @@ export class PaymentService {
         await queryRunner.manager.save(invoice);
         
         settledInvoices.push(invoice);
-        remainingPayment -= amountToAllocate;
+        remainingPayment = roundRewardMoney(remainingPayment - amountToAllocate);
       }
 
       // 7. Cập nhật số tiền đã trả và còn nợ trên phiếu công nợ
       const currentPaidDebt = Number(oldDebtNote.paid_amount) || 0;
       const paymentAmount = Number(dto.amount) || 0;
-      oldDebtNote.paid_amount = currentPaidDebt + paymentAmount;
-      oldDebtNote.remaining_amount = totalDebt - paymentAmount;
+      oldDebtNote.paid_amount = roundRewardMoney(currentPaidDebt + paymentAmount);
+      oldDebtNote.remaining_amount = roundRewardMoney(totalDebt - paymentAmount);
 
       // 🔥 CHẾ ĐỘ MỚI: Chỉ dùng Nợ (active) và Đã thanh toán (paid)
       // Khi nợ <= 0, ta chuyển sang trạng thái Đã thanh toán. 
@@ -360,6 +369,7 @@ export class PaymentService {
               : `Tích lũy khi thanh toán #${paymentCode}`),
             manual_remaining_amount: oldDebtNote.remaining_amount,
             payment_amount: paymentAmount,
+            invoice_ids: settledInvoices.map((invoice) => invoice.id),
           },
           userId,
           isPaidOff // Coi như "Finalized" nếu đã trả hết nợ
@@ -414,12 +424,19 @@ export class PaymentService {
       // 1. Lấy thông tin payment
       const payment = await queryRunner.manager.findOne(Payment, {
         where: { id: paymentId },
-        relations: ['customer']
+        lock: { mode: 'pessimistic_write' },
       });
 
       if (!payment) {
-        await queryRunner.release();
         throw new Error(`Payment #${paymentId} không tồn tại`);
+      }
+
+      const closure = await queryRunner.manager.createQueryBuilder(DebtNoteClosure, 'closure')
+        .where('closure.status = :status', { status: DebtNoteClosureStatus.CLOSED })
+        .andWhere("closure.after_snapshot ->> 'payment_id' = :paymentId", { paymentId: String(paymentId) })
+        .getOne();
+      if (closure) {
+        throw new BadRequestException('Phiếu thu thuộc lần chốt sổ; hãy dùng hoàn tác chốt sổ để khôi phục đồng bộ');
       }
 
       const loanPayment = await queryRunner.manager.findOne(Loan, {
@@ -456,80 +473,70 @@ export class PaymentService {
       // 2. Lấy allocations và khóa invoices
       const allocations = await queryRunner.manager.find(PaymentAllocation, {
         where: { payment_id: paymentId },
-        relations: ['invoice']
+        relations: ['invoice'],
+        order: { invoice_id: 'ASC', id: 'ASC' },
       });
+
+      if (Number(payment.amount) <= 0 || allocations.some((allocation) => allocation.sales_return_id)) {
+        throw new BadRequestException('Phiếu hoàn tiền/trả hàng phải được hoàn tác qua chứng từ gốc');
+      }
 
       this.logger.log(`🔄 Bắt đầu rollback payment #${payment.code}...`);
 
-      // 3. Hoàn tác từng invoice
+      // Đối soát từng hóa đơn và gom đúng công nợ khi phiếu thu phân bổ nhiều nơi.
       let affectedInvoiceCount = 0;
+      let affectedDebtNote: DebtNote | null = null;
+      const debtChanges = new Map<number, { debtNote: DebtNote; amount: number; invoiceIds: number[] }>();
       for (const allocation of allocations) {
-        if (!allocation.invoice || !allocation.invoice_id) continue;
-
-        // Khóa invoice để cập nhật
-        const invoice = await queryRunner.manager.findOne(SalesInvoice, {
-          where: { id: allocation.invoice_id },
-          lock: { mode: 'pessimistic_write' }
-        });
-
-        if (invoice) {
-          const allocationAmount = Number(allocation.amount) || 0;
-          invoice.partial_payment_amount = (Number(invoice.partial_payment_amount) || 0) - allocationAmount;
-          invoice.remaining_amount = (Number(invoice.remaining_amount) || 0) + allocationAmount;
-
-          if (invoice.remaining_amount > 0) {
-            invoice.payment_status = invoice.partial_payment_amount > 0 ? SalesPaymentStatus.PARTIAL : SalesPaymentStatus.PENDING;
-            invoice.status = SalesInvoiceStatus.CONFIRMED;
-          } else {
-            invoice.payment_status = SalesPaymentStatus.PAID;
-            invoice.status = SalesInvoiceStatus.PAID;
+        let debtNote: DebtNote | null = null;
+        if (allocation.invoice_id) {
+          const invoice = await queryRunner.manager.findOne(SalesInvoice, {
+            where: { id: allocation.invoice_id }, lock: { mode: 'pessimistic_write' },
+          });
+          const amount = Number(allocation.amount || 0);
+          if (!invoice || ![SalesInvoiceStatus.CONFIRMED, SalesInvoiceStatus.PAID].includes(invoice.status) ||
+            amount <= 0 || amount > Number(invoice.partial_payment_amount || 0)) {
+            throw new BadRequestException('Hóa đơn đã thay đổi/hoàn hủy; cần đối soát chứng từ trước khi hoàn tác phiếu thu');
           }
-
+          invoice.partial_payment_amount = roundRewardMoney(Number(invoice.partial_payment_amount || 0) - amount);
+          invoice.remaining_amount = roundRewardMoney(Number(invoice.final_amount || 0) - invoice.partial_payment_amount);
+          invoice.status = invoice.remaining_amount > 0 ? SalesInvoiceStatus.CONFIRMED : SalesInvoiceStatus.PAID;
+          invoice.payment_status = invoice.remaining_amount <= 0 ? SalesPaymentStatus.PAID
+            : invoice.partial_payment_amount > 0 ? SalesPaymentStatus.PARTIAL : SalesPaymentStatus.PENDING;
           await queryRunner.manager.save(invoice);
+          await this.customerRewardService.syncInvoiceReward(queryRunner.manager, invoice.id);
           affectedInvoiceCount++;
-          this.logger.log(`  ↩️  Invoice #${invoice.code}: +${allocationAmount.toLocaleString()} đ`);
+          if (invoice.customer_id && invoice.season_id) {
+            debtNote = await queryRunner.manager.findOne(DebtNote, {
+              where: { customer_id: invoice.customer_id, season_id: invoice.season_id },
+              lock: { mode: 'pessimistic_write' },
+            });
+          }
+        } else if (allocation.debt_note_id) {
+          debtNote = await queryRunner.manager.findOne(DebtNote, {
+            where: { id: allocation.debt_note_id }, lock: { mode: 'pessimistic_write' },
+          });
+          if (debtNote?.source_invoices?.length) {
+            throw new BadRequestException('Phân bổ công nợ cũ thiếu chi tiết hóa đơn; cần đối soát trước khi hoàn tác');
+          }
+        }
+        if (debtNote) {
+          const change = debtChanges.get(debtNote.id) || { debtNote, amount: 0, invoiceIds: [] };
+          change.amount = roundRewardMoney(change.amount + Number(allocation.amount || 0));
+          if (allocation.invoice_id) change.invoiceIds.push(allocation.invoice_id);
+          debtChanges.set(debtNote.id, change);
         }
       }
-
-      // 4. Cập nhật debt_note
-      let affectedDebtNote: DebtNote | null = null;
-      const firstAllocation = allocations[0];
-      if (firstAllocation?.invoice) {
-        const firstInvoice = firstAllocation.invoice;
-        if (firstInvoice.customer_id && firstInvoice.season_id) {
-          const debtNote = await queryRunner.manager.findOne(DebtNote, {
-            where: { 
-              customer_id: firstInvoice.customer_id,
-              season_id: firstInvoice.season_id
-            },
-            lock: { mode: 'pessimistic_write' }
-          });
-
-          if (debtNote) {
-            const paymentAmountToReturn = Number(payment.amount) || 0;
-            debtNote.paid_amount = Math.max(0, (Number(debtNote.paid_amount) || 0) - paymentAmountToReturn);
-            debtNote.remaining_amount = Math.max(0, (Number(debtNote.amount) || 0) - debtNote.paid_amount);
-
-            if (debtNote.remaining_amount > 0) {
-              debtNote.status = DebtNoteStatus.ACTIVE;
-            }
-            await queryRunner.manager.save(debtNote);
-            affectedDebtNote = debtNote;
-            this.logger.log(`  ↩️  DebtNote #${debtNote.code}: +${paymentAmountToReturn.toLocaleString()} đ`);
-
-            // 🔥 THU HỒI ĐIỂM TÍCH LŨY KHI ROLLBACK PAYMENT
-            await this.customerRewardService.handleDebtNoteSettlement(
-              queryRunner.manager,
-              debtNote,
-              {
-                payment_amount: -paymentAmountToReturn, // Số âm để trừ điểm
-                notes: `Thu hồi điểm do rollback phiếu thu #${payment.code}`,
-              },
-              payment.created_by || 0,
-              false
-            );
-          }
-        }
+      for (const { debtNote, amount, invoiceIds } of debtChanges.values()) {
+        debtNote.paid_amount = roundRewardMoney(Math.max(0, Number(debtNote.paid_amount || 0) - amount));
+        debtNote.remaining_amount = roundRewardMoney(Math.max(0, Number(debtNote.amount || 0) - debtNote.paid_amount));
+        debtNote.status = debtNote.remaining_amount > 0 ? DebtNoteStatus.ACTIVE : DebtNoteStatus.PAID;
+        await this.customerRewardService.handleDebtNoteSettlement(queryRunner.manager, debtNote, {
+          payment_amount: -amount,
+          invoice_ids: invoiceIds,
+          notes: `Thu hồi tích lũy do hoàn tác phiếu thu #${payment.code}`,
+        }, payment.created_by || 0, false);
+        affectedDebtNote = debtNote;
       }
 
       // 5. Xóa allocations và payment

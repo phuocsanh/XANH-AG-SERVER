@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull, Not, DataSource, QueryRunner, In } from 'typeorm';
 import {
   SalesInvoice,
+  SalesInvoiceGiftStockAllocation,
   SalesInvoiceStatus,
   SalesPaymentStatus,
 } from '../../entities/sales-invoices.entity';
@@ -41,6 +42,7 @@ import { RoleCode } from '../../common/enums/role-code.enum';
 import { BaseStatus } from '../../entities/base-status.enum';
 import { SalesReturnItem } from '../../entities/sales-return-items.entity';
 import { SalesReturnStatus } from '../../entities/sales-return.entity';
+import { planInvoiceStockRestoration, restoredTaxStockForStorage, saleTaxQuantityForStorage } from './invoice-stock-restoration-plan';
 
 /**
  * Service xử lý logic nghiệp vụ liên quan đến quản lý bán hàng
@@ -175,19 +177,44 @@ export class SalesService {
     userId: number,
     queryRunner?: QueryRunner,
   ): Promise<void> {
-    const giftProductId = this.toNumber(invoice.gift_product_id);
-    const giftQuantity = this.toNumber(invoice.gift_quantity);
+    if (!queryRunner) {
+      const runner = this.dataSource.createQueryRunner();
+      await runner.connect();
+      await runner.startTransaction();
+      try {
+        await this.handleInvoiceGiftStockOut(invoice, userId, runner);
+        await runner.commitTransaction();
+      } catch (error) {
+        await runner.rollbackTransaction();
+        throw error;
+      } finally {
+        await runner.release();
+      }
+      return;
+    }
+
+    const lockedInvoice = await queryRunner.manager.findOne(SalesInvoice, {
+      where: { id: invoice.id },
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (
+      !lockedInvoice ||
+      !this.isPostedInvoiceStatus(lockedInvoice.status)
+    ) {
+      return;
+    }
+
+    const giftProductId = this.toNumber(lockedInvoice.gift_product_id);
+    const giftQuantity = this.toNumber(lockedInvoice.gift_quantity);
     if (giftProductId <= 0 || giftQuantity <= 0) {
       return;
     }
 
-    const repo = queryRunner
-      ? queryRunner.manager.getRepository(InventoryTransaction)
-      : this.dataSource.getRepository(InventoryTransaction);
+    const repo = queryRunner.manager.getRepository(InventoryTransaction);
     const existingTransaction = await repo.findOne({
       where: {
         reference_type: 'INVOICE_GIFT',
-        reference_id: invoice.id,
+        reference_id: lockedInvoice.id,
       },
     });
     if (existingTransaction) {
@@ -199,17 +226,62 @@ export class SalesService {
       giftQuantity,
       'INVOICE_GIFT',
       userId,
-      invoice.id,
-      `Xuất kho quà tặng kèm hóa đơn #${invoice.code}`,
+      lockedInvoice.id,
+      `Xuất kho quà tặng kèm hóa đơn #${lockedInvoice.code}`,
       queryRunner,
+      { requireBatchTaxSnapshot: true },
     );
 
-    const manager = queryRunner ? queryRunner.manager : this.dataSource.manager;
+    const giftStockAllocations: SalesInvoiceGiftStockAllocation[] = (
+      result.affectedBatches || []
+    ).map((allocation: {
+      batchId: number;
+      deductedQuantity: number;
+      taxableQuantity: number;
+    }) => ({
+      batchId: Number(allocation.batchId),
+      quantity: Number(allocation.deductedQuantity),
+      taxableQuantity: Number(allocation.taxableQuantity),
+    }));
+    const allocatedQuantity = giftStockAllocations.reduce(
+      (sum, allocation) => sum + allocation.quantity,
+      0,
+    );
+    const allocatedTaxableQuantity = giftStockAllocations.reduce(
+      (sum, allocation) => sum + allocation.taxableQuantity,
+      0,
+    );
+    const stockOutTaxableQuantity = Number(result.taxableQuantity);
+    if (
+      giftStockAllocations.length === 0 ||
+      giftStockAllocations.some((allocation) =>
+        !Number.isInteger(allocation.batchId) ||
+        allocation.batchId <= 0 ||
+        !Number.isFinite(allocation.quantity) ||
+        allocation.quantity <= 0 ||
+        !Number.isFinite(allocation.taxableQuantity) ||
+        allocation.taxableQuantity < 0 ||
+        allocation.taxableQuantity > allocation.quantity
+      ) ||
+      !Number.isFinite(stockOutTaxableQuantity) ||
+      stockOutTaxableQuantity < 0 ||
+      stockOutTaxableQuantity > giftQuantity ||
+      Math.abs(allocatedQuantity - giftQuantity) > 0.0001 ||
+      Math.abs(allocatedTaxableQuantity - stockOutTaxableQuantity) > 0.0001
+    ) {
+      throw new BadRequestException(
+        `Không thể ghi nhận phân bổ lô quà của hóa đơn #${lockedInvoice.code}; ` +
+          'giao dịch xuất kho không trả về snapshot hợp lệ. Hệ thống đã hủy thao tác.',
+      );
+    }
+
+    const manager = queryRunner.manager;
     await manager.update(InventoryTransaction, result.transaction.id, {
-      notes: `Xuất kho quà tặng kèm hóa đơn #${invoice.code} | taxable_quantity=${result.taxableQuantity} | tax_selling_price=${result.taxSellingPrice}`,
+      notes: `Xuất kho quà tặng kèm hóa đơn #${lockedInvoice.code} | taxable_quantity=${result.taxableQuantity} | tax_selling_price=${result.taxSellingPrice}`,
     });
-    await manager.update(SalesInvoice, invoice.id, {
+    await manager.update(SalesInvoice, lockedInvoice.id, {
       gift_inventory_transaction_id: result.transaction.id,
+      gift_stock_allocations: giftStockAllocations,
     });
   }
 
@@ -251,32 +323,91 @@ export class SalesService {
       return;
     }
 
-    const taxableQuantity = this.extractTaxableQuantityFromTransaction(outTransaction);
-    const result = await this.inventoryService.processStockIn(
-      giftProductId,
-      giftQuantity,
-      Number(outTransaction.unit_cost_price || 0),
-      userId || invoice.created_by,
-      undefined,
-      `CANCEL_GIFT_${invoice.code}_${giftProductId}`,
-      undefined,
-      queryRunner,
-      taxableQuantity,
-    );
+    const allocations = invoice.gift_stock_allocations;
+    if (!Array.isArray(allocations) || allocations.length === 0) {
+      throw new BadRequestException(
+        `Không thể hoàn quà khi hủy hóa đơn ${invoice.code}: thiếu snapshot phân bổ lô ` +
+          'nên không xác định được lô nguồn và số lượng thuế từng lô. Vui lòng đối soát trước khi hủy.',
+      );
+    }
 
-    await transRepo.update(result.transaction.id, {
-      reference_type: 'INVOICE_GIFT_CANCEL',
-      reference_id: invoice.id,
-      notes: `Hoàn kho quà tặng từ hóa đơn hủy #${invoice.code}`,
-    });
+    const hasCompleteSnapshot = allocations.every((allocation) =>
+      allocation !== null &&
+      typeof allocation === 'object' &&
+      allocation.batchId !== null &&
+      allocation.batchId !== undefined &&
+      allocation.quantity !== null &&
+      allocation.quantity !== undefined &&
+      allocation.taxableQuantity !== null &&
+      allocation.taxableQuantity !== undefined
+    );
+    if (!hasCompleteSnapshot) {
+      throw new BadRequestException(
+        `Không thể hoàn quà khi hủy hóa đơn ${invoice.code}: snapshot phân bổ lô thiếu ` +
+          'mã lô, số lượng hoặc số lượng thuế. Vui lòng đối soát trước khi hủy.',
+      );
+    }
+
+    const allocatedQuantity = allocations.reduce(
+      (sum, allocation) => sum + Number(allocation.quantity),
+      0,
+    );
+    const allocatedTaxableQuantity = allocations.reduce(
+      (sum, allocation) => sum + Number(allocation.taxableQuantity),
+      0,
+    );
+    const outTaxableQuantity = this.extractTaxableQuantityFromTransaction(outTransaction);
+    if (
+      allocations.some((allocation) =>
+        !Number.isInteger(Number(allocation.batchId)) ||
+        Number(allocation.batchId) <= 0 ||
+        !Number.isFinite(Number(allocation.quantity)) ||
+        Number(allocation.quantity) <= 0 ||
+        !Number.isFinite(Number(allocation.taxableQuantity)) ||
+        Number(allocation.taxableQuantity) < 0 ||
+        Number(allocation.taxableQuantity) > Number(allocation.quantity)
+      ) ||
+      Math.abs(allocatedQuantity - giftQuantity) > 0.0001 ||
+      outTaxableQuantity === null ||
+      Math.abs(allocatedTaxableQuantity - outTaxableQuantity) > 0.0001
+    ) {
+      throw new BadRequestException(
+        `Không thể hoàn quà khi hủy hóa đơn ${invoice.code}: snapshot phân bổ lô ` +
+          'không khớp số lượng xuất hoặc số lượng thuế. Vui lòng đối soát trước khi hủy.',
+      );
+    }
+
+    if (!queryRunner) {
+      throw new BadRequestException(
+        `Không thể hoàn quà khi hủy hóa đơn ${invoice.code}: thiếu transaction để hoàn kho an toàn.`,
+      );
+    }
+
+    for (const allocation of allocations) {
+      await this.inventoryService.restoreStockToExistingBatch(
+        giftProductId,
+        Number(allocation.batchId),
+        Number(allocation.quantity),
+        Number(allocation.taxableQuantity),
+        userId || invoice.created_by,
+        invoice.id,
+        invoice.code,
+        queryRunner,
+        'INVOICE_GIFT_CANCEL',
+        `Hoàn quà về lô #${allocation.batchId} từ hóa đơn hủy #${invoice.code}`,
+      );
+    }
   }
 
   private extractTaxableQuantityFromTransaction(
     transaction: InventoryTransaction,
-  ): number {
-    const match = transaction.notes?.match(/taxable_quantity=([-+]?\d+(?:\.\d+)?)/);
-    const quantity = match ? Number(match[1]) : 0;
-    return Number.isFinite(quantity) && quantity >= 0 ? quantity : 0;
+  ): number | null {
+    const match = transaction.notes?.match(
+      /(?:^|[|;\s])taxable_quantity=([-+]?\d+(?:\.\d+)?)(?=$|[|;\s])/
+    );
+    if (!match) return null;
+    const quantity = Number(match[1]);
+    return Number.isFinite(quantity) && quantity >= 0 ? quantity : null;
   }
 
   private isPostedInvoiceStatus(status: SalesInvoiceStatus): boolean {
@@ -335,8 +466,10 @@ export class SalesService {
           );
         }
 
-        await this.handleInventoryDeduction(invoiceId, userId);
-        inventoryDeducted = true;
+        inventoryDeducted = await this.handleInventoryDeduction(
+          invoiceId,
+          userId,
+        );
       }
 
       const invoice = await this.salesInvoiceRepository.findOne({
@@ -565,6 +698,7 @@ export class SalesService {
           updatedDebtNote,
           {
             payment_amount: partialPayment,
+            invoice_ids: [invoice.id],
             gift_description: invoice.gift_description,
             gift_value: giftValue,
             gift_status: 'delivered',
@@ -842,6 +976,7 @@ export class SalesService {
         total_amount: computedTotalAmount,
         discount_amount: invoiceDiscountAmount,
         final_amount: finalAmount,
+        reward_policy_version: 1,
         payment_method: createSalesInvoiceDto.payment_method,
         notes: createSalesInvoiceDto.notes,
         warning: createSalesInvoiceDto.warning,
@@ -1022,6 +1157,7 @@ export class SalesService {
 
       // Chỉ ghi công nợ/thanh toán/tích lũy khi hóa đơn đã được post.
       if (this.isPostedInvoiceStatus(savedInvoice.status)) {
+        await this.customerRewardService.snapshotInvoiceRewardPolicy(queryRunner.manager, savedInvoice);
         try {
           await this.postInvoiceFinancialEntries(
             queryRunner.manager,
@@ -1074,10 +1210,14 @@ export class SalesService {
         await this.syncPostedInvoiceCostSnapshot(savedInvoice.id, queryRunner);
       }
 
+      const responseInvoice = this.isPostedInvoiceStatus(savedInvoice.status)
+        ? await this.findOne(savedInvoice.id, queryRunner)
+        : savedInvoice;
+      await this.customerRewardService.syncInvoiceReward(queryRunner.manager, savedInvoice.id);
       await queryRunner.commitTransaction();
       this.logger.log(`Đã commit transaction cho hóa đơn ${savedInvoice.id}`);
 
-      return savedInvoice;
+      return responseInvoice || savedInvoice;
     } catch (error) {
       await queryRunner.rollbackTransaction();
        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -1555,6 +1695,7 @@ export class SalesService {
         queryRunner.manager,
       );
 
+      await this.customerRewardService.snapshotInvoiceRewardPolicy(queryRunner.manager, invoice);
       invoice.status = SalesInvoiceStatus.CONFIRMED;
       invoice.updated_at = new Date();
       const savedInvoice = await queryRunner.manager.save(invoice);
@@ -1578,6 +1719,7 @@ export class SalesService {
         await this.syncPostedInvoiceCostSnapshot(savedInvoice.id, queryRunner);
       }
 
+      await this.customerRewardService.syncInvoiceReward(queryRunner.manager, savedInvoice.id);
       await queryRunner.commitTransaction();
       return savedInvoice;
     } catch (error) {
@@ -1683,6 +1825,7 @@ export class SalesService {
 	              debtNote,
               {
                 payment_amount: paymentAmountToProcess,
+                invoice_ids: [savedInvoice.id],
                 gift_status: 'delivered', // Hạch toán thủ công thì mặc định là đã giao
                 notes: `Tích lũy từ tất toán hóa đơn #${savedInvoice.code} (Hạch toán thủ công)`,
               },
@@ -1706,6 +1849,7 @@ export class SalesService {
         await this.syncPostedInvoiceCostSnapshot(savedInvoice.id, queryRunner);
       }
 
+      await this.customerRewardService.syncInvoiceReward(queryRunner.manager, savedInvoice.id);
       await queryRunner.commitTransaction();
       return savedInvoice;
     } catch (error) {
@@ -1799,23 +1943,10 @@ export class SalesService {
               originalPaidAmount,
               queryRunner.manager,
             );
-
-            const amountToRevoke = originalPaidAmount;
-            if (amountToRevoke > 0) {
-              await this.customerRewardService.handleDebtNoteSettlement(
-                queryRunner.manager,
-                debtNote,
-                {
-                  payment_amount: -amountToRevoke,
-                  notes: `Thu hồi điểm do hủy hóa đơn #${savedInvoice.code}`,
-                },
-                userId || (savedInvoice.created_by as any),
-                false
-              );
-            }
         }
       }
 
+      await this.customerRewardService.syncInvoiceReward(queryRunner.manager, savedInvoice.id);
       await queryRunner.commitTransaction();
       return savedInvoice;
     } catch (error) {
@@ -1889,6 +2020,7 @@ export class SalesService {
         );
       }
       await this.handleInventoryRestoration(savedInvoice.id, userId || invoice.created_by, queryRunner);
+      await this.handleInvoiceGiftStockRestoration(savedInvoice, userId || invoice.created_by, queryRunner);
 
       // 🆕 Trừ nợ trong công nợ (loại bỏ hóa đơn khỏi tích lũy mùa vụ)
       if (savedInvoice.customer_id && savedInvoice.season_id) {
@@ -1905,23 +2037,10 @@ export class SalesService {
               originalPaidAmount,
               queryRunner.manager,
             );
-
-            const amountToRevoke = originalPaidAmount;
-            if (amountToRevoke > 0) {
-              await this.customerRewardService.handleDebtNoteSettlement(
-                queryRunner.manager,
-                debtNote,
-                {
-                  payment_amount: -amountToRevoke,
-                  notes: `Thu hồi điểm do hoàn tiền hóa đơn #${savedInvoice.code}`,
-                },
-                userId || (savedInvoice.created_by as any),
-                false
-              );
-            }
         }
       }
 
+      await this.customerRewardService.syncInvoiceReward(queryRunner.manager, savedInvoice.id);
       await queryRunner.commitTransaction();
       return savedInvoice;
     } catch (error) {
@@ -2143,6 +2262,7 @@ export class SalesService {
               debtNote,
               {
                 payment_amount: amountNumber,
+                invoice_ids: [invoice.id],
                 gift_status: 'delivered', // Trả tiền mặt thì quà/tích lũy mặc định là đã trao
                 notes: `Thanh toán cho hóa đơn #${invoice.code}`,
               },
@@ -2152,6 +2272,7 @@ export class SalesService {
           }
         }
 
+      await this.customerRewardService.syncInvoiceReward(queryRunner.manager, savedInvoice.id);
       await queryRunner.commitTransaction();
       this.logger.log(`✅ Thanh toán thành công cho hóa đơn #${invoice.code}: ${amountNumber.toLocaleString()} đ`);
       
@@ -3110,26 +3231,45 @@ export class SalesService {
    * @param userId - ID người thực hiện
    * @param queryRunner - Đối tượng QueryRunner để xử lý transaction
    */
-  async handleInventoryDeduction(invoiceId: number, userId: number, queryRunner?: QueryRunner): Promise<void> {
+  async handleInventoryDeduction(invoiceId: number, userId: number, queryRunner?: QueryRunner): Promise<boolean> {
     if (!queryRunner) {
       const runner = this.dataSource.createQueryRunner();
       await runner.connect();
       await runner.startTransaction();
       try {
-        await this.handleInventoryDeduction(invoiceId, userId, runner);
+        const deducted = await this.handleInventoryDeduction(
+          invoiceId,
+          userId,
+          runner,
+        );
         await runner.commitTransaction();
+        return deducted;
       } catch (error) {
         await runner.rollbackTransaction();
         throw error;
       } finally {
         await runner.release();
       }
-      return;
     }
     try {
+      // Serialize all attempts for this invoice before checking its SALE marker.
+      const lockedInvoice = await queryRunner.manager.findOne(SalesInvoice, {
+        where: { id: invoiceId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (
+        !lockedInvoice ||
+        !this.isPostedInvoiceStatus(lockedInvoice.status)
+      ) {
+        this.logger.log(
+          `ℹ️ Hóa đơn #${invoiceId} không còn ở trạng thái đã xác nhận/đã thanh toán, bỏ qua trừ kho.`,
+        );
+        return false;
+      }
+
       const repo = queryRunner.manager.getRepository(InventoryTransaction);
-      
-      // 1. Kiểm tra xem hóa đơn đã được trừ tồn kho chưa
+
+      // Recheck after acquiring the invoice lock so concurrent syncs are idempotent.
       const existingTransaction = await repo.findOne({
         where: {
           reference_type: 'SALE',
@@ -3139,20 +3279,14 @@ export class SalesService {
 
       if (existingTransaction) {
         this.logger.log(`ℹ️ Hóa đơn #${invoiceId} đã được trừ tồn kho trước đó, bỏ qua.`);
-        return;
+        return false;
       }
 
-      // Khóa hóa đơn trong cùng transaction với toàn bộ các dòng xuất kho.
-      await queryRunner.manager.findOne(SalesInvoice, {
-        where: { id: invoiceId },
-        lock: { mode: 'pessimistic_write' },
-      });
-
-      // 2. Lấy thông tin hóa đơn và các item
+      // Load invoice and items only after the lock and SALE marker check.
       const invoice = await this.findOne(invoiceId, queryRunner);
       if (!invoice || !invoice.items || invoice.items.length === 0) {
         this.logger.warn(`⚠️ Hóa đơn #${invoiceId} không tồn tại hoặc không có sản phẩm để trừ kho.`);
-        return;
+        return false;
       }
 
       this.logger.log(`🚀 Bắt đầu trừ tồn kho cho hóa đơn #${invoice.code} (${invoiceId})`);
@@ -3164,12 +3298,10 @@ export class SalesService {
           // Lưu ý: userId có thể truyền từ JWT, nếu không có lấy người tạo hóa đơn
           const performerId = userId || invoice.created_by;
           
-          // ✅ Tính số lượng thực tế xuất kho theo đơn vị cơ sở (base_quantity)
-          // Nếu có base_quantity (người dùng bán BAO → quy đổi ra KG) thì dùng base_quantity
-          // Nếu không có (dữ liệu cũ hoặc không quy đổi) thì dùng quantity như cũ (tương thích ngược)
-          const stockOutQuantity = item.base_quantity
-            ? Number(item.base_quantity)
-            : item.quantity;
+          // Dùng đơn vị kho đã lưu trên hóa đơn, không lấy hệ số/giá hiện tại.
+          const factor = Number(item.conversion_factor ?? 1);
+          saleTaxQuantityForStorage(0, factor);
+          const stockOutQuantity = Number(item.base_quantity ?? Number(item.quantity) * factor);
           
           const result = await this.inventoryService.processStockOut(
             item.product_id,
@@ -3178,7 +3310,8 @@ export class SalesService {
             performerId,
             invoice.id,
             `Bán hàng theo hóa đơn #${invoice.code}`,
-            queryRunner
+            queryRunner,
+            { requireBatchTaxSnapshot: true },
 	          );
 
           await manager.delete(SalesInvoiceItemStockAllocation, {
@@ -3221,11 +3354,7 @@ export class SalesService {
           }
 
           // Cập nhật snapshot thuế của item từ các lô thực tế đã xuất
-          const factor = Number(item.conversion_factor || 1);
-          const taxableSaleQuantity = Math.round(result.taxableQuantity / factor * 10000) / 10000;
-          if (Math.abs(taxableSaleQuantity * factor - result.taxableQuantity) > 0.0001) {
-            throw new BadRequestException('Đơn vị bán không lưu chính xác được số lượng thuế. Vui lòng bán theo đơn vị gốc.');
-          }
+          const taxableSaleQuantity = saleTaxQuantityForStorage(result.taxableQuantity, factor);
           await manager.update(SalesInvoiceItem, item.id, {
             taxable_quantity: taxableSaleQuantity,
             ...(result.taxableQuantity > 0 && result.taxSellingPrice > 0
@@ -3243,6 +3372,7 @@ export class SalesService {
       }
 
       this.logger.log(`✅ Hoàn tất trừ tồn kho cho hóa đơn #${invoice.code}`);
+      return true;
     } catch (error) {
       this.logger.error(`❌ Lỗi nghiêm trọng khi xử lý trừ tồn kho cho hóa đơn #${invoiceId}: ${(error as any).message}`);
       throw error;
@@ -3377,7 +3507,6 @@ export class SalesService {
         .andWhere('salesReturn.status = :status', { status: SalesReturnStatus.APPROVED })
         .orderBy('item.id', 'ASC')
         .getMany();
-      const remainingByItem = this.getOutstandingInvoiceStock(invoice.items, returnItems);
 
       this.logger.log(`🚀 Bắt đầu hoàn tồn kho cho hóa đơn #${invoice.code}`);
       const allocations = await transRepo.manager.find(
@@ -3388,193 +3517,23 @@ export class SalesService {
         },
       );
 
-      if (allocations.length === 0) {
-        const taxableWithoutSnapshot = invoice.items.some((item) =>
-          (remainingByItem.get(item.id)?.taxableQuantity || 0) > 0,
-        );
-        if (taxableWithoutSnapshot) {
-          throw new BadRequestException(
-            'Hóa đơn thiếu snapshot thuế theo lô; không thể hủy tự động, cần đối soát trước.',
-          );
-        }
-      }
+      const plan = planInvoiceStockRestoration(invoiceId, invoice.items, allocations, returnItems, invoice.code);
+      const remainingByItem = plan.byItem;
+      const restoreQuantityByAllocation = new Map(
+        [...plan.byAllocation].map(([id, balance]) => [id, balance.quantity]),
+      );
+      const restoreTaxByAllocation = new Map(
+        [...plan.byAllocation].map(([id, balance]) => [id, balance.taxableQuantity]),
+      );
 
       if (allocations.length > 0) {
+        // processStockIn already restores tax for allocations without an existing batch.
         const taxableRestoreByProduct = new Map<number, number>();
-        const restoreTaxByAllocation = new Map<number, number>();
-        const returnedBySource = new Map<
-          string,
-          { quantity: number; taxableQuantity: number }
-        >();
-        const sourceSnapshotByItem = new Map<number, boolean>();
-        const sourceKey = (
-          itemId: number,
-          sourceBatchId?: number,
-          sourceReceiptItemId?: number,
-        ): string | null => {
-          if (sourceBatchId) return `${itemId}:batch:${sourceBatchId}`;
-          if (sourceReceiptItemId) return `${itemId}:receipt:${sourceReceiptItemId}`;
-          return null;
-        };
-
-        for (const returnItem of returnItems) {
-          if (!returnItem.sales_invoice_item_id) continue;
-          const stockAllocations = Array.isArray(returnItem.stock_allocations)
-            ? returnItem.stock_allocations
-            : [];
-          const complete = stockAllocations.length > 0 && stockAllocations.every(
-            (allocation) => {
-              const sourceBatchId = Number(allocation.sourceBatchId || 0);
-              const sourceReceiptItemId = Number(allocation.sourceReceiptItemId || 0);
-              return Number.isFinite(sourceBatchId) && sourceBatchId > 0 ||
-                Number.isFinite(sourceReceiptItemId) && sourceReceiptItemId > 0;
-            },
-          );
-          const itemId = Number(returnItem.sales_invoice_item_id);
-          sourceSnapshotByItem.set(
-            itemId,
-            complete && (sourceSnapshotByItem.get(itemId) ?? true),
-          );
-          if (!complete) continue;
-          for (const allocation of stockAllocations) {
-            const key = sourceKey(
-              itemId,
-              Number(allocation.sourceBatchId || 0),
-              Number(allocation.sourceReceiptItemId || 0),
-            );
-            if (!key) continue;
-            const current = returnedBySource.get(key) || {
-              quantity: 0,
-              taxableQuantity: 0,
-            };
-            current.quantity += Number(allocation.quantity || 0);
-            current.taxableQuantity += Number(allocation.taxableQuantity || 0);
-            returnedBySource.set(key, current);
-          }
-        }
-
-        // Phan bo phan chua tra theo cac lo xuat goc, khong hoan lai hang da tra.
-        const restoreQuantityByAllocation = new Map<number, number>();
-        for (const item of invoice.items) {
-          const itemAllocations = allocations.filter((allocation) => allocation.sales_invoice_item_id === item.id);
-          if (!itemAllocations.length) continue;
-          const originalQuantity = Number(item.base_quantity ?? Number(item.quantity) * Number(item.conversion_factor || 1));
-          const allocatedQuantity = itemAllocations.reduce((sum, allocation) => sum + Number(allocation.quantity), 0);
-          if (Math.abs(allocatedQuantity - originalQuantity) > 0.0001) {
-            throw new BadRequestException(`Phân bổ lô của dòng hóa đơn #${item.id} không khớp số lượng đã bán. Cần đối soát trước khi hoàn kho.`);
-          }
-          const productId = Number(item.product_id || 0);
-          if (!productId) continue;
-          const itemReturns = returnItems.filter(
-            (returnItem) => Number(returnItem.sales_invoice_item_id) === item.id,
-          );
-          const hasReturnedQuantity = itemReturns.some(
-            (returnItem) =>
-              Number(returnItem.base_quantity ?? Number(returnItem.quantity) * Number(returnItem.conversion_factor || 1)) > 0,
-          );
-          const hasSourceSnapshots = hasReturnedQuantity &&
-            sourceSnapshotByItem.get(item.id) === true;
-          if (hasReturnedQuantity && itemAllocations.length > 1 && !hasSourceSnapshots) {
-            throw new BadRequestException(
-              `Phiếu khách trả của dòng hóa đơn #${item.id} thiếu lô xuất gốc; không thể hủy tự động, cần đối soát trước.`,
-            );
-          }
-
-          const quantityToRestore = remainingByItem.get(item.id)?.quantity || 0;
-          if (hasSourceSnapshots) {
-            for (const allocation of itemAllocations) {
-              const key = sourceKey(
-                item.id,
-                Number(allocation.inventory_batch_id || 0),
-                Number(allocation.receipt_item_id || 0),
-              );
-              const returned = key ? returnedBySource.get(key) : undefined;
-              const restoredQuantity = Math.max(
-                0,
-                Math.round(
-                  (Number(allocation.quantity || 0) - Number(returned?.quantity || 0)) *
-                    10000,
-                ) / 10000,
-              );
-              restoreQuantityByAllocation.set(allocation.id, restoredQuantity);
-              if (allocation.taxable_quantity === null || allocation.taxable_quantity === undefined) {
-                throw new BadRequestException(
-                  `Allocation của dòng hóa đơn #${item.id} thiếu snapshot thuế theo lô; không thể hủy tự động, cần đối soát trước.`,
-                );
-              }
-              const restoredTaxableQuantity = Math.max(
-                0,
-                Math.min(
-                  restoredQuantity,
-                  Number(allocation.taxable_quantity || 0) - Number(returned?.taxableQuantity || 0),
-                ),
-              );
-              restoreTaxByAllocation.set(allocation.id, restoredTaxableQuantity);
-              taxableRestoreByProduct.set(
-                productId,
-                (taxableRestoreByProduct.get(productId) || 0) + restoredTaxableQuantity,
-              );
-            }
-            continue;
-          }
-
-          let remaining = quantityToRestore;
-          for (const [index, allocation] of itemAllocations.entries()) {
-            const quantity = index === itemAllocations.length - 1
-              ? remaining
-              : Math.min(remaining, Math.round(quantityToRestore * Number(allocation.quantity) / allocatedQuantity * 10000) / 10000);
-            restoreQuantityByAllocation.set(allocation.id, quantity);
-            remaining = Math.round((remaining - quantity) * 10000) / 10000;
-          }
-
-          const hasTaxSnapshots = itemAllocations.every(
-            (allocation) =>
-              allocation.taxable_quantity !== null &&
-              allocation.taxable_quantity !== undefined,
-          );
-
-          if (hasTaxSnapshots) {
-            let taxableToRestore = Math.max(
-              0,
-              remainingByItem.get(item.id)?.taxableQuantity || 0,
-            );
-            for (const allocation of itemAllocations) {
-              const restoredQuantity = restoreQuantityByAllocation.get(allocation.id) || 0;
-              if (restoredQuantity <= 0) continue;
-              const restoredTaxableQuantity = Math.min(
-                restoredQuantity,
-                Number(allocation.taxable_quantity || 0),
-                taxableToRestore,
-              );
-              taxableToRestore = Math.round(
-                (taxableToRestore - restoredTaxableQuantity) * 10000,
-              ) / 10000;
-              restoreTaxByAllocation.set(allocation.id, restoredTaxableQuantity);
-              taxableRestoreByProduct.set(
-                productId,
-                (taxableRestoreByProduct.get(productId) || 0) +
-                  restoredTaxableQuantity,
-              );
-            }
-            if (taxableToRestore > 0.0001) {
-              throw new BadRequestException(
-                `Snapshot thuế của dòng hóa đơn #${item.id} không đủ để hoàn phần tồn thuế, cần đối soát trước.`,
-              );
-            }
-          } else {
-            // Legacy allocations do not have a source-batch tax snapshot.
-            const fallbackTaxableQuantity = remainingByItem.get(item.id)?.taxableQuantity || 0;
-            if (fallbackTaxableQuantity > 0) {
-              throw new BadRequestException(
-                `Allocation của dòng hóa đơn #${item.id} thiếu snapshot thuế theo lô; không thể hủy tự động, cần đối soát trước.`,
-              );
-            }
-            taxableRestoreByProduct.set(
-              productId,
-              (taxableRestoreByProduct.get(productId) || 0) +
-                fallbackTaxableQuantity,
-            );
-          }
+        for (const allocation of allocations) {
+          if (!allocation.inventory_batch_id) continue;
+          const tax = restoreTaxByAllocation.get(allocation.id) || 0;
+          taxableRestoreByProduct.set(allocation.product_id,
+            (taxableRestoreByProduct.get(allocation.product_id) || 0) + tax);
         }
 
         for (const allocation of allocations) {
@@ -3582,6 +3541,15 @@ export class SalesService {
           if (restoredQuantity <= 0) continue;
 
           if (!allocation.inventory_batch_id) {
+            const product = await transRepo.manager.findOne(Product, {
+              where: { id: Number(allocation.product_id) },
+              lock: { mode: 'pessimistic_write' },
+            });
+            if (!product) {
+              throw new BadRequestException(`Không tìm thấy sản phẩm #${allocation.product_id} để hoàn hóa đơn #${invoice.code}.`);
+            }
+            restoredTaxStockForStorage(Number(product.taxable_quantity_stock) +
+              (restoreTaxByAllocation.get(allocation.id) || 0), product.id);
             const result = await this.inventoryService.processStockIn(
               allocation.product_id, restoredQuantity, Number(allocation.unit_cost || 0),
               userId || invoice.created_by, allocation.receipt_item_id,
@@ -3617,20 +3585,19 @@ export class SalesService {
               );
             }
 
-            batch.remaining_quantity =
-              Number(batch.remaining_quantity || 0) + restoredQuantity;
-            const restoredTaxableQuantity = restoreTaxByAllocation.get(allocation.id);
-            if (
-              restoredTaxableQuantity !== undefined &&
-              batch.taxable_remaining_quantity !== null &&
-              batch.taxable_remaining_quantity !== undefined
-            ) {
-              batch.taxable_remaining_quantity = Math.min(
-                Number(batch.original_quantity || 0),
-                Number(batch.taxable_remaining_quantity || 0) +
-                  restoredTaxableQuantity,
-              );
+            if (Number(batch.product_id) !== Number(allocation.product_id)) {
+              throw new BadRequestException(`Lô kho #${batch.id} không thuộc sản phẩm #${allocation.product_id} của hóa đơn #${invoice.code}.`);
             }
+            if (batch.taxable_remaining_quantity == null ||
+                !Number.isFinite(Number(batch.taxable_remaining_quantity)) ||
+                !Number.isFinite(Number(batch.remaining_quantity)) ||
+                Number(batch.taxable_remaining_quantity) < 0 ||
+                Number(batch.taxable_remaining_quantity) > Number(batch.remaining_quantity) + 0.00000001) {
+              throw new BadRequestException(`Lô kho #${batch.id} của hóa đơn #${invoice.code} thiếu hoặc sai tồn thuế còn lại; cần đối soát trước khi hoàn kho.`);
+            }
+            batch.remaining_quantity = Number(batch.remaining_quantity) + restoredQuantity;
+            batch.taxable_remaining_quantity = Number(batch.taxable_remaining_quantity) +
+              (restoreTaxByAllocation.get(allocation.id) || 0);
             await transRepo.manager.save(batch);
           }
 
@@ -3671,13 +3638,13 @@ export class SalesService {
           });
           if (!product) continue;
 
-          const restoredTaxableStock = Math.min(
-            Number(product.quantity || 0),
-            Number(product.taxable_quantity_stock || 0) + taxableQuantity,
-          );
+          const restoredTaxableStock = restoredTaxStockForStorage(
+            Number(product.taxable_quantity_stock) + taxableQuantity, productId);
+          if (restoredTaxableStock > Number(product.quantity) + 0.00000001) {
+            throw new BadRequestException(`Tồn thuế sản phẩm #${productId} vượt tồn kho khi hoàn hóa đơn #${invoice.code}; cần đối soát.`);
+          }
           await transRepo.manager.update(Product, productId, {
-            taxable_quantity_stock:
-              Math.round(restoredTaxableStock * 10000) / 10000,
+            taxable_quantity_stock: restoredTaxableStock,
           });
         }
 
@@ -3730,120 +3697,5 @@ export class SalesService {
     }
   }
 
-  private getOutstandingInvoiceStock(
-    items: SalesInvoiceItem[],
-    returns: SalesReturnItem[],
-  ): Map<number, { quantity: number; taxableQuantity: number }> {
-    const returnedByItem = new Map<number, SalesReturnItem[]>();
-    const legacyByProduct = new Map<number, SalesReturnItem[]>();
-    const legacyRemaining = new Map<number, number>();
-    for (const item of returns) {
-      const quantity = Number(
-        item.base_quantity ?? Number(item.quantity) * Number(item.conversion_factor || 1),
-      );
-      legacyRemaining.set(item.id, Math.max(0, quantity));
-      const map = item.sales_invoice_item_id ? returnedByItem : legacyByProduct;
-      const key = Number(item.sales_invoice_item_id || item.product_id);
-      const entries = map.get(key) || [];
-      entries.push(item);
-      map.set(key, entries);
-    }
 
-    const getReturnTaxableQuantity = (
-      returnItem: SalesReturnItem,
-      matchedQuantity: number,
-      requireSnapshot: boolean,
-    ): number => {
-      if (matchedQuantity <= 0) return 0;
-      const returnQuantity = Math.max(0, legacyRemaining.get(returnItem.id) || 0);
-      const allocations = Array.isArray(returnItem.stock_allocations)
-        ? returnItem.stock_allocations
-        : [];
-      const hasTaxSnapshots = allocations.length > 0 && allocations.every(
-        (allocation) =>
-          Object.prototype.hasOwnProperty.call(allocation, 'taxableQuantity') &&
-          Number.isFinite(Number(allocation.taxableQuantity)) &&
-          Number(allocation.taxableQuantity) >= 0,
-      );
-      if (!hasTaxSnapshots) {
-        if (!requireSnapshot) return 0;
-        throw new BadRequestException(
-          'Phiếu khách trả thiếu snapshot thuế theo lô; không thể hủy tự động, cần đối soát trước.',
-        );
-      }
-      const taxableQuantity = allocations.reduce(
-        (sum, allocation) => sum + Number(allocation.taxableQuantity),
-        0,
-      );
-      return Math.round(
-        taxableQuantity * (matchedQuantity / Math.max(returnQuantity, 0.00000001)) * 10000,
-      ) / 10000;
-    };
-
-    const result = new Map<number, { quantity: number; taxableQuantity: number }>();
-    for (const item of [...items].sort((a, b) => a.id - b.id)) {
-      const factor = Number(item.conversion_factor || 1);
-      const originalQuantity = Number(item.base_quantity ?? Number(item.quantity) * factor);
-      const directReturns = returnedByItem.get(item.id) || [];
-      const matchedReturns: Array<{ item: SalesReturnItem; quantity: number }> = [];
-      let remainingForItem = Math.max(
-        0,
-        originalQuantity - directReturns.reduce(
-          (sum, returnItem) => sum + Math.max(0, legacyRemaining.get(returnItem.id) || 0),
-          0,
-        ),
-      );
-      for (const returnItem of directReturns) {
-        const quantity = Math.max(0, legacyRemaining.get(returnItem.id) || 0);
-        const matchedQuantity = Math.min(quantity, originalQuantity);
-        matchedReturns.push({ item: returnItem, quantity: matchedQuantity });
-      }
-
-      for (const returnItem of legacyByProduct.get(item.product_id) || []) {
-        if (remainingForItem <= 0) break;
-        const available = Math.max(0, legacyRemaining.get(returnItem.id) || 0);
-        const matchedQuantity = Math.min(remainingForItem, available);
-        if (matchedQuantity <= 0) continue;
-        legacyRemaining.set(returnItem.id, available - matchedQuantity);
-        matchedReturns.push({ item: returnItem, quantity: matchedQuantity });
-        remainingForItem -= matchedQuantity;
-      }
-
-      const returned = Math.min(
-        originalQuantity,
-        matchedReturns.reduce((sum, entry) => sum + entry.quantity, 0),
-      );
-      const returnedTaxable = matchedReturns.reduce(
-        (sum, entry) => sum + getReturnTaxableQuantity(
-          entry.item,
-          entry.quantity,
-          this.getInvoiceTaxableBaseQuantity(item) > 0,
-        ),
-        0,
-      );
-      const quantity = Math.max(0, originalQuantity - returned);
-      result.set(item.id, {
-        quantity: Math.round(quantity * 10000) / 10000,
-        taxableQuantity: Math.max(
-          0,
-          Math.min(quantity, this.getInvoiceTaxableBaseQuantity(item) - returnedTaxable),
-        ),
-      });
-    }
-    return result;
-  }
-
-  private getInvoiceTaxableBaseQuantity(item: SalesInvoiceItem): number {
-    const factor = Number(item.conversion_factor || 1);
-    const taxableQuantity = Number(item.taxable_quantity || 0);
-    const productTaxPrice = Number(item.product?.tax_selling_price || 0);
-    const itemTaxPrice = Number(item.tax_selling_price || 0);
-    const legacyBaseSnapshot =
-      factor !== 1 &&
-      (taxableQuantity > Number(item.quantity || 0) + 0.0001 ||
-        (itemTaxPrice > 0 &&
-          productTaxPrice > 0 &&
-          Math.abs(itemTaxPrice - productTaxPrice) < 0.000001));
-    return legacyBaseSnapshot ? taxableQuantity : taxableQuantity * factor;
-  }
 }

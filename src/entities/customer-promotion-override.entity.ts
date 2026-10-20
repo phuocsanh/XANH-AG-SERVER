@@ -11,6 +11,7 @@ import {
 import { Customer } from './customer.entity';
 import { PromotionCampaign } from './promotion-campaign.entity';
 import { PromotionRewardPool } from './promotion-reward-pool.entity';
+import { Product } from './products.entity';
 import { User } from './users.entity';
 
 @Entity('customer_promotion_overrides')
@@ -45,6 +46,22 @@ export class CustomerPromotionOverride {
 
   @Column({ name: 'assigned_reward_name', type: 'varchar', nullable: true })
   assigned_reward_name?: string | null;
+
+  @Column({ name: 'assigned_reward_product_id', type: 'int', nullable: true })
+  assigned_reward_product_id?: number | null;
+
+  @ManyToOne(() => Product, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'assigned_reward_product_id' })
+  assigned_reward_product?: Product | null;
+
+  @Column({
+    name: 'assigned_reward_product_quantity',
+    type: 'decimal',
+    precision: 15,
+    scale: 4,
+    nullable: true,
+  })
+  assigned_reward_product_quantity?: number | null;
 
   @Column({ name: 'assigned_reward_bucket_month', type: 'int', nullable: true })
   assigned_reward_bucket_month?: number | null;

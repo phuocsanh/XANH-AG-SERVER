@@ -24,10 +24,10 @@ export class ProductMixtureService {
    */
   async createMixture(createDto: CreateProductMixtureDto, userId: number): Promise<ProductMixture> {
     const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
-
     try {
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
+
       const { productId, quantity, notes, items: overrideItems } = createDto;
 
       // 1. Kiểm tra sản phẩm mục tiêu
@@ -120,7 +120,9 @@ export class ProductMixtureService {
       await queryRunner.commitTransaction();
       return savedMixture;
     } catch (error) {
-      await queryRunner.rollbackTransaction();
+      if (queryRunner.isTransactionActive) {
+        await queryRunner.rollbackTransaction();
+      }
       this.logger.error('Lỗi khi thực hiện phối trộn sản phẩm:', error);
       throw error;
     } finally {

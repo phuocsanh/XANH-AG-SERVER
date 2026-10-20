@@ -162,6 +162,14 @@ export class CustomerRewardHistory {
   })
   gift_quantity?: number | null;
 
+  /** Snapshot các lô và số thuế đã xuất khi tặng sản phẩm */
+  @Column({ name: 'stock_allocations', type: 'jsonb', nullable: true })
+  stock_allocations?: Array<{
+    batchId: number;
+    quantity: number;
+    taxableQuantity: number;
+  }> | null;
+
   /** Đơn giá hạch toán cho sản phẩm quà */
   @Column({
     name: 'gift_unit_price',

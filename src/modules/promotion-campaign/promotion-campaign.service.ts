@@ -4,7 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, ILike, In, Repository } from 'typeorm';
+import { DataSource, ILike, In, MoreThan, Repository } from 'typeorm';
+import { InventoryService } from '../inventory/inventory.service';
 import { CustomerPromotionLedger } from '../../entities/customer-promotion-ledger.entity';
 import { CustomerPromotionOverride } from '../../entities/customer-promotion-override.entity';
 import { CustomerPromotionProgress } from '../../entities/customer-promotion-progress.entity';
@@ -24,6 +25,11 @@ import { SearchPromotionCampaignDto } from './dto/search-promotion-campaign.dto'
 import { UpdatePromotionCampaignDto } from './dto/update-promotion-campaign.dto';
 
 type EntityManagerLike = any;
+type PromotionRewardStockAllocation = {
+  batchId: number;
+  quantity: number;
+  taxableQuantity: number;
+};
 
 @Injectable()
 export class PromotionCampaignService {
@@ -48,11 +54,13 @@ export class PromotionCampaignService {
     private readonly reservationRepository: Repository<PromotionRewardReservation>,
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
+    private readonly inventoryService: InventoryService,
   ) {}
 
   async create(dto: CreatePromotionCampaignDto, userId: number) {
     this.validateCampaignDates(dto.start_at, dto.end_at);
     this.validateRewards(dto);
+    await this.validateRewardProducts(dto.rewards);
 
     const existing = await this.campaignRepository.findOne({
       where: { code: dto.code },
@@ -186,6 +194,7 @@ export class PromotionCampaignService {
 
     if (dto.rewards) {
       this.validateRewards(dto as CreatePromotionCampaignDto);
+      await this.validateRewardProducts(dto.rewards);
     }
 
     if (dto.code && dto.code !== campaign.code) {
@@ -381,6 +390,7 @@ export class PromotionCampaignService {
 
     try {
       const manager = queryRunner.manager;
+      await this.lockCustomerPromotionProgress(manager, promotionId, customerId);
       const campaign = await manager.findOne(PromotionCampaign, {
         where: { id: promotionId },
       });
@@ -400,6 +410,7 @@ export class PromotionCampaignService {
 
       let progress = await manager.findOne(CustomerPromotionProgress, {
         where: { promotion_id: promotionId, customer_id: customerId },
+        lock: { mode: 'pessimistic_write' },
       });
 
       if (!progress) {
@@ -433,6 +444,12 @@ export class PromotionCampaignService {
         const forcedRewardPoolId = override!.assigned_reward_pool_id!;
         const forcedRewardName = override!.assigned_reward_name!;
         const forcedRewardValue = Number(override!.assigned_reward_value || 0);
+        const forcedPool = await manager.findOne(PromotionRewardPool, {
+          where: { id: forcedRewardPoolId, promotion_id: promotionId },
+        });
+        if (!forcedPool) {
+          throw new BadRequestException('Không tìm thấy cấu hình quà được giữ riêng');
+        }
 
         progress.win_count = winCountBeforeSpin + 1;
         progress.last_win_at = now;
@@ -463,6 +480,10 @@ export class PromotionCampaignService {
             reward_bucket_month: override!.assigned_reward_bucket_month || null,
             reward_name: forcedRewardName,
             reward_value: forcedRewardValue,
+            reward_product_id: override!.assigned_reward_product_id || null,
+            reward_product_quantity: override!.assigned_reward_product_id
+              ? Number(override!.assigned_reward_product_quantity || 1)
+              : null,
             status: 'reserved',
             reserved_at: now,
             note: override?.note || 'Force win one-time',
@@ -476,6 +497,8 @@ export class PromotionCampaignService {
         if (override!.force_win_remaining_count <= 0) {
           override!.assigned_reward_pool_id = null;
           override!.assigned_reward_name = null;
+          override!.assigned_reward_product_id = null;
+          override!.assigned_reward_product_quantity = null;
           override!.assigned_reward_bucket_month = null;
           override!.assigned_reward_value = 0;
           override!.note = null;
@@ -615,6 +638,10 @@ export class PromotionCampaignService {
           reward_bucket_month: reservedReward.bucketMonth,
           reward_name: reservedReward.pool.reward_name,
           reward_value: Number(reservedReward.pool.reward_value || 0),
+            reward_product_id: reservedReward.pool.reward_product_id || null,
+            reward_product_quantity: reservedReward.pool.reward_product_id
+              ? Number(reservedReward.pool.reward_product_quantity || 1)
+              : null,
           status: 'reserved',
           reserved_at: now,
         }),
@@ -657,6 +684,10 @@ export class PromotionCampaignService {
         customer: item.customer,
         reward_name: item.reward_name,
         reward_value: Number(item.reward_value || 0),
+        reward_product_id: item.reward_product_id || null,
+        reward_product_quantity: item.reward_product_quantity
+          ? Number(item.reward_product_quantity)
+          : null,
         status: item.status,
         reserved_at: item.reserved_at,
         issued_at: item.issued_at,
@@ -752,6 +783,7 @@ export class PromotionCampaignService {
         throw new BadRequestException('Vui lòng chọn quà và tháng muốn giữ riêng');
       }
 
+      await this.lockCustomerPromotionProgress(manager, promotionId, customerId);
       const campaign = await manager.findOne(PromotionCampaign, {
         where: { id: promotionId },
       });
@@ -761,6 +793,7 @@ export class PromotionCampaignService {
 
       const progress = await manager.findOne(CustomerPromotionProgress, {
         where: { promotion_id: promotionId, customer_id: customerId },
+        lock: { mode: 'pessimistic_write' },
       });
       if (!progress) {
         throw new NotFoundException(
@@ -801,6 +834,10 @@ export class PromotionCampaignService {
       override.force_win_remaining_count = 1;
       override.assigned_reward_pool_id = reservedReward.pool.id;
       override.assigned_reward_name = reservedReward.pool.reward_name;
+      override.assigned_reward_product_id = reservedReward.pool.reward_product_id || null;
+      override.assigned_reward_product_quantity = reservedReward.pool.reward_product_id
+        ? Number(reservedReward.pool.reward_product_quantity || 1)
+        : null;
       override.assigned_reward_bucket_month = reservedReward.bucketMonth;
       override.assigned_reward_value = Number(
         reservedReward.pool.reward_value || 0,
@@ -824,6 +861,11 @@ export class PromotionCampaignService {
     promotionId: number,
     customerId: number,
   ) {
+    await this.lockCustomerPromotionProgress(manager, promotionId, customerId);
+    await manager.findOne(CustomerPromotionProgress, {
+      where: { promotion_id: promotionId, customer_id: customerId },
+      lock: { mode: 'pessimistic_write' },
+    });
     const override = await manager.findOne(CustomerPromotionOverride, {
       where: { promotion_id: promotionId, customer_id: customerId },
     });
@@ -852,6 +894,8 @@ export class PromotionCampaignService {
     override.force_win_remaining_count = 0;
     override.assigned_reward_pool_id = null;
     override.assigned_reward_name = null;
+    override.assigned_reward_product_id = null;
+    override.assigned_reward_product_quantity = null;
     override.assigned_reward_bucket_month = null;
     override.assigned_reward_value = 0;
     override.note = null;
@@ -866,6 +910,11 @@ export class PromotionCampaignService {
     customerId: number,
     userId: number,
   ) {
+    await this.lockCustomerPromotionProgress(manager, promotionId, customerId);
+    await manager.findOne(CustomerPromotionProgress, {
+      where: { promotion_id: promotionId, customer_id: customerId },
+      lock: { mode: 'pessimistic_write' },
+    });
     let override = await manager.findOne(CustomerPromotionOverride, {
       where: { promotion_id: promotionId, customer_id: customerId },
     });
@@ -884,6 +933,8 @@ export class PromotionCampaignService {
     override.force_win_remaining_count = 0;
     override.assigned_reward_pool_id = null;
     override.assigned_reward_name = null;
+    override.assigned_reward_product_id = null;
+    override.assigned_reward_product_quantity = null;
     override.assigned_reward_bucket_month = null;
     override.assigned_reward_value = 0;
     override.win_rate_multiplier = 0;
@@ -948,6 +999,10 @@ export class PromotionCampaignService {
         customer: item.customer,
         reward_name: item.reward_name,
         reward_value: Number(item.reward_value || 0),
+        reward_product_id: item.reward_product_id || null,
+        reward_product_quantity: item.reward_product_quantity
+          ? Number(item.reward_product_quantity)
+          : null,
         status: item.status,
         reserved_at: item.reserved_at,
         issued_at: item.issued_at,
@@ -960,74 +1015,163 @@ export class PromotionCampaignService {
   }
 
   async issueReservation(promotionId: number, reservationId: number, userId: number) {
-    const reservation = await this.reservationRepository.findOne({
-      where: { id: reservationId, promotion_id: promotionId },
-    });
-    if (!reservation) {
-      throw new NotFoundException('Không tìm thấy quà đã reserve');
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const manager = queryRunner.manager;
+      const reservation = await manager.findOne(PromotionRewardReservation, {
+        where: { id: reservationId, promotion_id: promotionId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!reservation) {
+        throw new NotFoundException('Không tìm thấy quà đã reserve');
+      }
+      if (reservation.status !== 'reserved') {
+        throw new BadRequestException('Chỉ có thể xác nhận trao quà đang được reserve');
+      }
+
+      const pool = await manager.findOne(PromotionRewardPool, {
+        where: { id: reservation.reward_pool_id, promotion_id: promotionId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!pool) {
+        throw new NotFoundException('Không tìm thấy cấu hình quà');
+      }
+
+      const productId = Number(reservation.reward_product_id || 0);
+      if (productId > 0) {
+        const quantity = Number(reservation.reward_product_quantity || 0);
+        if (!Number.isFinite(quantity) || quantity <= 0) {
+          throw new BadRequestException('Số lượng kho của quà tặng không hợp lệ');
+        }
+
+        const stockOut = await this.inventoryService.processStockOut(
+          productId,
+          quantity,
+          'PROMOTION_REWARD_GIFT',
+          userId,
+          reservation.id,
+          `Xuất quà campaign #${promotionId}, reservation #${reservation.id}`,
+          queryRunner,
+          { requireBatchTaxSnapshot: true },
+        );
+        const allocations = this.validateRewardStockAllocations(
+          quantity,
+          stockOut.affectedBatches.map((batch) => ({
+            batchId: Number(batch.batchId),
+            quantity: Number(batch.deductedQuantity),
+            taxableQuantity: Number(batch.taxableQuantity),
+          })),
+          reservation.id,
+          productId,
+        );
+        reservation.reward_product_id = productId;
+        reservation.reward_product_quantity = quantity;
+        reservation.gift_inventory_transaction_id = stockOut.transaction.id;
+        reservation.stock_allocations = allocations;
+      } else {
+        reservation.reward_product_id = null;
+        reservation.reward_product_quantity = null;
+        reservation.gift_inventory_transaction_id = null;
+        reservation.stock_allocations = null;
+      }
+
+      reservation.status = 'issued';
+      reservation.issued_at = new Date();
+      reservation.issued_by = userId;
+      reservation.expense_posted_at = reservation.issued_at;
+      await manager.save(reservation);
+      await this.syncRewardPoolCounters(manager, pool);
+      await manager.save(pool);
+      await queryRunner.commitTransaction();
+
+      return { success: true, message: 'Đã xác nhận trao quà' };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
-    if (reservation.status === 'issued') {
-      throw new BadRequestException('Quà này đã được xác nhận trao');
-    }
-
-    const pool = await this.rewardPoolRepository.findOne({
-      where: { id: reservation.reward_pool_id },
-    });
-    if (!pool) {
-      throw new NotFoundException('Không tìm thấy cấu hình quà');
-    }
-
-    reservation.status = 'issued';
-    reservation.issued_at = new Date();
-    reservation.issued_by = userId;
-    reservation.expense_posted_at = reservation.issued_at;
-    await this.reservationRepository.save(reservation);
-
-    pool.issued_quantity = Number(pool.issued_quantity || 0) + 1;
-    await this.rewardPoolRepository.save(pool);
-
-    return {
-      success: true,
-      message: 'Đã xác nhận trao quà',
-    };
   }
 
   /**
    * Hoàn tác xác nhận trao quà: đặt reservation về trạng thái 'reserved',
    * xóa thông tin trao và giảm issued_quantity của pool.
    */
-  async cancelIssueReservation(promotionId: number, reservationId: number) {
-    const reservation = await this.reservationRepository.findOne({
-      where: { id: reservationId, promotion_id: promotionId },
-    });
-    if (!reservation) {
-      throw new NotFoundException('Không tìm thấy quà đã reserve');
+  async cancelIssueReservation(
+    promotionId: number,
+    reservationId: number,
+    userId: number,
+  ) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const manager = queryRunner.manager;
+      const reservation = await manager.findOne(PromotionRewardReservation, {
+        where: { id: reservationId, promotion_id: promotionId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!reservation) {
+        throw new NotFoundException('Không tìm thấy quà đã reserve');
+      }
+      if (reservation.status !== 'issued') {
+        throw new BadRequestException('Chỉ có thể hoàn tác quà đang ở trạng thái "Đã trao"');
+      }
+
+      const pool = await manager.findOne(PromotionRewardPool, {
+        where: { id: reservation.reward_pool_id, promotion_id: promotionId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!pool) {
+        throw new NotFoundException('Không tìm thấy cấu hình quà');
+      }
+
+      const productId = Number(reservation.reward_product_id || 0);
+      if (productId > 0) {
+        const quantity = Number(reservation.reward_product_quantity || 0);
+        const allocations = this.validateRewardStockAllocations(
+          quantity,
+          reservation.stock_allocations,
+          reservation.id,
+          productId,
+        );
+
+        for (const allocation of allocations) {
+          await this.inventoryService.restoreStockToExistingBatch(
+            productId,
+            allocation.batchId,
+            allocation.quantity,
+            allocation.taxableQuantity,
+            userId,
+            reservation.id,
+            `Quà campaign #${promotionId}, reservation #${reservation.id}`,
+            queryRunner,
+            'PROMOTION_REWARD_GIFT_CANCEL',
+            `Hoàn tác quà campaign reservation #${reservation.id} - hoàn đúng lô #${allocation.batchId}`,
+          );
+        }
+      }
+
+      reservation.status = 'reserved';
+      reservation.issued_at = null as any;
+      reservation.issued_by = null as any;
+      reservation.expense_posted_at = null as any;
+      await manager.save(reservation);
+      await this.syncRewardPoolCounters(manager, pool);
+      await manager.save(pool);
+      await queryRunner.commitTransaction();
+
+      return { success: true, message: 'Đã hoàn tác xác nhận trao quà' };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
-    if (reservation.status !== 'issued') {
-      throw new BadRequestException('Chỉ có thể hoàn tác quà đang ở trạng thái "Đã trao"');
-    }
-
-    const pool = await this.rewardPoolRepository.findOne({
-      where: { id: reservation.reward_pool_id },
-    });
-
-    // Đặt lại trạng thái về reserved và xóa thông tin trao
-    reservation.status = 'reserved';
-    reservation.issued_at = null as any;
-    reservation.issued_by = null as any;
-    reservation.expense_posted_at = null as any;
-    await this.reservationRepository.save(reservation);
-
-    // Giảm issued_quantity của pool (không để âm)
-    if (pool) {
-      pool.issued_quantity = Math.max(0, Number(pool.issued_quantity || 0) - 1);
-      await this.rewardPoolRepository.save(pool);
-    }
-
-    return {
-      success: true,
-      message: 'Đã hoàn tác xác nhận trao quà',
-    };
   }
 
   async processInvoiceAccrual(manager: EntityManagerLike, invoiceId: number) {
@@ -1350,6 +1494,8 @@ export class PromotionCampaignService {
       reward_pools: (campaign.reward_pools || []).map((pool: PromotionRewardPool) => ({
         id: pool.id,
         reward_name: pool.reward_name,
+        reward_product_id: pool.reward_product_id || null,
+        reward_product_quantity: Number(pool.reward_product_quantity || 1),
         reward_image_url: pool.reward_image_url || null,
         reward_value: Number(pool.reward_value || 0),
         total_quantity: Number(pool.total_quantity || 0),
@@ -1376,6 +1522,76 @@ export class PromotionCampaignService {
     }
   }
 
+  private async syncRewardPoolCounters(
+    manager: EntityManagerLike,
+    pool: PromotionRewardPool,
+  ): Promise<void> {
+    const [reserved, issued, pendingForceWins] = await Promise.all([
+      manager.count(PromotionRewardReservation, {
+        where: { reward_pool_id: pool.id, status: 'reserved' },
+      }),
+      manager.count(PromotionRewardReservation, {
+        where: { reward_pool_id: pool.id, status: 'issued' },
+      }),
+      manager.count(CustomerPromotionOverride, {
+        where: {
+          assigned_reward_pool_id: pool.id,
+          force_win_remaining_count: MoreThan(0),
+        },
+      }),
+    ]);
+    pool.reserved_quantity = reserved + pendingForceWins;
+    pool.issued_quantity = issued;
+    pool.remaining_quantity = Math.max(
+      0,
+      Number(pool.total_quantity || 0) - reserved - pendingForceWins - issued,
+    );
+  }
+
+  private validateRewardStockAllocations(
+    expectedQuantity: number,
+    value: unknown,
+    reservationId: number,
+    productId: number,
+  ): PromotionRewardStockAllocation[] {
+    const fail = (reason: string): never => {
+      throw new BadRequestException(
+        `Không thể hoàn tác/ghi nhận quà campaign reservation #${reservationId}, ` +
+          `sản phẩm #${productId}: ${reason}. Cần đối soát trước khi thay đổi tồn kho.`,
+      );
+    };
+
+    if (!Number.isFinite(expectedQuantity) || expectedQuantity <= 0) {
+      fail('số lượng quà không hợp lệ');
+    }
+    if (!Array.isArray(value) || value.length === 0) {
+      fail('thiếu snapshot phân bổ lô và số lượng thuế');
+    }
+
+    const allocations: PromotionRewardStockAllocation[] = [];
+    for (const rawItem of value as unknown[]) {
+      const item = rawItem as Record<string, unknown> | null;
+      const batchId = Number(item?.batchId);
+      const quantity = Number(item?.quantity);
+      const taxableQuantity = Number(item?.taxableQuantity);
+      if (
+        !Number.isInteger(batchId) || batchId <= 0 ||
+        !Number.isFinite(quantity) || quantity <= 0 ||
+        !Number.isFinite(taxableQuantity) || taxableQuantity < 0 ||
+        taxableQuantity > quantity + 0.0001
+      ) {
+        fail('snapshot phân bổ lô hoặc số lượng thuế không hợp lệ');
+      }
+      allocations.push({ batchId, quantity, taxableQuantity });
+    }
+
+    const allocatedQuantity = allocations.reduce((sum, item) => sum + item.quantity, 0);
+    if (Math.abs(allocatedQuantity - expectedQuantity) > 0.0001) {
+      fail('tổng số lượng snapshot không khớp số lượng quà đã xuất');
+    }
+    return allocations;
+  }
+
   private validateRewards(dto: CreatePromotionCampaignDto | UpdatePromotionCampaignDto) {
     const rewards = dto.rewards || [];
     if (!rewards.length) {
@@ -1399,6 +1615,34 @@ export class PromotionCampaignService {
           `Tổng quota theo tháng của quà "${reward.reward_name}" phải bằng tổng số lượng`,
         );
       }
+
+      if (
+        reward.reward_product_id &&
+        (!Number.isFinite(Number(reward.reward_product_quantity ?? 1)) ||
+          Number(reward.reward_product_quantity ?? 1) <= 0)
+      ) {
+        throw new BadRequestException(
+          `Số lượng kho mỗi phần quà "${reward.reward_name}" phải lớn hơn 0`,
+        );
+      }
+    }
+  }
+
+  private async validateRewardProducts(
+    rewards: CreatePromotionCampaignDto['rewards'],
+  ): Promise<void> {
+    const productIds = Array.from(
+      new Set(
+        rewards
+          .map((reward) => Number(reward.reward_product_id || 0))
+          .filter((id) => id > 0),
+      ),
+    );
+    if (!productIds.length) return;
+
+    const products = await this.productRepository.findBy({ id: In(productIds) });
+    if (products.length !== productIds.length) {
+      throw new BadRequestException('Có sản phẩm quà tặng không tồn tại');
     }
   }
 
@@ -1445,6 +1689,10 @@ export class PromotionCampaignService {
         // Pool đã tồn tại → UPDATE tại chỗ để tránh vi phạm FK từ reservations/spin_logs
         existingPool.reward_value = reward.reward_value;
         existingPool.reward_image_url = reward.reward_image_url || null;
+        existingPool.reward_product_id = reward.reward_product_id || null;
+        existingPool.reward_product_quantity = reward.reward_product_id
+          ? Number(reward.reward_product_quantity || 1)
+          : 1;
         existingPool.total_quantity = reward.total_quantity;
         existingPool.sort_order = reward.sort_order ?? 0;
         // Tính lại remaining_quantity dựa trên issued + reserved hiện tại
@@ -1475,6 +1723,10 @@ export class PromotionCampaignService {
             promotion_id: campaignId,
             reward_name: reward.reward_name,
             reward_image_url: reward.reward_image_url || null,
+            reward_product_id: reward.reward_product_id || null,
+            reward_product_quantity: reward.reward_product_id
+              ? Number(reward.reward_product_quantity || 1)
+              : 1,
             reward_value: reward.reward_value,
             total_quantity: reward.total_quantity,
             remaining_quantity: reward.total_quantity,
@@ -1532,11 +1784,13 @@ export class PromotionCampaignService {
     promotionId: number,
     customerId: number,
   ) {
-    const ledgers = await manager.find(CustomerPromotionLedger, {
+    await this.lockCustomerPromotionProgress(manager, promotionId, customerId);
+    let progress = await manager.findOne(CustomerPromotionProgress, {
       where: { promotion_id: promotionId, customer_id: customerId },
+      lock: { mode: 'pessimistic_write' },
     });
 
-    let progress = await manager.findOne(CustomerPromotionProgress, {
+    const ledgers = await manager.find(CustomerPromotionLedger, {
       where: { promotion_id: promotionId, customer_id: customerId },
     });
 
@@ -1583,6 +1837,17 @@ export class PromotionCampaignService {
     progress.last_calculated_at = new Date();
 
     await manager.save(progress);
+  }
+
+  private async lockCustomerPromotionProgress(
+    manager: EntityManagerLike,
+    promotionId: number,
+    customerId: number,
+  ): Promise<void> {
+    await manager.query(
+      'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+      [`promotion-progress:${promotionId}:${customerId}`],
+    );
   }
 
   private async getNetLedgerForOrderItem(

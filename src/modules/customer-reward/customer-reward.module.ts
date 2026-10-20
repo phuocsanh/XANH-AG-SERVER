@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CustomerRewardTracking } from '../../entities/customer-reward-tracking.entity';
+import { CustomerRewardInvoiceTracking } from '../../entities/customer-reward-invoice-tracking.entity';
 import { CustomerRewardHistory } from '../../entities/customer-reward-history.entity';
 import { CustomerRewardService } from './customer-reward.service';
 import { CustomerRewardController } from './customer-reward.controller';
@@ -15,6 +16,7 @@ import { InventoryModule } from '../inventory/inventory.module';
   imports: [
     TypeOrmModule.forFeature([
       CustomerRewardTracking, 
+      CustomerRewardInvoiceTracking,
       CustomerRewardHistory, 
       DebtNote,
       SystemSetting,

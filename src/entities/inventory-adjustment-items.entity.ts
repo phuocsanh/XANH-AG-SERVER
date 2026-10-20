@@ -41,6 +41,16 @@ export class InventoryAdjustmentItem {
   @Column({ name: 'notes', nullable: true, type: 'text' })
   notes?: string;
 
+  /** Các lô và số thuế thực tế bị tác động khi duyệt phiếu. */
+  @Column({ name: 'stock_allocations', nullable: true, type: 'jsonb' })
+  stock_allocations?: Array<{
+    batchId: number;
+    quantity: number;
+    taxableQuantity: number;
+    sourceBatchId?: number;
+    pending?: boolean;
+  }>;
+
   /** Thời gian tạo chi tiết phiếu điều chỉnh kho */
   @CreateDateColumn({ name: 'created_at' })
   created_at!: Date;

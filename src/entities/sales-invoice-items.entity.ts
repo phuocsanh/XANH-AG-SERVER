@@ -59,6 +59,10 @@ export class SalesInvoiceItem {
   @Column({ name: 'total_price' })
   total_price!: number;
 
+  /** Trạng thái loại tích lũy được chốt từ sản phẩm khi xác nhận hóa đơn. */
+  @Column({ name: 'exclude_from_reward', type: 'boolean', default: false })
+  exclude_from_reward!: boolean;
+
   /** Loại giá bán tại thời điểm bán */
   @Column({
     name: 'price_type',

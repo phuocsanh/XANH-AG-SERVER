@@ -12,9 +12,11 @@ import { PromotionRewardReleaseSchedule } from '../../entities/promotion-reward-
 import { PromotionRewardReservation } from '../../entities/promotion-reward-reservation.entity';
 import { PromotionCampaignController } from './promotion-campaign.controller';
 import { PromotionCampaignService } from './promotion-campaign.service';
+import { InventoryModule } from '../inventory/inventory.module';
 
 @Module({
   imports: [
+    InventoryModule,
     TypeOrmModule.forFeature([
       PromotionCampaign,
       PromotionCampaignProduct,

@@ -12,6 +12,7 @@ import { QueryHelper } from '../../common/helpers/query-helper';
 import { OperatingCostService } from '../operating-cost/operating-cost.service';
 import { OperatingCostCategoryService } from '../operating-cost-category/operating-cost-category.service';
 import { CustomerRewardService } from '../customer-reward/customer-reward.service';
+import { roundRewardMoney } from '../customer-reward/invoice-reward-accumulation';
 
 @Injectable()
 export class PaymentAllocationService {
@@ -33,6 +34,7 @@ export class PaymentAllocationService {
       // 1. Get Payment
       const payment = await queryRunner.manager.findOne(Payment, {
         where: { id: createDto.payment_id },
+        lock: { mode: 'pessimistic_write' },
       });
 
       if (!payment) {
@@ -40,34 +42,41 @@ export class PaymentAllocationService {
       }
 
       // Check available amount
-      const availableAmount = Number(payment.amount) - Number(payment.allocated_amount);
+      const availableAmount = roundRewardMoney(Number(payment.amount) - Number(payment.allocated_amount));
+      createDto.amount = roundRewardMoney(Number(createDto.amount));
+      if (!Number.isFinite(createDto.amount) || createDto.amount <= 0) {
+        throw new BadRequestException('Số tiền phân bổ phải lớn hơn 0');
+      }
       if (createDto.amount > availableAmount) {
         throw new BadRequestException('Số tiền phân bổ vượt quá số tiền còn lại của phiếu thu');
       }
 
+      let distributedAllocations: PaymentAllocation[] = [];
       // 2. Handle Allocation Target
       if (createDto.allocation_type === 'invoice') {
         if (!createDto.invoice_id) throw new BadRequestException('Thiếu invoice_id');
         
         const invoice = await queryRunner.manager.findOne(SalesInvoice, {
           where: { id: createDto.invoice_id },
+          lock: { mode: 'pessimistic_write' },
         });
 
         if (!invoice) throw new NotFoundException('Hóa đơn không tồn tại');
+        if (invoice.customer_id !== payment.customer_id ||
+          ![SalesInvoiceStatus.CONFIRMED, SalesInvoiceStatus.PAID].includes(invoice.status)) {
+          throw new BadRequestException('Hóa đơn không thuộc khách hàng của phiếu thu hoặc chưa thể thanh toán');
+        }
 
         // Update Invoice
         const currentPaid = parseFloat(invoice.partial_payment_amount?.toString() || '0');
         const finalAmount = parseFloat(invoice.final_amount?.toString() || '0');
         // Ép kiểu Number() tường minh để tránh bug cộng chuỗi với NUMERIC từ DB
         const allocationAmount = Number(createDto.amount) || 0;
-        const newPaid = currentPaid + allocationAmount;
-        const newRemaining = finalAmount - newPaid;
+        const newPaid = roundRewardMoney(currentPaid + allocationAmount);
+        const newRemaining = roundRewardMoney(finalAmount - newPaid);
 
         if (newRemaining < 0) {
-             // Allow overpayment? Usually no.
-             // throw new BadRequestException('Số tiền phân bổ vượt quá số tiền còn nợ của hóa đơn');
-             // For now, let's allow it or clamp it? Better to throw error.
-             // But floating point issues might trigger this. Let's use a small epsilon if needed, or just trust the math.
+          throw new BadRequestException('Số tiền phân bổ vượt quá số tiền còn nợ của hóa đơn');
         }
 
         invoice.partial_payment_amount = newPaid;
@@ -105,22 +114,49 @@ export class PaymentAllocationService {
 
         await queryRunner.manager.save(invoice);
 
+        if (invoice.customer_id && invoice.season_id) {
+          const debtNote = await queryRunner.manager.findOne(DebtNote, {
+            where: { customer_id: invoice.customer_id, season_id: invoice.season_id },
+            lock: { mode: 'pessimistic_write' },
+          });
+          if (debtNote) {
+            debtNote.paid_amount = roundRewardMoney(Number(debtNote.paid_amount || 0) + allocationAmount);
+            debtNote.remaining_amount = roundRewardMoney(Math.max(0, Number(debtNote.remaining_amount || 0) - allocationAmount));
+            debtNote.status = debtNote.remaining_amount <= 0 ? DebtNoteStatus.PAID : DebtNoteStatus.ACTIVE;
+            await this.customerRewardService.handleDebtNoteSettlement(queryRunner.manager, debtNote, {
+              payment_amount: allocationAmount, invoice_ids: [invoice.id],
+            }, payment.created_by ?? 0, false);
+          }
+        }
+        await this.customerRewardService.syncInvoiceReward(queryRunner.manager, invoice.id);
+
       } else if (createDto.allocation_type === 'debt_note') {
         if (!createDto.debt_note_id) throw new BadRequestException('Thiếu debt_note_id');
 
         const debtNote = await queryRunner.manager.findOne(DebtNote, {
             where: { id: createDto.debt_note_id },
+            lock: { mode: 'pessimistic_write' },
         });
 
         if (!debtNote) throw new NotFoundException('Phiếu công nợ không tồn tại');
+        if (debtNote.customer_id !== payment.customer_id || debtNote.status === DebtNoteStatus.CANCELLED) {
+          throw new BadRequestException('Phiếu công nợ không hợp lệ cho khách hàng của phiếu thu');
+        }
+        if (createDto.amount > Number(debtNote.remaining_amount || 0)) {
+          throw new BadRequestException('Số tiền phân bổ vượt quá số tiền còn nợ');
+        }
+        const distribution = await this.customerRewardService.allocateDebtNotePayment(
+          queryRunner.manager, debtNote, createDto.amount, payment.id,
+        );
+        distributedAllocations = distribution.allocations;
 
         // Update Debt Note
         const currentPaid = parseFloat(debtNote.paid_amount?.toString() || '0');
         const amount = parseFloat(debtNote.amount?.toString() || '0');
         // Ép kiểu Number() tường minh để tránh bug cộng chuỗi với NUMERIC từ DB
         const allocationAmount = Number(createDto.amount) || 0;
-        const newPaid = currentPaid + allocationAmount;
-        const newRemaining = amount - newPaid;
+        const newPaid = roundRewardMoney(currentPaid + allocationAmount);
+        const newRemaining = roundRewardMoney(amount - newPaid);
 
         debtNote.paid_amount = newPaid;
         debtNote.remaining_amount = newRemaining;
@@ -132,33 +168,29 @@ export class PaymentAllocationService {
 
         await queryRunner.manager.save(debtNote);
         
-        // 🆕 NEW: Ghi nhận tích lũy ngay khi thanh toán (Incremental)
-        try {
-          // Chỉ ghi nhận nếu chưa phải chốt sổ (isFinal=false) để tránh double-count ở bước chốt sổ
-          await this.dataSource.manager.getCustomRepository ? null : // Dummy to use manager
         await this.customerRewardService.handleDebtNoteSettlement(
           queryRunner.manager,
           debtNote,
           {
             payment_amount: allocationAmount,
+            invoice_ids: distributedAllocations.map((allocation) => allocation.invoice_id!),
             notes: `Phân bổ thanh toán cho DN#${debtNote.code}`,
           },
-          1, // System
+          payment.created_by ?? 0,
           false // isFinal = false
         );
-        } catch (rewardError) {
-          console.error('⚠️ Lỗi ghi nhận tích lũy từ thanh toán:', rewardError);
-        }
       }
 
       // 3. Create Allocation
-      const allocation = this.allocationRepository.create(createDto);
-      const savedAllocation = await queryRunner.manager.save(allocation);
+      // Có hóa đơn nguồn thì chỉ lưu các phân bổ chi tiết, tránh ghi trùng tiền phân bổ.
+      const savedAllocation = distributedAllocations[0] || await queryRunner.manager.save(
+        this.allocationRepository.create(createDto),
+      );
 
       // 4. Update Payment - Ép kiểu Number() để tránh bug cộng chuỗi NUMERIC từ DB
       const currentAllocated = Number(payment.allocated_amount) || 0;
       const addAmount = Number(createDto.amount) || 0;
-      payment.allocated_amount = currentAllocated + addAmount;
+      payment.allocated_amount = roundRewardMoney(currentAllocated + addAmount);
       await queryRunner.manager.save(payment);
 
       await queryRunner.commitTransaction();

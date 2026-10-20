@@ -13,6 +13,7 @@ import { CreateProductUnitConversionDto } from '../../product-unit-conversion/dt
 import { CreateProductComponentDto } from './create-product-component.dto';
 import { Type } from 'class-transformer';
 import { ValidateNested } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 
 /**
  * DTO (Data Transfer Object) dùng để tạo sản phẩm mới
@@ -173,6 +174,12 @@ export class CreateProductDto {
   @IsOptional()
   @IsBoolean()
   has_input_invoice?: boolean;
+
+  /** Không tính tiền bán sản phẩm vào quà tích lũy. */
+  @ApiPropertyOptional({ description: 'Không tính quà tích lũy', default: false })
+  @IsOptional()
+  @IsBoolean()
+  exclude_from_reward?: boolean;
 
   /** Giá bán khai thuế */
   @IsString()

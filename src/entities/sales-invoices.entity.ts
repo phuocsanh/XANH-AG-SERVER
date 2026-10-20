@@ -38,6 +38,12 @@ export enum SalesPaymentStatus {
   CANCELLED = 'cancelled',
 }
 
+export interface SalesInvoiceGiftStockAllocation {
+  batchId: number;
+  quantity: number;
+  taxableQuantity: number;
+}
+
 /**
  * Entity biểu diễn thông tin hóa đơn bán hàng
  * Ánh xạ với bảng 'sales_invoice' trong cơ sở dữ liệu
@@ -88,6 +94,10 @@ export class SalesInvoice {
   /** Số tiền cuối cùng sau khi giảm giá */
   @Column({ name: 'final_amount' })
   final_amount!: number;
+
+  /** Phiên bản tích lũy: 0 giữ quy tắc cũ, 1 loại sản phẩm theo snapshot. */
+  @Column({ name: 'reward_policy_version', type: 'int', default: 0 })
+  reward_policy_version!: number;
 
   /** Phương thức thanh toán */
   @Column({ name: 'payment_method' })
@@ -256,6 +266,10 @@ export class SalesInvoice {
   @ManyToOne(() => InventoryTransaction, { nullable: true })
   @JoinColumn({ name: 'gift_inventory_transaction_id' })
   gift_inventory_transaction?: InventoryTransaction;
+
+  /** Allocation FIFO theo lô để khi hủy hoàn quà về đúng lô đã xuất. */
+  @Column({ name: 'gift_stock_allocations', type: 'jsonb', nullable: true })
+  gift_stock_allocations?: SalesInvoiceGiftStockAllocation[] | null;
 
   /** Ngày bán hàng (có thể khác ngày tạo) */
   @Column({ name: 'sale_date', type: 'timestamptz', nullable: true })

@@ -56,6 +56,15 @@ export class InventoryBorrowItem {
   quantity!: number;
 
   @Column({
+    name: 'taxable_quantity',
+    type: 'decimal',
+    precision: 15,
+    scale: 4,
+    nullable: true,
+  })
+  taxable_quantity?: number | null;
+
+  @Column({
     name: 'returned_quantity',
     type: 'decimal',
     precision: 15,

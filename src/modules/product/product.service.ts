@@ -636,7 +636,7 @@ export class ProductService extends BaseSearchService<Product> {
       queryBuilder,
       searchDto,
       'product',
-      ['name', 'code', 'trade_name'] // Tìm kiếm theo tên, hiệu thuốc và mã sản phẩm
+      ['name', 'code', 'trade_name', 'web_name'] // Tìm kiếm theo tên, hiệu thuốc, mã và tên hiển thị trên web
     );
 
     // Fix: Handle sorting for price fields (stored as string in DB)
@@ -668,7 +668,7 @@ export class ProductService extends BaseSearchService<Product> {
       queryBuilder,
       searchDto,
       'product',
-      ['filters', 'nested_filters', 'operator', 'type_id'],
+      ['filters', 'nested_filters', 'operator', 'type_id', 'in_stock_only'],
       {
          unit_name: 'unit.name',
          symbol_name: 'symbol.name',
@@ -680,6 +680,11 @@ export class ProductService extends BaseSearchService<Product> {
       queryBuilder.andWhere('product.type = :typeId', {
         typeId: searchDto.type_id,
       });
+    }
+
+    // Chỉ lọc hàng còn tồn khi endpoint công khai yêu cầu; không ảnh hưởng danh sách quản trị.
+    if (searchDto.in_stock_only) {
+      queryBuilder.andWhere('COALESCE(product.quantity, 0) > 0');
     }
 
     if (!searchDto.status) {
