@@ -22,6 +22,12 @@ import { InventoryService } from '../inventory/inventory.service';
 import { QueryHelper } from '../../common/helpers/query-helper';
 import { SearchRewardDto } from './dto/search-reward.dto';
 import { CreateManualRewardDto } from './dto/create-manual-reward.dto';
+import { ResetCustomerRewardDto } from './dto/reset-customer-reward.dto';
+import { SearchRewardResetHistoryDto } from './dto/search-reward-reset-history.dto';
+import {
+  CustomerRewardResetHistory,
+  CustomerRewardResetStatus,
+} from '../../entities/customer-reward-reset-history.entity';
 import {
   CustomerRewardStockAllocation,
   validateCustomerRewardStockAllocations,
@@ -219,6 +225,288 @@ export class CustomerRewardService {
           ? Number(saved.reward_threshold)
           : defaultThreshold,
       default_reward_threshold: defaultThreshold,
+    };
+  }
+
+  /** Chuẩn hóa danh sách ID khách hàng: bỏ trùng, bỏ giá trị không hợp lệ. */
+  private normalizeCustomerIds(customerIds?: number[]): number[] {
+    const normalized = (customerIds || [])
+      .map((id) => Number(id))
+      .filter((id) => Number.isInteger(id) && id > 0);
+    return [...new Set(normalized)];
+  }
+
+  /** Đọc mốc thời gian từ chuỗi YYYY-MM-DD (hoặc ISO) để lọc theo ngày. */
+  private parseDateBoundary(value: string | undefined, endOfDay: boolean): Date | null {
+    if (!value) return null;
+    const raw = String(value).trim();
+    if (!raw) return null;
+    const normalized =
+      raw.length === 10 ? `${raw}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}` : raw;
+    const parsed = new Date(normalized);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  /**
+   * Xóa "Tích lũy hiện tại" của nhiều khách hàng.
+   *
+   * - Chỉ đặt lại `pending_amount = 0`; giữ nguyên `total_accumulated`,
+   *   `reward_count`, `last_reward_date`, lịch sử quà tặng và sổ tích lũy theo hóa đơn.
+   * - Mỗi khách bị xóa được ghi 1 bản ghi `customer_reward_reset_history` để đối soát/khôi phục.
+   */
+  async resetCustomerAccumulation(dto: ResetCustomerRewardDto, userId: number) {
+    const customerIds = this.normalizeCustomerIds(dto?.customer_ids);
+    if (!customerIds.length) {
+      throw new BadRequestException('Cần chọn ít nhất một khách hàng để xóa tích lũy');
+    }
+
+    const reason = String(dto?.reason || '').trim();
+    if (!reason) {
+      throw new BadRequestException('Vui lòng nhập lý do xóa tích lũy');
+    }
+
+    return this.rewardTrackingRepository.manager.transaction(async (manager) => {
+      const items: Array<{
+        id: number;
+        customer_id: number;
+        customer_name: string | null;
+        customer_phone: string | null;
+        pending_before: number;
+        total_accumulated_snapshot: number;
+        reward_count_snapshot: number;
+      }> = [];
+      const skipped: Array<{
+        customer_id: number;
+        reason: string;
+      }> = [];
+      let totalResetAmount = 0;
+
+      for (const customerId of customerIds) {
+        const tracking = await manager.findOne(CustomerRewardTracking, {
+          where: { customer_id: customerId },
+          lock: { mode: 'pessimistic_write' },
+        });
+        const pendingBefore = roundRewardMoney(this.toNumber(tracking?.pending_amount));
+
+        if (!tracking || pendingBefore <= 0) {
+          skipped.push({
+            customer_id: customerId,
+            reason: tracking
+              ? 'Tích lũy hiện tại đang bằng 0'
+              : 'Khách hàng chưa có tích lũy',
+          });
+          continue;
+        }
+
+        const customer = await manager.findOne(Customer, {
+          where: { id: customerId },
+        });
+
+        const totalSnapshot = roundRewardMoney(
+          this.toNumber(tracking.total_accumulated),
+        );
+        const rewardCountSnapshot = Number(tracking.reward_count || 0);
+
+        // Ghi snapshot trước khi xóa để có thể khôi phục chính xác
+        const resetRecord = manager.create(CustomerRewardResetHistory, {
+          customer_id: customerId,
+          customer_name: customer?.name || null,
+          customer_phone: customer?.phone || null,
+          pending_before: pendingBefore,
+          pending_reset: pendingBefore,
+          total_accumulated_snapshot: totalSnapshot,
+          reward_count_snapshot: rewardCountSnapshot,
+          reason,
+          status: CustomerRewardResetStatus.ACTIVE,
+          created_by: userId || null,
+        });
+        const saved = await manager.save(resetRecord);
+
+        tracking.pending_amount = 0;
+        await manager.save(tracking);
+
+        totalResetAmount = roundRewardMoney(totalResetAmount + pendingBefore);
+        items.push({
+          id: saved.id,
+          customer_id: customerId,
+          customer_name: customer?.name || null,
+          customer_phone: customer?.phone || null,
+          pending_before: pendingBefore,
+          total_accumulated_snapshot: totalSnapshot,
+          reward_count_snapshot: rewardCountSnapshot,
+        });
+      }
+
+      return {
+        success: true,
+        message:
+          items.length > 0
+            ? `Đã xóa ${this.formatCurrency(totalResetAmount)} tích lũy của ${items.length} khách hàng`
+            : 'Không có khách hàng nào cần xóa tích lũy',
+        reset_count: items.length,
+        skipped_count: skipped.length,
+        total_reset_amount: totalResetAmount,
+        items,
+        skipped,
+      };
+    });
+  }
+
+  /**
+   * Khôi phục phần tích lũy đã xóa: cộng bù lại `pending_reset` vào tích lũy hiện tại.
+   * Dùng cách cộng bù để không làm mất phần tích lũy phát sinh sau thời điểm xóa.
+   */
+  async restoreCustomerAccumulation(resetHistoryId: number, userId: number) {
+    const id = Number(resetHistoryId);
+    if (!Number.isInteger(id) || id <= 0) {
+      throw new BadRequestException('Mã lịch sử xóa tích lũy không hợp lệ');
+    }
+
+    return this.rewardTrackingRepository.manager.transaction(async (manager) => {
+      const resetRecord = await manager.findOne(CustomerRewardResetHistory, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!resetRecord) {
+        throw new NotFoundException('Không tìm thấy lịch sử xóa tích lũy');
+      }
+      if (resetRecord.status !== CustomerRewardResetStatus.ACTIVE) {
+        throw new BadRequestException(
+          'Lần xóa tích lũy này đã được khôi phục trước đó',
+        );
+      }
+
+      const restoreAmount = roundRewardMoney(this.toNumber(resetRecord.pending_reset));
+      const tracking = await this.getLockedRewardTracking(
+        manager,
+        resetRecord.customer_id,
+      );
+      tracking.pending_amount = roundRewardMoney(
+        this.toNumber(tracking.pending_amount) + restoreAmount,
+      );
+      await manager.save(tracking);
+
+      resetRecord.status = CustomerRewardResetStatus.RESTORED;
+      resetRecord.restored_pending_amount = restoreAmount;
+      resetRecord.restored_by = userId || null;
+      resetRecord.restored_at = new Date();
+      await manager.save(resetRecord);
+
+      return {
+        success: true,
+        message: `Đã khôi phục ${this.formatCurrency(restoreAmount)} tích lũy cho ${
+          resetRecord.customer_name || 'khách hàng'
+        }`,
+        restored_amount: restoreAmount,
+        reward_tracking: {
+          customer_id: tracking.customer_id,
+          pending_amount: roundRewardMoney(this.toNumber(tracking.pending_amount)),
+          total_accumulated: roundRewardMoney(
+            this.toNumber(tracking.total_accumulated),
+          ),
+        },
+      };
+    });
+  }
+
+  /** Tìm kiếm lịch sử xóa tích lũy hiện tại (phân trang, lọc theo khách/trạng thái/ngày). */
+  async searchRewardResetHistory(searchDto: SearchRewardResetHistoryDto) {
+    const {
+      page = 1,
+      limit = 10,
+      customer_name,
+      customer_phone,
+      status,
+      from_date,
+      to_date,
+    } = searchDto || {};
+
+    const safePage = Math.max(1, Math.floor(this.toNumber(page)) || 1);
+    const safeLimit = Math.min(
+      100,
+      Math.max(1, Math.floor(this.toNumber(limit)) || 10),
+    );
+
+    const queryBuilder = this.rewardTrackingRepository.manager
+      .getRepository(CustomerRewardResetHistory)
+      .createQueryBuilder('rsh')
+      .leftJoinAndSelect('rsh.customer', 'customer')
+      .leftJoinAndSelect('rsh.created_by_user', 'created_by_user')
+      .leftJoinAndSelect('rsh.restored_by_user', 'restored_by_user')
+      .orderBy('rsh.created_at', 'DESC')
+      .addOrderBy('rsh.id', 'DESC');
+
+    if (status) {
+      queryBuilder.andWhere('rsh.status = :status', { status });
+    }
+
+    if (customer_name || customer_phone) {
+      const nameKeyword = customer_name
+        ? `%${QueryHelper.sanitizeKeyword(customer_name)}%`
+        : null;
+      const phoneKeyword = customer_phone
+        ? `%${QueryHelper.sanitizeKeyword(customer_phone)}%`
+        : null;
+
+      queryBuilder.andWhere(
+        new Brackets((qb) => {
+          if (nameKeyword) {
+            qb.orWhere(
+              `regexp_replace(unaccent(COALESCE(customer.name, rsh.customer_name)), '[^a-zA-Z0-9\\s]', '', 'g') ILIKE unaccent(:nameKeyword)`,
+              { nameKeyword },
+            );
+            qb.orWhere(
+              `COALESCE(customer.phone, rsh.customer_phone) ILIKE :nameKeyword`,
+              { nameKeyword },
+            );
+          }
+          if (phoneKeyword) {
+            qb.orWhere(
+              `COALESCE(customer.phone, rsh.customer_phone) ILIKE :phoneKeyword`,
+              { phoneKeyword },
+            );
+          }
+        }),
+      );
+    }
+
+    const fromDate = this.parseDateBoundary(from_date, false);
+    if (fromDate) {
+      queryBuilder.andWhere('rsh.created_at >= :fromDate', { fromDate });
+    }
+    const toDate = this.parseDateBoundary(to_date, true);
+    if (toDate) {
+      queryBuilder.andWhere('rsh.created_at <= :toDate', { toDate });
+    }
+
+    const [records, total] = await queryBuilder
+      .skip((safePage - 1) * safeLimit)
+      .take(safeLimit)
+      .getManyAndCount();
+
+    return {
+      items: records.map((record) => ({
+        ...record,
+        customer_display_name:
+          record.customer?.name || record.customer_name || null,
+        customer_display_phone:
+          record.customer?.phone || record.customer_phone || null,
+        pending_before: this.toNumber(record.pending_before),
+        pending_reset: this.toNumber(record.pending_reset),
+        total_accumulated_snapshot: this.toNumber(
+          record.total_accumulated_snapshot,
+        ),
+        restored_pending_amount:
+          record.restored_pending_amount === null ||
+          record.restored_pending_amount === undefined
+            ? null
+            : this.toNumber(record.restored_pending_amount),
+        created_by_name: record.created_by_user?.account || null,
+        restored_by_name: record.restored_by_user?.account || null,
+      })),
+      total,
+      page: safePage,
+      limit: safeLimit,
     };
   }
 

@@ -5,6 +5,8 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 import { CustomerRewardService } from './customer-reward.service';
 import { SearchRewardDto } from './dto/search-reward.dto';
 import { CreateManualRewardDto } from './dto/create-manual-reward.dto';
+import { ResetCustomerRewardDto } from './dto/reset-customer-reward.dto';
+import { SearchRewardResetHistoryDto } from './dto/search-reward-reset-history.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { User } from '../../entities/users.entity';
 
@@ -29,6 +31,33 @@ export class CustomerRewardController {
       +customerId,
       rewardThreshold,
     );
+  }
+
+  /** Xóa "Tích lũy hiện tại" của nhiều khách hàng (có lưu lịch sử để khôi phục) */
+  @Post('tracking/reset')
+  @RequirePermissions('sales:manage')
+  resetCustomerAccumulation(
+    @Body() resetDto: ResetCustomerRewardDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.customerRewardService.resetCustomerAccumulation(resetDto, user.id);
+  }
+
+  /** Danh sách lịch sử xóa tích lũy hiện tại */
+  @Post('tracking/reset-history')
+  @RequirePermissions('sales:read')
+  searchRewardResetHistory(@Body() searchDto: SearchRewardResetHistoryDto) {
+    return this.customerRewardService.searchRewardResetHistory(searchDto);
+  }
+
+  /** Khôi phục lại phần tích lũy đã xóa */
+  @Post('tracking/reset-history/:id/restore')
+  @RequirePermissions('sales:manage')
+  restoreCustomerAccumulation(
+    @Param('id') id: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.customerRewardService.restoreCustomerAccumulation(+id, user.id);
   }
 
   @Post('history')

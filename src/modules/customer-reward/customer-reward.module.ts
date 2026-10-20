@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { CustomerRewardTracking } from '../../entities/customer-reward-tracking.entity';
 import { CustomerRewardInvoiceTracking } from '../../entities/customer-reward-invoice-tracking.entity';
 import { CustomerRewardHistory } from '../../entities/customer-reward-history.entity';
+import { CustomerRewardResetHistory } from '../../entities/customer-reward-reset-history.entity';
 import { CustomerRewardService } from './customer-reward.service';
 import { CustomerRewardController } from './customer-reward.controller';
 
@@ -18,6 +19,7 @@ import { InventoryModule } from '../inventory/inventory.module';
       CustomerRewardTracking, 
       CustomerRewardInvoiceTracking,
       CustomerRewardHistory, 
+      CustomerRewardResetHistory,
       DebtNote,
       SystemSetting,
       FarmGiftCost
