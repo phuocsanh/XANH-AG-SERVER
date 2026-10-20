@@ -1,4 +1,11 @@
-# CLINE Rules - XANH-AG-SERVER (NestJS Backend API)
+# AI Agent Rules - XANH-AG-SERVER (NestJS Backend API)
+
+## Quy Tắc Kiểm Thử Môi Trường (BẮT BUỘC)
+
+- Chỉ chạy API/integration/E2E/migration/seed test trên backend và database **dev**. Cấm dùng production để test, dù chỉ đọc qua API.
+- Trước khi test có kết nối DB, xác minh cấu hình thực tế mà tiến trình hoặc Docker container đang nạp và xác minh server/database đích. Tên `.env`, `DATABASE_URL_DEV`, tên container hoặc nhãn `development` không đủ làm bằng chứng.
+- Không in connection string hay secret. Nếu không xác nhận được DB là dev, chỉ chạy unit test cô lập không cần DB hoặc dừng.
+- Test ghi dữ liệu chỉ dùng dữ liệu test có thể nhận diện và phải có rollback/dọn dẹp đã định trước. Không chạy migration, seed, reset hoặc script sửa dữ liệu trên production.
 
 ## Project Overview
 
