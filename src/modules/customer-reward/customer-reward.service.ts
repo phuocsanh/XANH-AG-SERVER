@@ -739,6 +739,11 @@ export class CustomerRewardService {
     });
   }
 
+  /** Khóa tích lũy trước khi đối soát hoàn tác, dùng chung hàng với reset và phát quà. */
+  async lockTrackingForPaymentRollback(manager: EntityManager, customerId: number): Promise<void> {
+    await this.getLockedRewardTracking(manager, customerId);
+  }
+
   /** Chốt cờ từ sản phẩm khi xác nhận; chứng từ cũ giữ phiên bản chính sách cũ. */
   async snapshotInvoiceRewardPolicy(manager: EntityManager, invoice: SalesInvoice): Promise<void> {
     if (Number(invoice.reward_policy_version || 0) !== 1) return;
@@ -844,6 +849,47 @@ export class CustomerRewardService {
     tracking.pending_amount = roundRewardMoney(Number(tracking.pending_amount || 0) + delta);
     tracking.total_accumulated = roundRewardMoney(Number(tracking.total_accumulated || 0) + delta);
     await manager.save(tracking);
+  }
+
+  /**
+   * Xem trước chênh lệch tích lũy nếu số tiền đã trả của hóa đơn thay đổi (chỉ đọc, không ghi).
+   * Dùng cho preview hoàn tác phiếu thu để biết trước tích lũy có bị âm hay không.
+   */
+  async previewInvoiceRewardDelta(
+    manager: EntityManager,
+    invoiceId: number,
+    paidAmountOverride?: number,
+  ): Promise<{ delta: number; pending_before: number; total_before: number }> {
+    const invoice = await manager.findOne(SalesInvoice, { where: { id: invoiceId } });
+    if (!invoice?.customer_id) {
+      return { delta: 0, pending_before: 0, total_before: 0 };
+    }
+    const invoiceTracking = await manager.findOne(CustomerRewardInvoiceTracking, {
+      where: { invoice_id: invoiceId },
+    });
+    if (invoiceTracking && invoiceTracking.customer_id !== invoice.customer_id) {
+      throw new BadRequestException('Mốc tích lũy hóa đơn không khớp khách hàng; cần đối soát trước khi hoàn tác');
+    }
+    if (Number(invoice.reward_policy_version || 0) === 0 && !invoiceTracking) {
+      throw new BadRequestException(
+        'Hóa đơn cũ chưa có mốc đối chiếu tích lũy; cần hoàn tất migration trước khi hoàn tác',
+      );
+    }
+    const customerTracking = await manager.findOne(CustomerRewardTracking, {
+      where: { customer_id: invoice.customer_id },
+    });
+    const { items, returns } = await this.getInvoiceRewardInputs(manager, invoice);
+    const target = calculateInvoiceRewardAccumulation(
+      invoice,
+      items,
+      returns,
+      paidAmountOverride ?? Number(invoice.partial_payment_amount || 0),
+    );
+    return {
+      delta: roundRewardMoney(target - Number(invoiceTracking?.accumulated_amount || 0)),
+      pending_before: Number(customerTracking?.pending_amount || 0),
+      total_before: Number(customerTracking?.total_accumulated || 0),
+    };
   }
 
   /** Phân bổ tiền trả công nợ vào hóa đơn thật, cùng thứ tự cũ nhất trước như luồng thu nợ. */
@@ -1331,6 +1377,9 @@ export class CustomerRewardService {
         lock: { mode: 'pessimistic_write' },
       });
       if (!history) throw new NotFoundException('Không tìm thấy lịch sử quà tặng');
+
+      // Giao quà đã tạo trước đó cũng phải tuần tự với kiểm tra sự kiện trong hoàn tác phiếu thu.
+      await this.getLockedRewardTracking(manager, history.customer_id);
 
       const oldProductId = this.toNumber(history.gift_product_id);
       const oldQuantity = this.toNumber(history.gift_quantity);

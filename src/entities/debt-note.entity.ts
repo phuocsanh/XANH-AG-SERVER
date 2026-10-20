@@ -160,7 +160,7 @@ export class DebtNote {
     nullable: true,
     comment: 'Ngày chốt sổ công nợ'
   })
-  closed_at?: Date;
+  closed_at?: Date | null;
 
   /** Ngày tạo */
   @CreateDateColumn({ name: 'created_at' })

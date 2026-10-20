@@ -7,6 +7,7 @@ import { PaymentAllocation } from '../../entities/payment-allocation.entity';
 import { DebtNote } from '../../entities/debt-note.entity';
 import { Loan } from '../../entities/loan.entity';
 import { SalesInvoice } from '../../entities/sales-invoices.entity';
+import { PaymentRollbackHistory } from '../../entities/payment-rollback-history.entity';
 import { OperatingCostModule } from '../operating-cost/operating-cost.module';
 import { OperatingCostCategoryModule } from '../operating-cost-category/operating-cost-category.module';
 import { CustomerRewardModule } from '../customer-reward/customer-reward.module';
@@ -28,6 +29,7 @@ import { CustomerRewardModule } from '../customer-reward/customer-reward.module'
       DebtNote,
       Loan,
       SalesInvoice,
+      PaymentRollbackHistory,
     ]),
     OperatingCostModule,
     OperatingCostCategoryModule,

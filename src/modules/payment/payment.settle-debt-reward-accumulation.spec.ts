@@ -2,6 +2,7 @@ import { DataSource, EntityManager, Repository } from 'typeorm';
 import { DebtNote, DebtNoteStatus } from '../../entities/debt-note.entity';
 import { Payment } from '../../entities/payment.entity';
 import { PaymentAllocation } from '../../entities/payment-allocation.entity';
+import { PaymentRollbackHistory } from '../../entities/payment-rollback-history.entity';
 import {
   SalesInvoice,
   SalesInvoiceStatus,
@@ -88,6 +89,7 @@ function createFixture() {
   const service = new PaymentService(
     paymentRepository,
     {} as Repository<PaymentAllocation>,
+    {} as Repository<PaymentRollbackHistory>,
     rewardService as unknown as CustomerRewardService,
   );
 

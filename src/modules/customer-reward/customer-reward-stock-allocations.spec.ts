@@ -3,6 +3,19 @@ import { Product } from '../../entities/products.entity';
 import { CustomerRewardService } from './customer-reward.service';
 import { validateCustomerRewardStockAllocations } from './customer-reward-stock-allocations';
 
+/** Giả lập khóa tracking dùng chung với luồng hoàn tác trước khi sửa trạng thái quà. */
+function rewardLockFixture() {
+  const insert = {
+    insert: jest.fn().mockReturnThis(), into: jest.fn().mockReturnThis(),
+    values: jest.fn().mockReturnThis(), orIgnore: jest.fn().mockReturnThis(),
+    execute: jest.fn().mockResolvedValue(undefined),
+  };
+  return {
+    createQueryBuilder: jest.fn(() => insert),
+    findOneOrFail: jest.fn().mockResolvedValue({ customer_id: 5, pending_amount: 0, total_accumulated: 0 }),
+  };
+}
+
 describe('customer reward stock allocations', () => {
   it('accepts allocations whose quantities and taxable quantities are exact', () => {
     expect(validateCustomerRewardStockAllocations(5, [
@@ -63,6 +76,7 @@ describe('customer reward stock allocations', () => {
       stock_allocations: null,
     };
     const manager = {
+      ...rewardLockFixture(),
       queryRunner: { isTransactionActive: true },
       findOne: jest.fn(async (entity: unknown) =>
         entity === CustomerRewardHistory ? history : { id: 7, name: 'Quà' }),
@@ -95,6 +109,7 @@ describe('customer reward stock allocations', () => {
       stock_allocations: null,
     };
     const manager = {
+      ...rewardLockFixture(),
       queryRunner: { isTransactionActive: true },
       findOne: jest.fn(async (entity: unknown) =>
         entity === CustomerRewardHistory ? history : null),
@@ -125,6 +140,7 @@ describe('customer reward stock allocations', () => {
       stock_allocations: {} as any,
     };
     const manager = {
+      ...rewardLockFixture(),
       queryRunner: { isTransactionActive: true },
       findOne: jest.fn(async (entity: unknown) =>
         entity === CustomerRewardHistory ? history : null),
@@ -156,6 +172,7 @@ describe('customer reward stock allocations', () => {
       stock_allocations: [{ batchId: 99, quantity: 1, taxableQuantity: 1 }],
     };
     const manager = {
+      ...rewardLockFixture(),
       queryRunner: { isTransactionActive: true },
       findOne: jest.fn(async (entity: unknown) => {
         if (entity === CustomerRewardHistory) return history;
@@ -219,6 +236,7 @@ describe('customer reward stock allocations', () => {
       stock_allocations: [{ batchId: 99, quantity: 1, taxableQuantity: 1 }],
     };
     const manager = {
+      ...rewardLockFixture(),
       queryRunner: { isTransactionActive: true },
       findOne: jest.fn(async (entity: unknown) => {
         if (entity === CustomerRewardHistory) return history;
@@ -257,6 +275,7 @@ describe('customer reward stock allocations', () => {
       stock_allocations: [{ batchId: 99, quantity: 1, taxableQuantity: 1 }],
     };
     const manager = {
+      ...rewardLockFixture(),
       queryRunner: { isTransactionActive: true },
       findOne: jest.fn(async (entity: unknown) => {
         if (entity === CustomerRewardHistory) return history;
@@ -306,6 +325,7 @@ describe('customer reward stock allocations', () => {
       stock_allocations: [],
     };
     const manager = {
+      ...rewardLockFixture(),
       queryRunner: { isTransactionActive: true },
       findOne: jest.fn(async (entity: unknown) =>
         entity === CustomerRewardHistory ? history : { id: 7, name: 'Quà' }),
@@ -340,6 +360,7 @@ describe('customer reward stock allocations', () => {
       stock_allocations: [],
     };
     const manager = {
+      ...rewardLockFixture(),
       queryRunner: { isTransactionActive: true },
       findOne: jest.fn(async (entity: unknown) => {
         if (entity === CustomerRewardHistory) return history;
