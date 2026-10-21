@@ -47,7 +47,7 @@ describePostgres('taxable batch migration on PostgreSQL TEMP fixtures', () => {
     await runner.startTransaction();
     await runner.query(`
       CREATE TEMP TABLE products(id int PRIMARY KEY,name text,quantity numeric(15,4),
-        taxable_quantity_stock numeric(15,2),updated_at timestamp,deleted_at timestamp);
+        taxable_quantity_stock numeric(15,4),updated_at timestamp,deleted_at timestamp);
       CREATE TEMP TABLE inventory_receipts(id int PRIMARY KEY,status text,deleted_at timestamp);
       CREATE TEMP TABLE inventory_receipt_items(id int PRIMARY KEY,receipt_id int,product_id int,
         quantity numeric,taxable_quantity numeric,conversion_factor numeric,
@@ -504,7 +504,7 @@ describePostgres('taxable batch migration on PostgreSQL TEMP fixtures', () => {
     ).toEqual(first);
   });
 
-  it('does not silently round a product tax total that exceeds its database precision', async () => {
+  it('repairs a four-decimal product tax total instead of truncating it to two', async () => {
     await receiptLot({
       quantity: 3,
       tax: 1,
@@ -514,9 +514,10 @@ describePostgres('taxable batch migration on PostgreSQL TEMP fixtures', () => {
     });
     await new RepairLegacyBatchTaxableBalances1786386000000().up(runner);
     const [product] = await runner.query(
-      'SELECT taxable_quantity_stock FROM products',
+      'SELECT quantity,taxable_quantity_stock FROM products',
     );
-    expect(Number(product.taxable_quantity_stock)).toBe(0);
+    expect(Number(product.quantity)).toBe(3);
+    expect(Number(product.taxable_quantity_stock)).toBe(1.2345);
     expect(Number((await row(1)).current_tax)).toBe(1.2345);
   });
 });

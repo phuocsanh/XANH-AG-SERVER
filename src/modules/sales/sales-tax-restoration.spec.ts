@@ -522,10 +522,18 @@ describe('invoice tax stock restoration', () => {
     expect(s.product.taxable_quantity_stock).toBe(3);
   });
 
-  it('rolls back instead of rounding a fractional product tax balance', async () => {
+  it('restores a four-decimal fractional product tax balance', async () => {
     const s = setup();
     s.allocation.taxable_quantity = 0.001;
-    await expect(s.service.handleInventoryRestoration(7, 3)).rejects.toThrow('2 chữ số thập phân');
+    await s.service.handleInventoryRestoration(7, 3, s.runner);
+    expect(s.product.taxable_quantity_stock).toBe(2.001);
+    expect(s.batch.taxable_remaining_quantity).toBe(2.001);
+  });
+
+  it('rolls back instead of rounding a sub-0.0001 product tax balance', async () => {
+    const s = setup();
+    s.allocation.taxable_quantity = 0.00001;
+    await expect(s.service.handleInventoryRestoration(7, 3)).rejects.toThrow('4 chữ số thập phân');
     expect(s.runner.rollbackTransaction).toHaveBeenCalledTimes(1);
     expect(s.runner.commitTransaction).not.toHaveBeenCalled();
   });

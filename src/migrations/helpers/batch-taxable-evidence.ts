@@ -180,6 +180,6 @@ export function productTaxableRepairPlanSql(evidenceQuery: string): string {
     )
     SELECT id,name,old_tax,new_tax FROM balances
     WHERE unresolved=0 AND physical=quantity AND new_tax>=0 AND new_tax<=quantity
-      AND new_tax=ROUND(new_tax,2) AND old_tax IS DISTINCT FROM new_tax
+      AND new_tax=ROUND(new_tax,4) AND old_tax IS DISTINCT FROM new_tax
   `;
 }

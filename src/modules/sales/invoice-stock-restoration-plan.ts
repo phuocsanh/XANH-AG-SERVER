@@ -39,11 +39,15 @@ export function saleTaxQuantityForStorage(baseTax: number, factor: number): numb
   return stored;
 }
 
+/**
+ * products.taxable_quantity_stock là numeric(15,4): phải round-trip chính xác tới 4 chữ số
+ * thập phân, lẻ hơn thì báo lỗi để đối soát thay vì tự làm tròn số thuế.
+ */
 export function restoredTaxStockForStorage(value: number, productId: number): number {
   quantity(value, `Tồn thuế sản phẩm #${productId}`);
-  const stored = Math.round(value * 100) / 100;
-  if (stored > 9999999999999.99 || Math.abs(stored - value) > EPSILON) {
-    throw new BadRequestException(`Tồn thuế sản phẩm #${productId} không lưu chính xác được với 2 chữ số thập phân; cần đối soát trước khi hoàn kho.`);
+  const stored = Math.round(value * 10000) / 10000;
+  if (stored > 99999999999.9999 || Math.abs(stored - value) > EPSILON) {
+    throw new BadRequestException(`Tồn thuế sản phẩm #${productId} không lưu chính xác được với 4 chữ số thập phân; cần đối soát trước khi hoàn kho.`);
   }
   return stored;
 }

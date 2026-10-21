@@ -161,15 +161,22 @@ export class InventoryService {
     return match[1] ? -units : units;
   }
 
+  /**
+   * Quy đổi đơn vị thuế (1e-6) sang số thực của products.taxable_quantity_stock numeric(15,4).
+   * Chỉ nhận giá trị lẻ tối đa 4 chữ số thập phân; lẻ hơn sẽ báo lỗi thay vì tự làm tròn
+   * để không lệch số thuế dùng đối soát hóa đơn.
+   */
   private productTaxStockFromUnits(productId: number, units: bigint | undefined): number {
-    if (units === undefined || units < 0n || units >= 10000000000000000000n ||
-        units % 10000n !== 0n) {
+    // Giá trị lớn nhất lưu được: numeric(15,4) = 99999999999.9999 -> 99999999999999900 đơn vị 1e-6.
+    const maxUnits = 99999999999999900n;
+    if (units === undefined || units < 0n || units > maxUnits ||
+        units % 100n !== 0n) {
       throw new BadRequestException(
-        `Tồn thuế sản phẩm #${productId} không lưu được chính xác với numeric(15,2). ` +
+        `Tồn thuế sản phẩm #${productId} không lưu được chính xác với numeric(15,4). ` +
           'Vui lòng đối soát snapshot thuế theo đơn vị gốc trước khi tiếp tục; không thể tự làm tròn.',
       );
     }
-    return Number(units / 10000n) / 100;
+    return Number(units / 100n) / 10000;
   }
 
   private parseMoney(value: unknown): number {
@@ -7625,7 +7632,7 @@ export class InventoryService {
         if (error instanceof BadRequestException) return skip(error.message);
         throw error;
       }
-      if (Math.abs(Number(product.taxable_quantity_stock || 0) - taxableStock) <= 0.001) {
+      if (Math.abs(Number(product.taxable_quantity_stock || 0) - taxableStock) <= 0.00005) {
         return unchanged;
       }
       await manager.update(Product, productId, { taxable_quantity_stock: taxableStock });

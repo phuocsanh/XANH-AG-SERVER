@@ -431,7 +431,7 @@ describePostgres(
       expect(Number(product.taxable_quantity_stock)).toBe(7);
     });
 
-    it('blocks fractional sales that would leave product taxable stock unrepresentable', async () => {
+    it('persists a four-decimal product tax balance across fractional sales', async () => {
       await databaseRunner.query(`
       INSERT INTO ${tables.products} VALUES (1,1.5,0.75,5);
       INSERT INTO ${tables.receipts} VALUES (11,0,1,0),(12,0.75,1,20);
@@ -451,18 +451,16 @@ describePostgres(
         runner,
         { requireBatchTaxSnapshot: true },
       );
-      await expect(
-        service.processStockOut(
-          1,
-          0.375,
-          'SALE',
-          9,
-          104,
-          undefined,
-          runner,
-          { requireBatchTaxSnapshot: true },
-        ),
-      ).rejects.toThrow('không lưu được chính xác với numeric(15,2)');
+      const second = await service.processStockOut(
+        1,
+        0.375,
+        'SALE',
+        9,
+        104,
+        undefined,
+        runner,
+        { requireBatchTaxSnapshot: true },
+      );
       const [product] = await databaseRunner.query(
         `SELECT quantity,taxable_quantity_stock FROM ${tables.products} WHERE id=1`,
       );
@@ -474,16 +472,18 @@ describePostgres(
       );
 
       expect(first.taxableQuantity).toBe(0);
-      expect(Number(product.quantity)).toBe(1);
-      expect(Number(product.taxable_quantity_stock)).toBe(0.75);
+      expect(second.taxableQuantity).toBe(0.125);
+      expect(Number(product.quantity)).toBe(0.625);
+      expect(Number(product.taxable_quantity_stock)).toBe(0.625);
       expect(
         batches.map((batch: Record<string, unknown>) => [
           Number(batch.remaining_quantity),
           Number(batch.taxable_remaining_quantity),
         ]),
-      ).toEqual([[0, 0], [1, 0.75]]);
+      ).toEqual([[0, 0], [0.625, 0.625]]);
       expect(transactions).toEqual([
         expect.objectContaining({ quantity: '-0.5', remaining_quantity: '1' }),
+        expect.objectContaining({ quantity: '-0.375', remaining_quantity: '0.625' }),
       ]);
     });
   },

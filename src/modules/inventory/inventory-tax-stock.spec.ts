@@ -235,7 +235,17 @@ describe('Inventory tax stock sync', () => {
     expect(h.manager.update).not.toHaveBeenCalled();
   });
 
-  it.each([0.0001, 0.001, 0.005, 0.9999])('rejects product tax precision loss from allocation tax %s', async (taxable) => {
+  it.each([0.0001, 0.001, 0.005, 0.9999])('stores product tax with up to four decimals from allocation tax %s', async (taxable) => {
+    const h = harness();
+    h.sales.push(sale(1, 0));
+    h.allocations.push(allocation(1, taxable));
+    h.product.quantity = 9;
+    h.product.taxable_quantity_stock = 0;
+    await h.service.syncTaxableDataForProduct(1);
+    expect(h.product.taxable_quantity_stock).toBe(Number((6 - taxable).toFixed(4)));
+  });
+
+  it.each([0.00001, 0.000001])('rejects product tax finer than four decimals from allocation tax %s', async (taxable) => {
     const h = harness();
     h.sales.push(sale(1, 0));
     h.allocations.push(allocation(1, taxable));
@@ -243,17 +253,28 @@ describe('Inventory tax stock sync', () => {
     h.product.taxable_quantity_stock = 0;
     await h.service.syncTaxableDataForProduct(1);
     expect(h.manager.update).not.toHaveBeenCalled();
-    expect(h.logger.warn).toHaveBeenCalledWith(expect.stringContaining('numeric(15,2)'));
+    expect(h.logger.warn).toHaveBeenCalledWith(expect.stringContaining('numeric(15,4)'));
   });
 
-  it('rejects product tax overflow for numeric(15,2)', async () => {
+  it('rejects product tax overflow for numeric(15,4)', async () => {
     const h = harness();
     h.receipts[0] = receipt(1, 10000000000000, 10000000000000);
     h.product.quantity = 10000000000000;
     h.product.taxable_quantity_stock = 0;
     await h.service.syncTaxableDataForProduct(1);
     expect(h.manager.update).not.toHaveBeenCalled();
-    expect(h.logger.warn).toHaveBeenCalledWith(expect.stringContaining('numeric(15,2)'));
+    expect(h.logger.warn).toHaveBeenCalledWith(expect.stringContaining('numeric(15,4)'));
+  });
+
+  it('accepts four-decimal stock after harmless floating-point arithmetic', async () => {
+    const h = harness();
+    h.receipts[0] = receipt(1, 1, 0.3);
+    h.sales.push(sale(0.2, 0.0999));
+    h.allocations.push(allocation(0.2, 0.0999));
+    h.product.quantity = 0.8;
+    h.product.taxable_quantity_stock = 0;
+    await h.service.syncTaxableDataForProduct(1);
+    expect(h.product.taxable_quantity_stock).toBe(0.2001);
   });
 
   it('accepts two-decimal stock after harmless floating-point arithmetic', async () => {
@@ -267,7 +288,7 @@ describe('Inventory tax stock sync', () => {
     expect(h.product.taxable_quantity_stock).toBe(0.2);
   });
 
-  it('rejects fractional tax hidden by floating-point cancellation at large stock totals', async () => {
+  it('rejects tax balances beyond numeric(15,4) at large stock totals', async () => {
     const h = harness();
     h.receipts.splice(0, 1, ...Array.from({ length: 100 }, (_, i) =>
       receipt(i + 1, 99999999, 99999998, 1000),
@@ -278,7 +299,7 @@ describe('Inventory tax stock sync', () => {
     h.product.taxable_quantity_stock = 0;
     await h.service.syncTaxableDataForProduct(1);
     expect(h.manager.update).not.toHaveBeenCalled();
-    expect(h.logger.warn).toHaveBeenCalledWith(expect.stringContaining('numeric(15,2)'));
+    expect(h.logger.warn).toHaveBeenCalledWith(expect.stringContaining('numeric(15,4)'));
   });
 
   it('multiplies receipt conversion snapshots without floating-point precision loss', async () => {
@@ -481,23 +502,46 @@ describe('Inventory tax stock sync', () => {
 });
 
 describe('Inventory stock mutations', () => {
-  it('rejects stock-in tax that numeric(15,2) would round away before writing', async () => {
+  it('accepts stock-in tax with four decimals', async () => {
+    const h = harness();
+    await h.service.processStockIn(
+      1, 1, 5, 1, undefined, undefined, undefined, undefined, 0.001,
+    );
+    expect(h.product.quantity).toBe(11);
+    expect(h.product.taxable_quantity_stock).toBe(6.001);
+    expect(h.manager.update).toHaveBeenCalledWith(
+      Product, 1, expect.objectContaining({ taxable_quantity_stock: 6.001 }),
+    );
+    expect(h.runner.rollbackTransaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects stock-in tax finer than numeric(15,4) before writing', async () => {
     const h = harness();
     await expect(h.service.processStockIn(
-      1, 1, 5, 1, undefined, undefined, undefined, undefined, 0.001,
-    )).rejects.toThrow('numeric(15,2)');
+      1, 1, 5, 1, undefined, undefined, undefined, undefined, 0.00001,
+    )).rejects.toThrow('numeric(15,4)');
     expect(h.product.quantity).toBe(10);
     expect(h.product.taxable_quantity_stock).toBe(6);
     expect(h.manager.update).not.toHaveBeenCalled();
     expect(h.runner.rollbackTransaction).toHaveBeenCalledTimes(1);
   });
 
-  it('rejects a stock-out that would leave an unrepresentable product tax balance', async () => {
+  it('accepts a stock-out that leaves a four-decimal product tax balance', async () => {
+    const h = harness();
+    await h.service.processStockOut(
+      1, 1, 'RETURN_CANCEL', 1, undefined, undefined, undefined,
+      { taxableQuantity: 0.001 },
+    );
+    expect(h.product.quantity).toBe(9);
+    expect(h.product.taxable_quantity_stock).toBe(5.999);
+  });
+
+  it('rejects a stock-out that would leave a product tax finer than four decimals', async () => {
     const h = harness();
     await expect(h.service.processStockOut(
       1, 1, 'RETURN_CANCEL', 1, undefined, undefined, undefined,
-      { taxableQuantity: 0.001 },
-    )).rejects.toThrow('numeric(15,2)');
+      { taxableQuantity: 0.00001 },
+    )).rejects.toThrow('numeric(15,4)');
     expect(h.product.quantity).toBe(10);
     expect(h.product.taxable_quantity_stock).toBe(6);
     expect(h.manager.update).not.toHaveBeenCalled();

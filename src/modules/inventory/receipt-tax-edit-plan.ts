@@ -48,7 +48,7 @@ export const RECEIPT_TAX_EDIT_PLAN_SQL = `
     AND source.new_batch_tax>=0 AND source.new_batch_tax<=source.remaining_quantity
     AND source.new_batch_tax=ROUND(source.new_batch_tax,4)
     AND source.product_tax + source.new_batch_tax-source.taxable_remaining_quantity
-      =ROUND(source.product_tax + source.new_batch_tax-source.taxable_remaining_quantity,2)
+      =ROUND(source.product_tax + source.new_batch_tax-source.taxable_remaining_quantity,4)
     AND (SELECT COUNT(*) FROM inventories sibling WHERE sibling.receipt_item_id=$1)=1
     AND (SELECT COUNT(*) FROM inventory_transactions creation
       WHERE creation.product_id=source.product_id AND creation.type='IN'

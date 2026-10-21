@@ -233,7 +233,7 @@ export class Product {
   tax_selling_price!: string;
 
   /** Số lượng tồn kho có hóa đơn đầu vào (bể thuế) */
-  @Column({ name: 'taxable_quantity_stock', type: 'decimal', precision: 15, scale: 2, default: 0 })
+  @Column({ name: 'taxable_quantity_stock', type: 'decimal', precision: 15, scale: 4, default: 0 })
   taxable_quantity_stock!: number;
 
   /** Cho phép bán trên Web Next.js */
