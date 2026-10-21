@@ -15,6 +15,7 @@ import { FarmGiftCost } from '../../entities/farm-gift-cost.entity';
 import { SystemSetting } from '../../entities/system-setting.entity';
 import { SalesInvoiceItemStockAllocation } from '../../entities/sales-invoice-item-stock-allocations.entity';
 import { Product } from '../../entities/products.entity';
+import { ProductType } from '../../entities/product-types.entity';
 import { SalesReturnItem } from '../../entities/sales-return-items.entity';
 import { SalesReturnStatus } from '../../entities/sales-return.entity';
 import { QueryHelper } from '../../common/helpers/query-helper';
@@ -35,6 +36,7 @@ import {
   TopProductProfitDto,
 } from './dto/season-store-profit.dto';
 import { ProductSeasonSalesDto } from './dto/product-season-sales.dto';
+import { CustomerSeasonSalesDto } from './dto/customer-season-sales.dto';
 import {
   CustomerProfitReportDto,
   CustomerInvoiceDto,
@@ -160,6 +162,111 @@ export class StoreProfitReportService {
       quantity_sold: quantitySold,
       unit_name: product.unit?.name,
       invoice_count: invoiceCount,
+    };
+  }
+
+  /** Tổng hợp tiền bán theo khách hàng, mùa vụ và danh mục Phân bón gốc. */
+  async getCustomerSeasonSales(
+    customerId: number,
+    seasonId: number,
+  ): Promise<CustomerSeasonSalesDto> {
+    const [customer, season, productTypes] = await Promise.all([
+      this.customerRepository.findOne({ where: { id: customerId } }),
+      this.seasonRepository.findOne({ where: { id: seasonId } }),
+      this.salesInvoiceRepository.manager
+        .getRepository(ProductType)
+        .find(),
+    ]);
+
+    if (!customer) {
+      throw new NotFoundException(`Không tìm thấy khách hàng với ID: ${customerId}`);
+    }
+    if (!season) {
+      throw new NotFoundException(`Không tìm thấy mùa vụ với ID: ${seasonId}`);
+    }
+
+    const normalizeCategoryName = (name: string) =>
+      name
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd')
+        .replace(/Đ/g, 'D')
+        .trim()
+        .toLocaleLowerCase('vi-VN');
+    const baseFertilizerTypeIds = new Set(
+      productTypes
+        .filter((productType) => normalizeCategoryName(productType.name) === 'phan bon goc')
+        .map((productType) => productType.id),
+    );
+    const riceSeedTypeIds = new Set(
+      productTypes
+        .filter((productType) => normalizeCategoryName(productType.name) === 'lua giong')
+        .map((productType) => productType.id),
+    );
+
+    const invoices = await this.salesInvoiceRepository.find({
+      where: [
+        {
+          customer_id: customerId,
+          season_id: seasonId,
+          status: SalesInvoiceStatus.CONFIRMED,
+        },
+        {
+          customer_id: customerId,
+          season_id: seasonId,
+          status: SalesInvoiceStatus.PAID,
+        },
+      ],
+      relations: ['items', 'items.product'],
+    });
+    const returnStats = await this.getApprovedReturnStats(
+      invoices.map((invoice) => invoice.id),
+    );
+
+    let baseFertilizerAmount = 0;
+    let otherProductsAmount = 0;
+
+    for (const invoice of invoices) {
+      const items = invoice.items || [];
+      const invoiceItemsGross = items.reduce(
+        (sum, item) => sum + Number(item.total_price || 0),
+        0,
+      );
+
+      for (const item of items) {
+        const itemGrossPrice = Number(item.total_price || 0);
+        const invoiceDiscountShare =
+          invoiceItemsGross > 0
+            ? Number(invoice.discount_amount || 0) *
+              (itemGrossPrice / invoiceItemsGross)
+            : 0;
+        const returned = this.getReturnStatsForItem(returnStats, invoice.id, item);
+        const itemAmount = Math.max(
+          0,
+          itemGrossPrice - invoiceDiscountShare - returned.returnedAmount,
+        );
+        const productTypeId = Number(item.product?.type);
+        if (riceSeedTypeIds.has(productTypeId)) {
+          continue;
+        }
+        const isBaseFertilizer = baseFertilizerTypeIds.has(productTypeId);
+
+        if (isBaseFertilizer) {
+          baseFertilizerAmount += itemAmount;
+        } else {
+          otherProductsAmount += itemAmount;
+        }
+      }
+    }
+
+    return {
+      customer_id: customerId,
+      customer_name: customer.name,
+      season_id: seasonId,
+      season_name: season.name,
+      base_fertilizer_amount: baseFertilizerAmount,
+      other_products_amount: otherProductsAmount,
+      total_amount: baseFertilizerAmount + otherProductsAmount,
     };
   }
 

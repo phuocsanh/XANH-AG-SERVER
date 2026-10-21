@@ -22,6 +22,7 @@ import { SeasonStoreProfitDto } from './dto/season-store-profit.dto';
 import { CustomerProfitReportDto } from './dto/customer-profit-report.dto';
 import { PeriodReportDto } from './dto/period-report.dto';
 import { ProductSeasonSalesDto } from './dto/product-season-sales.dto';
+import { CustomerSeasonSalesDto } from './dto/customer-season-sales.dto';
 import {
   TaxRevenueCutoverDateDto,
   UpdateTaxRevenueCutoverDateDto,
@@ -148,6 +149,26 @@ export class StoreProfitReportController {
     }
 
     return this.service.getProductSeasonSales(productId, seasonId);
+  }
+
+  @Get('season/:seasonId/customer/:customerId/sales')
+  @RequirePermissions('store_profit_report:read')
+  @ApiOperation({ summary: 'Xem tổng tiền bán theo khách hàng trong mùa vụ' })
+  @ApiResponse({
+    status: 200,
+    description: 'Tiền bán chia thành Phân bón gốc và các loại sản phẩm khác',
+    type: CustomerSeasonSalesDto,
+  })
+  async getCustomerSeasonSales(
+    @Param('seasonId', ParseIntPipe) seasonId: number,
+    @Param('customerId', ParseIntPipe) customerId: number,
+    @CurrentUser() user: any,
+  ): Promise<CustomerSeasonSalesDto> {
+    if (user?.role?.code !== RoleCode.SUPER_ADMIN) {
+      throw new ForbiddenException('Chỉ Super Admin được xem báo cáo này');
+    }
+
+    return this.service.getCustomerSeasonSales(customerId, seasonId);
   }
 
   @Get('customer/:customerId')
