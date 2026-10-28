@@ -21,7 +21,10 @@ import { InvoiceProfitDto } from './dto/invoice-profit.dto';
 import { SeasonStoreProfitDto } from './dto/season-store-profit.dto';
 import { CustomerProfitReportDto } from './dto/customer-profit-report.dto';
 import { PeriodReportDto } from './dto/period-report.dto';
-import { ProductSeasonSalesDto } from './dto/product-season-sales.dto';
+import {
+  ProductSeasonSalesDto,
+  ProductTypesSeasonProfitDto,
+} from './dto/product-season-sales.dto';
 import { CustomerSeasonSalesDto } from './dto/customer-season-sales.dto';
 import {
   TaxRevenueCutoverDateDto,
@@ -149,6 +152,33 @@ export class StoreProfitReportController {
     }
 
     return this.service.getProductSeasonSales(productId, seasonId);
+  }
+
+  @Get('season/:seasonId/product-types/profit')
+  @RequirePermissions('store_profit_report:read')
+  @ApiOperation({
+    summary: 'Báo cáo lợi nhuận gộp theo nhiều loại sản phẩm trong mùa vụ',
+    description: 'Doanh thu đã trừ chiết khấu hóa đơn và hàng trả được duyệt; giá vốn dùng giá vốn lưu tại thời điểm bán.',
+  })
+  @ApiQuery({
+    name: 'productTypeIds',
+    required: true,
+    type: String,
+    description: 'Danh sách ID loại sản phẩm, phân cách bằng dấu phẩy',
+    example: '3,5',
+  })
+  @ApiResponse({ status: 200, type: ProductTypesSeasonProfitDto })
+  async getProductTypesSeasonProfit(
+    @Param('seasonId', ParseIntPipe) seasonId: number,
+    @Query('productTypeIds') productTypeIds: string,
+    @CurrentUser() user: any,
+  ): Promise<ProductTypesSeasonProfitDto> {
+    if (user?.role?.code !== RoleCode.SUPER_ADMIN) {
+      throw new ForbiddenException('Chỉ Super Admin được xem báo cáo này');
+    }
+
+    const ids = (productTypeIds || '').split(',').map((id) => Number(id.trim()));
+    return this.service.getProductTypesSeasonProfit(seasonId, ids);
   }
 
   @Get('season/:seasonId/customer/:customerId/sales')

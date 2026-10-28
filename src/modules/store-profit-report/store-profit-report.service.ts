@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, In, IsNull, Raw } from 'typeorm';
 import {
@@ -35,7 +35,10 @@ import {
   TopCustomerProfitDto,
   TopProductProfitDto,
 } from './dto/season-store-profit.dto';
-import { ProductSeasonSalesDto } from './dto/product-season-sales.dto';
+import {
+  ProductSeasonSalesDto,
+  ProductTypesSeasonProfitDto,
+} from './dto/product-season-sales.dto';
 import { CustomerSeasonSalesDto } from './dto/customer-season-sales.dto';
 import {
   CustomerProfitReportDto,
@@ -162,6 +165,119 @@ export class StoreProfitReportService {
       quantity_sold: quantitySold,
       unit_name: product.unit?.name,
       invoice_count: invoiceCount,
+    };
+  }
+
+  /** Tổng hợp doanh thu thuần, giá vốn và lợi nhuận gộp theo loại sản phẩm trong mùa vụ. */
+  async getProductTypesSeasonProfit(
+    seasonId: number,
+    productTypeIds: number[],
+  ): Promise<ProductTypesSeasonProfitDto> {
+    const selectedTypeIds = [...new Set(productTypeIds)];
+    if (!selectedTypeIds.length || selectedTypeIds.some((id) => !Number.isInteger(id) || id <= 0)) {
+      throw new BadRequestException('Vui lòng chọn ít nhất một loại sản phẩm hợp lệ');
+    }
+
+    const [season, productTypes] = await Promise.all([
+      this.seasonRepository.findOne({ where: { id: seasonId } }),
+      this.salesInvoiceRepository.manager
+        .getRepository(ProductType)
+        .find({ where: { id: In(selectedTypeIds) } }),
+    ]);
+    if (!season) {
+      throw new NotFoundException(`Không tìm thấy mùa vụ với ID: ${seasonId}`);
+    }
+
+    const invoices = await this.salesInvoiceRepository.find({
+      where: [
+        { season_id: seasonId, status: SalesInvoiceStatus.CONFIRMED },
+        { season_id: seasonId, status: SalesInvoiceStatus.PAID },
+      ],
+      relations: ['items', 'items.product'],
+    });
+    const returnStats = await this.getApprovedReturnStats(
+      invoices.map((invoice) => invoice.id),
+    );
+    const typeNames = new Map<number, string>(
+      productTypes.map((type) => [type.id, type.name] as const),
+    );
+    const totals = new Map<number, { revenue: number; cogs: number; invoices: Set<number> }>();
+
+    for (const typeId of selectedTypeIds) {
+      totals.set(typeId, { revenue: 0, cogs: 0, invoices: new Set() });
+    }
+
+    for (const invoice of invoices) {
+      const items = invoice.items || [];
+      const invoiceItemsGross = items.reduce(
+        (sum, item) => sum + Number(item.total_price || 0),
+        0,
+      );
+
+      for (const item of items) {
+        const typeId = Number(item.product?.type);
+        const typeTotals = totals.get(typeId);
+        if (!typeTotals) continue;
+
+        const itemGross = Number(item.total_price || 0);
+        const discountShare = invoiceItemsGross > 0
+          ? Number(invoice.discount_amount || 0) * (itemGross / invoiceItemsGross)
+          : 0;
+        const returned = this.getReturnStatsForItem(returnStats, invoice.id, item);
+        const itemRevenue = Math.max(0, itemGross - discountShare - returned.returnedAmount);
+        const itemCost = this.getInvoiceItemCostPrice(item);
+        const originalCogs = Number(item.base_quantity || item.quantity || 0) * itemCost;
+        const returnedCogs = returned.returnedBaseQuantity * itemCost;
+
+        typeTotals.revenue += itemRevenue;
+        typeTotals.cogs += Math.max(0, originalCogs - returnedCogs);
+        if (itemRevenue > 0 || originalCogs > returnedCogs) {
+          typeTotals.invoices.add(invoice.id);
+        }
+      }
+    }
+
+    const breakdown = selectedTypeIds.map((productTypeId) => {
+      const total = totals.get(productTypeId)!;
+      const grossProfit = total.revenue - total.cogs;
+      return {
+        product_type_id: productTypeId,
+        product_type_name: typeNames.get(productTypeId) || `Loại sản phẩm #${productTypeId}`,
+        revenue: Math.round(total.revenue * 100) / 100,
+        cost_of_goods_sold: Math.round(total.cogs * 100) / 100,
+        gross_profit: Math.round(grossProfit * 100) / 100,
+        gross_margin: total.revenue > 0
+          ? Math.round((grossProfit / total.revenue) * 10000) / 100
+          : 0,
+        invoice_count: total.invoices.size,
+      };
+    });
+    const revenue = selectedTypeIds.reduce(
+      (sum, typeId) => sum + totals.get(typeId)!.revenue,
+      0,
+    );
+    const costOfGoodsSold = selectedTypeIds.reduce(
+      (sum, typeId) => sum + totals.get(typeId)!.cogs,
+      0,
+    );
+    const grossProfit = revenue - costOfGoodsSold;
+    const invoiceIds = new Set(
+      breakdown.flatMap((row) => {
+        const typeTotals = totals.get(row.product_type_id)!;
+        return [...typeTotals.invoices];
+      }),
+    );
+
+    return {
+      season_id: season.id,
+      season_name: season.name,
+      product_type_ids: selectedTypeIds,
+      revenue: Math.round(revenue * 100) / 100,
+      cost_of_goods_sold: Math.round(costOfGoodsSold * 100) / 100,
+      gross_profit: Math.round(grossProfit * 100) / 100,
+      gross_margin: revenue > 0 ? Math.round((grossProfit / revenue) * 10000) / 100 : 0,
+      invoice_count: invoiceIds.size,
+      breakdown,
     };
   }
 
