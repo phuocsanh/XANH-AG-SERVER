@@ -18,6 +18,8 @@ import { ProductComponent } from './product-components.entity';
 export enum ProductCostingMethod {
   FIXED = 'fixed',
   BY_PRICE_TYPE = 'by_price_type',
+  /** Snapshot hóa đơn mới lấy giá vốn từ từng lô xuất thực tế. */
+  BY_BATCH = 'by_batch',
 }
 
 /**

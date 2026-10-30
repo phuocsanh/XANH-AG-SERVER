@@ -1,3 +1,4 @@
+import { calculateBatchSaleCost } from './batch-sale-cost';
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull, Not, DataSource, QueryRunner, In } from 'typeorm';
@@ -524,7 +525,7 @@ export class SalesService {
 
     if (hasByPriceType && hasStandard) {
       throw new BadRequestException(
-        'Không được trộn lúa giống quyết toán theo loại bán với sản phẩm thường trong cùng một phiếu bán.',
+        'Không được trộn sản phẩm chốt giá vốn theo loại giá bán với sản phẩm thông thường trong cùng một phiếu bán.',
       );
     }
   }
@@ -764,20 +765,13 @@ export class SalesService {
       return cost;
     }
 
+    // Giá trung bình chỉ là ước tính khi lưu nháp; lúc xuất kho sẽ chốt theo lô.
     const cost = this.parseMoney(product.average_cost_price);
-    if (!Number.isFinite(cost) || cost <= 0) {
-      throw new BadRequestException(
-        `Sản phẩm "${product.trade_name || product.name}" chưa có giá vốn`,
-      );
-    }
-
-    return cost;
+    return Number.isFinite(cost) && cost > 0 ? cost : 0;
   }
 
   /**
-   * Đồng bộ lại giá vốn snapshot của hóa đơn đã post từ dữ liệu xuất kho thực tế.
-   * Ưu tiên dùng sales_invoice_item_stock_allocations nếu có.
-   * Fallback sang inventory_transactions.total_value cho dữ liệu cũ chưa có allocation.
+   * Chốt giá vốn hóa đơn mới bằng tổng giá từng lô xuất; giữ snapshot hóa đơn cũ.
    */
   private async syncPostedInvoiceCostSnapshot(
     invoiceId: number,
@@ -789,6 +783,10 @@ export class SalesService {
     if (!invoice || !invoice.items || invoice.items.length === 0) {
       return;
     }
+    // Phiếu khách trả đã điều chỉnh COGS; đồng bộ lại tồn kho không được cộng lại hàng đã trả.
+    if (invoice.returns?.length) {
+      return;
+    }
 
     let totalCOGS = 0;
 
@@ -796,9 +794,17 @@ export class SalesService {
       const baseQty = Number(item.base_quantity || item.quantity || 0);
       const snapshotCostPrice = Number(item.cost_price || 0);
 
-      // Giữ giá vốn snapshot đã chốt lúc tạo hóa đơn. Với sản phẩm thường
-      // snapshot là average_cost_price; với lúa giống là giá vốn theo loại bán.
-      // Allocation/FIFO chỉ dùng để biết lô nào bị trừ tồn.
+      if (item.costing_method_snapshot === ProductCostingMethod.BY_BATCH) {
+        const allocations = await manager.find(SalesInvoiceItemStockAllocation, {
+          where: { sales_invoice_item_id: item.id },
+        });
+        const cost = calculateBatchSaleCost(item, allocations, []);
+        totalCOGS += cost.original;
+        await manager.update(SalesInvoiceItem, item.id, { cost_price: cost.unitCost });
+        continue;
+      }
+
+      // Hóa đơn cũ giữ giá vốn đã chốt; lúa giống giữ giá vốn theo loại bán.
       if (Number.isFinite(snapshotCostPrice) && snapshotCostPrice > 0) {
         totalCOGS += this.roundMoney(baseQty * snapshotCostPrice);
         continue;
@@ -1036,8 +1042,9 @@ export class SalesService {
               createSalesInvoiceDto.payment_method,
             );
             const costPrice = this.resolveProductCostPrice(product, priceType);
-            const costingMethodSnapshot =
-              product.costing_method || ProductCostingMethod.FIXED;
+            const costingMethodSnapshot = product.costing_method === ProductCostingMethod.BY_PRICE_TYPE
+              ? ProductCostingMethod.BY_PRICE_TYPE
+              : ProductCostingMethod.BY_BATCH;
 
             if (!productName) {
               productName = product?.trade_name || product?.name;
@@ -1695,6 +1702,9 @@ export class SalesService {
         queryRunner.manager,
       );
 
+      if (!userId) {
+        throw new BadRequestException('Cần xác định người thao tác để xác nhận hóa đơn.');
+      }
       await this.customerRewardService.snapshotInvoiceRewardPolicy(queryRunner.manager, invoice);
       invoice.status = SalesInvoiceStatus.CONFIRMED;
       invoice.updated_at = new Date();
@@ -1760,6 +1770,10 @@ export class SalesService {
         throw new BadRequestException(
           'Chỉ hóa đơn đã xác nhận và còn nợ mới được đánh dấu đã thanh toán.',
         );
+      }
+
+      if (!userId) {
+        throw new BadRequestException('Cần xác định người thao tác để thanh toán hóa đơn.');
       }
 
       invoice.status = SalesInvoiceStatus.PAID;
@@ -3309,7 +3323,9 @@ export class SalesService {
             'SALE',
             performerId,
             invoice.id,
-            `Bán hàng theo hóa đơn #${invoice.code}`,
+            item.costing_method_snapshot === ProductCostingMethod.BY_BATCH
+              ? `Bán hàng theo hóa đơn #${invoice.code} [sales-item:${item.id}]`
+              : `Bán hàng theo hóa đơn #${invoice.code}`,
             queryRunner,
             { requireBatchTaxSnapshot: true },
 	          );
@@ -3338,7 +3354,7 @@ export class SalesService {
               product_id: item.product_id,
               quantity,
               unit_cost: unitCost,
-              total_cost: quantity * unitCost,
+              total_cost: this.roundMoney(quantity * unitCost),
               taxable_quantity: Number(affectedBatch.taxableQuantity || 0),
             };
             if (batch?.id) allocationData.inventory_batch_id = batch.id;
@@ -3517,6 +3533,21 @@ export class SalesService {
         },
       );
 
+      // Hóa đơn chốt theo lô không được hoàn vào lô khác khi thiếu lịch sử xuất.
+      for (const item of invoice.items) {
+        const itemAllocations = allocations.filter((allocation) =>
+          Number(allocation.sales_invoice_item_id) === Number(item.id),
+        );
+        if (item.costing_method_snapshot === ProductCostingMethod.BY_BATCH &&
+            (itemAllocations.length === 0 || itemAllocations.some((allocation) =>
+              !allocation.inventory_batch_id,
+            ))) {
+          throw new BadRequestException(
+            `Hóa đơn #${invoice.code}, dòng #${item.id} thiếu phân bổ lô; cần đối soát trước khi hoàn kho.`,
+          );
+        }
+      }
+
       const plan = planInvoiceStockRestoration(invoiceId, invoice.items, allocations, returnItems, invoice.code);
       const remainingByItem = plan.byItem;
       const restoreQuantityByAllocation = new Map(
@@ -3648,10 +3679,7 @@ export class SalesService {
           });
         }
 
-        await transRepo.manager.delete(SalesInvoiceItemStockAllocation, {
-          invoice_id: invoiceId,
-        });
-
+        // Giữ phân bổ lô và giá vốn để tra lịch sử sau khi hủy/hoàn hóa đơn.
       }
 
       for (const item of invoice.items) {

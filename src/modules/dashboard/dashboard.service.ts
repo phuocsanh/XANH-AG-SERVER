@@ -8,11 +8,14 @@ import { Product } from '../../entities/products.entity';
 import { InventoryBatch } from '../../entities/inventories.entity';
 import { SystemSetting } from '../../entities/system-setting.entity';
 import { OperatingCost } from '../../entities/operating-costs.entity';
+import { FarmServiceCost } from '../../entities/farm-service-cost.entity';
+import { DeliveryLog } from '../../entities/delivery-log.entity';
 import { FarmGiftCost } from '../../entities/farm-gift-cost.entity';
 import { CustomerRewardHistory } from '../../entities/customer-reward-history.entity';
 import { PromotionRewardReservation } from '../../entities/promotion-reward-reservation.entity';
 import { Season } from '../../entities/season.entity';
 import { Loan, LoanStatus } from '../../entities/loan.entity';
+import { loadSupplierRebates } from '../store-profit-report/supplier-rebate';
 import { DashboardQueryDto, DashboardPeriod } from './dto/dashboard-query.dto';
 
 @Injectable()
@@ -184,9 +187,8 @@ export class DashboardService {
     const overdueCutoffDate = this.getDebtOverdueCutoffDate(overdueAfterMonths);
 
     const invoiceQb = this.salesInvoiceRepo.createQueryBuilder('invoice');
-    invoiceQb.where('invoice.status != :cancelled AND invoice.status != :refunded', {
-      cancelled: SalesInvoiceStatus.CANCELLED,
-      refunded: SalesInvoiceStatus.REFUNDED,
+    invoiceQb.where('invoice.status IN (:...postedStatuses)', {
+      postedStatuses: [SalesInvoiceStatus.CONFIRMED, SalesInvoiceStatus.PAID],
     });
     invoiceQb.andWhere('invoice.deleted_at IS NULL');
 
@@ -206,6 +208,22 @@ export class DashboardService {
       .addSelect('COALESCE(SUM(invoice.remaining_amount), 0)', 'total_debt')
       .addSelect('COALESCE(SUM(invoice.gift_value), 0)', 'total_gift_value')
       .getRawOne();
+
+    // Chiết khấu NCC lúa giống được chốt sau khi nhập nên không ghi đè snapshot hóa đơn.
+    // Dashboard cộng phần đã bán ròng để giá vốn và lợi nhuận khớp báo cáo mùa vụ.
+    const invoiceRows = await invoiceQb
+      .clone()
+      .select('invoice')
+      .leftJoinAndSelect('invoice.items', 'item')
+      .getMany();
+    const supplierRebates = await loadSupplierRebates(
+      this.salesInvoiceRepo.manager,
+      invoiceRows,
+    );
+    const supplierRebateTotal = [...supplierRebates.values()].reduce(
+      (total, value) => total + value,
+      0,
+    );
 
     const customerCount = await this.customerRepo
       .createQueryBuilder('customer')
@@ -336,6 +354,25 @@ export class DashboardService {
       accumulatedGiftCostQb.getRawOne(),
       campaignGiftCostQb.getRawOne(),
     ]);
+    const serviceCostQb = this.salesInvoiceRepo.manager.getRepository(FarmServiceCost)
+      .createQueryBuilder('service')
+      .select('COALESCE(SUM(service.amount), 0)', 'total');
+    const deliveryCostQb = this.salesInvoiceRepo.manager.getRepository(DeliveryLog)
+      .createQueryBuilder('delivery')
+      .leftJoin('delivery.invoice', 'deliveryInvoice')
+      .select('COALESCE(SUM(delivery.total_cost), 0)', 'total');
+    if (dto.season_id) {
+      serviceCostQb.where('service.season_id = :seasonId', { seasonId: dto.season_id });
+      deliveryCostQb.where('(delivery.season_id = :seasonId OR deliveryInvoice.season_id = :seasonId)', {
+        seasonId: dto.season_id,
+      });
+    } else if (costStart && costEnd) {
+      serviceCostQb.where('service.expense_date BETWEEN :costStart AND :costEnd', { costStart, costEnd });
+      deliveryCostQb.where('delivery.delivery_date BETWEEN :costStart AND :costEnd', { costStart, costEnd });
+    }
+    const [serviceCost, deliveryCost] = await Promise.all([
+      serviceCostQb.getRawOne(), deliveryCostQb.getRawOne(),
+    ]);
 
     const loanStats = await this.loanRepo
       .createQueryBuilder('loan')
@@ -361,14 +398,17 @@ export class DashboardService {
       .getRawOne();
 
     const totalRevenue = this.toNumber(invoiceStats?.total_revenue || 0);
-    const grossProfit = this.toNumber(invoiceStats?.total_profit || 0);
+    const grossProfit =
+      this.toNumber(invoiceStats?.total_profit || 0) + supplierRebateTotal;
     const invoiceGiftValue = this.toNumber(invoiceStats?.total_gift_value || 0);
     const operatingCostValue = this.toNumber(operatingCost?.total || 0);
     const manualGiftCostValue = this.toNumber(manualGiftCost?.total || 0);
     const accumulatedGiftCostValue = this.toNumber(accumulatedGiftCost?.total || 0);
     const campaignGiftCostValue = this.toNumber(campaignGiftCost?.total || 0);
     const totalGiftCost = invoiceGiftValue + manualGiftCostValue + accumulatedGiftCostValue + campaignGiftCostValue;
-    const totalExtraCost = operatingCostValue + totalGiftCost;
+    const serviceCostValue = this.toNumber(serviceCost?.total || 0);
+    const deliveryCostValue = this.toNumber(deliveryCost?.total || 0);
+    const totalExtraCost = operatingCostValue + totalGiftCost + serviceCostValue + deliveryCostValue;
     const netProfit = grossProfit - totalExtraCost;
     const grossProfitMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
     const netProfitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
@@ -382,13 +422,16 @@ export class DashboardService {
       stats: {
         totalRevenue,
         totalOrders: this.toNumber(invoiceStats?.total_count || 0),
-        totalCost: this.toNumber(invoiceStats?.total_cost || 0),
+        totalCost:
+          this.toNumber(invoiceStats?.total_cost || 0) - supplierRebateTotal,
         totalProfit: netProfit,
         grossProfit,
         netProfit,
         grossProfitMargin: parseFloat(grossProfitMargin.toFixed(2)),
         netProfitMargin: parseFloat(netProfitMargin.toFixed(2)),
         operatingCost: operatingCostValue,
+        serviceCost: serviceCostValue,
+        deliveryCost: deliveryCostValue,
         totalGiftCost,
         totalExtraCost,
         totalDiscount: this.toNumber(invoiceStats?.total_discount || 0),
@@ -436,9 +479,8 @@ export class DashboardService {
     const { start, end } = this.getPeriodRange(dto);
 
     const invoiceQb = this.salesInvoiceRepo.createQueryBuilder('invoice');
-    invoiceQb.where('invoice.status != :cancelled AND invoice.status != :refunded', {
-      cancelled: SalesInvoiceStatus.CANCELLED,
-      refunded: SalesInvoiceStatus.REFUNDED,
+    invoiceQb.where('invoice.status IN (:...postedStatuses)', {
+      postedStatuses: [SalesInvoiceStatus.CONFIRMED, SalesInvoiceStatus.PAID],
     });
     invoiceQb.andWhere('invoice.deleted_at IS NULL');
 
@@ -447,6 +489,28 @@ export class DashboardService {
     }
     if (dto.season_id) {
       invoiceQb.andWhere('invoice.season_id = :seasonId', { seasonId: dto.season_id });
+    }
+
+    const invoiceRows = await invoiceQb
+      .clone()
+      .leftJoinAndSelect('invoice.items', 'item')
+      .getMany();
+    const supplierRebates = await loadSupplierRebates(
+      this.salesInvoiceRepo.manager,
+      invoiceRows,
+    );
+    const supplierRebateByMonth = new Map<string, number>();
+    for (const invoice of invoiceRows) {
+      if (!invoice.sale_date) continue;
+      const month = new Date(invoice.sale_date).toISOString().slice(0, 7);
+      const rebate = (invoice.items || []).reduce(
+        (total, item) => total + (supplierRebates.get(Number(item.id)) || 0),
+        0,
+      );
+      supplierRebateByMonth.set(
+        month,
+        (supplierRebateByMonth.get(month) || 0) + rebate,
+      );
     }
 
     const monthlyData = await invoiceQb
@@ -460,13 +524,21 @@ export class DashboardService {
       .limit(12)
       .getRawMany();
 
-    const monthlyRevenue = monthlyData.map((row) => ({
-      month: row.month ? new Date(row.month).toLocaleDateString('vi-VN', { month: 'short', year: 'numeric' }) : '-',
-      revenue: this.toNumber(row.revenue) / 1000000,
-      count: this.toNumber(row.count),
-      profit: this.toNumber(row.profit) / 1000000,
-      cost: this.toNumber(row.cost) / 1000000,
-    }));
+    const monthlyRevenue = monthlyData.map((row) => {
+      const monthDate = row.month ? new Date(row.month) : null;
+      const rebate = monthDate
+        ? supplierRebateByMonth.get(monthDate.toISOString().slice(0, 7)) || 0
+        : 0;
+      return {
+        month: monthDate
+          ? monthDate.toLocaleDateString('vi-VN', { month: 'short', year: 'numeric' })
+          : '-',
+        revenue: this.toNumber(row.revenue) / 1000000,
+        count: this.toNumber(row.count),
+        profit: (this.toNumber(row.profit) + rebate) / 1000000,
+        cost: (this.toNumber(row.cost) - rebate) / 1000000,
+      };
+    });
 
     let comparisonRevenue: any[] = [];
     let yoyGrowth = 0;
@@ -480,9 +552,8 @@ export class DashboardService {
 
       const comparisonQb = invoiceQb
         .clone()
-        .where('invoice.status != :cancelled AND invoice.status != :refunded', {
-          cancelled: SalesInvoiceStatus.CANCELLED,
-          refunded: SalesInvoiceStatus.REFUNDED,
+        .where('invoice.status IN (:...postedStatuses)', {
+          postedStatuses: [SalesInvoiceStatus.CONFIRMED, SalesInvoiceStatus.PAID],
         })
         .andWhere('invoice.deleted_at IS NULL')
         .andWhere('invoice.sale_date BETWEEN :start AND :end', {
@@ -749,7 +820,9 @@ export class DashboardService {
     const limit = dto.limit || 10;
 
     let qb = this.salesInvoiceRepo.createQueryBuilder('invoice');
-    qb.where('invoice.status != :draft', { draft: SalesInvoiceStatus.DRAFT });
+    qb.where('invoice.status IN (:...postedStatuses)', {
+      postedStatuses: [SalesInvoiceStatus.CONFIRMED, SalesInvoiceStatus.PAID],
+    });
     qb.andWhere('invoice.deleted_at IS NULL');
 
     if (start && end) {
@@ -761,15 +834,27 @@ export class DashboardService {
 
     switch (type) {
       case 'top-products': {
+        // Tổng hợp trả hàng trước khi join để không nhân dòng bán khi trả nhiều lần.
+        const approvedReturns = `(SELECT returned.sales_invoice_item_id,
+          SUM(returned.quantity) AS returned_quantity,
+          SUM(returned.total_price) AS returned_amount
+          FROM sales_return_items returned
+          INNER JOIN sales_returns header ON header.id = returned.sales_return_id
+          WHERE header.status = 'approved' AND returned.sales_invoice_item_id IS NOT NULL
+          GROUP BY returned.sales_invoice_item_id)`;
         const results = await qb
           .leftJoin('invoice.items', 'items')
           .leftJoin('items.product', 'product')
+          .leftJoin(approvedReturns, 'item_returns', 'item_returns.sales_invoice_item_id = items.id')
           .select('product.id', 'productId')
           .addSelect('product.name', 'productName')
           .addSelect('product.trade_name', 'tradeName')
           .addSelect('product.code', 'productCode')
-          .addSelect('COALESCE(SUM(items.quantity), 0)', 'total_quantity')
-          .addSelect('COALESCE(SUM(items.total_price), 0)', 'total_amount')
+          .addSelect('COALESCE(SUM(GREATEST(0, items.quantity - COALESCE(item_returns.returned_quantity, 0))), 0)', 'total_quantity')
+          .addSelect(`COALESCE(SUM(GREATEST(0, items.total_price
+            - CASE WHEN invoice.total_amount > 0 THEN COALESCE(invoice.discount_amount, 0)
+                * items.total_price / invoice.total_amount ELSE 0 END
+            - COALESCE(item_returns.returned_amount, 0))), 0)`, 'total_amount')
           .addSelect('COUNT(DISTINCT invoice.id)', 'invoice_count')
           .groupBy('product.id, product.name, product.trade_name, product.code')
           .orderBy('total_amount', 'DESC')

@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, In, IsNull, Raw } from 'typeorm';
+import { Repository, Between, In, IsNull, MoreThan, Raw } from 'typeorm';
 import {
   SalesInvoice,
   SalesInvoiceStatus,
@@ -14,14 +14,17 @@ import { FarmServiceCost } from '../../entities/farm-service-cost.entity';
 import { FarmGiftCost } from '../../entities/farm-gift-cost.entity';
 import { SystemSetting } from '../../entities/system-setting.entity';
 import { SalesInvoiceItemStockAllocation } from '../../entities/sales-invoice-item-stock-allocations.entity';
-import { Product } from '../../entities/products.entity';
+import { Product, ProductCostingMethod } from '../../entities/products.entity';
 import { ProductType } from '../../entities/product-types.entity';
 import { SalesReturnItem } from '../../entities/sales-return-items.entity';
+import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
 import { SalesReturnStatus } from '../../entities/sales-return.entity';
+import { PromotionRewardReservation } from '../../entities/promotion-reward-reservation.entity';
 import { QueryHelper } from '../../common/helpers/query-helper';
 
 import { InventoryReceiptItem } from '../../entities/inventory-receipt-items.entity';
 import { BusinessLogicException } from '../../common/exceptions/business-logic.exception';
+import { loadSupplierRebates } from './supplier-rebate';
 import { calculateTaxReportPricing, TaxPriceReturn } from './tax-report-pricing';
 import {
   InvoiceProfitDto,
@@ -195,6 +198,8 @@ export class StoreProfitReportService {
       ],
       relations: ['items', 'items.product'],
     });
+    const batchCosts = await this.loadBatchCosts(invoices);
+    const supplierRebates = await this.loadSupplierRebates(invoices);
     const returnStats = await this.getApprovedReturnStats(
       invoices.map((invoice) => invoice.id),
     );
@@ -225,13 +230,16 @@ export class StoreProfitReportService {
           : 0;
         const returned = this.getReturnStatsForItem(returnStats, invoice.id, item);
         const itemRevenue = Math.max(0, itemGross - discountShare - returned.returnedAmount);
-        const itemCost = this.getInvoiceItemCostPrice(item);
-        const originalCogs = Number(item.base_quantity || item.quantity || 0) * itemCost;
-        const returnedCogs = returned.returnedBaseQuantity * itemCost;
+        const itemCOGS = this.getItemNetCOGS(
+          item,
+          returned.returnedBaseQuantity,
+          batchCosts,
+          supplierRebates,
+        );
 
         typeTotals.revenue += itemRevenue;
-        typeTotals.cogs += Math.max(0, originalCogs - returnedCogs);
-        if (itemRevenue > 0 || originalCogs > returnedCogs) {
+        typeTotals.cogs += itemCOGS;
+        if (itemRevenue > 0 || itemCOGS > 0) {
           typeTotals.invoices.add(invoice.id);
         }
       }
@@ -391,6 +399,7 @@ export class StoreProfitReportService {
       seasonId?: number;
       customerId?: number;
       riceCropId?: number;
+      invoiceIds?: number[];
       startDate?: Date;
       endDate?: Date;
     } = {},
@@ -428,6 +437,10 @@ export class StoreProfitReportService {
         riceCropId: filters.riceCropId,
       });
     }
+    if (filters.invoiceIds) {
+      if (filters.invoiceIds.length) query.andWhere('gift.invoice_id IN (:...invoiceIds)', { invoiceIds: filters.invoiceIds });
+      else query.andWhere('1 = 0');
+    }
     if (filters.startDate && filters.endDate) {
       query.andWhere('gift.gift_date BETWEEN :startDate AND :endDate', {
         startDate: filters.startDate,
@@ -435,7 +448,75 @@ export class StoreProfitReportService {
       });
     }
 
-    return query.getMany();
+    const storedGifts = await query.getMany();
+    const invoiceGiftWhere = {
+      ...(filters.seasonId ? { season_id: filters.seasonId } : {}),
+      ...(filters.customerId ? { customer_id: filters.customerId } : {}),
+      ...(filters.riceCropId ? { rice_crop_id: filters.riceCropId } : {}),
+      gift_value: MoreThan(0),
+      ...(filters.invoiceIds ? { id: In(filters.invoiceIds) } : {}),
+    };
+    const invoiceGiftConditions = [SalesInvoiceStatus.CONFIRMED, SalesInvoiceStatus.PAID]
+      .flatMap((status) => filters.startDate && filters.endDate ? [
+        { ...invoiceGiftWhere, status, sale_date: Between(filters.startDate, filters.endDate) },
+        { ...invoiceGiftWhere, status, sale_date: IsNull(), created_at: Between(filters.startDate, filters.endDate) },
+      ] : [{ ...invoiceGiftWhere, status }]);
+    const invoiceGifts = await this.salesInvoiceRepository.find({ where: invoiceGiftConditions });
+    // Đọc trực tiếp quà hóa đơn để không bỏ sót khách vãng lai hoặc ghi trùng phiếu chi cũ.
+    const gifts = storedGifts.filter((gift) => gift.source !== 'gift_from_invoice');
+    for (const invoice of invoiceGifts) {
+      gifts.push(Object.assign(new FarmGiftCost(), {
+        id: -invoice.id,
+        name: invoice.gift_description || `Quà tặng hóa đơn ${invoice.code}`,
+        amount: Number(invoice.gift_value),
+        gift_date: invoice.sale_date || invoice.created_at,
+        customer_id: invoice.customer_id,
+        season_id: invoice.season_id,
+        rice_crop_id: invoice.rice_crop_id,
+        source: 'gift_from_invoice',
+        invoice_id: invoice.id,
+      }));
+    }
+
+    // Campaign chỉ có khách hàng/ngày trao; không tự gán chi phí vào một ruộng cụ thể.
+    if (!filters.riceCropId && !filters.invoiceIds) {
+      let issuedStart = filters.startDate;
+      let issuedEnd = filters.endDate;
+      let canResolveSeason = true;
+      if (filters.seasonId) {
+        const season = await this.seasonRepository.findOne({ where: { id: filters.seasonId } });
+        if (!season?.start_date || !season?.end_date) {
+          canResolveSeason = false;
+        } else {
+          const seasonStart = new Date(season.start_date);
+          const seasonEnd = new Date(season.end_date);
+          seasonEnd.setHours(23, 59, 59, 999);
+          issuedStart = issuedStart && issuedStart > seasonStart ? issuedStart : seasonStart;
+          issuedEnd = issuedEnd && issuedEnd < seasonEnd ? issuedEnd : seasonEnd;
+        }
+      }
+      if (canResolveSeason && !(issuedStart && issuedEnd && issuedStart > issuedEnd)) {
+        const campaignGifts = await this.salesInvoiceRepository.manager.getRepository(PromotionRewardReservation).find({
+          where: {
+            status: 'issued',
+            ...(filters.customerId ? { customer_id: filters.customerId } : {}),
+            ...(issuedStart && issuedEnd ? { issued_at: Between(issuedStart, issuedEnd) } : {}),
+          },
+        });
+        for (const reservation of campaignGifts) {
+          gifts.push(Object.assign(new FarmGiftCost(), {
+            id: -reservation.id,
+            name: `Quà campaign: ${reservation.reward_name}`,
+            amount: Number(reservation.reward_value),
+            gift_date: reservation.issued_at,
+            customer_id: reservation.customer_id,
+            season_id: filters.seasonId,
+            source: 'gift_from_campaign',
+          }));
+        }
+      }
+    }
+    return gifts;
   }
 
   async getTaxRevenueCutoverDate(): Promise<{ cutover_date: string }> {
@@ -504,6 +585,143 @@ export class StoreProfitReportService {
       Number(item?.base_quantity || item?.quantity || 0) *
       this.getInvoiceItemCostPrice(item)
     );
+  }
+
+  /** Tổng giá vốn và phần khách trả của từng dòng bán theo lô. */
+  private buildBatchCosts(
+    invoices: SalesInvoice[],
+    allocations: SalesInvoiceItemStockAllocation[],
+    returns: SalesReturnItem[],
+  ): Map<number, { original: number; returned: number; taxable: number | null }> {
+    const items = invoices.flatMap((invoice) => invoice.items || [])
+      .filter((item) => item.costing_method_snapshot === ProductCostingMethod.BY_BATCH);
+    const costs = new Map<number, { original: number; returned: number; taxable: number | null }>();
+    for (const item of items) {
+      const sources = allocations.filter((allocation) =>
+        Number(allocation.sales_invoice_item_id) === Number(item.id),
+      );
+      const soldQty = Number(item.base_quantity ?? item.quantity ?? 0);
+      const allocatedQty = sources.reduce((sum, source) => sum + Number(source.quantity), 0);
+      if (!sources.length || !Number.isFinite(soldQty) || soldQty <= 0 ||
+          !Number.isFinite(allocatedQty) || Math.abs(allocatedQty - soldQty) > 0.0001 ||
+          sources.some((source) => !source.inventory_batch_id ||
+            !Number.isFinite(Number(source.unit_cost)) || Number(source.unit_cost) < 0 ||
+            !Number.isFinite(Number(source.total_cost)) || Number(source.total_cost) < 0)) {
+        throw new BadRequestException(`Dòng hóa đơn #${item.id} thiếu phân bổ giá vốn theo lô hợp lệ.`);
+      }
+      const cost = {
+        original: sources.reduce((sum, source) => sum + Number(source.total_cost), 0),
+        returned: 0,
+        taxable: sources.every((source) => source.taxable_quantity != null &&
+          Number.isFinite(Number(source.taxable_quantity)) && Number(source.taxable_quantity) >= 0 &&
+          Number(source.taxable_quantity) <= Number(source.quantity))
+          ? sources.reduce((sum, source) => sum +
+              Math.round((Number(source.taxable_quantity) * Number(source.unit_cost) + Number.EPSILON) * 100) / 100, 0)
+          : null as number | null,
+      };
+      const returnedByBatch = new Map<number, number>();
+      const returnedTaxByBatch = new Map<number, number>();
+      for (const returned of returns.filter((row) => Number(row.sales_invoice_item_id) === Number(item.id))) {
+        const snapshots = returned.stock_allocations || [];
+        const returnedQty = Number(returned.base_quantity ??
+          Number(returned.quantity) * Number(returned.conversion_factor ?? 1));
+        if (!snapshots.length || !Number.isFinite(returnedQty) ||
+            Math.abs(snapshots.reduce((sum, snapshot) => sum + Number(snapshot.quantity), 0) - returnedQty) > 0.0001) {
+          throw new BadRequestException(`Phiếu khách trả dòng #${returned.id} thiếu phân bổ lô để tính lợi nhuận.`);
+        }
+        for (const snapshot of snapshots) {
+          const batchId = Number(snapshot.sourceBatchId);
+          const source = sources.find((allocation) => Number(allocation.inventory_batch_id) === batchId);
+          const quantity = Number(snapshot.quantity);
+          if (!source || !Number.isFinite(quantity) || quantity <= 0) {
+            throw new BadRequestException(`Phiếu khách trả dòng #${returned.id} thiếu lô nguồn hợp lệ để tính lợi nhuận.`);
+          }
+          const previousReturned = returnedByBatch.get(batchId) || 0;
+          const totalReturned = Math.round((previousReturned + quantity) * 10000) / 10000;
+          if (totalReturned - Number(source.quantity) > 0.0001) {
+            throw new BadRequestException(`Lô #${batchId} có số lượng trả vượt số lượng đã bán.`);
+          }
+          returnedByBatch.set(batchId, totalReturned);
+          cost.returned += Math.round((totalReturned * Number(source.unit_cost) + Number.EPSILON) * 100) / 100 -
+            Math.round((previousReturned * Number(source.unit_cost) + Number.EPSILON) * 100) / 100;
+          if (cost.taxable !== null) {
+            if (snapshot.taxableQuantity === null || snapshot.taxableQuantity === undefined ||
+                !Number.isFinite(Number(snapshot.taxableQuantity)) || Number(snapshot.taxableQuantity) < 0 ||
+                Number(snapshot.taxableQuantity) > quantity) {
+              cost.taxable = null;
+            } else {
+              const previousTax = returnedTaxByBatch.get(batchId) || 0;
+              const totalTax = Math.round((previousTax + Number(snapshot.taxableQuantity)) * 10000) / 10000;
+              cost.taxable -= Math.round((totalTax * Number(source.unit_cost) + Number.EPSILON) * 100) / 100 -
+                Math.round((previousTax * Number(source.unit_cost) + Number.EPSILON) * 100) / 100;
+              returnedTaxByBatch.set(batchId, totalTax);
+            }
+          }
+        }
+      }
+      costs.set(Number(item.id), cost);
+    }
+    return costs;
+  }
+
+  private async loadBatchCosts(invoices: SalesInvoice[]): Promise<Map<number, { original: number; returned: number; taxable: number | null }>> {
+    const ids = invoices.flatMap((invoice) => invoice.items || [])
+      .filter((item) => item.costing_method_snapshot === ProductCostingMethod.BY_BATCH)
+      .map((item) => item.id);
+    if (!ids.length) return new Map();
+    const manager = this.salesInvoiceRepository.manager;
+    const [allocations, returns] = await Promise.all([
+      manager.getRepository(SalesInvoiceItemStockAllocation)
+        .find({ where: { sales_invoice_item_id: In(ids) } }),
+      manager.getRepository(SalesReturnItem).createQueryBuilder('item')
+        .innerJoinAndSelect('item.sales_return', 'salesReturn')
+        .where('salesReturn.invoice_id IN (:...invoiceIds)', { invoiceIds: invoices.map((invoice) => invoice.id) })
+        .andWhere('salesReturn.status = :status', { status: SalesReturnStatus.APPROVED })
+        .getMany(),
+    ]);
+    return this.buildBatchCosts(invoices, allocations, returns);
+  }
+
+  private loadSupplierRebates(
+    invoices: SalesInvoice[],
+    allocations?: SalesInvoiceItemStockAllocation[],
+    returns?: SalesReturnItem[],
+  ): Promise<Map<number, number>> {
+    return loadSupplierRebates(this.salesInvoiceRepository.manager, invoices, allocations, returns);
+  }
+
+  /** Tổng chiết khấu NCC phân bổ cho các dòng bán chốt giá vốn theo loại giá bán. */
+  private getInvoiceSupplierRebate(invoice: SalesInvoice, rebates: Map<number, number>): number {
+    return (invoice.items || []).reduce((sum, item) => sum + (rebates.get(Number(item.id)) || 0), 0);
+  }
+
+  private getItemNetCOGS(
+    item: SalesInvoiceItem,
+    returnedBaseQuantity: number,
+    batchCosts: Map<number, { original: number; returned: number; taxable: number | null }>,
+    supplierRebates?: Map<number, number>,
+  ): number {
+    if (item.costing_method_snapshot === ProductCostingMethod.BY_BATCH) {
+      const cost = batchCosts.get(Number(item.id));
+      if (!cost) throw new BadRequestException(`Dòng hóa đơn #${item.id} thiếu giá vốn theo lô.`);
+      return Math.max(0, cost.original - cost.returned);
+    }
+    const saleCost = Math.max(0,
+      this.getInvoiceItemCOGS(item) -
+      returnedBaseQuantity * this.getInvoiceItemCostPrice(item),
+    );
+    return saleCost - (supplierRebates?.get(Number(item.id)) || 0);
+  }
+
+  /** Hóa đơn mới đọc tổng giá vốn lô, tránh nhân lại đơn giá bình quân đã làm tròn. */
+  private getBatchInvoiceCOGS(
+    invoice: SalesInvoice,
+    costs: Map<number, { original: number; returned: number; taxable: number | null }>,
+  ): number | undefined {
+    if (!invoice.items?.length || !invoice.items.every((item) =>
+      item.costing_method_snapshot === ProductCostingMethod.BY_BATCH,
+    )) return undefined;
+    return Math.round(invoice.items.reduce((sum, item) => sum + this.getItemNetCOGS(item, 0, costs), 0) * 100) / 100;
   }
 
   private getReturnStatsKey(
@@ -625,18 +843,23 @@ export class StoreProfitReportService {
           `Không tìm thấy hóa đơn với ID: ${invoiceId}`,
         );
       }
+      if (invoice.status && invoice.status !== SalesInvoiceStatus.CONFIRMED &&
+          invoice.status !== SalesInvoiceStatus.PAID) {
+        throw new BadRequestException('Chỉ hóa đơn đã xác nhận hoặc đã thanh toán mới có báo cáo lợi nhuận bán hàng.');
+      }
 
       // Tính giá vốn và lợi nhuận cho từng sản phẩm
       let totalCOGS = 0;
       const itemDetails: InvoiceItemProfitDto[] = [];
       const returnStatsMap = await this.getApprovedReturnStats([invoice.id]);
+      const batchCosts = await this.loadBatchCosts([invoice]);
+      const supplierRebates = await this.loadSupplierRebates([invoice]);
       const invoiceItemsGross = (invoice.items || []).reduce(
         (sum, item) => sum + Number(item.total_price || 0),
         0,
       );
 
       for (const item of invoice.items || []) {
-        const avgCost = this.getInvoiceItemCostPrice(item);
         const returnStats = this.getReturnStatsForItem(
           returnStatsMap,
           invoice.id,
@@ -652,11 +875,13 @@ export class StoreProfitReportService {
           0,
           itemGrossPrice - invoiceDiscountShare - returnStats.returnedAmount,
         );
-        const itemCOGS = Math.max(
+        const itemCOGS = this.getItemNetCOGS(item, returnStats.returnedBaseQuantity, batchCosts, supplierRebates);
+        const netQuantity = Math.max(
           0,
-          this.getInvoiceItemCOGS(item) -
-            returnStats.returnedBaseQuantity * avgCost,
+          Number(item.quantity || 0) - returnStats.returnedQuantity,
         );
+        // Giá vốn đơn vị trên báo cáo phải khớp tổng giá vốn sau hoàn hàng và chiết khấu NCC.
+        const avgCost = netQuantity > 0 ? itemCOGS / netQuantity : 0;
         const itemProfit = itemRevenue - itemCOGS;
         const itemMargin =
           itemRevenue > 0 ? (itemProfit / itemRevenue) * 100 : 0;
@@ -669,10 +894,7 @@ export class StoreProfitReportService {
 
         itemDetails.push({
           product_name: productName,
-          quantity: Math.max(
-            0,
-            Number(item.quantity || 0) - returnStats.returnedQuantity,
-          ),
+          quantity: netQuantity,
           unit_price: item.unit_price,
           avg_cost: avgCost,
           cogs: itemCOGS,
@@ -691,9 +913,6 @@ export class StoreProfitReportService {
       const giftDescription = invoice.gift_description || undefined;
       const giftValue = Number(invoice.gift_value || 0);
 
-      // Tính lợi nhuận ròng (sau khi trừ quà tặng)
-      const netProfit = grossProfit - giftValue;
-
       // Lấy chi phí giao hàng từ delivery_logs
       const deliveryLog = await this.deliveryLogRepository.findOne({
         where: { invoice_id: invoiceId },
@@ -702,6 +921,8 @@ export class StoreProfitReportService {
       const deliveryCost = deliveryLog
         ? Number(deliveryLog.total_cost || 0)
         : 0;
+      // Lợi nhuận ròng của hóa đơn trừ cả quà tặng và chi phí giao hàng.
+      const netProfit = grossProfit - giftValue - deliveryCost;
 
       this.logger.log(
         `✅ Tính toán lợi nhuận đơn hàng #${invoiceId}: Gross ${grossProfit.toLocaleString()} đ, Gift ${giftValue.toLocaleString()} đ${giftDescription ? ` (${giftDescription})` : ''}, Delivery ${deliveryCost.toLocaleString()} đ, Net ${netProfit.toLocaleString()} đ`,
@@ -714,6 +935,7 @@ export class StoreProfitReportService {
         created_at: invoice.sale_date || invoice.created_at,
         total_amount: invoice.final_amount,
         cost_of_goods_sold: totalCOGS,
+        supplier_rebate: this.getInvoiceSupplierRebate(invoice, supplierRebates),
         gross_profit: grossProfit,
         gross_margin: Math.round(margin * 100) / 100,
         gift_description: giftDescription,
@@ -819,6 +1041,9 @@ export class StoreProfitReportService {
       const approvedReturnStats = await this.getApprovedReturnStats(
         invoices.map((invoice) => invoice.id),
       );
+      const batchCosts = await this.loadBatchCosts(invoices);
+
+      const supplierRebates = await this.loadSupplierRebates(invoices);
 
       for (const invoice of invoices) {
         // Explicitly cast to number to handle TypeORM decimal strings
@@ -829,7 +1054,10 @@ export class StoreProfitReportService {
         let invoiceCOGS = 0;
 
         // Check for non-null/undefined. Note: cost_of_goods_sold can be "0.00" (string) or 0 (number) or null
-        if (
+        const batchInvoiceCost = this.getBatchInvoiceCOGS(invoice, batchCosts);
+        if (batchInvoiceCost !== undefined) {
+          invoiceCOGS = batchInvoiceCost;
+        } else if (
           invoice.cost_of_goods_sold !== null &&
           invoice.cost_of_goods_sold !== undefined
         ) {
@@ -849,6 +1077,8 @@ export class StoreProfitReportService {
           }
         }
 
+        invoiceCOGS -= this.getInvoiceSupplierRebate(invoice, supplierRebates);
+
         const invoiceItemsGross = (invoice.items || []).reduce(
           (sum, item) => sum + Number(item.total_price),
           0,
@@ -858,9 +1088,6 @@ export class StoreProfitReportService {
         if (finalAmount > 0 && invoice.items && invoice.items.length > 0) {
           for (const item of invoice.items) {
             const itemGrossPrice = Number(item.total_price);
-            const avgCost = this.getInvoiceItemCostPrice(item);
-            const itemOriginalCOGS =
-              Number(item.base_quantity || item.quantity) * avgCost;
             const returnStats = this.getReturnStatsForItem(
               approvedReturnStats,
               invoice.id,
@@ -878,10 +1105,7 @@ export class StoreProfitReportService {
                 invoiceDiscountShare -
                 returnStats.returnedAmount,
             );
-            const itemActualCOGS = Math.max(
-              0,
-              itemOriginalCOGS - returnStats.returnedBaseQuantity * avgCost,
-            );
+            const itemActualCOGS = this.getItemNetCOGS(item, returnStats.returnedBaseQuantity, batchCosts, supplierRebates);
             const itemProfit = itemNetRevenue - itemActualCOGS;
 
             // Tính số lượng thực bán (đã trừ trả hàng)
@@ -1053,6 +1277,8 @@ export class StoreProfitReportService {
         total_customers: customerProfitMap.size,
         total_revenue: Math.round(totalRevenue * 100) / 100,
         cost_of_goods_sold: Math.round(totalCOGS * 100) / 100,
+        supplier_rebate: Math.round(invoices.reduce((sum, invoice) =>
+          sum + this.getInvoiceSupplierRebate(invoice, supplierRebates), 0) * 100) / 100,
         gross_profit: Math.round(grossProfit * 100) / 100,
         gross_margin: Math.round(grossMargin * 100) / 100,
         delivery_costs: Math.round(totalDeliveryCosts * 100) / 100,
@@ -1247,59 +1473,20 @@ export class StoreProfitReportService {
         order: { sale_date: 'DESC', created_at: 'DESC' },
       });
 
-      if (allInvoices.length === 0) {
-        // Nếu không có hóa đơn, vẫn trả về thông tin khách hàng với các số liệu bằng 0
-        const customer = await this.customerRepository.findOne({
-          where: { id: customerId },
-        });
-        if (!customer) {
-          throw new NotFoundException(
-            `Không tìm thấy khách hàng ID: ${customerId}`,
-          );
-        }
-
-        return {
-          customer_id: customer.id,
-          customer_name: customer.name,
-          customer_phone: customer.phone,
-          customer_email: customer.email,
-          lifetime_summary: {
-            total_invoices: 0,
-            total_revenue: 0,
-            total_cost: 0,
-            total_profit: 0,
-            avg_margin: 0,
-            delivery_costs: 0,
-            farm_service_costs: 0,
-            service_costs: 0,
-            gift_costs: 0,
-            operating_costs: 0,
-            net_profit: 0,
-          },
-          summary: {
-            total_invoices: 0,
-            total_revenue: 0,
-            total_cost: 0,
-            total_profit: 0,
-            avg_margin: 0,
-            delivery_costs: 0,
-            farm_service_costs: 0,
-            service_costs: 0,
-            gift_costs: 0,
-            operating_costs: 0,
-            net_profit: 0,
-          },
-          invoices: [],
-          by_season: [],
-          farm_service_costs_breakdown: [],
-          debug_version: 'v5_no_invoices',
-        };
+      // Chưa có hóa đơn vẫn phải ghi nhận dịch vụ/quà/chi phí đã phát sinh.
+      const customerWithoutInvoices = allInvoices.length === 0
+        ? await this.customerRepository.findOne({ where: { id: customerId } })
+        : null;
+      if (allInvoices.length === 0 && !customerWithoutInvoices) {
+        throw new NotFoundException(`Không tìm thấy khách hàng ID: ${customerId}`);
       }
 
       const firstInvoice = allInvoices[0]!;
-      const customerName = firstInvoice.customer_name;
-      const customerPhone = firstInvoice.customer_phone || undefined;
-      const customerEmail = firstInvoice.customer_email || undefined;
+      const batchCosts = await this.loadBatchCosts(allInvoices);
+      const supplierRebates = await this.loadSupplierRebates(allInvoices);
+      const customerName = firstInvoice?.customer_name || customerWithoutInvoices?.name || 'Khách hàng';
+      const customerPhone = firstInvoice?.customer_phone || customerWithoutInvoices?.phone || undefined;
+      const customerEmail = firstInvoice?.customer_email || customerWithoutInvoices?.email || undefined;
 
       // 2. Tính toán LIFETIME summary
       let lifetimeRevenue = 0;
@@ -1312,7 +1499,10 @@ export class StoreProfitReportService {
         let invoiceCOGS = 0;
 
         // Check for non-null/undefined. Note: cost_of_goods_sold can be "0.00" (string) or 0 (number) or null
-        if (
+        const batchInvoiceCost = this.getBatchInvoiceCOGS(invoice, batchCosts);
+        if (batchInvoiceCost !== undefined) {
+          invoiceCOGS = batchInvoiceCost;
+        } else if (
           invoice.cost_of_goods_sold !== null &&
           invoice.cost_of_goods_sold !== undefined
         ) {
@@ -1327,6 +1517,7 @@ export class StoreProfitReportService {
           }
         }
 
+        invoiceCOGS -= this.getInvoiceSupplierRebate(invoice, supplierRebates);
         lifetimeRevenue += finalAmount;
         lifetimeCost += invoiceCOGS;
         lifetimeProfit += finalAmount - invoiceCOGS;
@@ -1389,7 +1580,10 @@ export class StoreProfitReportService {
         let invoiceCOGS = 0;
 
         // Check for non-null/undefined. Note: cost_of_goods_sold can be "0.00" (string) or 0 (number) or null
-        if (
+        const batchInvoiceCost = this.getBatchInvoiceCOGS(invoice, batchCosts);
+        if (batchInvoiceCost !== undefined) {
+          invoiceCOGS = batchInvoiceCost;
+        } else if (
           invoice.cost_of_goods_sold !== null &&
           invoice.cost_of_goods_sold !== undefined
         ) {
@@ -1404,6 +1598,7 @@ export class StoreProfitReportService {
           }
         }
 
+        invoiceCOGS -= this.getInvoiceSupplierRebate(invoice, supplierRebates);
         const invoiceProfit = Number(invoice.final_amount) - invoiceCOGS;
         const invoiceMargin =
           invoice.final_amount > 0
@@ -1485,7 +1680,11 @@ export class StoreProfitReportService {
       const farmServiceCosts = await this.farmServiceCostRepository.find({
         where: { customer_id: customerId },
       });
-      const farmGiftCosts = await this.getFarmGiftCostsBasic({ customerId });
+      // Khách vãng lai chỉ nhận chi phí gắn đúng các hóa đơn đã tìm được theo tên.
+      const giftCustomerFilter = customerId > 0
+        ? { customerId }
+        : { invoiceIds: allInvoices.map((invoice) => invoice.id) };
+      const farmGiftCosts = await this.getFarmGiftCostsBasic(giftCustomerFilter);
 
       const lifetimeServiceCost = farmServiceCosts.reduce(
         (sum, c) => sum + Number(c.amount),
@@ -1527,6 +1726,13 @@ export class StoreProfitReportService {
         0,
       );
 
+      const filteredGiftCosts = seasonId || (startDate && endDate)
+        ? await this.getFarmGiftCostsBasic({
+            ...giftCustomerFilter,
+            ...(seasonId ? { seasonId } : {}),
+            ...(startDate && endDate ? { startDate, endDate } : {}),
+          })
+        : farmGiftCosts;
       // Tính cho filtered generic costs
       let filteredFarmServiceCost = 0;
       let filteredServiceCost = 0;
@@ -1537,9 +1743,7 @@ export class StoreProfitReportService {
         filteredServiceCost = farmServiceCosts
           .filter((c) => c.season_id === seasonId)
           .reduce((sum, c) => sum + Number(c.amount), 0);
-        filteredGiftCost = farmGiftCosts
-          .filter((c) => c.season_id === seasonId)
-          .reduce((sum, c) => sum + Number(c.amount), 0);
+        filteredGiftCost = filteredGiftCosts.reduce((sum, c) => sum + Number(c.amount), 0);
 
         filteredFarmServiceCost = filteredServiceCost + filteredGiftCost;
 
@@ -1552,9 +1756,7 @@ export class StoreProfitReportService {
             (c) => c.expense_date >= startDate && c.expense_date <= endDate,
           )
           .reduce((sum, c) => sum + Number(c.amount), 0);
-        filteredGiftCost = farmGiftCosts
-          .filter((c) => c.gift_date >= startDate && c.gift_date <= endDate)
-          .reduce((sum, c) => sum + Number(c.amount), 0);
+        filteredGiftCost = filteredGiftCosts.reduce((sum, c) => sum + Number(c.amount), 0);
 
         filteredFarmServiceCost = filteredServiceCost + filteredGiftCost;
 
@@ -1617,15 +1819,7 @@ export class StoreProfitReportService {
         notes: item.notes,
       }));
 
-      const giftBreakdown = (
-        seasonId
-          ? farmGiftCosts.filter((c) => c.season_id === seasonId)
-          : startDate && endDate
-            ? farmGiftCosts.filter(
-                (c) => c.gift_date >= startDate && c.gift_date <= endDate,
-              )
-            : farmGiftCosts
-      ).map((item) => ({
+      const giftBreakdown = filteredGiftCosts.map((item) => ({
         type: item.source || 'gift',
         name: item.name,
         amount: Number(item.amount),
@@ -1735,6 +1929,8 @@ export class StoreProfitReportService {
           (sum, cost) => sum + Number(cost.amount),
           0,
         );
+        const giftCosts = await this.getFarmGiftCostsBasic({ riceCropId });
+        const totalGiftCosts = giftCosts.reduce((sum, cost) => sum + Number(cost.amount), 0);
 
         // Lấy chi phí vận hành dành cho ruộng lúa này (nếu có gán trực tiếp)
         const operatingCosts = await this.operatingCostRepository.find({
@@ -1757,9 +1953,11 @@ export class StoreProfitReportService {
             gross_profit: 0,
             avg_margin: 0,
             gift_value_from_invoices: 0,
-            farm_service_costs: totalFarmServiceCosts,
+            farm_service_costs: totalFarmServiceCosts + totalGiftCosts,
+            service_costs: totalFarmServiceCosts,
+            gift_costs: totalGiftCosts,
             operating_costs: totalOperatingCosts,
-            net_profit: -(totalFarmServiceCosts + totalOperatingCosts),
+            net_profit: -(totalFarmServiceCosts + totalGiftCosts + totalOperatingCosts),
             net_margin: 0,
           },
           farm_service_costs_breakdown: [
@@ -1771,7 +1969,7 @@ export class StoreProfitReportService {
               notes: c.notes,
               source: c.source,
             })),
-            ...(await this.getFarmGiftCostsBasic({ riceCropId })).map((c) => ({
+            ...giftCosts.map((c) => ({
               type: c.source || 'gift',
               name: c.name,
               amount: Number(c.amount),
@@ -1792,6 +1990,8 @@ export class StoreProfitReportService {
       }
 
       const firstInvoice = invoices[0]!;
+      const batchCosts = await this.loadBatchCosts(invoices);
+      const supplierRebates = await this.loadSupplierRebates(invoices);
       const fieldName = firstInvoice.rice_crop?.field_name || 'Unknown';
       const customerName =
         firstInvoice.customer?.name || firstInvoice.customer_name;
@@ -1816,7 +2016,10 @@ export class StoreProfitReportService {
             `final_amount = ${invoice.final_amount}`,
         );
 
-        if (
+        const batchInvoiceCost = this.getBatchInvoiceCOGS(invoice, batchCosts);
+        if (batchInvoiceCost !== undefined) {
+          invoiceCOGS = batchInvoiceCost;
+        } else if (
           invoice.cost_of_goods_sold !== null &&
           invoice.cost_of_goods_sold !== undefined
         ) {
@@ -1833,6 +2036,7 @@ export class StoreProfitReportService {
           this.logger.log(`  ⚠️ Fallback tính lại: ${invoiceCOGS}`);
         }
 
+        invoiceCOGS -= this.getInvoiceSupplierRebate(invoice, supplierRebates);
         const invoiceProfit = Number(invoice.final_amount) - invoiceCOGS;
         const invoiceMargin =
           invoice.final_amount > 0
@@ -2063,6 +2267,8 @@ export class StoreProfitReportService {
             }),
           ])
         : [[], []];
+      const batchCosts = this.buildBatchCosts(invoices, stockAllocations, approvedReturns);
+      const supplierRebates = await this.loadSupplierRebates(invoices, stockAllocations, approvedReturns);
       const allocationsByItem = new Map<number, SalesInvoiceItemStockAllocation[]>();
       for (const allocation of stockAllocations) {
         const rows = allocationsByItem.get(allocation.sales_invoice_item_id) || [];
@@ -2124,7 +2330,6 @@ export class StoreProfitReportService {
           }
 
           const itemGrossPrice = Number(item.total_price);
-          const avgCost = this.getInvoiceItemCostPrice(item);
           const conversionFactor = Number(item.conversion_factor || 1);
           const itemTaxPrice = Number(item.tax_selling_price || 0);
           const productTaxPrice = Number(item.product?.tax_selling_price || 0);
@@ -2136,8 +2341,6 @@ export class StoreProfitReportService {
               (itemTaxPrice > 0 &&
                 productTaxPrice > 0 &&
                 Math.abs(itemTaxPrice - productTaxPrice) < 0.000001));
-          const itemOriginalCOGS =
-            Number(item.base_quantity || item.quantity) * avgCost;
           const itemReturns = [
             ...(returnsByItem.get(this.getReturnStatsKey(invoice.id, item)) || []),
             ...(returnsByItem.get(this.getReturnStatsKey(invoice.id, undefined, item.product_id)) || []),
@@ -2159,12 +2362,7 @@ export class StoreProfitReportService {
           );
 
           // Phân bổ giá vốn thực tế (đã trừ trả hàng) cho item này
-          const itemActualCOGS = Math.max(
-            0,
-            itemOriginalCOGS -
-              returnStats.returnedBaseQuantity *
-                this.getInvoiceItemCostPrice(item),
-          );
+          const itemActualCOGS = this.getItemNetCOGS(item, returnStats.returnedBaseQuantity, batchCosts, supplierRebates);
 
           invoiceRevenue += itemNetRevenue;
           invoiceCOGS += itemActualCOGS;
@@ -2247,14 +2445,20 @@ export class StoreProfitReportService {
 
           if (taxableQty > 0) {
             invoiceRevenueWithInvoice += itemNetRevenue * taxableRatio;
-            invoiceCOGSWithInvoice += itemActualCOGS * taxableRatio;
+            const lotTaxableCost = batchCosts.get(Number(item.id))?.taxable;
+            invoiceCOGSWithInvoice += lotTaxableCost != null
+              ? Math.min(itemActualCOGS, Math.max(0, lotTaxableCost))
+              : itemActualCOGS * taxableRatio;
             invoiceTaxableRevenue += itemTaxableTotalAmount;
           }
 
           if (currentBaseQtySold > taxableQty) {
             const nonTaxableRatio = Math.max(0, 1 - taxableRatio);
             invoiceRevenueNoInvoice += itemNetRevenue * nonTaxableRatio;
-            invoiceCOGSNoInvoice += itemActualCOGS * nonTaxableRatio;
+            const lotTaxableCost = batchCosts.get(Number(item.id))?.taxable;
+            invoiceCOGSNoInvoice += lotTaxableCost != null
+              ? itemActualCOGS - Math.min(itemActualCOGS, Math.max(0, lotTaxableCost))
+              : itemActualCOGS * nonTaxableRatio;
           }
 
           // Thêm vào danh sách item của DTO

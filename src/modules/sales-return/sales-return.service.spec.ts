@@ -15,6 +15,7 @@ import { SalesInvoiceItemStockAllocation } from '../../entities/sales-invoice-it
 import { CustomerRewardInvoiceTracking } from '../../entities/customer-reward-invoice-tracking.entity';
 import { CustomerRewardTracking } from '../../entities/customer-reward-tracking.entity';
 import { InventoryService } from '../inventory/inventory.service';
+import { ProductCostingMethod } from '../../entities/products.entity';
 import { CustomerRewardService } from '../customer-reward/customer-reward.service';
 import { PromotionCampaignService } from '../promotion-campaign/promotion-campaign.service';
 import { CreateSalesReturnDto } from './dto/create-sales-return.dto';
@@ -37,6 +38,7 @@ function setup(
     new SalesInvoiceItem(),
     {
       id: 11,
+      invoice_id: 1,
       product_id: 7,
       quantity: 10,
       conversion_factor: 10,
@@ -123,7 +125,9 @@ function setup(
       let selectedExpression = '';
       const query = {
         innerJoin: jest.fn().mockReturnThis(),
+        innerJoinAndSelect: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
         andWhere: jest.fn(
           (_sql: string, params: { invoiceItemId?: number } = {}) => {
             refundQueryConditions.push(_sql);
@@ -195,6 +199,7 @@ function setup(
       batch: { id: nextBatchId++ },
     })),
     processStockOut: jest.fn(),
+    restoreStockToExistingBatch: jest.fn().mockResolvedValue({ id: 1 }),
     createSupplierSettlementReturnEntries: jest.fn(),
     removeSupplierSettlementForSalesReturn: jest.fn(),
   };
@@ -579,6 +584,156 @@ describe('SalesReturnService stock restoration', () => {
       [42, 22, 0, 32],
     ]);
     expect(JSON.stringify(ctx.allocations)).toBe(original);
+  });
+
+  it('trả nhiều lần ưu tiên lô mới rồi hoàn đúng lô và giá vốn', async () => {
+    const ctx = setup({ costing_method_snapshot: ProductCostingMethod.BY_BATCH });
+    ctx.invoice.cost_of_goods_sold = 220;
+    ctx.allocations.push(
+      Object.assign(new SalesInvoiceItemStockAllocation(), {
+        id: 1, invoice_id: 1, sales_invoice_item_id: 11, product_id: 7,
+        inventory_batch_id: 101, quantity: 40,
+        unit_cost: 1, total_cost: 40, taxable_quantity: 0,
+      }),
+      Object.assign(new SalesInvoiceItemStockAllocation(), {
+        id: 2, invoice_id: 1, sales_invoice_item_id: 11, product_id: 7,
+        inventory_batch_id: 102, quantity: 60,
+        unit_cost: 3, total_cost: 180, taxable_quantity: 0,
+      }),
+    );
+
+    await ctx.service.create(ctx.request(3), 1);
+    expect(ctx.invoice.cost_of_goods_sold).toBe(130);
+    await ctx.service.create(ctx.request(5), 1);
+
+    expect(ctx.inventory.restoreStockToExistingBatch.mock.calls.map((call) => [call[1], call[2]])).toEqual([
+      [102, 30], [102, 30], [101, 20],
+    ]);
+    expect(ctx.inventory.processStockIn).not.toHaveBeenCalled();
+    expect(ctx.invoice.cost_of_goods_sold).toBe(20);
+    expect(ctx.savedReturnItems[0]?.stock_allocations?.map((row) => row.sourceBatchId)).toEqual([
+      102,
+    ]);
+    expect(ctx.savedReturnItems[1]?.stock_allocations?.map((row) => row.sourceBatchId)).toEqual([
+      102, 101,
+    ]);
+  });
+
+  it('hoàn đúng thuế của lô mới trước qua nhiều lần trả', async () => {
+    const ctx = setup({ costing_method_snapshot: ProductCostingMethod.BY_BATCH, taxable_quantity: 6 });
+    ctx.allocations.push(
+      Object.assign(new SalesInvoiceItemStockAllocation(), {
+        id: 1, invoice_id: 1, sales_invoice_item_id: 11, product_id: 7,
+        inventory_batch_id: 101, quantity: 40, unit_cost: 1, total_cost: 40, taxable_quantity: 0,
+      }),
+      Object.assign(new SalesInvoiceItemStockAllocation(), {
+        id: 2, invoice_id: 1, sales_invoice_item_id: 11, product_id: 7,
+        inventory_batch_id: 102, quantity: 60, unit_cost: 3, total_cost: 180, taxable_quantity: 60,
+      }),
+    );
+    await ctx.service.create(ctx.request(3), 1);
+    await ctx.service.create(ctx.request(5), 1);
+    expect(ctx.inventory.restoreStockToExistingBatch.mock.calls.map((call) => [call[1], call[2], call[3]])).toEqual([
+      [102, 30, 30], [102, 30, 30], [101, 20, 0],
+    ]);
+  });
+
+  it('lúa giống trả lô mới trước và giữ giá vốn theo loại bán', async () => {
+    const ctx = setup({ costing_method_snapshot: ProductCostingMethod.BY_PRICE_TYPE, cost_price: 2 });
+    ctx.allocations.push(
+      Object.assign(new SalesInvoiceItemStockAllocation(), {
+        id: 1, invoice_id: 1, sales_invoice_item_id: 11, product_id: 7,
+        inventory_batch_id: 101, quantity: 40, unit_cost: 1, total_cost: 40, taxable_quantity: 0,
+      }),
+      Object.assign(new SalesInvoiceItemStockAllocation(), {
+        id: 2, invoice_id: 1, sales_invoice_item_id: 11, product_id: 7,
+        inventory_batch_id: 102, quantity: 60, unit_cost: 3, total_cost: 180, taxable_quantity: 0,
+      }),
+    );
+    await ctx.service.create(ctx.request(3), 1);
+    expect(ctx.inventory.restoreStockToExistingBatch.mock.calls.map((call) => [call[1], call[2]])).toEqual([[102, 30]]);
+    expect(ctx.invoice.cost_of_goods_sold).toBe(140);
+    expect(ctx.inventory.createSupplierSettlementReturnEntries).toHaveBeenCalledWith(
+      expect.anything(), [expect.objectContaining({ quantity: 30, unit_cost: 2 })], expect.anything(),
+    );
+  });
+
+  it('hủy phiếu khách trả lúa giống thì đảo bút toán quyết toán NCC', async () => {
+    const ctx = setup({ costing_method_snapshot: ProductCostingMethod.BY_PRICE_TYPE, cost_price: 2 });
+    ctx.allocations.push(Object.assign(new SalesInvoiceItemStockAllocation(), {
+      id: 1, invoice_id: 1, sales_invoice_item_id: 11, product_id: 7,
+      inventory_batch_id: 101, quantity: 100, unit_cost: 1, total_cost: 100, taxable_quantity: 0,
+    }));
+    ctx.inventory.processStockOut.mockResolvedValue({ affectedBatches: [] });
+
+    await ctx.service.create(ctx.request(2), 1);
+    const returnDoc = ctx.returns[0]!;
+    returnDoc.items = ctx.savedReturnItems;
+    returnDoc.invoice = ctx.invoice;
+    ctx.setRefundedCashAmount(0);
+    ctx.setPaidAllocationAmount(0);
+
+    await ctx.service.cancel(returnDoc.id, 1);
+
+    expect(ctx.inventory.removeSupplierSettlementForSalesReturn).toHaveBeenCalledWith(
+      returnDoc.id,
+      ctx.runner,
+    );
+  });
+
+  it('trả nhiều lần số lượng quy đổi lẻ không cộng dồn sai số giá vốn', async () => {
+    const ctx = setup({ costing_method_snapshot: ProductCostingMethod.BY_BATCH,
+      quantity: 6, base_quantity: 0.03, conversion_factor: 0.005, cost_price: 1 });
+    ctx.invoice.cost_of_goods_sold = 0.03;
+    ctx.allocations.push(Object.assign(new SalesInvoiceItemStockAllocation(), {
+      id: 1, invoice_id: 1, sales_invoice_item_id: 11, product_id: 7,
+      inventory_batch_id: 101, quantity: 0.03, taxable_quantity: 0, unit_cost: 1, total_cost: 0.03,
+    }));
+    await ctx.service.create(ctx.request(1), 1);
+    expect(ctx.invoice.cost_of_goods_sold).toBeCloseTo(0.02, 2);
+    await ctx.service.create(ctx.request(1), 1);
+    expect(ctx.invoice.cost_of_goods_sold).toBeCloseTo(0.02, 2);
+    ctx.setRefundedCashAmount(0);
+    ctx.setPaidAllocationAmount(0);
+    await ctx.service.cancel(ctx.returns[0]!.id, 1);
+    expect(ctx.invoice.cost_of_goods_sold).toBeCloseTo(0.02, 2);
+  });
+
+  it('hủy phiếu trả đảo đúng lô và giá lô đã sửa', async () => {
+    const ctx = setup({ costing_method_snapshot: ProductCostingMethod.BY_BATCH });
+    ctx.invoice.final_amount = 700;
+    ctx.invoice.remaining_amount = 700;
+    ctx.invoice.cost_of_goods_sold = 160;
+    ctx.allocations.push(
+      Object.assign(new SalesInvoiceItemStockAllocation(), {
+        id: 1, invoice_id: 1, sales_invoice_item_id: 11, product_id: 7,
+        inventory_batch_id: 101, quantity: 40, unit_cost: 1, total_cost: 40, taxable_quantity: 0,
+      }),
+      Object.assign(new SalesInvoiceItemStockAllocation(), {
+        id: 2, invoice_id: 1, sales_invoice_item_id: 11, product_id: 7,
+        inventory_batch_id: 102, quantity: 60, unit_cost: 4, total_cost: 240, taxable_quantity: 0,
+      }),
+    );
+    const returned = Object.assign(new SalesReturnItem(), {
+      id: 21, sales_return_id: 2, sales_invoice_item_id: 11, product_id: 7,
+      quantity: 3, base_quantity: 30, conversion_factor: 10,
+      stock_allocations: [{ batchId: 102, sourceBatchId: 102, quantity: 30, taxableQuantity: 0 }],
+    });
+    ctx.returns.push(Object.assign(new SalesReturn(), {
+      id: 2, code: 'SR-2', invoice_id: 1, invoice: ctx.invoice,
+      status: SalesReturnStatus.APPROVED, total_refund_amount: 300, items: [returned],
+    }));
+    ctx.savedReturnItems.push(returned);
+    ctx.setRefundedCashAmount(0);
+    ctx.setPaidAllocationAmount(0);
+
+    await ctx.service.cancel(2, 1);
+
+    expect(ctx.invoice.cost_of_goods_sold).toBe(280);
+    expect(ctx.inventory.processStockOut).toHaveBeenCalledWith(
+      7, 30, 'RETURN_CANCEL', 1, 2, 'Hủy phiếu trả hàng SR-2',
+      expect.anything(), { batchId: 102, taxableQuantity: 0, useBatchCost: true },
+    );
   });
 
   it('restores taxable quantity from each source allocation snapshot', async () => {

@@ -141,9 +141,6 @@ describe('InventoryService.approveReceipt stock/tax posting', () => {
       .spyOn(h.service as any, 'validateReceiptSettlementMode')
       .mockResolvedValue(SupplierSettlementMode.STANDARD);
     jest
-      .spyOn(h.service as any, 'applyBySaleTypeReceiptDiscountToProductCosts')
-      .mockResolvedValue(undefined);
-    jest
       .spyOn(h.service as any, 'recalculateAverageCostPriceForProducts')
       .mockResolvedValue(undefined);
     const stockIn = jest

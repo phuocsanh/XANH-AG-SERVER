@@ -9,6 +9,7 @@ import { InventoryBatch } from '../../entities/inventories.entity';
 import { Product } from '../../entities/products.entity';
 import { ReturnStatus } from './enums/return-status.enum';
 import { DataSource } from 'typeorm';
+import { SupplierSettlementMode } from '../../entities/inventory-receipts.entity';
 
 describe('supplier return source-batch restoration', () => {
   it('rejects a supplier refund for a cancelled return before reading or writing refund records', async () => {
@@ -961,6 +962,10 @@ describe('supplier return source resolution on approval', () => {
       receipt_id: 55,
       status: ReturnStatus.DRAFT,
     });
+    const sourceReceipt = Object.assign(new InventoryReceipt(), {
+      id: 55,
+      supplier_settlement_mode: SupplierSettlementMode.STANDARD,
+    });
     const item = Object.assign(new InventoryReturnItem(), {
       id: 10,
       return_id: 9,
@@ -971,7 +976,9 @@ describe('supplier return source resolution on approval', () => {
       ...itemData,
     });
     const manager = {
-      findOne: jest.fn().mockResolvedValue(returnDoc),
+      findOne: jest.fn(async (entity: Function) =>
+        entity === InventoryReceipt ? sourceReceipt : returnDoc,
+      ),
       find: jest.fn(async (entity: Function) => {
         if (entity === InventoryReturnItem) return [item];
         if (entity === InventoryReceiptItem) return receiptItems;
@@ -1000,7 +1007,7 @@ describe('supplier return source resolution on approval', () => {
     service.recalculateAverageCostPriceForProducts = jest
       .fn()
       .mockResolvedValue(undefined);
-    return { item, manager, runner, service };
+    return { item, manager, runner, service, returnDoc, sourceReceipt };
   }
 
   function receiptLine(id: number): InventoryReceiptItem {
@@ -1076,6 +1083,35 @@ describe('supplier return source resolution on approval', () => {
     ]);
     expect(h.manager.save).toHaveBeenCalledWith(h.item);
     expect(h.runner.commitTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('duyệt trả lúa giống tính lại chiết khấu theo kg trả NCC đã duyệt', async () => {
+    const h = setupApproval([receiptLine(101)], { receipt_item_id: 101 });
+    h.sourceReceipt.supplier_settlement_mode = SupplierSettlementMode.BY_SALE_TYPE;
+    const recalculate = jest
+      .spyOn(h.service, 'recalculateBySaleTypeReceiptFinance')
+      .mockResolvedValue(undefined);
+
+    await h.service.approveReturn(9, 3);
+
+    expect(recalculate).toHaveBeenCalledWith(55, h.runner);
+  });
+
+  it('hủy phiếu trả lúa giống tính lại chiết khấu để khôi phục công nợ NCC', async () => {
+    const h = setupApproval([receiptLine(101)], { receipt_item_id: 101 });
+    h.sourceReceipt.supplier_settlement_mode = SupplierSettlementMode.BY_SALE_TYPE;
+    h.returnDoc.status = ReturnStatus.APPROVED;
+    h.item.stock_allocations = [{ batchId: 501, quantity: 5, taxableQuantity: 0 }];
+    h.service.restoreStockToExistingBatch = jest
+      .fn()
+      .mockResolvedValue(undefined);
+    const recalculate = jest
+      .spyOn(h.service, 'recalculateBySaleTypeReceiptFinance')
+      .mockResolvedValue(undefined);
+
+    await h.service.cancelReturn(9, 'test', 3);
+
+    expect(recalculate).toHaveBeenCalledWith(55, h.runner);
   });
 
   it.each([1, 50])(

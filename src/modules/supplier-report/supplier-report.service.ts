@@ -1,6 +1,6 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Supplier } from '../../entities/suppliers.entity';
 import { InventoryReceiptItem } from '../../entities/inventory-receipt-items.entity';
 import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
@@ -10,6 +10,7 @@ import { SalesReturnItem } from '../../entities/sales-return-items.entity';
 import { SalesReturnStatus } from '../../entities/sales-return.entity';
 import { SalesInvoiceItemStockAllocation } from '../../entities/sales-invoice-item-stock-allocations.entity';
 import { InventoryReturnItem } from '../../entities/inventory-return-items.entity';
+import { ProductCostingMethod } from '../../entities/products.entity';
 import { 
   SupplierReportDto, 
   SupplierProductStatDto, 
@@ -434,9 +435,10 @@ export class SupplierReportService {
           });
         }
 
-        const missingSalesItemIds = salesItemIds.filter(
-          (salesItemId) => !allocationByItem.has(Number(salesItemId)),
-        );
+        const missingSalesItemIds = salesItems.filter(
+          (item) => item.costing_method_snapshot !== ProductCostingMethod.BY_BATCH &&
+            !allocationByItem.has(Number(item.id)),
+        ).map((item) => item.id);
         if (missingSalesItemIds.length > 0) {
           const legacyAllocationByItem = await this.buildLegacyAllocationByItem(
             supplierId,
@@ -447,6 +449,64 @@ export class SupplierReportService {
           for (const [salesItemId, allocation] of legacyAllocationByItem.entries()) {
             allocationByItem.set(salesItemId, allocation);
           }
+        }
+      }
+      // Dòng mới chốt theo lô: trừ đúng lô của NCC đã được khách trả.
+      const batchItemIds = salesItems.filter((item) =>
+        item.costing_method_snapshot === ProductCostingMethod.BY_BATCH ||
+          item.costing_method_snapshot === ProductCostingMethod.BY_PRICE_TYPE,
+      ).map((item) => item.id);
+      const batchNetByItem = new Map<number, { quantity: number; totalCost: number }>();
+      if (batchItemIds.length > 0) {
+        const manager = this.salesInvoiceItemRepository.manager;
+        const [sources, returnedItems] = await Promise.all([
+          manager.getRepository(SalesInvoiceItemStockAllocation).find({
+            where: { supplier_id: supplierId, sales_invoice_item_id: In(batchItemIds) },
+            relations: ['receipt_item'],
+          }),
+          manager.getRepository(SalesReturnItem).find({
+            where: { sales_invoice_item_id: In(batchItemIds), sales_return: { status: SalesReturnStatus.APPROVED } },
+            relations: ['sales_return'],
+          }),
+        ]);
+        const legacyPriceTypeItems = new Set<number>();
+        for (const returned of returnedItems) {
+          const snapshots = returned.stock_allocations || [];
+          const returnedQty = Number(returned.base_quantity ??
+            Number(returned.quantity) * Number(returned.conversion_factor ?? 1));
+          if (!snapshots.length || !Number.isFinite(returnedQty) || snapshots.some((snapshot) =>
+            !snapshot.sourceBatchId || !Number.isFinite(Number(snapshot.quantity)) || Number(snapshot.quantity) <= 0,
+          ) || Math.abs(snapshots.reduce((sum, snapshot) => sum + Number(snapshot.quantity), 0) - returnedQty) > 0.0001) {
+            const item = salesItems.find((entry) => Number(entry.id) === Number(returned.sales_invoice_item_id));
+            if (item?.costing_method_snapshot === ProductCostingMethod.BY_PRICE_TYPE) {
+              legacyPriceTypeItems.add(Number(item.id));
+              continue;
+            }
+            throw new BadRequestException(`Phiếu khách trả dòng #${returned.id} thiếu nguồn lô để tính báo cáo nhà cung cấp.`);
+          }
+        }
+        for (const source of sources) {
+          const itemId = Number(source.sales_invoice_item_id);
+          if (legacyPriceTypeItems.has(itemId)) continue;
+          const matchingSnapshots = returnedItems
+            .filter((returned) => Number(returned.sales_invoice_item_id) === itemId)
+            .flatMap((returned) => returned.stock_allocations || [])
+            .filter((snapshot) => Number(snapshot.sourceBatchId) === Number(source.inventory_batch_id));
+          const returnedQty = matchingSnapshots.reduce((sum, snapshot) => sum + Number(snapshot.quantity), 0);
+          if (!source.inventory_batch_id || !Number.isFinite(returnedQty) || returnedQty < 0 ||
+              returnedQty - Number(source.quantity) > 0.0001) {
+            throw new BadRequestException(`Lịch sử lô #${source.inventory_batch_id || '?'} không hợp lệ để tính báo cáo nhà cung cấp.`);
+          }
+          // Cộng số lượng trả trước khi làm tròn để không lệch giá vốn khi trả nhiều lần.
+          const returnedCost = Math.round((Math.round(returnedQty * 10000) / 10000 * Number(source.unit_cost) + Number.EPSILON) * 100) / 100;
+          const existing = batchNetByItem.get(itemId) || { quantity: 0, totalCost: 0 };
+          existing.quantity += Number(source.quantity) - returnedQty;
+          const item = salesItems.find((entry) => Number(entry.id) === itemId);
+          existing.totalCost += item?.costing_method_snapshot === ProductCostingMethod.BY_PRICE_TYPE
+            ? (Number(source.quantity) - returnedQty) *
+              (Number(item.cost_price || 0) - Number(source.receipt_item?.supplier_rebate_per_base_unit || 0))
+            : Math.max(0, Number(source.total_cost) - returnedCost);
+          batchNetByItem.set(itemId, existing);
         }
       }
       const returnStats = new Map<
@@ -511,20 +571,27 @@ export class SupplierReportService {
           0,
           originalBaseQuantity - stats.returnedBaseQuantity,
         );
+        // Tiền trả hàng đã là tiền sau chiết khấu; phân bổ giảm giá chung trước khi trừ trả.
+        const invoiceSubtotal = Number(item.invoice?.total_amount || 0);
+        const invoiceDiscountShare = invoiceSubtotal > 0
+          ? Number(item.invoice?.discount_amount || 0) * (Number(item.total_price) / invoiceSubtotal)
+          : 0;
         const netRevenue = Math.max(
           0,
-          Number(item.total_price) - stats.returnedAmount,
+          Number(item.total_price) - invoiceDiscountShare - stats.returnedAmount,
         );
         const allocation = allocationByItem.get(item.id);
+        const batchNet = batchNetByItem.get(Number(item.id));
         const productSuppliers = suppliersByProduct.get(item.product_id);
         const canUseLegacyFallback =
-          !allocation &&
+          item.costing_method_snapshot !== ProductCostingMethod.BY_BATCH && !allocation &&
           productSuppliers?.size === 1 &&
           productSuppliers.has(Number(supplierId));
 
         if (!allocation && !canUseLegacyFallback) {
           continue;
         }
+        if (item.costing_method_snapshot === ProductCostingMethod.BY_BATCH && !batchNet) continue;
 
         invoiceIds.add(item.invoice_id);
         if (!productMap.has(productId)) {
@@ -547,14 +614,16 @@ export class SupplierReportService {
           originalBaseQuantity > 0
             ? remainingBaseQuantity / originalBaseQuantity
             : 0;
-        const quantity = allocation
+        const quantity = batchNet ? batchNet.quantity : allocation
           ? Number(allocation.quantity || 0) * remainingRatio
           : remainingBaseQuantity;
         const revenue =
           allocation && remainingBaseQuantity > 0
             ? netRevenue * (quantity / remainingBaseQuantity)
             : netRevenue;
-        const cost = allocation
+        const cost = item.costing_method_snapshot === ProductCostingMethod.BY_PRICE_TYPE
+          ? batchNet?.totalCost ?? quantity * Number(item.cost_price || 0)
+          : batchNet ? batchNet.totalCost : allocation
           ? Number(allocation.totalCost || 0) * remainingRatio
           : quantity *
             Number(item.cost_price ?? item.product?.average_cost_price ?? 0);

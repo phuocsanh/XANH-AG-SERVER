@@ -99,6 +99,9 @@ export class ProfitSummaryDto {
   @ApiProperty({ description: 'Tổng giá vốn hàng bán', example: 360000000 })
   cost_of_goods_sold!: number;
 
+  @ApiProperty({ description: 'Chiết khấu NCC lúa giống của hàng đã bán trong mùa vụ', example: 30000 })
+  supplier_rebate!: number;
+
   @ApiProperty({ description: 'Lợi nhuận gộp', example: 90000000 })
   gross_profit!: number;
 

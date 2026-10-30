@@ -148,6 +148,10 @@ export class InventoryReceipt {
   })
   supplier_settlement_mode!: SupplierSettlementMode;
 
+  /** Tổng chiết khấu NCC theo loại giá bán trên lượng nhập ròng. */
+  @Column({ name: 'supplier_rebate_total', type: 'decimal', precision: 15, scale: 2, default: 0 })
+  supplier_rebate_total!: number;
+
   // ===== ĐIỀU CHỈNH =====
   /** Tổng giá trị đã điều chỉnh (+ hoặc -) */
   @Column({ name: 'adjusted_amount', type: 'decimal', precision: 15, scale: 2, default: 0 })

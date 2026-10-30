@@ -13,7 +13,7 @@ export class InvoiceItemProfitDto {
   @ApiProperty({ description: 'Giá bán/đơn vị', example: 150000 })
   unit_price!: number;
 
-  @ApiProperty({ description: 'Giá vốn trung bình', example: 120000 })
+  @ApiProperty({ description: 'Giá vốn thực tế trên đơn vị bán ròng, sau hoàn hàng và chiết khấu NCC', example: 120000 })
   avg_cost!: number;
 
   @ApiProperty({ description: 'Tổng giá vốn', example: 1200000 })
@@ -50,6 +50,9 @@ export class InvoiceProfitDto {
 
   @ApiProperty({ description: 'Tổng giá vốn hàng bán', example: 1900000 })
   cost_of_goods_sold!: number;
+
+  @ApiProperty({ description: 'Chiết khấu NCC lúa giống ứng với hàng đã bán ròng', example: 30000 })
+  supplier_rebate!: number;
 
   @ApiProperty({ description: 'Lợi nhuận gộp', example: 400000 })
   gross_profit!: number;

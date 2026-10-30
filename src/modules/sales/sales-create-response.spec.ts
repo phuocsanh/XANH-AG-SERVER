@@ -344,7 +344,15 @@ describe('SalesService.create response', () => {
         .spyOn(service as any, 'assertInvoiceProductMixingAllowed')
         .mockResolvedValue(undefined);
 
-      const confirmed = await service.confirmInvoice(901);
+      Object.assign(service, {
+        promotionCampaignService: { processInvoiceAccrual: jest.fn() },
+        inventoryService: { syncSupplierSettlementForPostedInvoice: jest.fn() },
+      });
+      jest.spyOn(service as any, 'postInvoiceFinancialEntries').mockResolvedValue(undefined);
+      jest.spyOn(service, 'handleInventoryDeduction').mockResolvedValue(true);
+      jest.spyOn(service as any, 'handleInvoiceGiftStockOut').mockResolvedValue(undefined);
+      jest.spyOn(service as any, 'syncPostedInvoiceCostSnapshot').mockResolvedValue(undefined);
+      const confirmed = await service.confirmInvoice(901, 1);
 
       expect(confirmed?.status).toBe(SalesInvoiceStatus.CONFIRMED);
       expect(manager.find).toHaveBeenCalledWith(SalesInvoiceItem, {
@@ -366,6 +374,18 @@ describe('SalesService.create response', () => {
       expect(queryRunner.rollbackTransaction).not.toHaveBeenCalled();
     },
   );
+
+  it('không xác nhận hóa đơn khi thiếu người thao tác', async () => {
+    const invoice = { id: 950, status: SalesInvoiceStatus.DRAFT };
+    const runner = { manager: { findOne: jest.fn().mockResolvedValue(invoice), find: jest.fn().mockResolvedValue([]), save: jest.fn() },
+      connect: jest.fn(), startTransaction: jest.fn(), commitTransaction: jest.fn(), rollbackTransaction: jest.fn(), release: jest.fn() };
+    const service = Object.create(SalesService.prototype) as SalesService;
+    Object.assign(service, { dataSource: { createQueryRunner: () => runner }, logger: { error: jest.fn() },
+      assertInvoiceProductMixingAllowed: jest.fn() });
+    await expect(service.confirmInvoice(950)).rejects.toThrow('Cần xác định người thao tác');
+    expect(runner.manager.save).not.toHaveBeenCalled();
+    expect(runner.rollbackTransaction).toHaveBeenCalled();
+  });
 
   it('không chụp lại cờ sản phẩm khi xác nhận lặp hóa đơn đã CONFIRMED', async () => {
     const invoice = Object.assign(new SalesInvoice(), {
@@ -457,7 +477,7 @@ describe('SalesService.create response', () => {
       .spyOn(service as any, 'assertInvoiceProductMixingAllowed')
       .mockResolvedValue(undefined);
 
-    await expect(service.confirmInvoice(903)).rejects.toThrow(
+    await expect(service.confirmInvoice(903, 1)).rejects.toThrow(
       'Không tìm thấy sản phẩm #999 để chốt tích lũy',
     );
 
@@ -506,7 +526,7 @@ describe('SalesService.create response', () => {
       .spyOn(service as any, 'assertInvoiceProductMixingAllowed')
       .mockResolvedValue(undefined);
 
-    await expect(service.confirmInvoice(904)).rejects.toThrow(
+    await expect(service.confirmInvoice(904, 1)).rejects.toThrow(
       'Hóa đơn chưa có sản phẩm để chốt tích lũy',
     );
 
@@ -516,7 +536,7 @@ describe('SalesService.create response', () => {
     expect(queryRunner.release).toHaveBeenCalledTimes(1);
   });
 
-  it('thu hồi đúng phần tích lũy đủ điều kiện khi hủy hóa đơn', async () => {
+  it('hủy hóa đơn lúa giống vẫn chạy luồng đảo kho và quyết toán NCC', async () => {
     const invoice = Object.assign(new SalesInvoice(), {
       id: 905,
       customer_id: 7,
@@ -536,6 +556,7 @@ describe('SalesService.create response', () => {
         base_quantity: 1,
         total_price: 500,
         exclude_from_reward: true,
+        costing_method_snapshot: ProductCostingMethod.BY_PRICE_TYPE,
       }),
       Object.assign(new SalesInvoiceItem(), {
         id: 1906,
@@ -618,6 +639,7 @@ describe('SalesService.create response', () => {
     jest
       .spyOn(service as any, 'handleInventoryRestoration')
       .mockResolvedValue(undefined);
+    const restoreInventory = jest.spyOn(service as any, 'handleInventoryRestoration');
     jest
       .spyOn(service as any, 'handleInvoiceGiftStockRestoration')
       .mockResolvedValue(undefined);
@@ -625,6 +647,7 @@ describe('SalesService.create response', () => {
     const cancelled = await service.cancelInvoice(905);
 
     expect(cancelled?.status).toBe(SalesInvoiceStatus.CANCELLED);
+    expect(restoreInventory).toHaveBeenCalledWith(905, undefined, queryRunner);
     expect(syncInvoiceReward).toHaveBeenCalledWith(manager, 905);
     expect(invoiceTracking.accumulated_amount).toBe(0);
     expect(customerTracking.pending_amount).toBe(50);

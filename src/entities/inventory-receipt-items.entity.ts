@@ -135,6 +135,16 @@ export class InventoryReceiptItem {
   })
   final_unit_cost?: number;
 
+  /** Chiết khấu NCC lúa giống đã chốt, tính trên một đơn vị kho cơ sở (thường là kg). */
+  @Column({
+    name: 'supplier_rebate_per_base_unit',
+    type: 'decimal',
+    precision: 15,
+    scale: 4,
+    default: 0,
+  })
+  supplier_rebate_per_base_unit!: number;
+
   /** Hạn sử dụng của sản phẩm (nếu có) */
   @Column({ name: 'expiry_date', type: 'timestamp', nullable: true })
   expiry_date?: Date;

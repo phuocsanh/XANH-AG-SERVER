@@ -19,6 +19,16 @@ const getScopedCteSql = (includeExpectedInvoiceFields = false) => `
     FROM sales_invoices si
     WHERE si.deleted_at IS NULL
       AND si.status IN ('confirmed', 'paid')
+      -- Script cũ chỉ đối soát hóa đơn legacy, không ghi đè quy tắc giá lô/loại bán mới.
+      AND NOT EXISTS (
+        SELECT 1 FROM sales_invoice_items guarded_item
+        WHERE guarded_item.invoice_id = si.id AND guarded_item.deleted_at IS NULL
+          AND guarded_item.costing_method_snapshot IN ('by_batch', 'by_price_type')
+      )
+      -- Giá vốn hàng trả cần lịch sử lô riêng, không suy ra từ giao dịch xuất tổng.
+      AND NOT EXISTS (
+        SELECT 1 FROM sales_returns sr WHERE sr.invoice_id = si.id AND sr.status = 'approved'
+      )
       ${invoiceIdFilter !== undefined && Number.isFinite(invoiceIdFilter) ? 'AND si.id = $1' : ''}
   ),
   posted_items AS (

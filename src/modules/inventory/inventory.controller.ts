@@ -26,6 +26,7 @@ import {
   StockData,
 } from './interfaces/inventory-report.interface';
 import { SearchInventoryDto } from './dto/search-inventory.dto';
+import { SetSupplierRebateDto } from './dto/set-supplier-rebate.dto';
 import {
   CreateInventoryBorrowDto,
   SearchInventoryBorrowDto,
@@ -669,6 +670,18 @@ export class InventoryController {
   }
 
   // ===== PAYMENT ENDPOINTS =====
+
+  /** Chốt chiết khấu NCC theo loại giá bán trên dòng nhập; tính lại tiền phải trả trong cùng transaction. */
+  @Patch('receipts/:id/items/:itemId/supplier-rebate')
+  @RequirePermissions('inventory:manage')
+  setSupplierRebate(
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: SetSupplierRebateDto,
+    @CurrentUser('id') userId: number,
+  ) {
+    return this.inventoryService.setSupplierRebate(+id, +itemId, dto.amount, dto.unit, userId);
+  }
 
   /**
    * Thêm thanh toán cho phiếu nhập kho
