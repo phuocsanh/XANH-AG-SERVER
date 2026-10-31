@@ -6,6 +6,7 @@ import {
   ValidateNested,
   IsArray,
   IsIn,
+  Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ReceiptStatus } from '../enums/receipt-status.enum';
@@ -49,6 +50,12 @@ export class CreateInventoryReceiptItemDto {
     message: 'Loại chiết khấu mặt hàng không hợp lệ',
   })
   discount_type?: 'percentage' | 'fixed_amount';
+
+  /** Chiết khấu NCC trên một đơn vị kho cơ sở cho luồng quyết toán theo loại bán. */
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  supplier_rebate_per_base_unit?: number;
 
   @IsString()
   @IsOptional()

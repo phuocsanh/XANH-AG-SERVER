@@ -28,9 +28,11 @@ import { InventoryService } from '../inventory/inventory.service';
 import { PromotionCampaignService } from '../promotion-campaign/promotion-campaign.service';
 import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
 import { SalesInvoiceItemStockAllocation } from '../../entities/sales-invoice-item-stock-allocations.entity';
+import { InventoryReceiptItem } from '../../entities/inventory-receipt-items.entity';
 import { InventoryBatch } from '../../entities/inventories.entity';
 import { ProductCostingMethod } from '../../entities/products.entity';
 import { planInvoiceStockRestoration } from '../sales/invoice-stock-restoration-plan';
+import { receiptInboundFeePerBaseUnit } from '../sales/price-type-landed-cost';
 
 @Injectable()
 export class SalesReturnService {
@@ -207,6 +209,12 @@ export class SalesReturnService {
             `Dòng hóa đơn #${invoiceItem.id} thiếu lô nguồn để hoàn hàng.`,
           );
         }
+        // Hoàn từ lô xuất sau cùng: trả cả giá gốc theo loại bán và phần phí nhập của chính lô đó.
+        const receiptItem = allocation.receipt_item_id &&
+          invoiceItem.costing_method_snapshot === ProductCostingMethod.BY_PRICE_TYPE
+          ? await manager.findOne(InventoryReceiptItem, { where: { id: Number(allocation.receipt_item_id) } })
+          : null;
+        const feePerUnit = receiptInboundFeePerBaseUnit(receiptItem);
         plans.push({
           quantity,
           unitCost: invoiceItem.costing_method_snapshot === ProductCostingMethod.BY_BATCH
@@ -215,10 +223,10 @@ export class SalesReturnService {
           sourceBatchId: allocation.inventory_batch_id,
           returnToSource: true,
           // Làm tròn tổng lượng đã trả của lô, tránh cộng sai số qua nhiều phiếu trả.
-          ...(invoiceItem.costing_method_snapshot === ProductCostingMethod.BY_BATCH ? {
-            returnedCost: this.roundMoney(this.roundBaseQuantity(Number(allocation.quantity) - (balance?.quantity || 0) + quantity) * Number(allocation.unit_cost)) -
-              this.roundMoney(this.roundBaseQuantity(Number(allocation.quantity) - (balance?.quantity || 0)) * Number(allocation.unit_cost)),
-          } : {}),
+          returnedCost: this.roundMoney(this.roundBaseQuantity(Number(allocation.quantity) - (balance?.quantity || 0) + quantity) *
+            (invoiceItem.costing_method_snapshot === ProductCostingMethod.BY_BATCH ? Number(allocation.unit_cost) : fallbackUnitCost + feePerUnit)) -
+            this.roundMoney(this.roundBaseQuantity(Number(allocation.quantity) - (balance?.quantity || 0)) *
+              (invoiceItem.costing_method_snapshot === ProductCostingMethod.BY_BATCH ? Number(allocation.unit_cost) : fallbackUnitCost + feePerUnit)),
           ...(allocation.receipt_item_id ? {
             receiptItemId: allocation.receipt_item_id,
             sourceReceiptItemId: allocation.receipt_item_id,
@@ -1245,6 +1253,32 @@ export class SalesReturnService {
                     .reduce((sum, row) => sum + Number(row.quantity), 0);
                   totalCostOfThisReturn += this.roundMoney(this.roundBaseQuantity(otherQuantity + Number(snapshot.quantity)) * Number(source.unit_cost)) -
                     this.roundMoney(this.roundBaseQuantity(otherQuantity) * Number(source.unit_cost));
+                }
+              // Hủy phiếu khách trả phải cộng lại đúng phí nhập đã đảo theo từng lô nguồn.
+              } else if (invoiceItem.costing_method_snapshot === ProductCostingMethod.BY_PRICE_TYPE &&
+                item.stock_allocations?.length) {
+                const allocations = await queryRunner.manager.find(SalesInvoiceItemStockAllocation, {
+                  where: { sales_invoice_item_id: invoiceItem.id },
+                });
+                for (const snapshot of item.stock_allocations) {
+                  const source = allocations.find((allocation) =>
+                    Number(allocation.inventory_batch_id) === Number(snapshot.sourceBatchId) &&
+                    (!snapshot.sourceReceiptItemId || Number(allocation.receipt_item_id) === Number(snapshot.sourceReceiptItemId)));
+                  if (!source) {
+                    throw new BadRequestException(`Phiếu trả hàng ${salesReturn.code} thiếu lô nguồn để hoàn tác giá vốn.`);
+                  }
+                  const receiptItem = source?.receipt_item_id
+                    ? await queryRunner.manager.findOne(InventoryReceiptItem, { where: { id: Number(source.receipt_item_id) } })
+                    : null;
+                  const otherQuantity = otherReturnsToKeep.flatMap((header) => header.items || [])
+                    .filter((row) => Number(row.sales_invoice_item_id) === Number(invoiceItem.id))
+                    .flatMap((row) => row.stock_allocations || [])
+                    .filter((row) => Number(row.sourceBatchId) === Number(source.inventory_batch_id))
+                    .reduce((sum, row) => sum + Number(row.quantity), 0);
+                  const actualUnitCost = this.getInvoiceItemUnitCost(invoiceItem) + receiptInboundFeePerBaseUnit(receiptItem);
+                  // Cùng công thức làm tròn lũy kế với lúc tạo phiếu trả, tránh lệch xu khi trả nhiều lần.
+                  totalCostOfThisReturn += this.roundMoney(this.roundBaseQuantity(otherQuantity + Number(snapshot.quantity)) * actualUnitCost) -
+                    this.roundMoney(this.roundBaseQuantity(otherQuantity) * actualUnitCost);
                 }
               } else {
                 totalCostOfThisReturn += this.roundMoney(

@@ -125,6 +125,7 @@ export class ExpiryAlertService {
   async getBatchesByProduct(productId: number) {
     return this.batchRepository.find({
       where: { product_id: productId },
+      relations: ['receipt_item'],
       order: { expiry_date: 'ASC' },
     });
   }

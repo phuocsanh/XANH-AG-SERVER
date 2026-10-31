@@ -11,6 +11,7 @@ import { SalesReturnStatus } from '../../entities/sales-return.entity';
 import { SalesInvoiceItemStockAllocation } from '../../entities/sales-invoice-item-stock-allocations.entity';
 import { InventoryReturnItem } from '../../entities/inventory-return-items.entity';
 import { ProductCostingMethod } from '../../entities/products.entity';
+import { receiptInboundFeePerBaseUnit } from '../sales/price-type-landed-cost';
 import { 
   SupplierReportDto, 
   SupplierProductStatDto, 
@@ -504,7 +505,8 @@ export class SupplierReportService {
           const item = salesItems.find((entry) => Number(entry.id) === itemId);
           existing.totalCost += item?.costing_method_snapshot === ProductCostingMethod.BY_PRICE_TYPE
             ? (Number(source.quantity) - returnedQty) *
-              (Number(item.cost_price || 0) - Number(source.receipt_item?.supplier_rebate_per_base_unit || 0))
+              (Number(item.cost_price || 0) + receiptInboundFeePerBaseUnit(source.receipt_item) -
+                Number(source.receipt_item?.supplier_rebate_per_base_unit || 0))
             : Math.max(0, Number(source.total_cost) - returnedCost);
           batchNetByItem.set(itemId, existing);
         }

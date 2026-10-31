@@ -25,6 +25,7 @@ import { QueryHelper } from '../../common/helpers/query-helper';
 import { InventoryReceiptItem } from '../../entities/inventory-receipt-items.entity';
 import { BusinessLogicException } from '../../common/exceptions/business-logic.exception';
 import { loadSupplierRebates } from './supplier-rebate';
+import { receiptInboundFeePerBaseUnit } from '../sales/price-type-landed-cost';
 import { calculateTaxReportPricing, TaxPriceReturn } from './tax-report-pricing';
 import {
   InvoiceProfitDto,
@@ -200,6 +201,7 @@ export class StoreProfitReportService {
     });
     const batchCosts = await this.loadBatchCosts(invoices);
     const supplierRebates = await this.loadSupplierRebates(invoices);
+    const inboundFees = await this.loadPriceTypeInboundFees(invoices);
     const returnStats = await this.getApprovedReturnStats(
       invoices.map((invoice) => invoice.id),
     );
@@ -235,6 +237,7 @@ export class StoreProfitReportService {
           returned.returnedBaseQuantity,
           batchCosts,
           supplierRebates,
+          inboundFees,
         );
 
         typeTotals.revenue += itemRevenue;
@@ -690,6 +693,40 @@ export class StoreProfitReportService {
     return loadSupplierRebates(this.salesInvoiceRepository.manager, invoices, allocations, returns);
   }
 
+  /** Phí nhập đã bán ròng theo đúng lô; giá gốc trên dòng hóa đơn vẫn dùng cho quyết toán NCC. */
+  private async loadPriceTypeInboundFees(
+    invoices: SalesInvoice[],
+    allocations?: SalesInvoiceItemStockAllocation[],
+    returns?: SalesReturnItem[],
+  ): Promise<Map<number, number>> {
+    const itemIds = invoices.flatMap((invoice) => invoice.items || [])
+      .filter((item) => item.costing_method_snapshot === ProductCostingMethod.BY_PRICE_TYPE)
+      .map((item) => Number(item.id));
+    const fees = new Map<number, number>();
+    if (!itemIds.length) return fees;
+    const manager = this.salesInvoiceRepository.manager;
+    const sources = allocations || await manager.find(SalesInvoiceItemStockAllocation, {
+      where: { sales_invoice_item_id: In(itemIds) }, relations: ['receipt_item'],
+    });
+    const returnedItems = returns || await manager.getRepository(SalesReturnItem)
+      .createQueryBuilder('item')
+      .innerJoinAndSelect('item.sales_return', 'salesReturn')
+      .where('salesReturn.invoice_id IN (:...invoiceIds)', { invoiceIds: invoices.map((invoice) => invoice.id) })
+      .andWhere('salesReturn.status = :status', { status: SalesReturnStatus.APPROVED })
+      .getMany();
+    for (const source of sources.filter((row) => itemIds.includes(Number(row.sales_invoice_item_id)))) {
+      const returnedQty = returnedItems
+        .filter((item) => Number(item.sales_invoice_item_id) === Number(source.sales_invoice_item_id))
+        .flatMap((item) => item.stock_allocations || [])
+        .filter((snapshot) => Number(snapshot.sourceBatchId) === Number(source.inventory_batch_id))
+        .reduce((sum, snapshot) => sum + Number(snapshot.quantity || 0), 0);
+      const fee = Math.max(0, Number(source.quantity) - returnedQty) *
+        receiptInboundFeePerBaseUnit(source.receipt_item);
+      fees.set(Number(source.sales_invoice_item_id), (fees.get(Number(source.sales_invoice_item_id)) || 0) + fee);
+    }
+    return fees;
+  }
+
   /** Tổng chiết khấu NCC phân bổ cho các dòng bán chốt giá vốn theo loại giá bán. */
   private getInvoiceSupplierRebate(invoice: SalesInvoice, rebates: Map<number, number>): number {
     return (invoice.items || []).reduce((sum, item) => sum + (rebates.get(Number(item.id)) || 0), 0);
@@ -700,6 +737,7 @@ export class StoreProfitReportService {
     returnedBaseQuantity: number,
     batchCosts: Map<number, { original: number; returned: number; taxable: number | null }>,
     supplierRebates?: Map<number, number>,
+    inboundFees?: Map<number, number>,
   ): number {
     if (item.costing_method_snapshot === ProductCostingMethod.BY_BATCH) {
       const cost = batchCosts.get(Number(item.id));
@@ -710,7 +748,8 @@ export class StoreProfitReportService {
       this.getInvoiceItemCOGS(item) -
       returnedBaseQuantity * this.getInvoiceItemCostPrice(item),
     );
-    return saleCost - (supplierRebates?.get(Number(item.id)) || 0);
+    return saleCost + (inboundFees?.get(Number(item.id)) || 0) -
+      (supplierRebates?.get(Number(item.id)) || 0);
   }
 
   /** Hóa đơn mới đọc tổng giá vốn lô, tránh nhân lại đơn giá bình quân đã làm tròn. */
@@ -854,6 +893,7 @@ export class StoreProfitReportService {
       const returnStatsMap = await this.getApprovedReturnStats([invoice.id]);
       const batchCosts = await this.loadBatchCosts([invoice]);
       const supplierRebates = await this.loadSupplierRebates([invoice]);
+      const inboundFees = await this.loadPriceTypeInboundFees([invoice]);
       const invoiceItemsGross = (invoice.items || []).reduce(
         (sum, item) => sum + Number(item.total_price || 0),
         0,
@@ -875,7 +915,7 @@ export class StoreProfitReportService {
           0,
           itemGrossPrice - invoiceDiscountShare - returnStats.returnedAmount,
         );
-        const itemCOGS = this.getItemNetCOGS(item, returnStats.returnedBaseQuantity, batchCosts, supplierRebates);
+        const itemCOGS = this.getItemNetCOGS(item, returnStats.returnedBaseQuantity, batchCosts, supplierRebates, inboundFees);
         const netQuantity = Math.max(
           0,
           Number(item.quantity || 0) - returnStats.returnedQuantity,
@@ -1044,6 +1084,7 @@ export class StoreProfitReportService {
       const batchCosts = await this.loadBatchCosts(invoices);
 
       const supplierRebates = await this.loadSupplierRebates(invoices);
+      const inboundFees = await this.loadPriceTypeInboundFees(invoices);
 
       for (const invoice of invoices) {
         // Explicitly cast to number to handle TypeORM decimal strings
@@ -1105,7 +1146,7 @@ export class StoreProfitReportService {
                 invoiceDiscountShare -
                 returnStats.returnedAmount,
             );
-            const itemActualCOGS = this.getItemNetCOGS(item, returnStats.returnedBaseQuantity, batchCosts, supplierRebates);
+            const itemActualCOGS = this.getItemNetCOGS(item, returnStats.returnedBaseQuantity, batchCosts, supplierRebates, inboundFees);
             const itemProfit = itemNetRevenue - itemActualCOGS;
 
             // Tính số lượng thực bán (đã trừ trả hàng)
@@ -2269,6 +2310,7 @@ export class StoreProfitReportService {
         : [[], []];
       const batchCosts = this.buildBatchCosts(invoices, stockAllocations, approvedReturns);
       const supplierRebates = await this.loadSupplierRebates(invoices, stockAllocations, approvedReturns);
+      const inboundFees = await this.loadPriceTypeInboundFees(invoices, stockAllocations, approvedReturns);
       const allocationsByItem = new Map<number, SalesInvoiceItemStockAllocation[]>();
       for (const allocation of stockAllocations) {
         const rows = allocationsByItem.get(allocation.sales_invoice_item_id) || [];
@@ -2362,7 +2404,7 @@ export class StoreProfitReportService {
           );
 
           // Phân bổ giá vốn thực tế (đã trừ trả hàng) cho item này
-          const itemActualCOGS = this.getItemNetCOGS(item, returnStats.returnedBaseQuantity, batchCosts, supplierRebates);
+          const itemActualCOGS = this.getItemNetCOGS(item, returnStats.returnedBaseQuantity, batchCosts, supplierRebates, inboundFees);
 
           invoiceRevenue += itemNetRevenue;
           invoiceCOGS += itemActualCOGS;

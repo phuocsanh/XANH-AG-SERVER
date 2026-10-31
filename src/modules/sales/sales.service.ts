@@ -1,4 +1,5 @@
 import { calculateBatchSaleCost } from './batch-sale-cost';
+import { allocatedInboundFee } from './price-type-landed-cost';
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull, Not, DataSource, QueryRunner, In } from 'typeorm';
@@ -804,7 +805,21 @@ export class SalesService {
         continue;
       }
 
-      // Hóa đơn cũ giữ giá vốn đã chốt; lúa giống giữ giá vốn theo loại bán.
+      // Giá vốn theo loại bán giữ snapshot giá gốc để quyết toán NCC; phí nhập đi theo lô xuất.
+      if (item.costing_method_snapshot === ProductCostingMethod.BY_PRICE_TYPE) {
+        const allocations = await manager.find(SalesInvoiceItemStockAllocation, {
+          where: { sales_invoice_item_id: item.id },
+        });
+        const receiptItemIds = [...new Set(allocations.map((allocation) => Number(allocation.receipt_item_id || 0)).filter(Boolean))];
+        const receiptItems = receiptItemIds.length
+          ? await manager.find(InventoryReceiptItem, { where: { id: In(receiptItemIds) } })
+          : [];
+        const fee = allocatedInboundFee(allocations, new Map(receiptItems.map((receiptItem) => [Number(receiptItem.id), receiptItem])));
+        totalCOGS += this.roundMoney(baseQty * snapshotCostPrice + fee);
+        continue;
+      }
+
+      // Hóa đơn cũ giữ giá vốn đã chốt.
       if (Number.isFinite(snapshotCostPrice) && snapshotCostPrice > 0) {
         totalCOGS += this.roundMoney(baseQty * snapshotCostPrice);
         continue;
@@ -3323,7 +3338,8 @@ export class SalesService {
             'SALE',
             performerId,
             invoice.id,
-            item.costing_method_snapshot === ProductCostingMethod.BY_BATCH
+            item.costing_method_snapshot === ProductCostingMethod.BY_BATCH ||
+              item.costing_method_snapshot === ProductCostingMethod.BY_PRICE_TYPE
               ? `Bán hàng theo hóa đơn #${invoice.code} [sales-item:${item.id}]`
               : `Bán hàng theo hóa đơn #${invoice.code}`,
             queryRunner,

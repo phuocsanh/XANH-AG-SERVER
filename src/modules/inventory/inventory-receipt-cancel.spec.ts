@@ -127,6 +127,30 @@ describe('InventoryService.cancelReceipt stock/tax rollback', () => {
 });
 
 describe('InventoryService.approveReceipt stock/tax posting', () => {
+  it('tính chiết khấu NCC đã nhập trên phiếu nháp khi duyệt luồng theo loại bán', async () => {
+    const h = setup();
+    h.receipt.status = ReceiptStatus.DRAFT;
+    h.receipt.supplier_settlement_mode = SupplierSettlementMode.BY_SALE_TYPE;
+    Object.assign(h.item, {
+      supplier_rebate_per_base_unit: 250,
+      unit_cost: 0,
+      final_unit_cost: 0,
+      taxable_quantity: 0,
+    });
+    jest.spyOn(h.service as any, 'validateReceiptSettlementMode')
+      .mockResolvedValue(SupplierSettlementMode.BY_SALE_TYPE);
+    jest.spyOn(h.service, 'processStockIn')
+      .mockResolvedValue({ batch: { code: 'LOT-TEST-7-1' } } as any);
+    const recalculate = jest.spyOn(h.service as any, 'recalculateBySaleTypeReceiptFinance')
+      .mockResolvedValue(undefined);
+
+    await h.service.approveReceipt(7, 42);
+
+    expect(recalculate).toHaveBeenCalledWith(7, h.queryRunner);
+    expect(h.receipt.status).toBe(ReceiptStatus.APPROVED);
+    expect(h.queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
+  });
+
   it('converts receipt tax quantity to base units and rejects duplicate approval', async () => {
     const h = setup();
     h.receipt.status = ReceiptStatus.DRAFT;

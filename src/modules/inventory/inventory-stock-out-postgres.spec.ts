@@ -790,7 +790,7 @@ describe('InventoryService giá vốn bán theo lô', () => {
     const itemRepo = { update: jest.fn().mockResolvedValue({ affected: 1 }) };
     const batchRepo = { update: jest.fn().mockResolvedValue({ affected: 1 }) };
     const transactionRepo = {
-      find: jest.fn().mockResolvedValue([{ id: 1, quantity: 100 }, { id: 2, quantity: -10 }]),
+      find: jest.fn().mockResolvedValue([{ id: 1, quantity: 100 }]),
       update: jest.fn().mockResolvedValue({ affected: 1 }),
     };
     const service = Object.create(InventoryService.prototype) as InventoryService;
@@ -808,8 +808,8 @@ describe('InventoryService giá vốn bán theo lô', () => {
     await (service as any).recalculateApprovedReceiptShipping(7);
 
     expect(batchRepo.update).toHaveBeenCalledWith({ receipt_item_id: 11 }, { unit_cost_price: '10' });
+    expect(transactionRepo.find).toHaveBeenCalledWith({ where: { receipt_item_id: 11, type: 'IN', reference_type: 'STOCK_IN' } });
     expect(transactionRepo.update).toHaveBeenCalledWith(1, { unit_cost_price: '10', total_value: '1000' });
-    expect(transactionRepo.update).toHaveBeenCalledWith(2, { unit_cost_price: '10', total_value: '-100' });
     expect(service['syncSoldInvoicesForReceiptItems']).toHaveBeenCalledWith([expect.objectContaining({ final_unit_cost: 500 })], undefined);
   });
 
@@ -829,6 +829,7 @@ describe('InventoryService giá vốn bán theo lô', () => {
     };
     const manager = {
       findOne: jest.fn().mockResolvedValue(invoice),
+      find: jest.fn().mockResolvedValue([]),
       getRepository: jest.fn().mockReturnValue({ createQueryBuilder: jest.fn().mockReturnValue(returnQuery) }),
       update: jest.fn().mockResolvedValue({ affected: 1 }),
     };
