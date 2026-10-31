@@ -3346,11 +3346,61 @@ export class SalesService {
             { requireBatchTaxSnapshot: true },
 	          );
 
+          // Chỉ ghi nhận hóa đơn khi phân bổ lô bao phủ đủ số lượng xuất và
+          // tổng thuế của từng lô khớp kết quả trừ kho.
+          const quantityTolerance = 0.0001;
+          const affectedBatches = result.affectedBatches || [];
+          const allocatedQuantity = affectedBatches.reduce(
+            (sum, batch) => sum + Number(batch.deductedQuantity),
+            0,
+          );
+          const allocatedTaxableQuantity = affectedBatches.reduce(
+            (sum, batch) => sum + Number(batch.taxableQuantity),
+            0,
+          );
+          const resultTaxableQuantity = Number(result.taxableQuantity);
+          const invalidBatchAllocation = affectedBatches.some((batch) => {
+            const quantity = Number(batch.deductedQuantity);
+            const taxableQuantity = Number(batch.taxableQuantity);
+            return (
+              batch.deductedQuantity === null ||
+              batch.deductedQuantity === undefined ||
+              batch.taxableQuantity === null ||
+              batch.taxableQuantity === undefined ||
+              !Number.isFinite(quantity) ||
+              !Number.isFinite(taxableQuantity) ||
+              quantity < 0 ||
+              taxableQuantity < 0 ||
+              taxableQuantity - quantity > quantityTolerance
+            );
+          });
+          if (
+            invalidBatchAllocation ||
+            !Number.isFinite(resultTaxableQuantity) ||
+            resultTaxableQuantity < 0 ||
+            resultTaxableQuantity - stockOutQuantity > quantityTolerance ||
+            Math.abs(allocatedQuantity - stockOutQuantity) > quantityTolerance ||
+            Math.abs(allocatedTaxableQuantity - resultTaxableQuantity) > quantityTolerance
+          ) {
+            throw new BadRequestException(
+              `Không thể chốt hóa đơn #${invoice.code}: số lượng xuất và phân bổ thuế theo lô không khớp. Vui lòng đối soát tồn kho trước khi bán lại.`,
+            );
+          }
+          if (
+            resultTaxableQuantity > 0 &&
+            (!Number.isFinite(Number(result.taxSellingPrice)) ||
+              Number(result.taxSellingPrice) <= 0)
+          ) {
+            throw new BadRequestException(
+              `Không thể chốt hóa đơn #${invoice.code}: hàng chịu thuế nhưng chưa xác định được GBKT từ lô hàng. Vui lòng kiểm tra phiếu nhập và giá khai thuế.`,
+            );
+          }
+
           await manager.delete(SalesInvoiceItemStockAllocation, {
             sales_invoice_item_id: item.id,
           });
 
-          for (const affectedBatch of result.affectedBatches || []) {
+          for (const affectedBatch of affectedBatches) {
             const batch = await manager.findOne(InventoryBatch, {
               where: { id: affectedBatch.batchId },
             });
@@ -3389,9 +3439,10 @@ export class SalesService {
           const taxableSaleQuantity = saleTaxQuantityForStorage(result.taxableQuantity, factor);
           await manager.update(SalesInvoiceItem, item.id, {
             taxable_quantity: taxableSaleQuantity,
-            ...(result.taxableQuantity > 0 && result.taxSellingPrice > 0
-              ? { tax_selling_price: (result.taxSellingPrice * factor).toString() }
-              : {}),
+            tax_selling_price:
+              resultTaxableQuantity > 0
+                ? (result.taxSellingPrice * factor).toString()
+                : '0',
           });
 
           this.logger.log(

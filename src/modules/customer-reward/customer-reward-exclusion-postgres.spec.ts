@@ -13,6 +13,7 @@ import { PaymentController } from '../payment/payment.controller';
 import { JwtStrategy } from '../auth/jwt.strategy';
 import { UserService } from '../user/user.service';
 import { BaseStatus } from '../../entities/base-status.enum';
+import { RoleCode } from '../../common/enums/role-code.enum';
 import { FarmGiftCostService } from '../farm-service-cost/farm-gift-cost.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { OperatingCostService } from '../operating-cost/operating-cost.service';
@@ -1065,7 +1066,10 @@ describeDevPostgres('Loại tích lũy sản phẩm trên PostgreSQL DEV cô l�
               findOneWithPermissions: async (userId: number) => ({
                 id: userId,
                 status: BaseStatus.ACTIVE,
-                role: { permissions: userId === 7 ? [{ code: 'sales:manage' }] : [] },
+                role: {
+                  code: userId === 7 ? RoleCode.SUPER_ADMIN : RoleCode.STAFF,
+                  permissions: userId === 7 ? [{ code: 'sales:manage' }] : [],
+                },
               }),
             },
           },

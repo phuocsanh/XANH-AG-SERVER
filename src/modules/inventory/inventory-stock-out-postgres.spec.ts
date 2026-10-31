@@ -436,6 +436,46 @@ describePostgres(
       expect(Number(product.taxable_quantity_stock)).toBe(7);
     });
 
+    it('keeps a zero-tax orphan cancellation lot separate from tax in other FIFO lots', async () => {
+      await databaseRunner.query(`
+      INSERT INTO ${tables.products} VALUES (1,10,5,5);
+      INSERT INTO ${tables.receipts} VALUES (12,5,1,20);
+      INSERT INTO ${tables.batches} VALUES
+        (21,1,NULL,5,5,0,5,'2026-01-01T00:00:00Z'),
+        (22,1,12,5,5,5,7,'2026-01-02T00:00:00Z');
+    `);
+      const { service, runner } = await serviceForStockOut();
+
+      const result = await service.processStockOut(
+        1,
+        5,
+        'SALE',
+        9,
+        105,
+        'Test DEV orphan cancel batch with zero tax snapshot',
+        runner,
+        { requireBatchTaxSnapshot: true },
+      );
+      const batches = await databaseRunner.query(
+        `SELECT id,remaining_quantity,taxable_remaining_quantity FROM ${tables.batches} ORDER BY id`,
+      );
+      const [product] = await databaseRunner.query(
+        `SELECT quantity,taxable_quantity_stock FROM ${tables.products} WHERE id=1`,
+      );
+
+      expect(result.taxableQuantity).toBe(0);
+      expect(result.taxSellingPrice).toBe(0);
+      expect(result.affectedBatches).toEqual([
+        expect.objectContaining({ batchId: 21, deductedQuantity: 5, taxableQuantity: 0 }),
+      ]);
+      expect(batches.map((batch: Record<string, unknown>) => [
+        Number(batch.remaining_quantity),
+        Number(batch.taxable_remaining_quantity),
+      ])).toEqual([[0, 0], [5, 5]]);
+      expect(Number(product.quantity)).toBe(5);
+      expect(Number(product.taxable_quantity_stock)).toBe(5);
+    });
+
     it('persists a four-decimal product tax balance across fractional sales', async () => {
       await databaseRunner.query(`
       INSERT INTO ${tables.products} VALUES (1,1.5,0.75,5);

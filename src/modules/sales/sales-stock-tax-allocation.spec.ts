@@ -129,6 +129,7 @@ describe('SalesService.handleInventoryDeduction tax snapshots', () => {
 
     return {
       service,
+      item,
       queryRunner,
       manager,
       inventoryTransactionRepository,
@@ -209,6 +210,64 @@ describe('SalesService.handleInventoryDeduction tax snapshots', () => {
       h.service.handleInventoryDeduction(7, 3, h.queryRunner),
     ).rejects.toThrow('stock deduction failed');
 
+    expect(h.savedAllocations).toHaveLength(0);
+    expect(h.updatedItems).toHaveLength(0);
+  });
+
+  it('clears an old GBKT snapshot when the sold FIFO lots are entirely non-taxable', async () => {
+    const h = createHarness();
+    h.item.taxable_quantity = 5;
+    h.item.tax_selling_price = '16500';
+    h.processStockOut.mockResolvedValue({
+      taxableQuantity: 0,
+      taxSellingPrice: 0,
+      affectedBatches: [
+        { batchId: 101, deductedQuantity: 250, taxableQuantity: 0, cost: 100 },
+      ],
+    });
+
+    await h.service.handleInventoryDeduction(7, 3, h.queryRunner);
+
+    expect(h.savedAllocations).toEqual([
+      expect.objectContaining({ quantity: 250, taxable_quantity: 0 }),
+    ]);
+    expect(h.updatedItems).toEqual([
+      expect.objectContaining({ taxable_quantity: 0, tax_selling_price: '0' }),
+    ]);
+  });
+
+  it('rejects taxable stock without a usable GBKT before saving invoice allocations', async () => {
+    const h = createHarness();
+    h.processStockOut.mockResolvedValue({
+      taxableQuantity: 50,
+      taxSellingPrice: 0,
+      affectedBatches: [
+        { batchId: 101, deductedQuantity: 200, taxableQuantity: 0, cost: 100 },
+        { batchId: 102, deductedQuantity: 50, taxableQuantity: 50, cost: 120 },
+      ],
+    });
+
+    await expect(
+      h.service.handleInventoryDeduction(7, 3, h.queryRunner),
+    ).rejects.toThrow('hàng chịu thuế nhưng chưa xác định được GBKT');
+    expect(h.manager.delete).not.toHaveBeenCalled();
+    expect(h.savedAllocations).toHaveLength(0);
+    expect(h.updatedItems).toHaveLength(0);
+  });
+
+  it('rejects incomplete or inconsistent per-lot quantity allocations', async () => {
+    const h = createHarness();
+    h.processStockOut.mockResolvedValue({
+      taxableQuantity: 0,
+      taxSellingPrice: 0,
+      affectedBatches: [
+        { batchId: 101, deductedQuantity: 200, taxableQuantity: 0, cost: 100 },
+      ],
+    });
+
+    await expect(
+      h.service.handleInventoryDeduction(7, 3, h.queryRunner),
+    ).rejects.toThrow('số lượng xuất và phân bổ thuế theo lô không khớp');
     expect(h.savedAllocations).toHaveLength(0);
     expect(h.updatedItems).toHaveLength(0);
   });

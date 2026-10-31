@@ -349,7 +349,7 @@ describe('invoice tax stock restoration', () => {
 
   it('writes sale-unit tax snapshots after a base-unit deduction', async () => {
     const s = setup({ factor: 50 });
-    Object.assign(s.inventory, { processStockOut: jest.fn().mockResolvedValue({ taxableQuantity: 300, taxSellingPrice: 2000, affectedBatches: [] }) });
+    Object.assign(s.inventory, { processStockOut: jest.fn().mockResolvedValue({ taxableQuantity: 300, taxSellingPrice: 2000, affectedBatches: [{ batchId: 100, deductedQuantity: 500, taxableQuantity: 300 }] }) });
     await s.service.handleInventoryDeduction(7, 3, s.runner);
     expect(s.manager.update).toHaveBeenCalledWith(SalesInvoiceItem, 1, { taxable_quantity: 6, tax_selling_price: '100000' });
   });
@@ -481,7 +481,7 @@ describe('invoice tax stock restoration', () => {
 
   it.each([1000, 40])('rejects a sale-unit tax snapshot that numeric(15,2) would change (factor %s)', async (factor) => {
     const s = setup({ factor });
-    Object.assign(s.inventory, { processStockOut: jest.fn().mockResolvedValue({ taxableQuantity: 1, taxSellingPrice: 2, affectedBatches: [] }) });
+    Object.assign(s.inventory, { processStockOut: jest.fn().mockResolvedValue({ taxableQuantity: 1, taxSellingPrice: 2, affectedBatches: [{ batchId: 100, deductedQuantity: 10 * factor, taxableQuantity: 1 }] }) });
     await expect(s.service.handleInventoryDeduction(7, 3)).rejects.toThrow('2 chữ số thập phân');
     expect(s.manager.update).not.toHaveBeenCalledWith(SalesInvoiceItem, 1, expect.anything());
     expect(s.runner.rollbackTransaction).toHaveBeenCalledTimes(1);
@@ -490,7 +490,7 @@ describe('invoice tax stock restoration', () => {
 
   it('keeps a sale-unit tax snapshot that fits the database precision', async () => {
     const s = setup({ factor: 50 });
-    Object.assign(s.inventory, { processStockOut: jest.fn().mockResolvedValue({ taxableQuantity: 1, taxSellingPrice: 2, affectedBatches: [] }) });
+    Object.assign(s.inventory, { processStockOut: jest.fn().mockResolvedValue({ taxableQuantity: 1, taxSellingPrice: 2, affectedBatches: [{ batchId: 100, deductedQuantity: 500, taxableQuantity: 1 }] }) });
     await s.service.handleInventoryDeduction(7, 3, s.runner);
     expect(s.manager.update).toHaveBeenCalledWith(SalesInvoiceItem, 1, {
       taxable_quantity: 0.02,
