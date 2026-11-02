@@ -8,6 +8,11 @@ import {
 import { InventoryBorrowItem } from '../../entities/inventory-borrow-items.entity';
 import { InventoryBatch } from '../../entities/inventories.entity';
 import { Product } from '../../entities/products.entity';
+import { SalesInvoice, SalesInvoiceStatus } from '../../entities/sales-invoices.entity';
+import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
+import { SalesInvoiceItemStockAllocation } from '../../entities/sales-invoice-item-stock-allocations.entity';
+import { SalesReturn, SalesReturnStatus } from '../../entities/sales-return.entity';
+import { InventoryTransaction } from '../../entities/inventory-transactions.entity';
 import { InventoryService } from './inventory.service';
 import { ReceiptStatus } from './enums/receipt-status.enum';
 
@@ -47,6 +52,7 @@ function setup(options: SetupOptions = {}) {
   const queryRunner = {
     isTransactionActive: false,
     manager: {
+      find: jest.fn(async (entity: Function) => entity === InventoryReceiptItem ? [item] : []),
       findOne: jest.fn(async (entity: Function) => {
         if (entity === InventoryReceipt) return receipt;
         if (entity === Product) return product;
@@ -228,9 +234,12 @@ describe('InventoryService.updateReceiptItem tax edits', () => {
 
   it('rejects a used or unproven lot without writing records', async () => {
     const h = setup({ plan: null });
+    const backfill = jest.spyOn(h.service as any, 'backfillSoldReceiptTax')
+      .mockRejectedValue(new BadRequestException('Không đủ dữ liệu nguồn lô.'));
     await expect(
       h.service.updateReceiptItem(11, { taxable_quantity: 5 }, 42),
     ).rejects.toBeInstanceOf(BadRequestException);
+    expect(backfill).toHaveBeenCalledWith(h.item, 5, h.queryRunner);
     expect(h.queryRunner.manager.update).not.toHaveBeenCalled();
     expect(h.queryRunner.commitTransaction).not.toHaveBeenCalled();
     expect(h.queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
@@ -253,15 +262,30 @@ describe('InventoryService.updateReceiptItem tax edits', () => {
     expect(h.recalculateVat).not.toHaveBeenCalled();
   });
 
-  it('does not resync product tax stock when only tax selling price changes', async () => {
+  it('đồng bộ GBKT hóa đơn cũ cùng giao dịch khi chỉ sửa giá khai thuế', async () => {
     const h = setup();
+    const sync = jest.spyOn(h.service as any, 'syncSoldInvoiceTaxSnapshotsForReceiptItem')
+      .mockResolvedValue(undefined);
     await h.service.updateReceiptItem(11, { tax_selling_price: 30 }, 42);
 
-    expect(h.createQueryRunner).not.toHaveBeenCalled();
-    expect(h.receiptItemRepository.update).toHaveBeenCalledWith(11, {
+    expect(h.createQueryRunner).toHaveBeenCalledTimes(1);
+    expect(h.queryRunner.manager.update).toHaveBeenCalledWith(InventoryReceiptItem, 11, {
       tax_selling_price: 30,
     });
+    expect(sync).toHaveBeenCalledWith(11, h.queryRunner);
+    expect(h.queryRunner.commitTransaction).toHaveBeenCalledTimes(1);
     expect(h.recalculateVat).not.toHaveBeenCalled();
+  });
+
+  it('rollback cả giá phiếu nhập khi snapshot hóa đơn không đối soát được', async () => {
+    const h = setup();
+    jest.spyOn(h.service as any, 'syncSoldInvoiceTaxSnapshotsForReceiptItem')
+      .mockRejectedValue(new BadRequestException('Phân bổ lô không khớp.'));
+    await expect(h.service.updateReceiptItem(11, { tax_selling_price: 30 }, 42))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(h.queryRunner.manager.update).toHaveBeenCalledWith(InventoryReceiptItem, 11, { tax_selling_price: 30 });
+    expect(h.queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
+    expect(h.queryRunner.commitTransaction).not.toHaveBeenCalled();
   });
 
   it.each([ReceiptStatus.CANCELLED, ReceiptStatus.DRAFT])(
@@ -294,6 +318,144 @@ describe('InventoryService.updateReceiptItem tax edits', () => {
     expect(h.queryRunner.commitTransaction).not.toHaveBeenCalled();
     expect(h.queryRunner.rollbackTransaction).toHaveBeenCalledTimes(1);
     expect(h.queryRunner.release).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('InventoryService đồng bộ thuế phiếu nhập đã bán và trả', () => {
+  it('tính GBKT bình quân theo lượng thuế của mọi lô trong cùng dòng bán', async () => {
+    const salesItem = Object.assign(new SalesInvoiceItem(), {
+      id: 51, invoice_id: 41, product_id: 3, quantity: 10,
+      base_quantity: 10, conversion_factor: 1, taxable_quantity: 5,
+    });
+    const invoice = Object.assign(new SalesInvoice(), { id: 41, status: SalesInvoiceStatus.PAID });
+    const product = Object.assign(new Product(), { id: 3, tax_selling_price: '50' });
+    const allocations = [
+      { id: 1, invoice_id: 41, sales_invoice_item_id: 51, product_id: 3,
+        receipt_item_id: 11, quantity: 6, taxable_quantity: 3,
+        receipt_item: { id: 11, product_id: 3, tax_selling_price: 200, conversion_factor: 1 } },
+      { id: 2, invoice_id: 41, sales_invoice_item_id: 51, product_id: 3,
+        receipt_item_id: 12, quantity: 4, taxable_quantity: 2,
+        receipt_item: { id: 12, product_id: 3, tax_selling_price: 100, conversion_factor: 1 } },
+    ];
+    const manager = {
+      find: jest.fn(async (_entity: Function, options: { where: Record<string, number> }) =>
+        options.where.receipt_item_id ? [allocations[0]] : allocations),
+      findOne: jest.fn(async (entity: Function) => {
+        if (entity === SalesInvoiceItem) return salesItem;
+        if (entity === SalesInvoice) return invoice;
+        if (entity === Product) return product;
+        return null;
+      }),
+      update: jest.fn(),
+    };
+    const service = Object.create(InventoryService.prototype) as InventoryService;
+    await (service as any).syncSoldInvoiceTaxSnapshotsForReceiptItem(11, { manager }, false);
+    expect(manager.update).toHaveBeenCalledWith(SalesInvoiceItem, 51, { tax_selling_price: '160' });
+    await (service as any).syncSoldInvoiceTaxSnapshotsForReceiptItem(11, { manager }, true);
+    expect(manager.update).toHaveBeenLastCalledWith(SalesInvoiceItem, 51, {
+      taxable_quantity: 5, tax_selling_price: '160',
+    });
+    invoice.status = SalesInvoiceStatus.REFUNDED;
+    manager.update.mockClear();
+    await (service as any).syncSoldInvoiceTaxSnapshotsForReceiptItem(11, { manager }, true);
+    expect(manager.update).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])('cập nhật bán/trả và tồn thuế cùng giao dịch, lô hoàn mới=%s', async (newReturnBatch) => {
+    const receipt = { id: 7, status: ReceiptStatus.APPROVED, code: 'R-7' };
+    const item = Object.assign(new InventoryReceiptItem(), {
+      id: 11, receipt_id: 7, product_id: 3, quantity: 100,
+      taxable_quantity: 0, tax_selling_price: 200, conversion_factor: 1,
+      batch_number: 'LOT-7', receipt,
+    });
+    const product = Object.assign(new Product(), {
+      id: 3, quantity: 80, taxable_quantity_stock: 0, tax_selling_price: '100',
+    });
+    const batch = Object.assign(new InventoryBatch(), {
+      id: 19, receipt_item_id: 11, product_id: 3, code: 'LOT-7',
+      original_quantity: 100, remaining_quantity: newReturnBatch ? 70 : 80, taxable_remaining_quantity: 0,
+    });
+    const returnBatch = newReturnBatch ? Object.assign(new InventoryBatch(), {
+      id: 20, receipt_item_id: 11, product_id: 3, code: 'RETURN-R-61',
+      original_quantity: 10, remaining_quantity: 10, taxable_remaining_quantity: 0,
+    }) : null;
+    const invoice = Object.assign(new SalesInvoice(), { id: 41, status: SalesInvoiceStatus.CONFIRMED });
+    const salesItem = Object.assign(new SalesInvoiceItem(), {
+      id: 51, invoice_id: 41, product_id: 3, quantity: 30,
+      base_quantity: 30, conversion_factor: 1, taxable_quantity: 0, tax_selling_price: '0',
+    });
+    const allocation = Object.assign(new SalesInvoiceItemStockAllocation(), {
+      id: 31, invoice_id: 41, sales_invoice_item_id: 51, product_id: 3,
+      inventory_batch_id: 19, receipt_item_id: 11, quantity: 30, taxable_quantity: 0,
+      created_at: new Date('2026-10-01T00:00:00Z'), receipt_item: item,
+      inventory_batch: batch,
+    });
+    const returned = Object.assign(new SalesReturn(), {
+      id: 61, invoice_id: 41, status: SalesReturnStatus.APPROVED,
+      created_at: new Date('2026-10-02T00:00:00Z'),
+      items: [{ id: 71, product_id: 3, sales_invoice_item_id: 51,
+        stock_allocations: [{ batchId: newReturnBatch ? 20 : 19, sourceBatchId: 19, sourceReceiptItemId: 11,
+          quantity: 10, taxableQuantity: 0 }] }],
+    });
+    const manager = {
+      findOne: jest.fn(async (entity: Function) => {
+        if (entity === InventoryReceipt) return receipt;
+        if (entity === InventoryReceiptItem) return item;
+        if (entity === Product) return product;
+        if (entity === SalesInvoice) return invoice;
+        if (entity === SalesInvoiceItem) return salesItem;
+        return null;
+      }),
+      find: jest.fn(async (entity: Function) => {
+        if (entity === InventoryReceiptItem) return [item];
+        if (entity === InventoryBatch) return returnBatch ? [batch, returnBatch] : [batch];
+        if (entity === SalesInvoiceItemStockAllocation) return [allocation];
+        if (entity === SalesInvoiceItem) return [salesItem];
+        if (entity === SalesInvoice) return [invoice];
+        if (entity === SalesReturn) return [returned];
+        if (entity === InventoryTransaction) return [{ id: 2, quantity: -30 }];
+        return [];
+      }),
+      query: jest.fn(async (sql: string, parameters: unknown[]) => {
+        if (parameters.length === 4 && sql.includes('reference_type=\'STOCK_IN\'')) return [{ id: 1 }];
+        if (parameters.length === 1) return [];
+        return [];
+      }),
+      update: jest.fn(async (entity: Function, id: number, values: Record<string, unknown>) => {
+        if (entity === InventoryReceiptItem) Object.assign(item, values);
+        if (entity === InventoryBatch) Object.assign(id === 19 ? batch : returnBatch!, values);
+        if (entity === Product) Object.assign(product, values);
+        if (entity === SalesInvoiceItemStockAllocation) Object.assign(allocation, values);
+        if (entity === SalesInvoiceItem) Object.assign(salesItem, values);
+      }),
+    };
+    const runner = {
+      manager, isTransactionActive: false,
+      connect: jest.fn(),
+      startTransaction: jest.fn(async () => { runner.isTransactionActive = true; }),
+      commitTransaction: jest.fn(async () => { runner.isTransactionActive = false; }),
+      rollbackTransaction: jest.fn(async () => { runner.isTransactionActive = false; }),
+      release: jest.fn(),
+    };
+    const service = Object.create(InventoryService.prototype) as InventoryService;
+    Object.assign(service, {
+      inventoryReceiptItemRepository: { findOne: jest.fn(async () => item) },
+      inventoryReceiptRepository: { manager: { connection: { createQueryRunner: () => runner } } },
+      logger: { log: jest.fn(), warn: jest.fn(), error: jest.fn() },
+    });
+    jest.spyOn(service as any, 'logReceiptItemChanges').mockResolvedValue(undefined);
+    jest.spyOn(service as any, 'recalculateAverageVatInputCost').mockResolvedValue(0);
+
+    await service.updateReceiptItem(11, { taxable_quantity: 100 }, 42);
+
+    expect(allocation.taxable_quantity).toBe(30);
+    expect(returned.items![0]!.stock_allocations![0]!.taxableQuantity).toBe(10);
+    expect(batch.taxable_remaining_quantity).toBe(newReturnBatch ? 70 : 80);
+    if (returnBatch) expect(returnBatch.taxable_remaining_quantity).toBe(10);
+    expect(product.taxable_quantity_stock).toBe(80);
+    expect(salesItem.taxable_quantity).toBe(30);
+    expect(salesItem.tax_selling_price).toBe('200');
+    expect(runner.commitTransaction).toHaveBeenCalledTimes(1);
   });
 });
 

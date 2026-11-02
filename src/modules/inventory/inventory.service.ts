@@ -38,7 +38,7 @@ import { SalesInvoice, SalesInvoiceStatus } from '../../entities/sales-invoices.
 import { SalesInvoiceItem } from '../../entities/sales-invoice-items.entity';
 import { SalesInvoiceItemStockAllocation } from '../../entities/sales-invoice-item-stock-allocations.entity';
 import { SalesReturnItem } from '../../entities/sales-return-items.entity';
-import { SalesReturnStatus } from '../../entities/sales-return.entity';
+import { SalesReturn, SalesReturnStatus } from '../../entities/sales-return.entity';
 import { SystemSetting } from '../../entities/system-setting.entity';
 import { OperatingCost } from '../../entities/operating-costs.entity';
 import { Season } from '../../entities/season.entity';
@@ -74,6 +74,8 @@ import {
   ReceiptTaxEditPlan,
 } from './receipt-tax-edit-plan';
 import { taxableQuantityForBorrowReturn } from './borrow-tax-return';
+import { saleTaxQuantityForStorage } from '../sales/invoice-stock-restoration-plan';
+import { planReceiptTaxBackfill } from './receipt-tax-backfill';
 import {
   adjustmentBatchTaxSnapshotMatches,
   validateAdjustmentStockAllocations,
@@ -4575,6 +4577,75 @@ export class InventoryService {
     );
   }
 
+  /** Cập nhật snapshot thuế của hóa đơn còn hiệu lực từ toàn bộ lô đã phân bổ. */
+  private async syncSoldInvoiceTaxSnapshotsForReceiptItem(
+    receiptItemId: number,
+    runner: QueryRunner,
+    syncTaxQuantity = false,
+  ): Promise<void> {
+    const manager = runner.manager;
+    const sourceAllocations = await manager.find(SalesInvoiceItemStockAllocation, {
+      where: { receipt_item_id: receiptItemId },
+    });
+    const itemIds = [...new Set(sourceAllocations.map((row) => Number(row.sales_invoice_item_id)))].sort((a, b) => a - b);
+    for (const salesItemId of itemIds) {
+      const salesItem = await manager.findOne(SalesInvoiceItem, { where: { id: salesItemId } });
+      if (!salesItem) throw new BadRequestException(`Thiếu dòng hóa đơn bán #${salesItemId} để đồng bộ thuế.`);
+      const invoice = await manager.findOne(SalesInvoice, { where: { id: salesItem.invoice_id } });
+      if (!invoice) throw new BadRequestException(`Thiếu hóa đơn bán #${salesItem.invoice_id} để đồng bộ thuế.`);
+      if (invoice.status !== SalesInvoiceStatus.CONFIRMED && invoice.status !== SalesInvoiceStatus.PAID) continue;
+      const allocations = await manager.find(SalesInvoiceItemStockAllocation, {
+        where: { sales_invoice_item_id: salesItemId },
+        relations: ['receipt_item', 'inventory_batch', 'inventory_batch.receipt_item'],
+      });
+      const factor = Number(salesItem.conversion_factor ?? 1);
+      const baseQuantity = Number(salesItem.base_quantity ?? Number(salesItem.quantity) * factor);
+      const product = await manager.findOne(Product, { where: { id: salesItem.product_id } });
+      if (!product || !Number.isFinite(factor) || factor <= 0 || !Number.isFinite(baseQuantity) || baseQuantity <= 0 || !allocations.length) {
+        throw new BadRequestException(`Dòng hóa đơn #${salesItemId} thiếu dữ liệu nguồn để đồng bộ GBKT.`);
+      }
+      let allocatedQuantity = 0;
+      let taxableQuantity = 0;
+      let taxableAmount = 0;
+      for (const allocation of allocations) {
+        const quantity = Number(allocation.quantity);
+        const tax = Number(allocation.taxable_quantity);
+        if (allocation.taxable_quantity == null || !Number.isFinite(quantity) || quantity <= 0 ||
+            !Number.isFinite(tax) || tax < 0 || tax > quantity + 0.00005 ||
+            Number(allocation.product_id) !== Number(salesItem.product_id) ||
+            Number(allocation.invoice_id) !== Number(salesItem.invoice_id)) {
+          throw new BadRequestException(`Phân bổ lô #${allocation.id} không khớp dòng bán #${salesItemId}.`);
+        }
+        const receipt = allocation.receipt_item || allocation.inventory_batch?.receipt_item;
+        if (receipt && (Number(receipt.product_id) !== Number(salesItem.product_id) ||
+            (allocation.receipt_item_id && Number(allocation.receipt_item_id) !== Number(receipt.id)) ||
+            (allocation.inventory_batch?.receipt_item_id && Number(allocation.inventory_batch.receipt_item_id) !== Number(receipt.id)))) {
+          throw new BadRequestException(`Phiếu nhập nguồn của phân bổ #${allocation.id} không khớp lô bán.`);
+        }
+        const receiptFactor = Number(receipt?.conversion_factor ?? 1);
+        const receiptPrice = Number(receipt?.tax_selling_price || 0);
+        const productPrice = Number(product.tax_selling_price || 0);
+        const basePrice = receiptPrice > 0 && receiptFactor > 0 ? receiptPrice / receiptFactor : productPrice;
+        if (tax > 0 && (!Number.isFinite(basePrice) || basePrice <= 0)) {
+          throw new BadRequestException(`Dòng hóa đơn #${salesItemId} có hàng chịu thuế nhưng thiếu GBKT của lô.`);
+        }
+        allocatedQuantity += quantity;
+        taxableQuantity += tax;
+        taxableAmount += tax * basePrice;
+      }
+      if (Math.abs(allocatedQuantity - baseQuantity) > 0.00005) {
+        throw new BadRequestException(`Phân bổ lô của dòng hóa đơn #${salesItemId} không đủ số lượng bán.`);
+      }
+      const storedPrice = taxableQuantity > 0
+        ? this.roundMoney(taxableAmount / taxableQuantity * factor).toString() : '0';
+      const snapshotUpdate: Partial<SalesInvoiceItem> = { tax_selling_price: storedPrice };
+      if (syncTaxQuantity) {
+        snapshotUpdate.taxable_quantity = saleTaxQuantityForStorage(taxableQuantity, factor);
+      }
+      await manager.update(SalesInvoiceItem, salesItemId, snapshotUpdate);
+    }
+  }
+
   private async syncInvoiceCostSnapshotFromAllocations(
     invoiceId: number,
     queryRunner?: QueryRunner,
@@ -5188,8 +5259,9 @@ export class InventoryService {
           : Number(item.tax_selling_price || 0),
     });
 
-    if (receipt?.status === ReceiptStatus.APPROVED && updateData.unit_cost !== undefined) {
-      // Giá nhập, lô kho và giá vốn hóa đơn phải cùng commit hoặc cùng rollback.
+    if (receipt?.status === ReceiptStatus.APPROVED &&
+        (updateData.unit_cost !== undefined || updateData.tax_selling_price !== undefined)) {
+      // Giá nhập/thuế và snapshot hóa đơn phải cùng commit hoặc cùng rollback.
       await this.withStockTransaction(async (runner) => {
         const manager = runner.manager;
         const lockedReceipt = await manager.findOne(InventoryReceipt, {
@@ -5221,10 +5293,15 @@ export class InventoryService {
           if (updateData.vat_unit_cost !== undefined) {
             await this.recalculateAverageVatInputCost(lockedItem.product_id, runner);
           }
+          if (updateData.tax_selling_price !== undefined) {
+            await this.syncSoldInvoiceTaxSnapshotsForReceiptItem(id, runner);
+          }
         }
-        await this.recalculateApprovedReceiptShipping(item.receipt_id, runner);
-        await this.recalculateReceiptFinance(item.receipt_id, runner);
-        await this.recalculateAverageCostPriceFromValidReceipts(item.product_id, runner);
+        if (updateData.unit_cost !== undefined) {
+          await this.recalculateApprovedReceiptShipping(item.receipt_id, runner);
+          await this.recalculateReceiptFinance(item.receipt_id, runner);
+          await this.recalculateAverageCostPriceFromValidReceipts(item.product_id, runner);
+        }
       });
       return this.inventoryReceiptItemRepository.findOne({
         where: { id }, relations: ['product', 'receipt'],
@@ -5260,6 +5337,214 @@ export class InventoryService {
       where: { id },
       relations: ['product', 'receipt'],
     });
+  }
+
+  /** Đối soát lô đã xuất và cập nhật thuế bán/trả trong cùng giao dịch. */
+  private async backfillSoldReceiptTax(
+    item: InventoryReceiptItem,
+    requestedTax: number,
+    runner: QueryRunner,
+  ): Promise<void> {
+    const manager = runner.manager;
+    const product = await manager.findOne(Product, { where: { id: item.product_id } });
+    const batches = await manager.find(InventoryBatch, { where: { receipt_item_id: item.id } });
+    const originalBatches = batches.filter((row) => row.code?.startsWith('LOT-') && row.code === item.batch_number);
+    const batch = originalBatches[0];
+    const factor = Number(item.conversion_factor ?? 1);
+    const originalQuantity = Number(item.quantity) * factor;
+    if (!product || originalBatches.length !== 1 || !batch || batch.product_id !== item.product_id ||
+        !Number.isFinite(factor) || factor <= 0 ||
+        (item.base_quantity != null && Math.abs(Number(item.base_quantity) - originalQuantity) > 0.00005) ||
+        Math.abs(Number(batch.original_quantity) - originalQuantity) > 0.00005) {
+      throw new BadRequestException('Lô nhập thiếu nguồn gốc duy nhất để đồng bộ thuế đã bán; cần đối soát riêng.');
+    }
+    if (batch.taxable_remaining_quantity == null || product.taxable_quantity_stock == null) {
+      throw new BadRequestException('Lô hoặc sản phẩm thiếu snapshot tồn thuế; cần đối soát trước khi sửa.');
+    }
+    const origin = await manager.query(
+      "SELECT id FROM inventory_transactions WHERE product_id=$1 AND receipt_item_id=$2 AND type='IN' AND reference_type='STOCK_IN' AND reference_id=$3 AND quantity=$4 AND deleted_at IS NULL",
+      [item.product_id, item.id, batch.id, originalQuantity],
+    );
+    if (origin.length !== 1) {
+      throw new BadRequestException('Giao dịch nhập gốc của lô không duy nhất; cần đối soát trước khi sửa thuế.');
+    }
+    const unexplained = await manager.query(
+      "SELECT id FROM inventory_transactions WHERE product_id=$1 AND receipt_item_id=$2 AND deleted_at IS NULL AND (reference_type IS NULL OR reference_type NOT IN ('STOCK_IN','SALE','SALES_RETURN')) LIMIT 1",
+      [item.product_id, item.id],
+    );
+    if (unexplained.length) {
+      throw new BadRequestException('Lô còn phát sinh nghiệp vụ kho khác bán/trả hàng; cần đối soát riêng.');
+    }
+
+    const sourceAllocations = await manager.find(SalesInvoiceItemStockAllocation, {
+      where: [{ receipt_item_id: item.id }, { inventory_batch_id: batch.id }],
+      order: { id: 'ASC' },
+    });
+    if (!sourceAllocations.length || sourceAllocations.some((allocation) =>
+      Number(allocation.inventory_batch_id) !== Number(batch.id) ||
+      Number(allocation.receipt_item_id) !== Number(item.id) ||
+      Number(allocation.product_id) !== Number(item.product_id) ||
+      allocation.taxable_quantity == null)) {
+      throw new BadRequestException('Phân bổ bán của lô thiếu hoặc không khớp nguồn nhập; cần đối soát.');
+    }
+    const invoiceItemIds = [...new Set(sourceAllocations.map((row) => Number(row.sales_invoice_item_id)))];
+    const invoiceIds = [...new Set(sourceAllocations.map((row) => Number(row.invoice_id)))];
+    const [invoiceItems, invoices, approvedReturns, productBatches] = await Promise.all([
+      manager.find(SalesInvoiceItem, { where: { id: In(invoiceItemIds) } }),
+      manager.find(SalesInvoice, { where: { id: In(invoiceIds) } }),
+      manager.find(SalesReturn, {
+        where: { invoice_id: In(invoiceIds), status: SalesReturnStatus.APPROVED },
+        relations: ['items'],
+      }),
+      manager.find(InventoryBatch, { where: { product_id: item.product_id } }),
+    ]);
+    const invoiceItemMap = new Map(invoiceItems.map((row) => [Number(row.id), row]));
+    const invoiceMap = new Map(invoices.map((row) => [Number(row.id), row]));
+    for (const allocation of sourceAllocations) {
+      const invoiceItem = invoiceItemMap.get(Number(allocation.sales_invoice_item_id));
+      const invoice = invoiceMap.get(Number(allocation.invoice_id));
+      if (!invoiceItem || !invoice || invoiceItem.invoice_id !== invoice.id ||
+          invoiceItem.product_id !== item.product_id ||
+          (invoice.status !== SalesInvoiceStatus.CONFIRMED && invoice.status !== SalesInvoiceStatus.PAID)) {
+        throw new BadRequestException('Lô có hóa đơn hủy/hoàn toàn bộ hoặc thiếu dòng bán nguồn; cần đối soát riêng.');
+      }
+    }
+    if (productBatches.some((row) => row.remaining_quantity == null ||
+        (Number(row.remaining_quantity) > 0 && row.taxable_remaining_quantity == null)) ||
+        Math.abs(productBatches.reduce((sum, row) => sum + Number(row.remaining_quantity || 0), 0) - Number(product.quantity)) > 0.00005 ||
+        Math.abs(productBatches.reduce((sum, row) => sum + Number(row.taxable_remaining_quantity || 0), 0) - Number(product.taxable_quantity_stock || 0)) > 0.00005) {
+      throw new BadRequestException('Tồn kho hoặc tồn thuế sản phẩm không khớp các lô; cần đối soát.');
+    }
+    for (const invoiceId of invoiceIds) {
+      const [transactions, allocations] = await Promise.all([
+        manager.find(InventoryTransaction, { where: { product_id: item.product_id, type: 'OUT', reference_type: 'SALE', reference_id: invoiceId } }),
+        manager.find(SalesInvoiceItemStockAllocation, { where: { product_id: item.product_id, invoice_id: invoiceId } }),
+      ]);
+      const moved = transactions.reduce((sum, row) => sum - Number(row.quantity), 0);
+      const allocated = allocations.reduce((sum, row) => sum + Number(row.quantity), 0);
+      if (!transactions.length || Math.abs(moved - allocated) > 0.00005) {
+        throw new BadRequestException(`Hóa đơn #${invoiceId} có xuất kho và phân bổ lô không khớp; cần đối soát.`);
+      }
+      for (const saleItem of invoiceItems.filter((row) => Number(row.invoice_id) === invoiceId)) {
+        const sources = allocations.filter((row) => Number(row.sales_invoice_item_id) === Number(saleItem.id));
+        const factor = Number(saleItem.conversion_factor ?? 1);
+        const expectedQuantity = Number(saleItem.base_quantity ?? Number(saleItem.quantity) * factor);
+        const sourceQuantity = sources.reduce((sum, row) => sum + Number(row.quantity), 0);
+        const sourceTax = sources.reduce((sum, row) => sum + Number(row.taxable_quantity), 0);
+        const storedTax = Number(saleItem.taxable_quantity);
+        if (!sources.length || sources.some((row) => row.taxable_quantity == null) ||
+            !Number.isFinite(factor) || factor <= 0 || !Number.isFinite(storedTax) ||
+            Math.abs(sourceQuantity - expectedQuantity) > 0.00005 ||
+            (Math.abs(storedTax * factor - sourceTax) > 0.00005 &&
+              Math.abs(storedTax - sourceTax) > 0.00005)) {
+          throw new BadRequestException(`Dòng bán #${saleItem.id} có snapshot thuế không khớp phân bổ lô; cần đối soát.`);
+        }
+      }
+    }
+
+    const returnRows: Array<{
+      returnItemId: number; salesInvoiceItemId: number; batchId: number;
+      quantity: number; taxableQuantity: number; createdAt: Date; snapshotIndex: number;
+    }> = [];
+    const returnItemMap = new Map<number, SalesReturnItem>();
+    for (const header of approvedReturns) {
+      for (const returned of header.items || []) {
+        if (Number(returned.product_id) !== Number(item.product_id)) continue;
+        const snapshots = returned.stock_allocations;
+        if (!Array.isArray(snapshots) || !snapshots.length) {
+          throw new BadRequestException(`Phiếu trả #${header.id} thiếu phân bổ lô; cần đối soát trước khi sửa thuế.`);
+        }
+        const related = snapshots.some((snapshot) => Number(snapshot.sourceBatchId) === Number(batch.id) ||
+          Number(snapshot.sourceReceiptItemId) === Number(item.id));
+        if (!related) continue;
+        const candidates = sourceAllocations.filter((row) => Number(row.invoice_id) === Number(header.invoice_id));
+        const saleItemId = returned.sales_invoice_item_id
+          ? Number(returned.sales_invoice_item_id)
+          : candidates.length === 1 ? Number(candidates[0]!.sales_invoice_item_id) : 0;
+        if (!invoiceItemMap.has(saleItemId)) {
+          throw new BadRequestException(`Phiếu trả #${header.id} không xác định duy nhất dòng bán của lô.`);
+        }
+        returnItemMap.set(returned.id, returned);
+        snapshots.forEach((snapshot, snapshotIndex) => {
+          const matchesBatch = Number(snapshot.sourceBatchId) === Number(batch.id);
+          const matchesReceipt = Number(snapshot.sourceReceiptItemId) === Number(item.id);
+          if (!matchesBatch && !matchesReceipt) return;
+          if (snapshot.taxableQuantity == null ||
+              (snapshot.sourceBatchId && !matchesBatch) || (snapshot.sourceReceiptItemId && !matchesReceipt)) {
+            throw new BadRequestException(`Phiếu trả #${header.id} có nguồn lô không khớp.`);
+          }
+          returnRows.push({
+            returnItemId: returned.id,
+            salesInvoiceItemId: saleItemId,
+            batchId: Number(snapshot.batchId),
+            quantity: Number(snapshot.quantity),
+            taxableQuantity: Number(snapshot.taxableQuantity),
+            createdAt: header.created_at,
+            snapshotIndex,
+          });
+        });
+      }
+    }
+    const plan = planReceiptTaxBackfill({
+      sourceBatchId: batch.id,
+      originalQuantity,
+      remainingQuantity: Number(batch.remaining_quantity),
+      oldReceiptTax: Number(item.taxable_quantity || 0) * factor,
+      newReceiptTax: requestedTax * factor,
+      oldSourceBatchTax: Number(batch.taxable_remaining_quantity),
+      sales: sourceAllocations.map((row) => ({
+        id: row.id,
+        salesInvoiceItemId: Number(row.sales_invoice_item_id),
+        quantity: Number(row.quantity),
+        taxableQuantity: Number(row.taxable_quantity),
+        createdAt: row.created_at,
+      })),
+      returns: returnRows,
+    });
+    if (plan.sourceBatchTax < 0 || plan.sourceBatchTax > Number(batch.remaining_quantity) + 0.00005) {
+      throw new BadRequestException('Tồn thuế mới của lô vượt tồn hàng; cần đối soát.');
+    }
+    const changedBatchTaxes = new Map<number, number>([[batch.id, plan.sourceBatchTax]]);
+    for (const [batchId, delta] of plan.returnBatchTaxDeltas) {
+      const returnedBatch = productBatches.find((row) => Number(row.id) === batchId);
+      const oldReturns = returnRows.filter((row) => row.batchId === batchId);
+      if (!returnedBatch || batchId === batch.id ||
+          Number(returnedBatch.receipt_item_id) !== Number(item.id) ||
+          !returnedBatch.code?.startsWith('RETURN-') ||
+          Math.abs(Number(returnedBatch.remaining_quantity) - Number(returnedBatch.original_quantity)) > 0.00005 ||
+          Math.abs(Number(returnedBatch.taxable_remaining_quantity) - oldReturns.reduce((sum, row) => sum + row.taxableQuantity, 0)) > 0.00005 ||
+          Math.abs(Number(returnedBatch.original_quantity) - oldReturns.reduce((sum, row) => sum + row.quantity, 0)) > 0.00005) {
+        throw new BadRequestException(`Lô hoàn #${batchId} đã biến động hoặc thiếu snapshot; cần đối soát riêng.`);
+      }
+      const newTax = Number(returnedBatch.taxable_remaining_quantity) + delta;
+      if (newTax < 0 || newTax > Number(returnedBatch.remaining_quantity) + 0.00005) {
+        throw new BadRequestException(`Tồn thuế lô hoàn #${batchId} không hợp lệ.`);
+      }
+      changedBatchTaxes.set(batchId, newTax);
+    }
+    const taxDelta = [...changedBatchTaxes].reduce((sum, [batchId, newTax]) => {
+      const current = productBatches.find((row) => Number(row.id) === batchId)!;
+      return sum + newTax - Number(current.taxable_remaining_quantity);
+    }, 0);
+    const currentTaxUnits = this.taxQuantityUnits(product.taxable_quantity_stock ?? 0);
+    const deltaUnits = this.taxQuantityUnits(Number(taxDelta.toFixed(4)));
+    const newProductTax = this.productTaxStockFromUnits(item.product_id,
+      currentTaxUnits === undefined || deltaUnits === undefined ? undefined : currentTaxUnits + deltaUnits);
+
+    for (const sale of plan.sales) {
+      await manager.update(SalesInvoiceItemStockAllocation, sale.id, { taxable_quantity: sale.taxableQuantity });
+    }
+    for (const returned of plan.returns) {
+      const row = returnItemMap.get(returned.returnItemId)!;
+      row.stock_allocations![returned.snapshotIndex]!.taxableQuantity = returned.taxableQuantity;
+    }
+    for (const row of returnItemMap.values()) {
+      await manager.update(SalesReturnItem, row.id, { stock_allocations: row.stock_allocations! });
+    }
+    for (const [batchId, newTax] of changedBatchTaxes) {
+      await manager.update(InventoryBatch, batchId, { taxable_remaining_quantity: newTax });
+    }
+    await manager.update(Product, item.product_id, { taxable_quantity_stock: newProductTax });
   }
 
   private async updateReceiptItemTaxQuantity(
@@ -5318,6 +5603,7 @@ export class InventoryService {
         );
       }
       this.validateReceiptItemTaxData({ ...item, ...updateData });
+      let soldTaxBackfilled = false;
       if (wasApproved && requestedTax !== Number(item.taxable_quantity || 0)) {
         await manager.query(
           'SELECT id FROM inventories WHERE receipt_item_id=$1 ORDER BY id FOR UPDATE',
@@ -5328,19 +5614,22 @@ export class InventoryService {
           requestedTax,
         ])) as ReceiptTaxEditPlan[];
         if (!plan) {
-          throw new BadRequestException(
-            'Không thể sửa số lượng thuế: lô đã phát sinh xuất/hoàn hoặc dữ liệu nguồn, số dư chưa đủ căn cứ. Cần đối soát riêng.',
-          );
+          await this.backfillSoldReceiptTax(item, requestedTax, runner);
+          soldTaxBackfilled = true;
+        } else {
+          await manager.update(InventoryBatch, plan.batch_id, {
+            taxable_remaining_quantity: Number(plan.new_batch_tax),
+          });
+          await manager.update(Product, item.product_id, {
+            taxable_quantity_stock: Number(plan.new_product_tax),
+          });
         }
-        await manager.update(InventoryBatch, plan.batch_id, {
-          taxable_remaining_quantity: Number(plan.new_batch_tax),
-        });
-        await manager.update(Product, item.product_id, {
-          taxable_quantity_stock: Number(plan.new_product_tax),
-        });
       }
       await this.logReceiptItemChanges(item, updateData, userId, runner);
       await manager.update(InventoryReceiptItem, item.id, updateData);
+      if (wasApproved && (soldTaxBackfilled || updateData.tax_selling_price !== undefined)) {
+        await this.syncSoldInvoiceTaxSnapshotsForReceiptItem(item.id, runner, soldTaxBackfilled);
+      }
       if (wasApproved)
         await this.recalculateAverageVatInputCost(item.product_id, runner);
       const updatedItem = await manager.findOne(InventoryReceiptItem, {
