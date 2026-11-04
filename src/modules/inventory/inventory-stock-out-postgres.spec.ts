@@ -58,7 +58,8 @@ describePostgres(
       await databaseRunner.query(`
       CREATE TEMP TABLE ${tables.products} (
         id integer PRIMARY KEY, quantity numeric NOT NULL,
-        taxable_quantity_stock numeric NOT NULL, average_cost_price numeric NOT NULL
+        taxable_quantity_stock numeric NOT NULL, average_cost_price numeric NOT NULL,
+        tax_selling_price numeric NOT NULL DEFAULT 0
       );
       CREATE TEMP TABLE ${tables.batches} (
         id integer PRIMARY KEY, product_id integer NOT NULL, receipt_item_id integer,
@@ -115,6 +116,7 @@ describePostgres(
                 quantity: Number(row.quantity),
                 taxable_quantity_stock: Number(row.taxable_quantity_stock),
                 average_cost_price: String(row.average_cost_price),
+                tax_selling_price: String(row.tax_selling_price),
               })
             : null;
         },
@@ -240,7 +242,7 @@ describePostgres(
 
     it('deducts non-taxable units first within the same lot and keeps product and lot tax aligned', async () => {
       await databaseRunner.query(`
-      INSERT INTO ${tables.products} VALUES (1,10,6,5);
+      INSERT INTO ${tables.products} (id,quantity,taxable_quantity_stock,average_cost_price) VALUES (1,10,6,5);
       INSERT INTO ${tables.receipts} VALUES (11,6,1,20);
       INSERT INTO ${tables.batches} VALUES
         (21,1,11,10,10,6,5,'2026-01-01T00:00:00Z');
@@ -289,9 +291,34 @@ describePostgres(
       ]);
     });
 
+    it('uses current product GBKT when selling taxable stock from an old receipt without a receipt GBKT', async () => {
+      await databaseRunner.query(`
+      INSERT INTO ${tables.products} (id,quantity,taxable_quantity_stock,average_cost_price,tax_selling_price)
+      VALUES (1,4,4,5,42);
+      INSERT INTO ${tables.receipts} VALUES (11,4,1,0);
+      INSERT INTO ${tables.batches} VALUES
+        (21,1,11,4,4,4,5,'2026-01-01T00:00:00Z');
+    `);
+      const { service, runner } = await serviceForStockOut();
+
+      const result = await service.processStockOut(
+        1,
+        2,
+        'SALE',
+        9,
+        102,
+        'Test DEV legacy receipt without GBKT',
+        runner,
+        { requireBatchTaxSnapshot: true },
+      );
+
+      expect(result.taxableQuantity).toBe(2);
+      expect(result.taxSellingPrice).toBe(42);
+    });
+
     it('deducts taxable source-lot stock across four 250ml mixture runs', async () => {
       await databaseRunner.query(`
-      INSERT INTO ${tables.products} VALUES (1,1000,1000,5);
+      INSERT INTO ${tables.products} (id,quantity,taxable_quantity_stock,average_cost_price) VALUES (1,1000,1000,5);
       INSERT INTO ${tables.receipts} VALUES (11,2,500,20);
       INSERT INTO ${tables.batches} VALUES
         (21,1,11,1000,1000,NULL,5,'2026-01-01T00:00:00Z');
@@ -349,7 +376,7 @@ describePostgres(
 
     it('blocks a sale instead of estimating tax when a lot has no snapshot or receipt source', async () => {
       await databaseRunner.query(`
-      INSERT INTO ${tables.products} VALUES (1,10,5,5);
+      INSERT INTO ${tables.products} (id,quantity,taxable_quantity_stock,average_cost_price) VALUES (1,10,5,5);
       INSERT INTO ${tables.batches} VALUES
         (21,1,NULL,10,10,NULL,5,'2026-01-01T00:00:00Z');
     `);
@@ -386,7 +413,7 @@ describePostgres(
 
     it('consumes an older non-taxable lot before deducting tax from the next FIFO lot', async () => {
       await databaseRunner.query(`
-      INSERT INTO ${tables.products} VALUES (1,10,8,5);
+      INSERT INTO ${tables.products} (id,quantity,taxable_quantity_stock,average_cost_price) VALUES (1,10,8,5);
       INSERT INTO ${tables.receipts} VALUES (11,0,1,0),(12,8,1,20);
       INSERT INTO ${tables.batches} VALUES
         (21,1,11,2,2,0,5,'2026-01-01T00:00:00Z'),
@@ -438,7 +465,7 @@ describePostgres(
 
     it('keeps a zero-tax orphan cancellation lot separate from tax in other FIFO lots', async () => {
       await databaseRunner.query(`
-      INSERT INTO ${tables.products} VALUES (1,10,5,5);
+      INSERT INTO ${tables.products} (id,quantity,taxable_quantity_stock,average_cost_price) VALUES (1,10,5,5);
       INSERT INTO ${tables.receipts} VALUES (12,5,1,20);
       INSERT INTO ${tables.batches} VALUES
         (21,1,NULL,5,5,0,5,'2026-01-01T00:00:00Z'),
@@ -478,7 +505,7 @@ describePostgres(
 
     it('persists a four-decimal product tax balance across fractional sales', async () => {
       await databaseRunner.query(`
-      INSERT INTO ${tables.products} VALUES (1,1.5,0.75,5);
+      INSERT INTO ${tables.products} (id,quantity,taxable_quantity_stock,average_cost_price) VALUES (1,1.5,0.75,5);
       INSERT INTO ${tables.receipts} VALUES (11,0,1,0),(12,0.75,1,20);
       INSERT INTO ${tables.batches} VALUES
         (21,1,11,0.375,0.375,0,5,'2026-01-01T00:00:00Z'),

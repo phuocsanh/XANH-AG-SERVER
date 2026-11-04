@@ -367,6 +367,20 @@ export class InventoryService {
     );
   }
 
+  /** Lấy GBKT của lô; lô nhập cũ thiếu giá dùng giá sản phẩm tại lúc xuất. */
+  private resolveBatchTaxSellingPriceBaseUnit(
+    receiptItem: InventoryReceiptItem,
+    product: Product | null,
+  ): number {
+    const receiptPrice = Number(receiptItem.tax_selling_price || 0);
+    if (Number.isFinite(receiptPrice) && receiptPrice > 0) {
+      const factor = Number(receiptItem.conversion_factor || 1);
+      return receiptPrice / (factor > 0 ? factor : 1);
+    }
+    const productPrice = Number(product?.tax_selling_price || 0);
+    return Number.isFinite(productPrice) && productPrice > 0 ? productPrice : 0;
+  }
+
   private async planStockOut(
     productId: number,
     quantity: number,
@@ -488,26 +502,14 @@ export class InventoryService {
           Math.max(0, Number(batch.taxable_remaining_quantity)),
         );
         if (receiptItem) {
-          const receiptConversionFactor = Number(receiptItem.conversion_factor || 1);
-          batchTaxSellingPriceBaseUnit =
-            Number(receiptItem.tax_selling_price || 0) > 0
-              ? Number(receiptItem.tax_selling_price || 0) /
-                (receiptConversionFactor > 0 ? receiptConversionFactor : 1)
-              : 0;
+          batchTaxSellingPriceBaseUnit = this.resolveBatchTaxSellingPriceBaseUnit(receiptItem, product);
         }
       } else if (receiptItem) {
         batchTaxableRemaining = this.calculateBatchTaxableRemaining(
           batch,
           receiptItemsMap,
         );
-        const receiptConversionFactor = Number(
-          receiptItem.conversion_factor || 1,
-        );
-        batchTaxSellingPriceBaseUnit =
-          Number(receiptItem.tax_selling_price || 0) > 0
-            ? Number(receiptItem.tax_selling_price || 0) /
-              (receiptConversionFactor > 0 ? receiptConversionFactor : 1)
-            : 0;
+        batchTaxSellingPriceBaseUnit = this.resolveBatchTaxSellingPriceBaseUnit(receiptItem, product);
       } else {
         const taxableRatio =
           currentInventory.totalQuantity > 0
@@ -2307,14 +2309,10 @@ export class InventoryService {
           Math.max(0, Number(batch.taxable_remaining_quantity)),
         );
         if (receiptItem) {
-          const receiptConversionFactor = Number(
-            receiptItem.conversion_factor || 1,
+          batchTaxSellingPriceBaseUnit = this.resolveBatchTaxSellingPriceBaseUnit(
+            receiptItem,
+            referenceType === 'SALE' ? product : null,
           );
-          batchTaxSellingPriceBaseUnit =
-            Number(receiptItem.tax_selling_price || 0) > 0
-              ? Number(receiptItem.tax_selling_price || 0) /
-                (receiptConversionFactor > 0 ? receiptConversionFactor : 1)
-              : 0;
         }
       } else if (receiptItem) {
         // Nếu lô này có thông tin từ phiếu nhập
@@ -2337,11 +2335,10 @@ export class InventoryService {
         );
         batchTaxableRemaining =
           Number(batch.remaining_quantity) - nonTaxableRemaining;
-        batchTaxSellingPriceBaseUnit =
-          Number(receiptItem.tax_selling_price || 0) > 0
-            ? Number(receiptItem.tax_selling_price || 0) /
-              (receiptConversionFactor > 0 ? receiptConversionFactor : 1)
-            : 0;
+        batchTaxSellingPriceBaseUnit = this.resolveBatchTaxSellingPriceBaseUnit(
+          receiptItem,
+          referenceType === 'SALE' ? product : null,
+        );
       } else {
         // Nếu lô hàng không có phiếu nhập (ví dụ hàng tồn cũ),
         // tạm thời coi tỷ lệ thuế dựa trên bể thuế hiện tại của sản phẩm so với tồn kho (logic fallback)

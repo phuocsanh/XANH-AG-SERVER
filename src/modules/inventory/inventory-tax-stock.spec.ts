@@ -562,6 +562,46 @@ describe('Inventory stock mutations', () => {
     expect(preview.items[0]!.taxableQuantity).toBe(result.taxableQuantity);
   });
 
+  it('uses current product GBKT for a sale from an old taxable receipt without GBKT', async () => {
+    const h = harness();
+    h.receipts[0] = receipt(1, 1, 1, 10);
+    h.receipts[0]!.tax_selling_price = 0;
+    h.product.tax_selling_price = '42';
+    h.product.quantity = 10;
+    h.product.taxable_quantity_stock = 10;
+    Object.assign(h.batches[0]!, {
+      original_quantity: 10,
+      remaining_quantity: 10,
+      taxable_remaining_quantity: 10,
+    });
+
+    const [preview] = (await h.service.previewStockOutItems([
+      { productId: 1, quantity: 2 },
+    ])).items;
+    const result = await h.service.processStockOut(1, 2, 'SALE', 1);
+
+    expect(preview).toMatchObject({ taxableQuantity: 2, taxSellingPrice: 42 });
+    expect(result).toMatchObject({ taxableQuantity: 2, taxSellingPrice: 42 });
+    expect(h.receipts[0]!.tax_selling_price).toBe(0);
+  });
+
+  it('preserves the receipt GBKT when it is available', async () => {
+    const h = harness();
+    h.receipts[0] = receipt(1, 1, 1, 10);
+    h.product.tax_selling_price = '42';
+    h.product.quantity = 10;
+    h.product.taxable_quantity_stock = 10;
+    Object.assign(h.batches[0]!, {
+      original_quantity: 10,
+      remaining_quantity: 10,
+      taxable_remaining_quantity: 10,
+    });
+
+    const result = await h.service.processStockOut(1, 2, 'SALE', 1);
+
+    expect(result.taxSellingPrice).toBe(20);
+  });
+
   it('sells non-taxable units before taxable units within a mixed FIFO batch', async () => {
     const h = harness();
     h.product.quantity = 10;
