@@ -1,4 +1,5 @@
-import { IsOptional, IsString, IsNumber, IsDateString } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsDateString, IsArray, IsInt, Min } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { BaseSearchDto } from '../../../common/dto/base-search.dto';
 
@@ -6,6 +7,8 @@ export class SearchInventoryDto extends BaseSearchDto {
   @IsOptional() @Type(() => Number) id?: number;
   @IsString() @IsOptional() code?: string; // batch code
   @IsNumber() @IsOptional() @Type(() => Number) product_id?: number;
+  @ApiPropertyOptional({ type: [Number], description: 'Danh sách ID sản phẩm trong phiếu nhập' })
+  @IsOptional() @IsArray() @IsInt({ each: true }) @Min(1, { each: true }) @Type(() => Number) product_ids?: number[];
   @IsNumber() @IsOptional() @Type(() => Number) supplier_id?: number;
   
   @IsNumber() @IsOptional() @Type(() => Number) quantity?: number;

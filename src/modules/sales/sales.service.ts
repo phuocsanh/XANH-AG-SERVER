@@ -2702,7 +2702,7 @@ export class SalesService {
       queryBuilder,
       searchDto,
       'invoice',
-      ['filters', 'nested_filters', 'operator', 'sale_date_start', 'sale_date_end', 'start_date', 'end_date'], // Ignore complex fields
+      ['filters', 'nested_filters', 'operator', 'sale_date_start', 'sale_date_end', 'start_date', 'end_date', 'product_ids'], // Ignore complex fields
       {
         customer_name: 'invoice.customer_name',
         customer_phone: 'invoice.customer_phone',
@@ -2710,6 +2710,21 @@ export class SalesService {
         rice_crop_name: 'rice_crop.field_name',
       }
     );
+
+    // Chỉ trả hóa đơn có đủ mọi sản phẩm được chọn, không nhân bản hóa đơn khi phân trang.
+    const selectedProductIds = [...new Set(searchDto.product_ids || [])];
+    if (selectedProductIds.length) {
+      queryBuilder.andWhere(
+        `invoice.id IN (
+          SELECT matched_item.invoice_id FROM sales_invoice_items matched_item
+          WHERE matched_item.product_id IN (:...selectedProductIds)
+            AND matched_item.deleted_at IS NULL
+          GROUP BY matched_item.invoice_id
+          HAVING COUNT(DISTINCT matched_item.product_id) = :selectedProductCount
+        )`,
+        { selectedProductIds, selectedProductCount: selectedProductIds.length },
+      );
+    }
 
     // Thực hiện truy vấn
     const [data, total] = await queryBuilder.getManyAndCount();

@@ -3,11 +3,23 @@ import {
   IsNumber,
   IsString,
   IsDateString,
+  IsArray,
+  IsInt,
+  Min,
 } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { BaseSearchDto } from '../../../common/dto/base-search.dto';
 
 export class SearchSalesDto extends BaseSearchDto {
+  @ApiPropertyOptional({ type: [Number], description: 'Danh sách ID sản phẩm trong hóa đơn bán hàng' })
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  @Min(1, { each: true })
+  @Type(() => Number)
+  product_ids?: number[];
+
   // --- Core Fields ---
   @IsOptional()
   @Type(() => Number)
