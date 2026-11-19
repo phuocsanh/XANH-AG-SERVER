@@ -3545,7 +3545,7 @@ export class InventoryService {
   }> {
     const queryBuilder =
       this.inventoryReceiptRepository.createQueryBuilder('receipt');
-    const { payment_status, start_date, end_date, ...baseSearchDto } = searchDto;
+    const { payment_status, product_id, start_date, end_date, ...baseSearchDto } = searchDto;
 
     queryBuilder.leftJoinAndSelect('receipt.supplier', 'supplier');
     queryBuilder.leftJoinAndSelect('receipt.creator', 'creator');
@@ -3592,6 +3592,19 @@ export class InventoryService {
         creator_account: 'creator.account',
       },
     );
+
+    // Lọc phiếu có sản phẩm được chọn, giữ nguyên toàn bộ dòng hàng của phiếu.
+    if (product_id) {
+      queryBuilder.andWhere(
+        `EXISTS (
+          SELECT 1 FROM inventory_receipt_items matched_item
+          WHERE matched_item.receipt_id = receipt.id
+            AND matched_item.product_id = :product_id
+            AND matched_item.deleted_at IS NULL
+        )`,
+        { product_id },
+      );
+    }
 
     if (payment_status) {
       const payableAmountExpr =
@@ -3645,6 +3658,7 @@ export class InventoryService {
 
     const {
       payment_status,
+      product_id,
       start_date,
       end_date,
       page,
@@ -3702,6 +3716,19 @@ export class InventoryService {
         creator_account: 'creator.account',
       },
     );
+
+    // Xuất đầy đủ các dòng hàng của phiếu khớp sản phẩm được chọn.
+    if (product_id) {
+      queryBuilder.andWhere(
+        `EXISTS (
+          SELECT 1 FROM inventory_receipt_items matched_item
+          WHERE matched_item.receipt_id = receipt.id
+            AND matched_item.product_id = :product_id
+            AND matched_item.deleted_at IS NULL
+        )`,
+        { product_id },
+      );
+    }
 
     if (payment_status) {
       const payableAmountExpr =
