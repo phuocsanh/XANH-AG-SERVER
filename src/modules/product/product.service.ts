@@ -71,35 +71,16 @@ export class ProductService extends BaseSearchService<Product> {
   }
 
   /**
-   * Kiểm tra trùng tên sản phẩm và tên thương mại
-   * Chỉ kiểm tra với các sản phẩm chưa bị xóa mềm
-   * @param name - Tên sản phẩm
+   * Kiểm tra trùng tên thương mại
+   * Chỉ kiểm tra tên thương mại với các sản phẩm chưa bị xóa mềm
    * @param tradeName - Tên thương mại
    * @param excludeId - ID sản phẩm cần loại trừ (khi update)
    * @throws ConflictException nếu tìm thấy trùng
    */
-  private async checkDuplicateName(
-    name: string,
+  private async checkDuplicateTradeName(
     tradeName: string | undefined,
     excludeId?: number,
   ): Promise<void> {
-    // Kiểm tra trùng tên sản phẩm
-    const queryName = this.productRepository
-      .createQueryBuilder('product')
-      .where('LOWER(product.name) = LOWER(:name)', { name })
-      .andWhere('product.deleted_at IS NULL');
-
-    if (excludeId) {
-      queryName.andWhere('product.id != :excludeId', { excludeId });
-    }
-
-    const existingByName = await queryName.getOne();
-    if (existingByName) {
-      throw new ConflictException(
-        `Sản phẩm với tên "${name}" đã tồn tại. Vui lòng chọn tên khác.`,
-      );
-    }
-
     // Kiểm tra trùng tên thương mại (nếu có)
     if (tradeName) {
       const queryTradeName = this.productRepository
@@ -163,11 +144,8 @@ export class ProductService extends BaseSearchService<Product> {
    */
   async create(createProductDto: CreateProductDto): Promise<Product> {
     try {
-      // Kiểm tra trùng tên sản phẩm và tên thương mại
-      await this.checkDuplicateName(
-        createProductDto.name,
-        createProductDto.trade_name,
-      );
+      // Tên sản phẩm được phép trùng; tên thương mại phải duy nhất.
+      await this.checkDuplicateTradeName(createProductDto.trade_name);
       this.validateCostingConfig(createProductDto);
 
       // Tạo product mới trực tiếp, bỏ qua Factory pattern vì logic xử lý attributes đã được thống nhất
@@ -212,11 +190,8 @@ export class ProductService extends BaseSearchService<Product> {
     createProductDto: CreateProductDto,
   ): Promise<Product> {
     try {
-      // Kiểm tra trùng tên sản phẩm và tên thương mại
-      await this.checkDuplicateName(
-        createProductDto.name,
-        createProductDto.trade_name,
-      );
+      // Tên sản phẩm được phép trùng; tên thương mại phải duy nhất.
+      await this.checkDuplicateTradeName(createProductDto.trade_name);
       this.validateCostingConfig(createProductDto);
 
       // Tạo sản phẩm
@@ -396,18 +371,9 @@ export class ProductService extends BaseSearchService<Product> {
         throw new Error(`Không tìm thấy sản phẩm với ID: ${id}`);
       }
 
-      // Kiểm tra trùng tên nếu có thay đổi tên hoặc tên thương mại
-      if (
-        updateProductDto.name ||
-        updateProductDto.trade_name !== undefined
-      ) {
-        await this.checkDuplicateName(
-          updateProductDto.name || currentProduct.name,
-          updateProductDto.trade_name !== undefined
-            ? updateProductDto.trade_name
-            : currentProduct.trade_name,
-          id, // Loại trừ sản phẩm hiện tại khi kiểm tra
-        );
+      // Chỉ kiểm tra trùng khi tên thương mại thay đổi.
+      if (updateProductDto.trade_name !== undefined) {
+        await this.checkDuplicateTradeName(updateProductDto.trade_name, id);
       }
 
       this.validateCostingConfig({
