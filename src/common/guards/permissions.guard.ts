@@ -1,5 +1,6 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { RoleCode } from '../enums/role-code.enum';
 
 /**
  * Guard kiểm tra quyền hạn (permissions) của user
@@ -29,17 +30,22 @@ export class PermissionsGuard implements CanActivate {
       throw new ForbiddenException('User not authenticated');
     }
 
-    // Kiểm tra xem user có role và permissions không
-    if (!user.role || !user.role.permissions) {
+    // Kết hợp quyền từ role và quyền được cấp trực tiếp cho user.
+    if (!user.role) {
       throw new ForbiddenException('User has no permissions');
     }
 
-    // Lấy danh sách permission codes của user
-    const userPermissions = user.role.permissions.map((p: any) => p.code);
+    // Super Admin luôn có toàn quyền, kể cả permission mới chưa seed vào role.
+    if (user.role.code === RoleCode.SUPER_ADMIN) return true;
+
+    const userPermissions = new Set<string>([
+      ...(user.role.permissions ?? []).map((permission: { code: string }) => permission.code),
+      ...(user.direct_permissions ?? []).map((permission: { code: string }) => permission.code),
+    ]);
 
     // Kiểm tra xem user có ít nhất một trong các permissions yêu cầu không
     const hasPermission = requiredPermissions.some((permission) =>
-      userPermissions.includes(permission),
+      userPermissions.has(permission),
     );
 
     if (!hasPermission) {

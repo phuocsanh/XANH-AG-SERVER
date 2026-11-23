@@ -5,12 +5,15 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   DeleteDateColumn,
+  OneToMany,
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
 import { BaseStatus } from './base-status.enum';
 import { Role } from './role.entity';
 import { UserProfile } from './user-profiles.entity';
+import { UserPermission } from './user-permission.entity';
+import { Permission } from './permission.entity';
 import { OneToOne } from 'typeorm';
 
 /**
@@ -79,6 +82,13 @@ export class User {
   @ManyToOne(() => Role, (role) => role.users)
   @JoinColumn({ name: 'role_id' })
   role?: Role;
+
+  /** Các quyền được cấp trực tiếp cho user. */
+  @OneToMany(() => UserPermission, (grant) => grant.user)
+  permission_grants?: UserPermission[];
+
+  /** Danh sách permission trực tiếp đã chuẩn hóa để guard và response sử dụng. */
+  direct_permissions?: Permission[];
 
   /** Thông tin profile của user */
   @OneToOne(() => UserProfile, (profile) => profile.user)

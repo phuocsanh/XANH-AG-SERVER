@@ -65,7 +65,20 @@ export class UserController {
   @Get('me')
   @UseGuards(JwtAuthGuard)
   async getMyProfile(@Req() req: any) {
-    return this.userService.findOne(req.user.id);
+    const user = await this.userService.findOneWithPermissions(req.user.id);
+    if (!user) return null;
+    const { password, salt, permission_grants, ...safeUser } = user;
+    const effectivePermissions = [...new Set([
+      ...(user.role?.permissions ?? []).map((permission) => permission.code),
+      ...(user.direct_permissions ?? []).map((permission) => permission.code),
+    ])];
+    return {
+      ...safeUser,
+      user_id: user.id,
+      user_account: user.account,
+      direct_permissions: user.direct_permissions ?? [],
+      effective_permissions: effectivePermissions,
+    };
   }
 
 

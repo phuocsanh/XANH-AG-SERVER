@@ -63,6 +63,7 @@ import { CustomerRewardModule } from './modules/customer-reward/customer-reward.
 import { NewsModule } from './modules/news/news.module';
 import { PromotionCampaignModule } from './modules/promotion-campaign/promotion-campaign.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { RolePermissionModule } from './modules/role-permission/role-permission.module';
 
 
 /**
@@ -161,6 +162,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     NewsModule,
     PromotionCampaignModule,
     DashboardModule,
+    RolePermissionModule,
   ],
   controllers: [SeedController], // Seed controller để seed RBAC qua API
   providers: [

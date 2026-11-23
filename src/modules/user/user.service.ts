@@ -156,10 +156,21 @@ export class UserService {
    * @returns Thông tin người dùng với role và permissions
    */
   async findOneWithPermissions(id: number): Promise<User | null> {
-    return this.userRepository.findOne({
+    const user = await this.userRepository.findOne({
       where: { id, deleted_at: IsNull() },
-      relations: ['role', 'role.permissions', 'user_profile'], // Thêm user_profile để lấy tên
+      relations: [
+        'role',
+        'role.permissions',
+        'user_profile',
+        'permission_grants',
+        'permission_grants.permission',
+      ],
     });
+    if (!user) return null;
+    user.direct_permissions = (user.permission_grants ?? [])
+      .map((grant) => grant.permission)
+      .filter((permission): permission is NonNullable<typeof permission> => Boolean(permission));
+    return user;
   }
 
   /**

@@ -7,6 +7,14 @@ import { ProductController } from './product.controller';
 
 /** Tạo ProductService với repository giả để kiểm tra lưu cờ không tính tích lũy. */
 function createFixture() {
+  const queryBuilder = {
+    where: jest.fn(),
+    andWhere: jest.fn(),
+    getOne: jest.fn().mockResolvedValue(null),
+  };
+  queryBuilder.where.mockReturnValue(queryBuilder);
+  queryBuilder.andWhere.mockReturnValue(queryBuilder);
+
   const currentProduct = Object.assign(new Product(), {
     id: 17,
     name: 'Phân thử nghiệm',
@@ -16,6 +24,7 @@ function createFixture() {
     credit_price: '120',
   });
   const repository = {
+    createQueryBuilder: jest.fn().mockReturnValue(queryBuilder),
     save: jest.fn(async (product: Product) =>
       Object.assign(product, { id: 17 }),
     ),

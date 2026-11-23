@@ -85,6 +85,11 @@ export class AuthService {
         account: fullUser.account,
         status: fullUser.status,
         role: fullUser.role, // Bao gồm role với permissions
+        direct_permissions: fullUser.direct_permissions ?? [],
+        effective_permissions: [...new Set([
+          ...(fullUser.role?.permissions ?? []).map((permission) => permission.code),
+          ...(fullUser.direct_permissions ?? []).map((permission) => permission.code),
+        ])],
         user_profile: (fullUser as any).user_profile, // Thêm profile để lấy tên người dùng
       },
     };
